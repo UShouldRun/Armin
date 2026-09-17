@@ -11,6 +11,7 @@ import (
   "testing"
 
   "armin/internal/agent"
+  "armin/internal/ctags"
   "armin/internal/llm"
   "armin/internal/sandbox"
 )
@@ -39,7 +40,7 @@ func newTestServerWithOllama(t *testing.T, ollamaURL, model string) *Server {
   }
   client := llm.New(ollamaURL, model)
   loop := agent.New(client, sb)
-  return New(loop, sb, "system prompt", "", "")
+  return New(loop, sb, "system prompt", "", ctags.New(root, ""))
 }
 
 // callExecuteCommand invokes s.executeCommand directly rather than

@@ -43,6 +43,20 @@ const hoverContextLines = 6
 // philosophy as the sandbox's output truncation).
 const maxHoverChars = 1500
 
+// citationInstruction is appended to the question for armin.ask
+// only — not hover, whose popup can't render the markup and is
+// already grounded by a ctags fact when possible. It asks the model
+// to ground anything worth flagging (a risk, a doubt, a notable
+// behavior) in its exact location, using a convention the nvim
+// client renders as a jump-to-reference rather than raw brackets.
+const citationInstruction = "\n\n" +
+  "When you flag something worth the user's attention — a risk, a " +
+  "doubt about correctness, a notable or surprising behavior — " +
+  "ground that specific claim in its exact location using the form " +
+  "[[path/to/file.go:123]] (or [[path/to/file.go:120-135]] for a " +
+  "range) right after the claim. Use this only for things actually " +
+  "worth flagging, never for routine file mentions."
+
 // Server is a minimal, single-purpose LSP server: no diagnostics,
 // no go-to-definition beyond ctags — hover, one ask command, and
 // inline completion.
@@ -82,21 +96,23 @@ type inflightEntry struct {
 // a terminal chat. completionModel is a separate, ideally
 // fill-in-the-middle-capable model used only for inline completion;
 // it never goes through loop (no tool calls, no chat formatting —
-// see internal/llm.Client.Complete). ctagsBinary names the
-// Universal Ctags executable backing textDocument/definition,
-// workspace/symbol, and hover grounding; if it's missing, those
-// three degrade gracefully (empty results / plain LLM-only hover)
-// rather than failing the server.
+// see internal/llm.Client.Complete). symbols is the ctags index
+// backing textDocument/definition, workspace/symbol, and hover
+// grounding — cmd/armin/main.go builds one shared *ctags.Index and
+// passes the same one here and into loop.Symbols, so -lsp doesn't
+// scan the repo twice; if no universal-ctags binary was found at
+// startup, those three degrade gracefully (empty results / plain
+// LLM-only hover) rather than failing the server.
 func New(
   loop *agent.Loop, sb *sandbox.Config,
-  systemPrompt, completionModel, ctagsBinary string,
+  systemPrompt, completionModel string, symbols *ctags.Index,
 ) *Server {
   return &Server{
     loop:            loop,
     sandbox:         sb,
     system:          systemPrompt,
     completionModel: completionModel,
-    symbols:         ctags.New(sb.Root, ctagsBinary),
+    symbols:         symbols,
     docs:            make(map[string]string),
     hoverCache:      make(map[string]string),
     inflight:        make(map[string]inflightEntry),
@@ -253,7 +269,7 @@ func (s *Server) hover(
     s.relPath(p.TextDocument.URI), p.Position.Line+1, fact, snippet,
   )
 
-  answer, err := s.ask(ctx, question)
+  answer, err := s.ask(ctx, question, nil, nil)
   if err != nil {
     s.respondAskError(id, err)
     return
@@ -322,13 +338,36 @@ func (s *Server) executeAsk(
       "Currently editing: %s\n\n%s", s.relPath(args.URI), args.Question,
     )
   }
+  question += citationInstruction
 
-  answer, err := s.ask(ctx, question)
+  answer, err := s.ask(ctx, question, s.sendAskToken(id), s.sendAskToolCall(id))
   if err != nil {
     s.respondAskError(id, err)
     return
   }
   s.respond(id, answer, nil)
+}
+
+// sendAskToken and sendAskToolCall build the per-request streaming
+// callbacks armin.ask passes into Turn — each armin/askEvent
+// notification echoes id so a client tracking more than one
+// in-flight ask can route them correctly (see AskEventParams).
+func (s *Server) sendAskToken(id json.RawMessage) llm.OnToken {
+  return func(delta string) {
+    s.notify("armin/askEvent", AskEventParams{
+      ID: id, Type: "token", Delta: delta,
+    })
+  }
+}
+
+func (s *Server) sendAskToolCall(
+  id json.RawMessage,
+) func(name string, args map[string]any) {
+  return func(name string, args map[string]any) {
+    s.notify("armin/askEvent", AskEventParams{
+      ID: id, Type: "tool_call", Name: name, Args: args,
+    })
+  }
 }
 
 // executeModel answers "armin.model": switch the chat model live
@@ -365,9 +404,14 @@ func (s *Server) executeModel(
 }
 
 // ask runs one stateless turn through the same agent loop the REPL
-// uses: fresh history every call, full tool access, no streaming
-// (LSP responses aren't incremental here).
-func (s *Server) ask(ctx context.Context, question string) (string, error) {
+// uses: fresh history every call, full tool access. onToken and
+// onToolCall are nil for hover (its popup isn't incremental); armin.ask
+// passes both to stream progress to the client as armin/askEvent
+// notifications ahead of this call's return.
+func (s *Server) ask(
+  ctx context.Context, question string,
+  onToken llm.OnToken, onToolCall func(name string, args map[string]any),
+) (string, error) {
   askCtx, cancel := context.WithTimeout(ctx, askTimeout)
   defer cancel()
 
@@ -375,7 +419,7 @@ func (s *Server) ask(ctx context.Context, question string) (string, error) {
     { Role: "system", Content: s.system },
     { Role: "user", Content: question },
   }
-  return s.loop.Turn(askCtx, &history, nil)
+  return s.loop.Turn(askCtx, &history, onToken, onToolCall)
 }
 
 func (s *Server) setDoc(uri, text string) {
@@ -474,6 +518,20 @@ func (s *Server) respondError(id json.RawMessage, code int, message string) {
 func (s *Server) write(msg rpcResponse) {
   s.outMu.Lock()
   defer s.outMu.Unlock()
+  if err := writeMessage(s.out, msg); err != nil {
+    fmt.Fprintln(os.Stderr, "armin lsp: write failed:", err)
+  }
+}
+
+// notify pushes a server-to-client notification — no id, no reply
+// expected. Shares out/outMu with write and respond so notifications
+// (armin/askEvent) never interleave mid-frame with a concurrent
+// request's response — every executeCommand/hover runs on its own
+// goroutine (see handle), all writing through this one lock.
+func (s *Server) notify(method string, params any) {
+  s.outMu.Lock()
+  defer s.outMu.Unlock()
+  msg := rpcNotification{ JSONRPC: "2.0", Method: method, Params: params }
   if err := writeMessage(s.out, msg); err != nil {
     fmt.Fprintln(os.Stderr, "armin lsp: write failed:", err)
   }

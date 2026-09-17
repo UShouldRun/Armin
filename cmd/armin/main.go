@@ -18,16 +18,18 @@ import (
 
   "armin/internal/agent"
   "armin/internal/config"
+  "armin/internal/ctags"
   "armin/internal/llm"
   "armin/internal/lspserver"
   "armin/internal/mcpserver"
   "armin/internal/repl"
   "armin/internal/sandbox"
+  "armin/internal/searxng"
   "armin/internal/session"
   "armin/internal/ui"
 )
 
-const systemPrompt = `You are a terminal assistant that helps a developer understand and work in their codebase.
+const systemPrompt = `You are a terminal assistant named Armin that helps a developer understand and work in their codebase.
 You have tools to search, read, and list files in the project, plus a narrow set of read-only shell commands.
 Ground every answer in what the tools actually return — don't guess at file contents or project structure.
 Prefer search_code before read_file on anything you haven't already located.
@@ -79,16 +81,47 @@ func run() error {
     cancel()
   }()
 
+  // web_search degrades gracefully, same as -ctags-bin: no docker on
+  // PATH just means the tool is still advertised but every call
+  // reports a clean "unavailable" error instead of armin refusing to
+  // start. The container itself isn't touched until the first
+  // search; this shutdown runs on every exit path (including
+  // mcpMode's early return) and only stops a container this process
+  // itself started, never one the user already had running.
+  var webSearch *searxng.Manager
+  if _, err := exec.LookPath("docker"); err == nil {
+    webSearch = searxng.New()
+    defer func() {
+      shutdownCtx, cancel := context.WithTimeout(
+        context.Background(), 15*time.Second,
+      )
+      defer cancel()
+      if err := webSearch.Shutdown(shutdownCtx); err != nil {
+        ui.Error("stopping the searxng container: %s", err)
+      }
+    }()
+  }
+
+  // One shared ctags index backs loop.Symbols (find_definition/
+  // list_symbols/outline_file/find_dead_code/read_doc_comment),
+  // -lsp's own textDocument/definition and workspace/symbol, and
+  // -mcp's tools — so -lsp doesn't scan the repo with ctags twice.
+  // Empty ctagsBin degrades gracefully everywhere it's used, same
+  // as -ctags-bin's existing doc comment says.
+  symbols := ctags.New(sb.Root, flags.ctagsBin)
+
   if flags.mcpMode {
-    return mcpserver.Serve(ctx, sb)
+    return mcpserver.Serve(ctx, sb, webSearch, symbols)
   }
 
   client := llm.New(flags.ollamaURL, flags.model)
   loop := agent.New(client, sb)
+  loop.WebSearch = webSearch
+  loop.Symbols = symbols
 
   if flags.lspMode {
     server := lspserver.New(
-      loop, sb, systemPrompt, flags.completionModel, flags.ctagsBin,
+      loop, sb, systemPrompt, flags.completionModel, symbols,
     )
     if err := server.Serve(ctx, os.Stdin, os.Stdout); err != nil {
       return fmt.Errorf("\n\t... in run:\n\t%w", err)

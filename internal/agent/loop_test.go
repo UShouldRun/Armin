@@ -7,6 +7,7 @@ import (
   "net/http/httptest"
   "os"
   "path/filepath"
+  "strings"
   "testing"
 
   "armin/internal/llm"
@@ -15,8 +16,8 @@ import (
 
 func TestToolDefinitionsShape(t *testing.T) {
   defs := ToolDefinitions()
-  if len(defs) != 4 {
-    t.Fatalf("ToolDefinitions() has %d entries, want 4", len(defs))
+  if len(defs) != 34 {
+    t.Fatalf("ToolDefinitions() has %d entries, want 34", len(defs))
   }
 
   names := map[string]bool{}
@@ -30,7 +31,19 @@ func TestToolDefinitionsShape(t *testing.T) {
     names[d.Function.Name] = true
   }
 
-  for _, want := range []string{"search_code", "read_file", "list_directory", "run_command"} {
+  for _, want := range []string{
+    "search_code", "read_file", "list_directory", "run_command", "web_search",
+    "count_lines", "list_languages", "find_files", "file_stat", "find_todo_fixme",
+    "env_info", "project_manifest",
+    "find_definition", "list_symbols", "outline_file", "find_references",
+    "git_log", "git_blame", "git_diff", "git_show", "working_tree_diff",
+    "grep_history", "code_owners", "commit_stats",
+    "run_tests", "build_check", "lint_check",
+    "list_dependencies", "module_graph",
+    "read_doc_comment",
+    "find_callers", "find_dead_code", "impact_analysis",
+    "semantic_search",
+  } {
     if !names[want] {
       t.Errorf("ToolDefinitions() missing %q", want)
     }
@@ -83,10 +96,10 @@ func TestTurnExecutesToolThenReturnsAnswer(t *testing.T) {
   })
 
   var toolCallSeen string
-  loop.OnToolCall = func(name string, _ map[string]any) { toolCallSeen = name }
+  onToolCall := func(name string, _ map[string]any) { toolCallSeen = name }
 
   history := []llm.Message{{Role: "system", Content: "sys"}}
-  answer, err := loop.Turn(context.Background(), &history, nil)
+  answer, err := loop.Turn(context.Background(), &history, nil, onToolCall)
   if err != nil {
     t.Fatalf("Turn: %v", err)
   }
@@ -129,7 +142,7 @@ func TestTurnSurfacesToolErrorAsStructuredResult(t *testing.T) {
   })
 
   history := []llm.Message{{Role: "system", Content: "sys"}}
-  if _, err := loop.Turn(context.Background(), &history, nil); err != nil {
+  if _, err := loop.Turn(context.Background(), &history, nil, nil); err != nil {
     t.Fatalf("Turn: %v", err)
   }
 
@@ -160,9 +173,50 @@ func TestTurnHitsMaxRounds(t *testing.T) {
   })
 
   history := []llm.Message{{Role: "system", Content: "sys"}}
-  _, err := loop.Turn(context.Background(), &history, nil)
+  _, err := loop.Turn(context.Background(), &history, nil, nil)
   if err == nil {
     t.Fatal("expected an error once maxToolRounds is exceeded")
+  }
+}
+
+// TestTurnDispatchesWebSearchWithNilManager checks the wiring, not
+// searxng itself: with Loop.WebSearch left nil (the default —
+// cmd/armin/main.go only sets it when docker is found), a web_search
+// call must come back as a structured tool-role error, same as any
+// other tool failure, not a panic.
+func TestTurnDispatchesWebSearchWithNilManager(t *testing.T) {
+  round := 0
+  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
+    round++
+    var reply llm.Message
+    if round == 1 {
+      reply = llm.Message{
+        Role: "assistant",
+        ToolCalls: []llm.ToolCall{{Function: llm.ToolCallFunction{
+          Name:      "web_search",
+          Arguments: map[string]any{"query": "armin coding agent"},
+        }}},
+      }
+    } else {
+      reply = llm.Message{Role: "assistant", Content: "search is unavailable"}
+    }
+    json.NewEncoder(w).Encode(map[string]any{"message": reply, "done": true})
+  })
+
+  history := []llm.Message{{Role: "system", Content: "sys"}}
+  if _, err := loop.Turn(context.Background(), &history, nil, nil); err != nil {
+    t.Fatalf("Turn: %v", err)
+  }
+
+  if history[2].Role != "tool" {
+    t.Fatalf("history[2] = %+v, want a tool-role error result", history[2])
+  }
+  var result map[string]string
+  if err := json.Unmarshal([]byte(history[2].Content), &result); err != nil {
+    t.Fatalf("tool error result isn't valid JSON: %v", err)
+  }
+  if !strings.Contains(result["error"], "docker") {
+    t.Fatalf(`result["error"] = %q, want it to mention docker`, result["error"])
   }
 }
 
@@ -180,7 +234,7 @@ func TestTurnRejectsUnknownTool(t *testing.T) {
   // will run out the clock on maxToolRounds — what matters here is
   // that execute() doesn't panic on an unrecognized tool name and
   // instead produces a structured error result each round.
-  if _, err := loop.Turn(context.Background(), &history, nil); err == nil {
+  if _, err := loop.Turn(context.Background(), &history, nil, nil); err == nil {
     t.Fatal("expected the max-rounds error")
   }
   if history[1].Role != "assistant" {

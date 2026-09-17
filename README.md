@@ -7,7 +7,7 @@ strategist: the one who reads the terrain before anyone moves.
 
 Three ways to use the same sandboxed tool layer:
 - **REPL** — a chat loop in your terminal, talking to a local model.
-- **MCP server** (`-mcp`) — the same four tools, exposed over stdio
+- **MCP server** (`-mcp`) — the same tools, exposed over stdio
   JSON-RPC, for any MCP client (Claude Desktop, etc.) to reuse.
 - **LSP server** (`-lsp`) — hover-to-explain and an ask command, over
   the Language Server Protocol, for editor integration. One Lua file
@@ -21,6 +21,11 @@ Three ways to use the same sandboxed tool layer:
   pulled (`ollama pull qwen3:4b` is the default)
 - [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) on `PATH` —
   `search_code` shells out to it
+- Optional: [Docker](https://docker.com), for the `web_search` tool —
+  it runs a local [SearXNG](https://docs.searxng.org) instance,
+  started on first search and stopped on exit (see "The tools"
+  below). Missing docker just means `web_search` reports a clean
+  "unavailable" error; everything else works as normal.
 - Optional: [Universal Ctags](https://ctags.io) (`universal-ctags`) for
   `-lsp`'s go-to-definition and workspace-symbol search — not the
   Emacs `ctags` many distros ship as `/usr/bin/ctags`, which is a
@@ -115,8 +120,8 @@ flags always win.
 
 ## The tools
 
-The model has four narrow, structured tools — never a free-form shell
-string:
+The model has 34 narrow, structured tools — never a free-form shell
+string. The original five:
 
 - **`search_code`** — wraps `rg`, returns matched lines with a couple
   lines of context, not full files.
@@ -128,6 +133,86 @@ string:
 - **`run_command`** — execs an allowlisted, read-only binary directly
   (`exec.Command(binary, args...)`, never a shell) — `git`, `go`, `rg`,
   `grep`, `find`, `cat`, `ls`, `wc` by default.
+- **`web_search`** — queries a local [SearXNG](https://docs.searxng.org)
+  instance for things not in the codebase (library docs, error
+  messages, current facts). `internal/searxng` owns a Docker container
+  (`armin-searxng`, `searxng/searxng` image) started lazily on the
+  first call and stopped on exit — but only if armin itself started
+  it, never a container you already had running. Results are capped
+  (5 by default, 10 max) and each snippet is truncated to ~200 chars,
+  so one search can't dominate a small local model's context budget.
+
+The other 29, grouped by category — full argument lists are in
+`agent.ToolDefinitions()`:
+
+**Repo stats** (`internal/tools/repostat.go`)
+
+| Tool | What it does |
+|---|---|
+| `count_lines` | Recursive line count, total + per top-level directory, in one call — no shell pipes needed. |
+| `list_languages` | File/line counts by extension, ranked. |
+| `find_files` | Glob match on filenames (e.g. `*_test.go`) — a name-only complement to `search_code`. |
+| `file_stat` | Size/lines/mtime for one file, without reading its content. |
+| `find_todo_fixme` | Fixed `search_code` preset for TODO/FIXME/XXX. |
+| `env_info` | Go version, OS/arch, whether git/ripgrep/docker are installed. |
+| `project_manifest` | Directory tree + first README/manifest found — the same note the REPL auto-loads at session start, re-invocable mid-conversation. |
+
+**Symbol navigation** (`internal/tools/symbols.go`, ctags-backed)
+
+| Tool | What it does |
+|---|---|
+| `find_definition` | Where a symbol is defined — the same ctags fact `textDocument/definition` uses. |
+| `list_symbols` | Fuzzy name search across every known symbol. |
+| `outline_file` | A file's top-level symbols without reading its content. |
+| `find_references` | Word-boundary ripgrep for where an identifier is *used* (ctags only indexes definitions). |
+
+**Git history** (`internal/tools/gitinfo.go`)
+
+| Tool | What it does |
+|---|---|
+| `git_log` | Structured commit history (hash/author/date/subject), not raw text to re-parse. |
+| `git_blame` | Per-line author/date attribution for a range. |
+| `git_diff` | Diff between two refs (default HEAD vs. working tree). |
+| `git_show` | One commit's full diff + message. |
+| `working_tree_diff` | Uncommitted changes only, plus untracked files. |
+| `grep_history` | `git log -S`/pickaxe search for when text was introduced/removed. |
+| `code_owners` | Commit-count-per-author heuristic for "who owns this." |
+| `commit_stats` | Churn/hotspot ranking — most-frequently-changed files. |
+
+**Build/test** (`internal/tools/build.go`)
+
+| Tool | What it does |
+|---|---|
+| `run_tests` | `go test`, parsed into pass/fail + summary. |
+| `build_check` | `go build` (or `go vet`), parsed into pass/fail + errors. |
+| `lint_check` | `golangci-lint` if installed; reports unavailable, not an error, if not. |
+
+**Dependencies** (`internal/tools/deps.go`)
+
+| Tool | What it does |
+|---|---|
+| `list_dependencies` | Parses whichever manifest exists — go.mod, package.json, requirements.txt, Cargo.toml, pyproject.toml. |
+| `module_graph` | Which of this Go module's own packages import which, via `go list -json` (no `golang.org/x/tools` dependency). |
+
+**Documentation** (`internal/tools/doccomment.go`)
+
+| Tool | What it does |
+|---|---|
+| `read_doc_comment` | Just a symbol's doc comment, without reading the whole file. |
+
+**Call graph** (`internal/tools/callgraph.go`, Go-only, syntactic — not type-checked)
+
+| Tool | What it does |
+|---|---|
+| `find_callers` | Syntactic call sites of a function/method name. |
+| `find_dead_code` | Exported functions/methods with zero syntactic call sites — a signal, not proof (see the tool's own doc comment for a confirmed false-positive source: ctags can't tell a struct field from a method). |
+| `impact_analysis` | BFS outward to a bounded depth — what might need re-checking if a function changes. |
+
+**Semantic search** (`internal/tools/semantic.go`)
+
+| Tool | What it does |
+|---|---|
+| `semantic_search` | Keyword/term-frequency ranking — **not** real embeddings (armin takes on no vector/embedding dependency, same stance as `web_search`'s SearXNG choice). Useful when you don't know the exact string to grep for. |
 
 ## Safety model
 
@@ -178,9 +263,9 @@ Pass `-no-save` to opt out entirely.
 ./armin -mcp -root /path/to/your/project
 ```
 
-Exposes `search_code`, `read_file`, `list_directory`, and `run_command`
-as MCP tools over stdio — point any MCP client at this command to reuse
-the same sandboxed tool layer the REPL uses directly.
+Exposes all 34 tools (see "The tools" above) as MCP tools over stdio
+— point any MCP client at this command to reuse the same sandboxed
+tool layer the REPL uses directly.
 
 ## LSP server mode
 
@@ -224,8 +309,10 @@ cmd/armin/main.go         entrypoint: flags, config, wiring
 internal/
   agent/       tool-calling round trip (send → tool_calls → execute → repeat)
   llm/         Ollama client (chat, streaming, model listing)
-  tools/       the four tool implementations (pure functions)
+  tools/       the tool implementations (pure functions)
   sandbox/     path jail, allowlist, timeouts, truncation, dry-run
+  ctags/       symbol index backing find_definition/list_symbols/etc. and -lsp
+  searxng/     web_search's local SearXNG container lifecycle
   mcpserver/   MCP stdio adapter around the same tools
   lspserver/   minimal LSP stdio adapter (hover + armin.ask) around the same tools
   config/      ~/.config/armin/config.conf loader

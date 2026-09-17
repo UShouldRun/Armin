@@ -8,6 +8,7 @@ import (
   "testing"
 
   "armin/internal/sandbox"
+  "armin/internal/searxng"
 )
 
 func newTestSandbox(t *testing.T, opts sandbox.Options) *sandbox.Config {
@@ -256,5 +257,28 @@ func TestSearchCodeRequiresPattern(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   if _, err := SearchCode(context.Background(), cfg, SearchCodeInput{}); err == nil {
     t.Fatal("expected an error for an empty pattern")
+  }
+}
+
+// --- web_search ---
+
+func TestWebSearchNilManagerIsCleanError(t *testing.T) {
+  _, err := WebSearch(
+    context.Background(), nil, WebSearchInput{Query: "test"},
+  )
+  if err == nil {
+    t.Fatal("expected an error when no searxng.Manager is configured")
+  }
+  if !strings.Contains(err.Error(), "docker") {
+    t.Fatalf("error = %q, want it to explain docker wasn't found", err)
+  }
+}
+
+func TestWebSearchRequiresQuery(t *testing.T) {
+  _, err := WebSearch(
+    context.Background(), searxng.New(), WebSearchInput{},
+  )
+  if err == nil {
+    t.Fatal("expected an error for an empty query")
   }
 }

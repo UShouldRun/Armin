@@ -240,38 +240,13 @@ func (c *Config) Run(
 func (c *Config) RunForce(
   ctx context.Context, binary string, args []string,
 ) (*RunResult, error) {
-  ctx, cancel := context.WithTimeout(ctx, c.Timeout)
-  defer cancel()
-
-  cmd := exec.CommandContext(ctx, binary, args...)
-  cmd.Dir = c.Root
-
-  var stdout, stderr bytes.Buffer
-  cmd.Stdout = &stdout
-  cmd.Stderr = &stderr
-
-  err := cmd.Run()
-
-  if ctx.Err() == context.DeadlineExceeded {
-    return nil, fmt.Errorf(
-      "\n\t... in RunForce:\n\t command %q timed out after %s",
-      binary, c.Timeout,
-    )
-  }
-
-  exitCode := 0
+  stdout, stderr, exitCode, err := c.runRaw(ctx, "RunForce", binary, args)
   if err != nil {
-    exitErr, ok := err.(*exec.ExitError)
-    if !ok {
-      return nil, fmt.Errorf(
-        "\n\t... in RunForce:\n\t running %q: %w", binary, err,
-      )
-    }
-    exitCode = exitErr.ExitCode()
+    return nil, err
   }
 
-  out, outTrunc := truncate(stdout.String(), c.MaxOutput)
-  errOut, errTrunc := truncate(stderr.String(), c.MaxOutput)
+  out, outTrunc := truncate(stdout, c.MaxOutput)
+  errOut, errTrunc := truncate(stderr, c.MaxOutput)
 
   var flags RunFlags
   if outTrunc || errTrunc {
@@ -284,6 +259,57 @@ func (c *Config) RunForce(
     ExitCode: exitCode,
     Flags:    flags,
   }, nil
+}
+
+// RunForceFull is RunForce without MaxOutput truncation — for the
+// rare caller (module_graph) that has to parse the whole output as
+// structured data (JSON) afterward, where a truncated stream isn't
+// just shorter, it's invalid and fails to parse. Still bounded by
+// c.Timeout; just not by c.MaxOutput. Use RunForce unless truncation
+// would actually corrupt what you're about to do with the output.
+func (c *Config) RunForceFull(
+  ctx context.Context, binary string, args []string,
+) (*RunResult, error) {
+  stdout, stderr, exitCode, err := c.runRaw(ctx, "RunForceFull", binary, args)
+  if err != nil {
+    return nil, err
+  }
+  return &RunResult{ Stdout: stdout, Stderr: stderr, ExitCode: exitCode }, nil
+}
+
+func (c *Config) runRaw(
+  ctx context.Context, callerName, binary string, args []string,
+) (stdout, stderr string, exitCode int, err error) {
+  ctx, cancel := context.WithTimeout(ctx, c.Timeout)
+  defer cancel()
+
+  cmd := exec.CommandContext(ctx, binary, args...)
+  cmd.Dir = c.Root
+
+  var outBuf, errBuf bytes.Buffer
+  cmd.Stdout = &outBuf
+  cmd.Stderr = &errBuf
+
+  runErr := cmd.Run()
+
+  if ctx.Err() == context.DeadlineExceeded {
+    return "", "", 0, fmt.Errorf(
+      "\n\t... in %s:\n\t command %q timed out after %s",
+      callerName, binary, c.Timeout,
+    )
+  }
+
+  if runErr != nil {
+    exitErr, ok := runErr.(*exec.ExitError)
+    if !ok {
+      return "", "", 0, fmt.Errorf(
+        "\n\t... in %s:\n\t running %q: %w", callerName, binary, runErr,
+      )
+    }
+    exitCode = exitErr.ExitCode()
+  }
+
+  return outBuf.String(), errBuf.String(), exitCode, nil
 }
 
 // DescribeArgs renders binary + args the way they'd actually be

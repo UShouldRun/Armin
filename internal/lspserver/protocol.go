@@ -28,6 +28,30 @@ type rpcError struct {
   Message string `json:"message"`
 }
 
+// rpcNotification is a server-to-client push with no id and no
+// reply expected — used for armin/askEvent, streaming an in-flight
+// armin.ask's tokens and tool calls to the client as they happen,
+// ahead of the final workspace/executeCommand response.
+type rpcNotification struct {
+  JSONRPC string `json:"jsonrpc"`
+  Method  string `json:"method"`
+  Params  any    `json:"params,omitempty"`
+}
+
+// AskEventParams is armin/askEvent's payload. Type is "tool_call"
+// (Name/Args set) or "token" (Delta set) — never both. ID echoes the
+// originating armin.ask request's JSON-RPC id, so a client tracking
+// more than one in-flight ask can route events to the right one;
+// the bundled nvim client only ever has one ask in flight and
+// ignores it.
+type AskEventParams struct {
+  ID    json.RawMessage `json:"id"`
+  Type  string          `json:"type"`
+  Name  string          `json:"name,omitempty"`
+  Args  map[string]any  `json:"args,omitempty"`
+  Delta string          `json:"delta,omitempty"`
+}
+
 // Error codes we actually emit — the rest of the JSON-RPC/LSP space
 // is unused here.
 const (

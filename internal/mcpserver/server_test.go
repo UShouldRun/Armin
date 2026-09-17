@@ -9,6 +9,7 @@ import (
   "strings"
   "testing"
 
+  "armin/internal/ctags"
   "armin/internal/sandbox"
 )
 
@@ -22,7 +23,7 @@ func newTestServer(t *testing.T) *Server {
   if err != nil {
     t.Fatal(err)
   }
-  return New(cfg)
+  return New(cfg, nil, ctags.New(root, ""))
 }
 
 // call sends one request line through Serve's handler directly (no
@@ -84,19 +85,38 @@ func TestToolsList(t *testing.T) {
   var result listToolsResult
   remarshal(t, resp.Result, &result)
 
-  if len(result.Tools) != 4 {
-    t.Fatalf("tools/list returned %d tools, want 4", len(result.Tools))
+  if len(result.Tools) != 34 {
+    t.Fatalf("tools/list returned %d tools, want 34", len(result.Tools))
   }
+  // noPropsOK are tools with no meaningful parameters at all
+  // (list_directory's only param is optional, the rest take
+  // nothing) — every other tool should declare at least one
+  // property.
+  noPropsOK := map[string]bool{
+    "list_directory": true, "env_info": true, "project_manifest": true,
+    "list_dependencies": true, "module_graph": true,
+  }
+
   names := map[string]bool{}
   for _, tl := range result.Tools {
     names[tl.Name] = true
-    if len(tl.InputSchema.Properties) == 0 && tl.Name != "list_directory" {
-      // list_directory's only params are optional; every other tool
-      // should have at least one declared property.
+    if len(tl.InputSchema.Properties) == 0 && !noPropsOK[tl.Name] {
       t.Errorf("tool %q has no input schema properties", tl.Name)
     }
   }
-  for _, want := range []string{"search_code", "read_file", "list_directory", "run_command"} {
+  for _, want := range []string{
+    "search_code", "read_file", "list_directory", "run_command", "web_search",
+    "count_lines", "list_languages", "find_files", "file_stat", "find_todo_fixme",
+    "env_info", "project_manifest",
+    "find_definition", "list_symbols", "outline_file", "find_references",
+    "git_log", "git_blame", "git_diff", "git_show", "working_tree_diff",
+    "grep_history", "code_owners", "commit_stats",
+    "run_tests", "build_check", "lint_check",
+    "list_dependencies", "module_graph",
+    "read_doc_comment",
+    "find_callers", "find_dead_code", "impact_analysis",
+    "semantic_search",
+  } {
     if !names[want] {
       t.Errorf("tools/list missing %q", want)
     }

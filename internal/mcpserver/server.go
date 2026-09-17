@@ -1,7 +1,10 @@
-// Package mcpserver exposes the same four sandboxed tools the REPL
-// uses directly — search_code, read_file, list_directory,
-// run_command — over MCP, so other MCP clients (Claude Desktop,
-// etc.) can reuse them. No SDK: MCP-over-stdio is JSON-RPC 2.0 on
+// Package mcpserver exposes the same sandboxed tools the REPL uses
+// directly — search_code, read_file, list_directory, run_command,
+// web_search, and 29 others across repo stats, symbol navigation,
+// git history, build/test, dependencies, docs, call graph, and
+// semantic search (see agent.ToolDefinitions) — over MCP, so other
+// MCP clients (Claude Desktop, etc.) can reuse them. No SDK: MCP-
+// over-stdio is JSON-RPC 2.0 on
 // newline-delimited JSON, and the surface armin actually needs
 // (initialize, tools/list, tools/call) is small enough to implement
 // directly — the same reasoning as internal/lspserver hand-rolling
@@ -17,7 +20,9 @@ import (
   "os"
 
   "armin/internal/agent"
+  "armin/internal/ctags"
   "armin/internal/sandbox"
+  "armin/internal/searxng"
   "armin/internal/tools"
 )
 
@@ -28,21 +33,29 @@ const serverVersion = "v0.1.0"
 // no LLM call in the loop, so there's no need for the per-request
 // goroutines and cancellation bookkeeping internal/lspserver needs.
 type Server struct {
-  sandbox *sandbox.Config
-  out     io.Writer
+  sandbox   *sandbox.Config
+  webSearch *searxng.Manager
+  symbols   *ctags.Index
+  out       io.Writer
 }
 
 // New builds a Server around sb — the same sandbox.Config the REPL
 // and agent loop use, so path jail, allowlist, and truncation apply
 // identically regardless of which front end is calling the tools.
-func New(sb *sandbox.Config) *Server {
-  return &Server{ sandbox: sb }
+// ws may be nil (docker not found at startup) and symbols may be nil
+// (no universal-ctags binary found — see cmd/armin/main.go); either
+// way the affected tools are still listed but report a clean
+// "unavailable" error instead of a panic.
+func New(sb *sandbox.Config, ws *searxng.Manager, symbols *ctags.Index) *Server {
+  return &Server{ sandbox: sb, webSearch: ws, symbols: symbols }
 }
 
 // Serve is the convenience entry point main.go calls for -mcp: an
 // armin Server wired to a fresh sandbox, talking over stdio.
-func Serve(ctx context.Context, sb *sandbox.Config) error {
-  return New(sb).Serve(ctx, os.Stdin, os.Stdout)
+func Serve(
+  ctx context.Context, sb *sandbox.Config, ws *searxng.Manager, symbols *ctags.Index,
+) error {
+  return New(sb, ws, symbols).Serve(ctx, os.Stdin, os.Stdout)
 }
 
 // Serve reads newline-delimited JSON-RPC from in and writes
@@ -182,6 +195,336 @@ func (s *Server) callTool(
     out, cmdErr := tools.RunCommand(ctx, s.sandbox, in)
     if cmdErr != nil {
       return jsonErrorResult(cmdErr)
+    }
+    return jsonResult(out)
+
+  case "web_search":
+    var in tools.WebSearchInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.WebSearch(ctx, s.webSearch, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "count_lines":
+    var in tools.CountLinesInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.CountLines(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "list_languages":
+    var in tools.ListLanguagesInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.ListLanguages(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "find_files":
+    var in tools.FindFilesInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.FindFiles(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "file_stat":
+    var in tools.FileStatInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.FileStat(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "find_todo_fixme":
+    var in tools.FindTodoFixmeInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.FindTodoFixme(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "env_info":
+    var in tools.EnvInfoInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.EnvInfo(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "project_manifest":
+    var in tools.ProjectManifestInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.ProjectManifest(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "find_definition":
+    var in tools.FindDefinitionInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.FindDefinition(ctx, s.symbols, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "list_symbols":
+    var in tools.ListSymbolsInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.ListSymbols(ctx, s.symbols, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "outline_file":
+    var in tools.OutlineFileInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.OutlineFile(ctx, s.symbols, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "find_references":
+    var in tools.FindReferencesInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.FindReferences(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "git_log":
+    var in tools.GitLogInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.GitLog(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "git_blame":
+    var in tools.GitBlameInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.GitBlame(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "git_diff":
+    var in tools.GitDiffInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.GitDiff(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "git_show":
+    var in tools.GitShowInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.GitShow(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "working_tree_diff":
+    var in tools.WorkingTreeDiffInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.WorkingTreeDiff(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "grep_history":
+    var in tools.GrepHistoryInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.GrepHistory(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "code_owners":
+    var in tools.CodeOwnersInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.CodeOwners(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "commit_stats":
+    var in tools.CommitStatsInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.CommitStats(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "run_tests":
+    var in tools.RunTestsInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.RunTests(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "build_check":
+    var in tools.BuildCheckInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.BuildCheck(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "lint_check":
+    var in tools.LintCheckInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.LintCheck(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "list_dependencies":
+    var in tools.ListDependenciesInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.ListDependencies(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "module_graph":
+    var in tools.ModuleGraphInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.ModuleGraph(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "read_doc_comment":
+    var in tools.ReadDocCommentInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.ReadDocComment(ctx, s.symbols, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "find_callers":
+    var in tools.FindCallersInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.FindCallers(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "find_dead_code":
+    var in tools.FindDeadCodeInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.FindDeadCode(ctx, s.symbols, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "impact_analysis":
+    var in tools.ImpactAnalysisInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.ImpactAnalysis(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "semantic_search":
+    var in tools.SemanticSearchInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.SemanticSearch(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
     }
     return jsonResult(out)
 

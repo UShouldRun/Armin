@@ -29,17 +29,30 @@ type Config struct {
   ExtraAllowed    []string // appended to sandbox.DefaultAllowlist()
 }
 
-// Path returns the config file location, honoring XDG_CONFIG_HOME.
-func Path() (string, error) {
+// Dir returns the armin config directory, honoring XDG_CONFIG_HOME —
+// the same directory config.conf lives in, exported so other
+// packages (e.g. internal/searxng, for its generated settings.yml)
+// have one place to put their own on-disk state instead of each
+// re-deriving XDG_CONFIG_HOME themselves.
+func Dir() (string, error) {
   base := os.Getenv("XDG_CONFIG_HOME")
   if base == "" {
     home, err := os.UserHomeDir()
     if err != nil {
-      return "", fmt.Errorf("\n\t... in Path:\n\t%w", err)
+      return "", fmt.Errorf("\n\t... in Dir:\n\t%w", err)
     }
     base = filepath.Join(home, ".config")
   }
-  return filepath.Join(base, "armin", "config.conf"), nil
+  return filepath.Join(base, "armin"), nil
+}
+
+// Path returns the config file location, honoring XDG_CONFIG_HOME.
+func Path() (string, error) {
+  dir, err := Dir()
+  if err != nil {
+    return "", fmt.Errorf("\n\t... in Path:\n\t%w", err)
+  }
+  return filepath.Join(dir, "config.conf"), nil
 }
 
 // Load reads the config file if it exists. A missing file is not

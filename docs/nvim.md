@@ -43,7 +43,7 @@ than failing.
 | Command | Does |
 |---|---|
 | `:ArminLsp` | attach armin to the current buffer. Root is the nearest ancestor with `.git`, `go.mod`, `package.json`, `pyproject.toml`, or `Cargo.toml`, falling back to cwd. |
-| `:ArminAsk [question]` | ask armin something about the project. With no argument, opens a floating prompt window (not the command line) — `<CR>` submits, `<Esc>` cancels, `<C-f>` mentions a file. Answer shows in a floating window, hard-wrapped to ~78 columns (`q` to close). |
+| `:ArminAsk [question]` | open (or focus) a persistent chat window and ask armin something about the project. With no argument, leaves the cursor on an editable prompt line; with one, sends it immediately. Tool calls and the answer stream in live as they happen — `<Esc>` closes, `<C-f>` mentions a file, `<CR>` on a highlighted `file:line` reference opens/updates a preview split on the right, jumped to that line. |
 | `:ArminModel [name]` | show or switch the chat model used by `:ArminAsk`/hover. With no argument, opens a floating picker of installed models (size-annotated, smallest/largest coding-focused model tagged "fastest"/"best") — `j`/`k` or arrows to move, `<CR>` to pick, `<Esc>`/`q` to cancel. |
 | `:ArminComplete` | toggle live ghost-text completion for the current buffer — fires automatically on a short pause after you type, once turned on. |
 | `:ArminSuggest` | request one completion at the cursor right now, regardless of whether `:ArminComplete` is on. |
@@ -56,6 +56,33 @@ completion/FIM base models don't support tools at all. Switching to
 one here doesn't fail silently: `:ArminAsk`/hover show a clean
 one-line notification naming the model and pointing back at
 `:ArminModel`, instead of Ollama's raw HTTP error.
+
+## Using the chat window
+
+`:ArminAsk` opens one persistent chat window per Neovim instance —
+run it again later (from the same or a different buffer) and it
+refocuses the existing window instead of opening a second one,
+retargeting it at whichever buffer you called it from. Submitted
+questions stay in the buffer as scrollback; a fresh prompt line is
+always ready below the last answer, so you can keep asking follow-ups
+without reopening anything.
+
+While armin is working, `→ tool_name(args)` lines appear live as it
+searches/reads, and the answer's tokens stream in below them as they
+arrive — the same transparency the terminal REPL gives you, just in
+a floating window instead of stdout. Only one question can be in
+flight at a time; submitting another while armin is still answering
+just warns instead of queuing or interleaving.
+
+When armin flags something worth your attention — a risk, a doubt
+about correctness, a notable behavior — it grounds that specific
+claim in a `file:line` (or `file:start-end`) reference, rendered as
+an underlined citation in the chat buffer (routine file mentions
+don't get this treatment, only things actually worth flagging). Put
+the cursor on one and press `<CR>`: a vertical split opens on the
+right showing that file, jumped to the cited line with a brief
+highlight flash — press `<CR>` on another reference later and the
+same split updates in place rather than piling up new ones.
 
 ## Using hover, definition, and workspace symbols
 

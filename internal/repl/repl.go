@@ -109,49 +109,18 @@ func New(
 
 // LoadAutoContext silently orients the model with a directory
 // listing and any README/manifest it can find, so the first answer
-// doesn't require the user to explain the project by hand.
+// doesn't require the user to explain the project by hand. Shares
+// its logic with the re-invocable project_manifest tool (see
+// tools.ProjectManifest) rather than duplicating it — this is just
+// that same note, loaded once automatically at session start.
 func (r *REPL) LoadAutoContext(ctx context.Context) {
-  note := buildAutoContext(ctx, r.Sandbox)
-  if note == "" {
+  out, err := tools.ProjectManifest(ctx, r.Sandbox, tools.ProjectManifestInput{})
+  if err != nil || out.Note == "" {
     return
   }
   r.History = append(
-    r.History, llm.Message{ Role: "system", Content: note },
+    r.History, llm.Message{ Role: "system", Content: out.Note },
   )
-}
-
-// autoContextFiles are checked, in order, for a first-pass project
-// manifest/readme; the first one found is included, the rest
-// skipped — one is plenty of orientation.
-var autoContextFiles = []string{
-  "README.md", "readme.md", "go.mod",
-  "package.json", "Cargo.toml", "pyproject.toml",
-}
-
-func buildAutoContext(ctx context.Context, sb *sandbox.Config) string {
-  var b strings.Builder
-
-  listing := tools.ListDirectoryInput{ Depth: 2 }
-  tree, err := tools.ListDirectory(ctx, sb, listing)
-  if err == nil {
-    b.WriteString("Project structure:\n")
-    b.WriteString(tree.Tree)
-  }
-
-  for _, name := range autoContextFiles {
-    in := tools.ReadFileInput{ Path: name, EndLine: 60 }
-    out, err := tools.ReadFile(ctx, sb, in)
-    if err != nil {
-      continue
-    }
-    fmt.Fprintf(
-      &b, "\n\n%s (first %d lines):\n%s",
-      name, out.TotalLines, out.Content,
-    )
-    break
-  }
-
-  return b.String()
 }
 
 // Run drives the interactive loop until /quit, EOF, or an input
@@ -257,7 +226,7 @@ func (r *REPL) turn(ctx context.Context, input string) error {
     fmt.Print(delta)
   }
 
-  r.Loop.OnToolCall = func(name string, args map[string]any) {
+  onToolCall := func(name string, args map[string]any) {
     if !firstToken {
       fmt.Println()
     }
@@ -272,7 +241,7 @@ func (r *REPL) turn(ctx context.Context, input string) error {
   turnCtx, cancel := context.WithTimeout(ctx, turnTimeout)
   defer cancel()
 
-  answer, err := r.Loop.Turn(turnCtx, &r.History, onToken)
+  answer, err := r.Loop.Turn(turnCtx, &r.History, onToken, onToolCall)
 
   if spinner != nil {
     spinner.Stop()
