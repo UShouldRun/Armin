@@ -327,6 +327,77 @@ func TestRequestEndFiresEvenOnError(t *testing.T) {
   }
 }
 
+func TestChatSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
+  var gotAuth string
+  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+    gotAuth = r.Header.Get("Authorization")
+    json.NewEncoder(w).Encode(owaiChatResponse{
+      Choices: []owaiChoice{{Message: owaiMessage{Role: "assistant", Content: "ok"}}},
+    })
+  })
+
+  client := New(server.URL, "claude")
+  client.APIKey = "sk-ant-test"
+  if _, err := client.Chat(context.Background(), nil, nil, nil); err != nil {
+    t.Fatalf("Chat: %v", err)
+  }
+  if gotAuth != "Bearer sk-ant-test" {
+    t.Fatalf("Authorization header = %q, want %q", gotAuth, "Bearer sk-ant-test")
+  }
+}
+
+func TestChatOmitsAuthorizationHeaderWhenNoAPIKey(t *testing.T) {
+  var sawHeader bool
+  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+    sawHeader = r.Header.Get("Authorization") != ""
+    json.NewEncoder(w).Encode(owaiChatResponse{
+      Choices: []owaiChoice{{Message: owaiMessage{Role: "assistant", Content: "ok"}}},
+    })
+  })
+
+  client := New(server.URL, "local")
+  if _, err := client.Chat(context.Background(), nil, nil, nil); err != nil {
+    t.Fatalf("Chat: %v", err)
+  }
+  if sawHeader {
+    t.Fatal("no Authorization header should be sent when APIKey is unset (e.g. a local llama-server)")
+  }
+}
+
+func TestCompleteSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
+  var gotAuth string
+  server := serverReturning(t, "/infill", func(w http.ResponseWriter, r *http.Request) {
+    gotAuth = r.Header.Get("Authorization")
+    json.NewEncoder(w).Encode(infillResponse{Content: "x"})
+  })
+
+  client := New(server.URL, "m")
+  client.APIKey = "sk-ant-test"
+  if _, err := client.Complete(context.Background(), "x", "", CompleteOptions{}); err != nil {
+    t.Fatalf("Complete: %v", err)
+  }
+  if gotAuth != "Bearer sk-ant-test" {
+    t.Fatalf("Authorization header = %q, want %q", gotAuth, "Bearer sk-ant-test")
+  }
+}
+
+func TestHealthSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
+  var gotAuth string
+  server := serverReturning(t, "/health", func(w http.ResponseWriter, r *http.Request) {
+    gotAuth = r.Header.Get("Authorization")
+    w.WriteHeader(http.StatusOK)
+  })
+
+  client := New(server.URL, "m")
+  client.APIKey = "sk-ant-test"
+  if err := client.Health(context.Background()); err != nil {
+    t.Fatalf("Health: %v", err)
+  }
+  if gotAuth != "Bearer sk-ant-test" {
+    t.Fatalf("Authorization header = %q, want %q", gotAuth, "Bearer sk-ant-test")
+  }
+}
+
 func TestNewDefaultsBaseURL(t *testing.T) {
   client := New("", "m")
   if client.BaseURL != "http://localhost:8080" {

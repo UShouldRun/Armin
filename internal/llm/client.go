@@ -117,6 +117,14 @@ type Client struct {
   Model string
   HTTP  *http.Client
 
+  // APIKey, if set, is sent as "Authorization: Bearer <APIKey>" on
+  // every request — for a remote OpenAI-compatible endpoint that
+  // needs auth (Claude's, an OpenRouter/LiteLLM proxy, ...), unlike
+  // a local llama-server, which needs none and leaves this empty.
+  // internal/llamacpp.Manager resolves it from a models.<name>.
+  // api_key_env config entry, never a literal key in config.conf.
+  APIKey string
+
   // OnRequestStart/OnRequestEnd, if set, bracket every Chat/Complete
   // HTTP round trip (started before the request, ended via defer
   // once it returns). internal/llamacpp's Manager wires these to
@@ -143,6 +151,14 @@ func New(baseURL, model string) *Client {
 // reply. It's nil-safe to skip: pass nil to Chat and it behaves
 // like a plain non-streaming call.
 type OnToken func(delta string)
+
+// setAuthHeader adds the Authorization header when APIKey is set —
+// a no-op for the common local-llama-server case, where it's empty.
+func (c *Client) setAuthHeader(req *http.Request) {
+  if c.APIKey != "" {
+    req.Header.Set("Authorization", "Bearer "+c.APIKey)
+  }
+}
 
 func (c *Client) requestBracket() func() {
   if c.OnRequestStart != nil {
@@ -201,6 +217,7 @@ func (c *Client) Chat(
     )
   }
   req.Header.Set("Content-Type", "application/json")
+  c.setAuthHeader(req)
 
   resp, err := c.HTTP.Do(req)
   if err != nil {
@@ -446,6 +463,7 @@ func (c *Client) Complete(
     return "", fmt.Errorf("\n\t... in Complete:\n\t%w", err)
   }
   req.Header.Set("Content-Type", "application/json")
+  c.setAuthHeader(req)
 
   resp, err := c.HTTP.Do(req)
   if err != nil {
@@ -484,6 +502,7 @@ func (c *Client) Health(ctx context.Context) error {
   if err != nil {
     return fmt.Errorf("\n\t... in Health:\n\t%w", err)
   }
+  c.setAuthHeader(req)
 
   resp, err := c.HTTP.Do(req)
   if err != nil {

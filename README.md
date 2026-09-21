@@ -309,6 +309,54 @@ fall back to an external, unmanaged spec at `-llama-url`/
 `-completion-llama-url` — the zero-config path, for "I already
 started a `llama-server`, just talk to it".
 
+### Authenticated / remote models (e.g. Claude)
+
+An external `models.<name>.url` isn't limited to a `llama-server` you
+run yourself — any OpenAI-compatible `/v1/chat/completions` endpoint
+works, including
+[Anthropic's own](https://docs.anthropic.com/en/api/openai-sdk), so
+armin can run entirely against Claude instead of a local model. The
+only thing a remote endpoint needs that a local `llama-server`
+doesn't is auth, sent as `Authorization: Bearer <key>` on every
+request when `models.<name>.api_key_env` is set:
+
+```
+# ~/.config/armin/.env — "KEY=value", "#" comments, nothing fancier.
+# A real exported environment variable always wins over this file.
+ANTHROPIC_API_KEY = sk-ant-...
+```
+
+```
+# ~/.config/armin/config.conf
+model = claude
+models.claude.url         = https://api.anthropic.com/v1
+models.claude.api_key_env = ANTHROPIC_API_KEY
+```
+
+`api_key_env` names an environment variable — populated from `.env`
+above if it isn't already set some other way — never the key itself.
+Keep it out of `config.conf`: that file is plain text people back up,
+sync, and paste into issues without thinking twice; `.env` (next to
+it, same `~/.config/armin` directory) is where a secret belongs.
+
+Two things armin does automatically so that secret doesn't spread
+further than it has to:
+
+- **`.env` must be readable only by you.** `config.LoadEnv` refuses
+  to read a group- or other-readable `.env` at all (a wrong umask
+  leaving it world-readable is exactly the kind of mistake that
+  should fail loud, not quietly work) — `./install.sh` creates it at
+  mode 600 from the start and re-tightens an existing one on every
+  run, so this shouldn't come up in practice.
+- **A key configured for one model never reaches another model's
+  process.** Spawning a child process inherits the *entire*
+  environment by default — so without this, a managed local
+  `llama-server` would see `ANTHROPIC_API_KEY` too, despite having
+  nothing to do with Claude. `internal/llamacpp.Manager` strips every
+  name any `models.<name>.api_key_env` names from a spawned
+  process's environment, regardless of which model that name was
+  configured for.
+
 ## Sessions
 
 Every turn is saved to

@@ -23,7 +23,9 @@ package llamacpp
 import (
   "context"
   "fmt"
+  "os"
   "os/exec"
+  "strings"
   "sync"
   "syscall"
   "time"
@@ -53,6 +55,18 @@ type ModelSpec struct {
   // ever talks to it, never starts or stops the process behind it.
   // Mutually exclusive with Binary/ModelPath.
   URL string
+
+  // APIKeyEnv, if set, names an environment variable whose value is
+  // sent as this model's every request's "Authorization: Bearer
+  // <value>" header — see llm.Client.APIKey. Only meaningful
+  // alongside URL: a locally spawned llama-server needs no auth.
+  // Resolved via os.Getenv at request-client-construction time
+  // (Manager.apiKey), not stored as a value here — this Manager also
+  // strips every name configured this way from spawned llama-server
+  // processes' environment (see scrubbedEnviron), so one model's key
+  // never reaches an unrelated local process that inherits the
+  // environment by default otherwise.
+  APIKeyEnv string
 
   // Binary is the llama-server executable to spawn (looked up on
   // PATH if not absolute) — armin owns this process's lifecycle.
@@ -110,6 +124,13 @@ type Manager struct {
   specs map[string]ModelSpec
   procs map[string]*process // only entries for currently-running managed specs
 
+  // scrubEnvNames is every APIKeyEnv name configured across all
+  // specs — computed once, at New, since specs never change after
+  // construction. Spawned processes never see these regardless of
+  // which model they belong to (see scrubbedEnviron): a local
+  // llama-server has no legitimate reason to read any of them.
+  scrubEnvNames map[string]bool
+
   stopReap chan struct{}
   reapDone chan struct{}
 }
@@ -118,11 +139,19 @@ type Manager struct {
 // goroutine — nothing is spawned yet, only Client/Switch do that,
 // lazily, on first use of a managed model.
 func New(specs map[string]ModelSpec) *Manager {
+  scrub := make(map[string]bool)
+  for _, s := range specs {
+    if s.APIKeyEnv != "" {
+      scrub[s.APIKeyEnv] = true
+    }
+  }
+
   m := &Manager{
-    specs:    specs,
-    procs:    make(map[string]*process),
-    stopReap: make(chan struct{}),
-    reapDone: make(chan struct{}),
+    specs:         specs,
+    procs:         make(map[string]*process),
+    scrubEnvNames: scrub,
+    stopReap:      make(chan struct{}),
+    reapDone:      make(chan struct{}),
   }
   go m.reapLoop()
   return m
@@ -181,14 +210,29 @@ func (m *Manager) Switch(ctx context.Context, client *llm.Client, name string) e
   }
   client.BaseURL = url
   client.Model = name
+  client.APIKey = m.apiKey(name)
   client.OnRequestStart, client.OnRequestEnd = m.callbacks(name)
   return nil
 }
 
 func (m *Manager) newClientFor(name, url string) *llm.Client {
   c := llm.New(url, name)
+  c.APIKey = m.apiKey(name)
   c.OnRequestStart, c.OnRequestEnd = m.callbacks(name)
   return c
+}
+
+// apiKey resolves name's configured APIKeyEnv against the real
+// environment — called from newClientFor/Switch rather than reading
+// m.specs directly, so neither has to remember to take m.mu itself.
+// Resolved fresh on every call (not cached from New) so a key
+// rotated in .env/the environment during a long-running session
+// takes effect on the next switch, not just at startup.
+func (m *Manager) apiKey(name string) string {
+  m.mu.Lock()
+  envName := m.specs[name].APIKeyEnv
+  m.mu.Unlock()
+  return os.Getenv(envName)
 }
 
 func (m *Manager) callbacks(name string) (start, end func()) {
@@ -227,6 +271,7 @@ func (m *Manager) spawn(ctx context.Context, name string, spec ModelSpec) error 
   // Independent of ctx on purpose: this process must outlive
   // whatever single request triggered spawning it. Its lifetime is
   // owned entirely by the reaper and Shutdown below.
+  cmd.Env = m.scrubbedEnviron()
   if err := cmd.Start(); err != nil {
     return fmt.Errorf(
       "\n\t... in spawn:\n\t starting %q for %q: %w",
@@ -248,6 +293,24 @@ func (m *Manager) spawn(ctx context.Context, name string, spec ModelSpec) error 
     )
   }
   return nil
+}
+
+// scrubbedEnviron is os.Environ() with every configured
+// models.<name>.api_key_env name removed. exec.Cmd with a nil Env
+// inherits the parent's environment in full, which would otherwise
+// hand a Claude (or any other remote model's) API key to a local
+// llama-server process that has no business seeing it.
+func (m *Manager) scrubbedEnviron() []string {
+  full := os.Environ()
+  out := make([]string, 0, len(full))
+  for _, kv := range full {
+    name, _, _ := strings.Cut(kv, "=")
+    if m.scrubEnvNames[name] {
+      continue
+    }
+    out = append(out, kv)
+  }
+  return out
 }
 
 func waitHealthy(ctx context.Context, url string) error {

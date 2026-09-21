@@ -3,6 +3,7 @@ package llamacpp
 import (
   "context"
   "fmt"
+  "io"
   "net"
   "net/http"
   "os"
@@ -90,6 +91,46 @@ func TestClientExternalSpecNeverSpawns(t *testing.T) {
   m.mu.Unlock()
   if tracked {
     t.Fatal("an externally managed spec must never be tracked as a spawned process")
+  }
+}
+
+func TestClientCarriesAPIKeyFromSpec(t *testing.T) {
+  t.Setenv("ARMIN_TEST_API_KEY", "sk-ant-test")
+  m := New(map[string]ModelSpec{
+    "claude": { URL: "https://api.anthropic.com/v1", APIKeyEnv: "ARMIN_TEST_API_KEY" },
+  })
+  defer m.Shutdown(context.Background())
+
+  client, err := m.Client(context.Background(), "claude")
+  if err != nil {
+    t.Fatalf("Client: %v", err)
+  }
+  if client.APIKey != "sk-ant-test" {
+    t.Fatalf("Client.APIKey = %q, want it resolved from APIKeyEnv", client.APIKey)
+  }
+}
+
+func TestSwitchUpdatesAPIKeyOnTheSharedClient(t *testing.T) {
+  t.Setenv("ARMIN_TEST_API_KEY", "sk-ant-test")
+  m := New(map[string]ModelSpec{
+    "local":  { URL: "http://localhost:8080" },
+    "claude": { URL: "https://api.anthropic.com/v1", APIKeyEnv: "ARMIN_TEST_API_KEY" },
+  })
+  defer m.Shutdown(context.Background())
+
+  client, err := m.Client(context.Background(), "local")
+  if err != nil {
+    t.Fatalf("Client: %v", err)
+  }
+  if client.APIKey != "" {
+    t.Fatalf("Client.APIKey = %q, want empty for a spec with no APIKeyEnv", client.APIKey)
+  }
+
+  if err := m.Switch(context.Background(), client, "claude"); err != nil {
+    t.Fatalf("Switch: %v", err)
+  }
+  if client.APIKey != "sk-ant-test" {
+    t.Fatalf("after Switch, Client.APIKey = %q, want sk-ant-test", client.APIKey)
   }
 }
 
@@ -203,6 +244,17 @@ func TestHelperProcess(t *testing.T) {
   mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusOK)
   })
+  // /env reports whether this process (not the test process) sees a
+  // given environment variable — TestSpawnScrubsSecretEnvVars uses
+  // it to confirm spawn() actually strips configured secrets rather
+  // than just trusting cmd.Env's construction in isolation.
+  mux.HandleFunc("/env", func(w http.ResponseWriter, r *http.Request) {
+    if os.Getenv(r.URL.Query().Get("name")) != "" {
+      w.Write([]byte("1"))
+    } else {
+      w.Write([]byte("0"))
+    }
+  })
   ln, err := net.Listen("tcp", "127.0.0.1:"+port)
   if err != nil {
     fmt.Fprintln(os.Stderr, "helper: listen:", err)
@@ -295,6 +347,51 @@ func TestSpawnHealthPollAndShutdown(t *testing.T) {
   }
   if err := client.Health(context.Background()); err == nil {
     t.Fatal("expected Health to fail once Shutdown stopped the process")
+  }
+}
+
+func TestSpawnScrubsSecretEnvVars(t *testing.T) {
+  if testing.Short() {
+    t.Skip("spawns a real subprocess")
+  }
+
+  t.Setenv("ARMIN_TEST_SECRET", "should-not-leak-to-children")
+
+  bin := fakeLlamaServerBinary(t)
+  port := freePort(t)
+
+  m := New(map[string]ModelSpec{
+    // "claude" is never used in this test — just configured, so its
+    // APIKeyEnv name lands in scrubEnvNames the same way it would in
+    // a real setup with both an authenticated remote model and a
+    // local managed one.
+    "claude": { URL: "https://api.anthropic.com/v1", APIKeyEnv: "ARMIN_TEST_SECRET" },
+    "fim":    { Binary: bin, ModelPath: "unused.gguf", Port: port },
+  })
+  defer m.Shutdown(context.Background())
+
+  ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+  defer cancel()
+
+  if _, err := m.Client(ctx, "fim"); err != nil {
+    t.Fatalf("Client: %v", err)
+  }
+
+  resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/env?name=ARMIN_TEST_SECRET", port))
+  if err != nil {
+    t.Fatalf("querying the spawned process: %v", err)
+  }
+  defer resp.Body.Close()
+  body, err := io.ReadAll(resp.Body)
+  if err != nil {
+    t.Fatal(err)
+  }
+  if string(body) != "0" {
+    t.Fatalf(
+      "spawned process saw ARMIN_TEST_SECRET (body=%q) — a local "+
+        "llama-server must never inherit another model's API key",
+      body,
+    )
   }
 }
 

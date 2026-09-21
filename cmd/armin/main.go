@@ -48,6 +48,13 @@ func main() {
 }
 
 func run() error {
+  // Before config.Load(), so a models.<name>.api_key_env entry can
+  // resolve against a key .env only just populated into the process
+  // environment — see config.LoadEnv's doc comment.
+  if err := config.LoadEnv(); err != nil {
+    return fmt.Errorf("\n\t... in run:\n\t loading .env: %w", err)
+  }
+
   fileCfg, err := config.Load()
   if err != nil {
     return fmt.Errorf("\n\t... in run:\n\t loading config: %w", err)
@@ -216,7 +223,8 @@ func buildModelSpecs(
   specs := make(map[string]llamacpp.ModelSpec, len(fileCfg.Models)+2)
   for name, c := range fileCfg.Models {
     specs[name] = llamacpp.ModelSpec{
-      URL: c.URL, Binary: c.Binary, ModelPath: c.ModelPath,
+      URL: c.URL, APIKeyEnv: c.APIKeyEnv,
+      Binary: c.Binary, ModelPath: c.ModelPath,
       Port: c.Port, Args: c.Args, IdleTimeout: c.IdleTimeout,
     }
   }

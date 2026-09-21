@@ -3,6 +3,7 @@ package config
 import (
   "os"
   "path/filepath"
+  "strings"
   "testing"
   "time"
 )
@@ -88,7 +89,8 @@ allow = curl, docker
 func TestLoadParsesModelBlocks(t *testing.T) {
   withConfigDir(t)
   writeConfig(t, `
-models.chat.url = http://localhost:8080
+models.chat.url         = http://localhost:8080
+models.chat.api_key_env = ANTHROPIC_API_KEY
 
 models.fim.binary = llama-server
 models.fim.model_path = /home/h/models/qwen2.5-coder.gguf
@@ -109,6 +111,9 @@ models.fim.args = --ctx-size 8192 --n-gpu-layers 999
   chat := cfg.Models["chat"]
   if chat.URL != "http://localhost:8080" {
     t.Fatalf("chat.URL = %q", chat.URL)
+  }
+  if chat.APIKeyEnv != "ANTHROPIC_API_KEY" {
+    t.Fatalf("chat.APIKeyEnv = %q, want ANTHROPIC_API_KEY", chat.APIKeyEnv)
   }
 
   fim := cfg.Models["fim"]
@@ -196,6 +201,118 @@ func TestLoadIgnoresBlankLinesAndComments(t *testing.T) {
   }
   if cfg.Model != "qwen3:4b" {
     t.Fatalf("Model = %q, want qwen3:4b", cfg.Model)
+  }
+}
+
+func TestLoadEnvSetsUnsetVars(t *testing.T) {
+  withConfigDir(t)
+  path, err := EnvPath()
+  if err != nil {
+    t.Fatal(err)
+  }
+  if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+    t.Fatal(err)
+  }
+  if err := os.WriteFile(path, []byte("FOO_KEY=abc123\n# a comment\n\nBAR_KEY = spaced \n"), 0o600); err != nil {
+    t.Fatal(err)
+  }
+
+  os.Unsetenv("FOO_KEY")
+  os.Unsetenv("BAR_KEY")
+  t.Cleanup(func() { os.Unsetenv("FOO_KEY"); os.Unsetenv("BAR_KEY") })
+
+  if err := LoadEnv(); err != nil {
+    t.Fatalf("LoadEnv: %v", err)
+  }
+
+  if got := os.Getenv("FOO_KEY"); got != "abc123" {
+    t.Fatalf("FOO_KEY = %q, want abc123", got)
+  }
+  if got := os.Getenv("BAR_KEY"); got != "spaced" {
+    t.Fatalf("BAR_KEY = %q, want \"spaced\" (trimmed)", got)
+  }
+}
+
+func TestLoadEnvDoesNotOverrideRealEnvironment(t *testing.T) {
+  withConfigDir(t)
+  path, err := EnvPath()
+  if err != nil {
+    t.Fatal(err)
+  }
+  if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+    t.Fatal(err)
+  }
+  if err := os.WriteFile(path, []byte("PRESET_KEY=from-dotenv\n"), 0o600); err != nil {
+    t.Fatal(err)
+  }
+
+  t.Setenv("PRESET_KEY", "from-real-env")
+
+  if err := LoadEnv(); err != nil {
+    t.Fatalf("LoadEnv: %v", err)
+  }
+  if got := os.Getenv("PRESET_KEY"); got != "from-real-env" {
+    t.Fatalf("PRESET_KEY = %q, want the real environment to win over .env", got)
+  }
+}
+
+func TestLoadEnvMissingFileIsNotError(t *testing.T) {
+  withConfigDir(t)
+  if err := LoadEnv(); err != nil {
+    t.Fatalf("LoadEnv on a missing .env returned an error: %v", err)
+  }
+}
+
+func TestLoadEnvRejectsMalformedLine(t *testing.T) {
+  withConfigDir(t)
+  path, err := EnvPath()
+  if err != nil {
+    t.Fatal(err)
+  }
+  if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+    t.Fatal(err)
+  }
+  if err := os.WriteFile(path, []byte("not a key value line\n"), 0o600); err != nil {
+    t.Fatal(err)
+  }
+
+  if err := LoadEnv(); err == nil {
+    t.Fatal("expected an error for a line with no \"KEY=value\" shape")
+  }
+}
+
+func TestLoadEnvRejectsLoosePermissions(t *testing.T) {
+  withConfigDir(t)
+  path, err := EnvPath()
+  if err != nil {
+    t.Fatal(err)
+  }
+  if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+    t.Fatal(err)
+  }
+  if err := os.WriteFile(path, []byte("FOO_KEY=abc123\n"), 0o644); err != nil {
+    t.Fatal(err)
+  }
+
+  err = LoadEnv()
+  if err == nil {
+    t.Fatal("expected an error for a group/other-readable .env")
+  }
+  if !strings.Contains(err.Error(), "chmod 600") {
+    t.Fatalf("error = %v, want it to tell the user how to fix permissions", err)
+  }
+}
+
+func TestEnvPathIsAlongsideConfigConf(t *testing.T) {
+  dir := withConfigDir(t)
+
+  envPath, err := EnvPath()
+  if err != nil {
+    t.Fatal(err)
+  }
+  want := filepath.Join(dir, "armin", ".env")
+  if envPath != want {
+    t.Fatalf("EnvPath() = %q, want %q", envPath, want)
   }
 }
 

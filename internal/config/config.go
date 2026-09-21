@@ -25,8 +25,16 @@ import (
 // package does no cross-field validation, matching the rest of its
 // minimalism — URL simply wins, same as
 // internal/llamacpp.ModelSpec.managed() decides it.
+//
+// APIKeyEnv names an environment variable (see LoadEnv/EnvPath
+// below) rather than holding a key value directly — config.conf is
+// plain text people back up and share, so this package never reads
+// or stores an actual secret, only the name of where to find one at
+// request time. cmd/armin/main.go resolves it via os.Getenv once,
+// when building internal/llamacpp.ModelSpec.APIKey.
 type ModelSpecConfig struct {
-  URL string
+  URL       string
+  APIKeyEnv string
 
   Binary    string
   ModelPath string
@@ -86,6 +94,96 @@ func Path() (string, error) {
     return "", fmt.Errorf("\n\t... in Path:\n\t%w", err)
   }
   return filepath.Join(dir, "config.conf"), nil
+}
+
+// EnvPath returns the .env file location, honoring XDG_CONFIG_HOME —
+// the same directory config.conf lives in, so a models.<name>.url
+// entry pointing at an authenticated remote endpoint (Claude's
+// OpenAI-compatible API, say) has somewhere to keep its key out of
+// config.conf's own plain text.
+func EnvPath() (string, error) {
+  dir, err := Dir()
+  if err != nil {
+    return "", fmt.Errorf("\n\t... in EnvPath:\n\t%w", err)
+  }
+  return filepath.Join(dir, ".env"), nil
+}
+
+// LoadEnv reads .env (see EnvPath) if it exists and calls os.Setenv
+// for each "KEY=value" line it finds — but only for a key that isn't
+// already set in the real environment, so an explicitly exported
+// shell variable always wins over the file, the usual dotenv
+// precedence. A missing file is not an error. Deliberately as
+// minimal as config.conf's own parser: no quoting, no "export "
+// prefix, no variable expansion — just "key = value" and "#"
+// comments. cmd/armin/main.go calls this once, at startup, before
+// resolving any ModelSpecConfig.APIKeyEnv.
+//
+// Refuses to read a file that's group- or other-readable: this file
+// is meant for API keys, and a wrong umask leaving it world-readable
+// is exactly the kind of mistake that should fail loud rather than
+// quietly work.
+func LoadEnv() error {
+  path, err := EnvPath()
+  if err != nil {
+    return fmt.Errorf("\n\t... in LoadEnv:\n\t%w", err)
+  }
+
+  info, err := os.Stat(path)
+  if os.IsNotExist(err) {
+    return nil
+  }
+  if err != nil {
+    return fmt.Errorf("\n\t... in LoadEnv:\n\t%w", err)
+  }
+  if perm := info.Mode().Perm(); perm&0o077 != 0 {
+    return fmt.Errorf(
+      "\n\t... in LoadEnv:\n\t %s is readable by group/other (mode %#o) "+
+        "— it may hold API keys; fix this before armin will read it: "+
+        "chmod 600 %s",
+      path, perm, path,
+    )
+  }
+
+  f, err := os.Open(path)
+  if err != nil {
+    return fmt.Errorf("\n\t... in LoadEnv:\n\t%w", err)
+  }
+  defer f.Close()
+
+  scanner := bufio.NewScanner(f)
+  lineNo := 0
+
+  for scanner.Scan() {
+    lineNo++
+    line := strings.TrimSpace(scanner.Text())
+    if line == "" || strings.HasPrefix(line, "#") {
+      continue
+    }
+
+    key, value, ok := strings.Cut(line, "=")
+    if !ok {
+      return fmt.Errorf(
+        "\n\t... in LoadEnv:\n\t %s:%d: expected \"KEY=value\", got %q",
+        path, lineNo, line,
+      )
+    }
+    key = strings.TrimSpace(key)
+    value = strings.TrimSpace(value)
+
+    if _, alreadySet := os.LookupEnv(key); alreadySet {
+      continue
+    }
+    if err := os.Setenv(key, value); err != nil {
+      return fmt.Errorf(
+        "\n\t... in LoadEnv:\n\t setting %s: %w", key, err,
+      )
+    }
+  }
+  if err := scanner.Err(); err != nil {
+    return fmt.Errorf("\n\t... in LoadEnv:\n\t%w", err)
+  }
+  return nil
 }
 
 // Load reads the config file if it exists. A missing file is not
@@ -207,6 +305,8 @@ func applyModel(cfg *Config, name, field, value string) error {
     spec.Binary = value
   case "model_path":
     spec.ModelPath = value
+  case "api_key_env":
+    spec.APIKeyEnv = value
   case "port":
     n, err := strconv.Atoi(value)
     if err != nil {

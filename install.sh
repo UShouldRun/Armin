@@ -145,12 +145,14 @@ fi
 
 config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/armin"
 config_path="$config_dir/config.conf"
+env_path="$config_dir/.env"
 
 if [ "$write_config" -eq 1 ]; then
+  mkdir -p "$config_dir"
+
   if [ -e "$config_path" ]; then
     ok "config.conf already exists at $config_path — left untouched"
   else
-    mkdir -p "$config_dir"
     cat > "$config_path" <<'EOF'
 # key = value, "#" comments, nothing fancier — see README.md's
 # "Config file" and "Model lifecycle" sections for the full key list.
@@ -158,6 +160,28 @@ model     = chat
 llama_url = http://localhost:8080
 EOF
     ok "wrote a starter config to $config_path"
+  fi
+
+  # .env holds API keys for any models.<name> pointed at an
+  # authenticated remote endpoint (see README.md's "Authenticated /
+  # remote models" section) — armin refuses to read one that's
+  # readable by anyone but you, so this is created (and any existing
+  # one re-tightened) at mode 600 from the start.
+  if [ -e "$env_path" ]; then
+    chmod 600 "$env_path"
+    ok ".env already exists at $env_path — content left untouched, permissions set to 600"
+  else
+    cat > "$env_path" <<'EOF'
+# key = value, "#" comments, nothing fancier. Only needed for a
+# models.<name> pointed at an authenticated remote endpoint (Claude's
+# OpenAI-compatible API, say) — a local llama-server needs none of
+# this. Must stay readable only by you — armin refuses to load it
+# otherwise — which is why this file is created at mode 600.
+#
+# ANTHROPIC_API_KEY = sk-ant-...
+EOF
+    chmod 600 "$env_path"
+    ok "wrote an empty .env template to $env_path (mode 600)"
   fi
 fi
 
