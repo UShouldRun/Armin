@@ -167,18 +167,23 @@ type ModelArgs struct {
   Name string `json:"name,omitempty"`
 }
 
-// ModelChoice is one entry in ModelInfo.Installed — enough for the
+// ModelChoice is one entry in ModelInfo.Configured — enough for the
 // client to make its own "fastest"/"best" recommendation, without
 // armin.model dictating opinions the client would just re-render.
+// Unlike Ollama's disk-size-based ModelChoice this replaced, there's
+// no meaningful "size" to report per model here (a models.<name>
+// entry may not even be spawned yet) — Managed/Running describe
+// lifecycle state instead.
 type ModelChoice struct {
-  Name string `json:"name"`
-  Size int64  `json:"size"` // bytes on disk, per Ollama
+  Name    string `json:"name"`
+  Managed bool   `json:"managed"` // false: armin only talks to it, never starts/stops it
+  Running bool   `json:"running"` // true: a managed process is currently up for it
 }
 
 // ModelInfo is "armin.model"'s result.
 type ModelInfo struct {
-  Current   string        `json:"current"`
-  Installed []ModelChoice `json:"installed,omitempty"`
+  Current    string        `json:"current"`
+  Configured []ModelChoice `json:"configured,omitempty"`
 }
 
 // InlineCompletionParams mirrors LSP 3.18's

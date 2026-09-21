@@ -47,8 +47,8 @@ func New(client *llm.Client, sb *sandbox.Config) *Loop {
   return &Loop{ LLM: client, Sandbox: sb }
 }
 
-// ToolDefinitions returns the schema for all 34 tools, sent to
-// Ollama alongside every chat request. Descriptions are kept short
+// ToolDefinitions returns the schema for all 34 tools, sent to the
+// model alongside every chat request. Descriptions are kept short
 // and concrete per plan section 4 — small models are sensitive to
 // prompt bloat.
 func ToolDefinitions() []llm.ToolDefinition {
@@ -785,9 +785,10 @@ func (l *Loop) Turn(
       }
 
       *history = append(*history, llm.Message{
-        Role:     "tool",
-        ToolName: call.Function.Name,
-        Content:  string(resultJSON),
+        Role:       "tool",
+        ToolName:   call.Function.Name,
+        ToolCallID: call.ID,
+        Content:    string(resultJSON),
       })
     }
   }

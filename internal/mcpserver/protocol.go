@@ -39,6 +39,7 @@ type rpcError struct {
 const (
   errInvalidRequest = -32600
   errMethodNotFound = -32601
+  errInvalidParams  = -32602
 )
 
 type implementation struct {
@@ -63,7 +64,7 @@ type initializeResult struct {
 // tool mirrors MCP's Tool shape. InputSchema reuses
 // llm.ToolParameters directly: its JSON tags
 // (type/properties/required) already form a valid JSON Schema
-// object — the very same one sent to Ollama for tool calling — so
+// object — the very same one sent to the model for tool calling — so
 // each tool's parameter shape is defined exactly once, in
 // agent.ToolDefinitions, not duplicated here.
 type tool struct {

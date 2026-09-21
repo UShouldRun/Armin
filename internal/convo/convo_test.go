@@ -62,14 +62,16 @@ func TestCompactRefusesWhenTooShort(t *testing.T) {
   }
 }
 
-// fakeOllamaChat serves a canned /api/chat response so Compact's
-// message-splicing logic can be tested without a real Ollama instance.
-func fakeOllamaChat(t *testing.T, reply string) *httptest.Server {
+// fakeChatServer serves a canned /v1/chat/completions response so
+// Compact's message-splicing logic can be tested without a real
+// llama-server instance.
+func fakeChatServer(t *testing.T, reply string) *httptest.Server {
   t.Helper()
   return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
     resp := map[string]any{
-      "message": map[string]string{"role": "assistant", "content": reply},
-      "done":    true,
+      "choices": []map[string]any{
+        { "message": map[string]string{ "role": "assistant", "content": reply } },
+      },
     }
     if err := json.NewEncoder(w).Encode(resp); err != nil {
       t.Fatal(err)
@@ -78,7 +80,7 @@ func fakeOllamaChat(t *testing.T, reply string) *httptest.Server {
 }
 
 func TestCompactPreservesSystemAndTail(t *testing.T) {
-  server := fakeOllamaChat(t, "- did X\n- next: Y")
+  server := fakeChatServer(t, "- did X\n- next: Y")
   defer server.Close()
   client := llm.New(server.URL, "fake-model")
 
@@ -115,7 +117,7 @@ func TestCompactPreservesSystemAndTail(t *testing.T) {
 }
 
 func TestSuggestParsesOneLinePerSuggestion(t *testing.T) {
-  server := fakeOllamaChat(t, "What does search_code wrap?\nHow is dry-run handled?\nWhat's the sandbox timeout?")
+  server := fakeChatServer(t, "What does search_code wrap?\nHow is dry-run handled?\nWhat's the sandbox timeout?")
   defer server.Close()
   client := llm.New(server.URL, "fake-model")
 
@@ -133,7 +135,7 @@ func TestSuggestParsesOneLinePerSuggestion(t *testing.T) {
 }
 
 func TestSuggestCapsAtMax(t *testing.T) {
-  server := fakeOllamaChat(t, "one\ntwo\nthree\nfour\nfive")
+  server := fakeChatServer(t, "one\ntwo\nthree\nfour\nfive")
   defer server.Close()
   client := llm.New(server.URL, "fake-model")
 
@@ -147,7 +149,7 @@ func TestSuggestCapsAtMax(t *testing.T) {
 }
 
 func TestSuggestSkipsBlankLines(t *testing.T) {
-  server := fakeOllamaChat(t, "one\n\n\ntwo\n")
+  server := fakeChatServer(t, "one\n\n\ntwo\n")
   defer server.Close()
   client := llm.New(server.URL, "fake-model")
 

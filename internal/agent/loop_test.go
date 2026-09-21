@@ -3,6 +3,7 @@ package agent
 import (
   "context"
   "encoding/json"
+  "fmt"
   "net/http"
   "net/http/httptest"
   "os"
@@ -50,11 +51,57 @@ func TestToolDefinitionsShape(t *testing.T) {
   }
 }
 
+// writeChatResponse encodes msg as the OpenAI-shaped JSON
+// llama-server's /v1/chat/completions returns — armin/internal/llm's
+// own wire types are unexported, so tests outside that package
+// build the shape by hand rather than reusing it. In particular a
+// ToolCall's map[string]any Arguments becomes a JSON-encoded
+// *string* here, the same translation llm.Client.Chat does when
+// parsing a real response.
+func writeChatResponse(t *testing.T, w http.ResponseWriter, msg llm.Message) {
+  t.Helper()
+
+  type wireFunc struct {
+    Name      string `json:"name"`
+    Arguments string `json:"arguments"`
+  }
+  type wireToolCall struct {
+    ID       string   `json:"id"`
+    Type     string   `json:"type"`
+    Function wireFunc `json:"function"`
+  }
+  type wireMessage struct {
+    Role      string         `json:"role"`
+    Content   string         `json:"content"`
+    ToolCalls []wireToolCall `json:"tool_calls,omitempty"`
+  }
+
+  wm := wireMessage{ Role: msg.Role, Content: msg.Content }
+  for i, tc := range msg.ToolCalls {
+    args, err := json.Marshal(tc.Function.Arguments)
+    if err != nil {
+      t.Fatal(err)
+    }
+    id := tc.ID
+    if id == "" {
+      id = fmt.Sprintf("call_%d", i)
+    }
+    wm.ToolCalls = append(wm.ToolCalls, wireToolCall{
+      ID: id, Type: "function",
+      Function: wireFunc{ Name: tc.Function.Name, Arguments: string(args) },
+    })
+  }
+
+  json.NewEncoder(w).Encode(map[string]any{
+    "choices": []map[string]any{ { "message": wm } },
+  })
+}
+
 func newTestLoop(t *testing.T, chatHandler http.HandlerFunc) (*Loop, string) {
   t.Helper()
 
   mux := http.NewServeMux()
-  mux.HandleFunc("/api/chat", chatHandler)
+  mux.HandleFunc("/v1/chat/completions", chatHandler)
   server := httptest.NewServer(mux)
   t.Cleanup(server.Close)
 
@@ -92,7 +139,7 @@ func TestTurnExecutesToolThenReturnsAnswer(t *testing.T) {
     } else {
       reply = llm.Message{Role: "assistant", Content: "the file says hello world"}
     }
-    json.NewEncoder(w).Encode(map[string]any{"message": reply, "done": true})
+    writeChatResponse(t, w, reply)
   })
 
   var toolCallSeen string
@@ -138,7 +185,7 @@ func TestTurnSurfacesToolErrorAsStructuredResult(t *testing.T) {
     } else {
       reply = llm.Message{Role: "assistant", Content: "couldn't find that file"}
     }
-    json.NewEncoder(w).Encode(map[string]any{"message": reply, "done": true})
+    writeChatResponse(t, w, reply)
   })
 
   history := []llm.Message{{Role: "system", Content: "sys"}}
@@ -169,7 +216,7 @@ func TestTurnHitsMaxRounds(t *testing.T) {
         Arguments: map[string]any{},
       }}},
     }
-    json.NewEncoder(w).Encode(map[string]any{"message": reply, "done": true})
+    writeChatResponse(t, w, reply)
   })
 
   history := []llm.Message{{Role: "system", Content: "sys"}}
@@ -200,7 +247,7 @@ func TestTurnDispatchesWebSearchWithNilManager(t *testing.T) {
     } else {
       reply = llm.Message{Role: "assistant", Content: "search is unavailable"}
     }
-    json.NewEncoder(w).Encode(map[string]any{"message": reply, "done": true})
+    writeChatResponse(t, w, reply)
   })
 
   history := []llm.Message{{Role: "system", Content: "sys"}}
@@ -226,7 +273,7 @@ func TestTurnRejectsUnknownTool(t *testing.T) {
       Role: "assistant",
       ToolCalls: []llm.ToolCall{{Function: llm.ToolCallFunction{Name: "delete_everything"}}},
     }
-    json.NewEncoder(w).Encode(map[string]any{"message": reply, "done": true})
+    writeChatResponse(t, w, reply)
   })
 
   history := []llm.Message{{Role: "system", Content: "sys"}}

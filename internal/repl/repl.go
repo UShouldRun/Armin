@@ -17,6 +17,7 @@ import (
 
   "armin/internal/agent"
   "armin/internal/convo"
+  "armin/internal/llamacpp"
   "armin/internal/llm"
   "armin/internal/sandbox"
   "armin/internal/session"
@@ -25,7 +26,7 @@ import (
 )
 
 // turnTimeout bounds one user turn end to end (all tool rounds
-// included), so a hung Ollama call can't wedge the REPL forever.
+// included), so a hung model call can't wedge the REPL forever.
 const turnTimeout = 5 * time.Minute
 
 // compactKeepLast is how many recent messages /compact leaves
@@ -56,6 +57,7 @@ const (
 type REPL struct {
   Loop    *agent.Loop
   LLM     *llm.Client
+  Models  *llamacpp.Manager
   Sandbox *sandbox.Config
 
   History   []llm.Message
@@ -85,10 +87,12 @@ type REPL struct {
 func New(
   loop *agent.Loop, client *llm.Client, sb *sandbox.Config,
   systemPrompt string, resumed *session.Saved, autosave bool,
+  models *llamacpp.Manager,
 ) *REPL {
   r := &REPL{
     Loop:    loop,
     LLM:     client,
+    Models:  models,
     Sandbox: sb,
     Root:    sb.Root,
   }
@@ -170,7 +174,7 @@ func (r *REPL) Run(ctx context.Context) error {
           "%q doesn't support tool calling, so it can't drive"+
             " armin's tools. Switch to one that does with"+
             " /model <name> (/model with no name lists what's"+
-            " installed).", r.LLM.Model,
+            " configured).", r.LLM.Model,
         )
       } else {
         ui.Error("%s", err)

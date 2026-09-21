@@ -25,6 +25,7 @@ import (
 
   "armin/internal/agent"
   "armin/internal/ctags"
+  "armin/internal/llamacpp"
   "armin/internal/llm"
   "armin/internal/sandbox"
 )
@@ -61,11 +62,12 @@ const citationInstruction = "\n\n" +
 // no go-to-definition beyond ctags — hover, one ask command, and
 // inline completion.
 type Server struct {
-  loop            *agent.Loop
-  sandbox         *sandbox.Config
-  system          string
-  completionModel string
-  symbols         *ctags.Index
+  loop          *agent.Loop
+  sandbox       *sandbox.Config
+  system        string
+  completionLLM *llm.Client
+  models        *llamacpp.Manager
+  symbols       *ctags.Index
 
   out   io.Writer
   outMu sync.Mutex
@@ -93,29 +95,37 @@ type inflightEntry struct {
 // New builds a Server. loop and sb are the same agent/sandbox pair
 // the REPL uses — hover and ask questions get the same
 // tool-grounded answers, just delivered through vim.lsp instead of
-// a terminal chat. completionModel is a separate, ideally
-// fill-in-the-middle-capable model used only for inline completion;
-// it never goes through loop (no tool calls, no chat formatting —
-// see internal/llm.Client.Complete). symbols is the ctags index
-// backing textDocument/definition, workspace/symbol, and hover
-// grounding — cmd/armin/main.go builds one shared *ctags.Index and
-// passes the same one here and into loop.Symbols, so -lsp doesn't
-// scan the repo twice; if no universal-ctags binary was found at
-// startup, those three degrade gracefully (empty results / plain
-// LLM-only hover) rather than failing the server.
+// a terminal chat. completionLLM is a separate Client, ideally
+// pointed at a fill-in-the-middle-capable model, used only for
+// inline completion; it never goes through loop (no tool calls, no
+// chat formatting — see internal/llm.Client.Complete) and is a
+// distinct Client (not just a different model name on loop.LLM)
+// because llama.cpp — unlike Ollama — serves exactly one model per
+// process, so a separate completion model means a separate
+// llama-server. models is the same Manager cmd/armin/main.go built
+// both Clients from, kept here so armin.model can switch loop.LLM
+// live (see executeModel). symbols is the ctags index backing
+// textDocument/definition, workspace/symbol, and hover grounding —
+// cmd/armin/main.go builds one shared *ctags.Index and passes the
+// same one here and into loop.Symbols, so -lsp doesn't scan the
+// repo twice; if no universal-ctags binary was found at startup,
+// those three degrade gracefully (empty results / plain LLM-only
+// hover) rather than failing the server.
 func New(
   loop *agent.Loop, sb *sandbox.Config,
-  systemPrompt, completionModel string, symbols *ctags.Index,
+  systemPrompt string, completionLLM *llm.Client,
+  models *llamacpp.Manager, symbols *ctags.Index,
 ) *Server {
   return &Server{
-    loop:            loop,
-    sandbox:         sb,
-    system:          systemPrompt,
-    completionModel: completionModel,
-    symbols:         symbols,
-    docs:            make(map[string]string),
-    hoverCache:      make(map[string]string),
-    inflight:        make(map[string]inflightEntry),
+    loop:          loop,
+    sandbox:       sb,
+    system:        systemPrompt,
+    completionLLM: completionLLM,
+    models:        models,
+    symbols:       symbols,
+    docs:          make(map[string]string),
+    hoverCache:    make(map[string]string),
+    inflight:      make(map[string]inflightEntry),
   }
 }
 
@@ -282,8 +292,8 @@ func (s *Server) hover(
 
 // respondAskError reports a Turn failure to the client. A model
 // that can't call tools at all gets a clean, actionable one-liner
-// instead of Ollama's raw (and, over JSON-RPC, single-line-mangled)
-// HTTP error body — anything else is passed through as-is.
+// instead of llama-server's raw (and, over JSON-RPC, single-line-
+// mangled) HTTP error body — anything else is passed through as-is.
 func (s *Server) respondAskError(id json.RawMessage, err error) {
   if errors.Is(err, llm.ErrToolsUnsupported) {
     s.respondError(id, errInternal, fmt.Sprintf(
@@ -372,9 +382,10 @@ func (s *Server) sendAskToolCall(
 
 // executeModel answers "armin.model": switch the chat model live
 // (no arguments needed elsewhere — the LSP process just keeps
-// running with the new r.loop.LLM.Model from then on), or report
-// the current model plus what Ollama has installed when called with
-// no name, mirroring the REPL's /model command.
+// running with s.loop.LLM mutated in place from then on, see
+// llamacpp.Manager.Switch), or report the current model plus every
+// configured one when called with no name, mirroring the REPL's
+// /model command.
 func (s *Server) executeModel(
   ctx context.Context, id json.RawMessage, p ExecuteCommandParams,
 ) {
@@ -387,18 +398,19 @@ func (s *Server) executeModel(
   }
 
   if args.Name != "" {
-    s.loop.LLM.Model = args.Name
+    if err := s.models.Switch(ctx, s.loop.LLM, args.Name); err != nil {
+      s.respondError(id, errInvalidRequest, err.Error())
+      return
+    }
     s.respond(id, ModelInfo{ Current: args.Name }, nil)
     return
   }
 
   info := ModelInfo{ Current: s.loop.LLM.Model }
-  if models, err := s.loop.LLM.ListModels(ctx); err == nil {
-    for _, m := range models {
-      info.Installed = append(
-        info.Installed, ModelChoice{ Name: m.Name, Size: m.Size },
-      )
-    }
+  for _, status := range s.models.Names() {
+    info.Configured = append(info.Configured, ModelChoice{
+      Name: status.Name, Managed: status.Managed, Running: status.Running,
+    })
   }
   s.respond(id, info, nil)
 }

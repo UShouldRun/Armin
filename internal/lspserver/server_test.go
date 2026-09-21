@@ -12,40 +12,63 @@ import (
 
   "armin/internal/agent"
   "armin/internal/ctags"
-  "armin/internal/llm"
+  "armin/internal/llamacpp"
   "armin/internal/sandbox"
 )
 
-// fakeOllama serves /api/tags (for ListModels) so armin.model's
-// "list what's installed" path can be tested without a real Ollama.
-func fakeOllama(t *testing.T, models ...llm.TagsModel) *httptest.Server {
+// fakeChatServer serves a canned /v1/chat/completions response so
+// armin.model/armin.ask can be tested without a real llama-server.
+func fakeChatServer(t *testing.T, reply string) *httptest.Server {
   t.Helper()
   return httptest.NewServer(http.HandlerFunc(
     func(w http.ResponseWriter, r *http.Request) {
-      json.NewEncoder(w).Encode(map[string]any{ "models": models })
+      json.NewEncoder(w).Encode(map[string]any{
+        "choices": []map[string]any{
+          { "message": map[string]string{ "role": "assistant", "content": reply } },
+        },
+      })
     },
   ))
 }
 
-func model(name string, size int64) llm.TagsModel {
-  return llm.TagsModel{ Name: name, Size: size }
-}
-
-func newTestServerWithOllama(t *testing.T, ollamaURL, model string) *Server {
+// newTestServer builds a Server backed by a llamacpp.Manager whose
+// every name in modelNames is configured as an external, unmanaged
+// spec pointed at chatURL — no process spawning involved, matching
+// how a "just point armin at a llama-server you already run"
+// zero-config setup works. modelNames[0] is the initial chat model;
+// the completion Client reuses the same one.
+func newTestServer(t *testing.T, chatURL string, modelNames ...string) *Server {
   t.Helper()
   root := t.TempDir()
   sb, err := sandbox.New(root, sandbox.Options{})
   if err != nil {
     t.Fatal(err)
   }
-  client := llm.New(ollamaURL, model)
+
+  specs := make(map[string]llamacpp.ModelSpec, len(modelNames))
+  for _, name := range modelNames {
+    specs[name] = llamacpp.ModelSpec{ URL: chatURL }
+  }
+  models := llamacpp.New(specs)
+  t.Cleanup(func() { models.Shutdown(context.Background()) })
+
+  ctx := context.Background()
+  client, err := models.Client(ctx, modelNames[0])
+  if err != nil {
+    t.Fatal(err)
+  }
+  completionClient, err := models.Client(ctx, modelNames[0])
+  if err != nil {
+    t.Fatal(err)
+  }
+
   loop := agent.New(client, sb)
-  return New(loop, sb, "system prompt", "", ctags.New(root, ""))
+  return New(loop, sb, "system prompt", completionClient, models, ctags.New(root, ""))
 }
 
 // callExecuteCommand invokes s.executeCommand directly rather than
 // through s.handle — handle dispatches executeCommand in a
-// goroutine (so a slow LLM call never blocks the read loop), which
+// goroutine (so a slow model call never blocks the read loop), which
 // would make a synchronous test racy against s.out.
 func callExecuteCommand(t *testing.T, s *Server, p ExecuteCommandParams) rpcResponse {
   t.Helper()
@@ -69,13 +92,13 @@ func callExecuteCommand(t *testing.T, s *Server, p ExecuteCommandParams) rpcResp
 }
 
 func TestExecuteModelSwitchesLive(t *testing.T) {
-  server := fakeOllama(t, model("qwen3:4b", 2_500_000_000))
+  server := fakeChatServer(t, "ok")
   defer server.Close()
-  s := newTestServerWithOllama(t, server.URL, "qwen3:4b")
+  s := newTestServer(t, server.URL, "chat", "coder")
 
   resp := callExecuteCommand(t, s, ExecuteCommandParams{
     Command:   "armin.model",
-    Arguments: []json.RawMessage{ json.RawMessage(`{"name":"qwen2.5-coder:1.5b-base"}`) },
+    Arguments: []json.RawMessage{ json.RawMessage(`{"name":"coder"}`) },
   })
   if resp.Error != nil {
     t.Fatalf("armin.model (set): %+v", resp.Error)
@@ -83,21 +106,35 @@ func TestExecuteModelSwitchesLive(t *testing.T) {
 
   var info ModelInfo
   remarshalLSP(t, resp.Result, &info)
-  if info.Current != "qwen2.5-coder:1.5b-base" {
-    t.Fatalf("Current = %q, want qwen2.5-coder:1.5b-base", info.Current)
+  if info.Current != "coder" {
+    t.Fatalf("Current = %q, want coder", info.Current)
   }
-  if s.loop.LLM.Model != "qwen2.5-coder:1.5b-base" {
+  if s.loop.LLM.Model != "coder" {
     t.Fatalf("the shared client's Model wasn't actually updated: %q", s.loop.LLM.Model)
   }
 }
 
-func TestExecuteModelReportsCurrentAndInstalled(t *testing.T) {
-  server := fakeOllama(t,
-    model("qwen3:4b", 2_500_000_000),
-    model("qwen2.5-coder:1.5b-base", 986_000_000),
-  )
+func TestExecuteModelRejectsUnconfiguredName(t *testing.T) {
+  server := fakeChatServer(t, "ok")
   defer server.Close()
-  s := newTestServerWithOllama(t, server.URL, "qwen3:4b")
+  s := newTestServer(t, server.URL, "chat")
+
+  resp := callExecuteCommand(t, s, ExecuteCommandParams{
+    Command:   "armin.model",
+    Arguments: []json.RawMessage{ json.RawMessage(`{"name":"nonexistent"}`) },
+  })
+  if resp.Error == nil {
+    t.Fatal("expected an error for a name with no matching models.<name> entry")
+  }
+  if s.loop.LLM.Model != "chat" {
+    t.Fatalf("a rejected switch must not mutate the client: Model = %q", s.loop.LLM.Model)
+  }
+}
+
+func TestExecuteModelReportsCurrentAndConfigured(t *testing.T) {
+  server := fakeChatServer(t, "ok")
+  defer server.Close()
+  s := newTestServer(t, server.URL, "chat", "coder")
 
   resp := callExecuteCommand(t, s, ExecuteCommandParams{ Command: "armin.model" })
   if resp.Error != nil {
@@ -106,37 +143,41 @@ func TestExecuteModelReportsCurrentAndInstalled(t *testing.T) {
 
   var info ModelInfo
   remarshalLSP(t, resp.Result, &info)
-  if info.Current != "qwen3:4b" {
-    t.Fatalf("Current = %q, want qwen3:4b", info.Current)
+  if info.Current != "chat" {
+    t.Fatalf("Current = %q, want chat", info.Current)
   }
-  if len(info.Installed) != 2 {
-    t.Fatalf("Installed = %v, want 2 entries", info.Installed)
+  if len(info.Configured) != 2 {
+    t.Fatalf("Configured = %v, want 2 entries", info.Configured)
   }
-  if info.Installed[1].Size != 986_000_000 {
-    t.Fatalf("Installed[1].Size = %d, want 986000000", info.Installed[1].Size)
+  for _, c := range info.Configured {
+    if c.Managed {
+      t.Fatalf("%+v: an external (URL-only) spec must report Managed=false", c)
+    }
   }
 }
 
-// fakeOllamaChatRejectsTools serves /api/chat with the raw 400 body
-// Ollama actually returns for a model with no tool-calling support —
-// executeAsk/hover are expected to turn this into a clean, one-line
-// message instead of passing it through.
-func fakeOllamaChatRejectsTools(t *testing.T, modelName string) *httptest.Server {
+// fakeChatServerRejectsTools serves /v1/chat/completions with the
+// raw error body llama-server returns for a model/template with no
+// tool-calling support — executeAsk/hover are expected to turn this
+// into a clean, one-line message instead of passing it through.
+func fakeChatServerRejectsTools(t *testing.T, modelName string) *httptest.Server {
   t.Helper()
   return httptest.NewServer(http.HandlerFunc(
     func(w http.ResponseWriter, r *http.Request) {
       w.WriteHeader(http.StatusBadRequest)
-      json.NewEncoder(w).Encode(map[string]string{
-        "error": modelName + " does not support tools",
+      json.NewEncoder(w).Encode(map[string]any{
+        "error": map[string]string{
+          "message": modelName + " does not support tools",
+        },
       })
     },
   ))
 }
 
 func TestExecuteAskToolsUnsupportedShowsCleanMessage(t *testing.T) {
-  server := fakeOllamaChatRejectsTools(t, "fake-model")
+  server := fakeChatServerRejectsTools(t, "fake-model")
   defer server.Close()
-  s := newTestServerWithOllama(t, server.URL, "fake-model")
+  s := newTestServer(t, server.URL, "fake-model")
 
   resp := callExecuteCommand(t, s, ExecuteCommandParams{
     Command:   "armin.ask",

@@ -35,8 +35,8 @@ func TestLoadMissingFileReturnsZeroValue(t *testing.T) {
   if err != nil {
     t.Fatalf("Load on a missing config file returned an error: %v", err)
   }
-  if cfg.Model != "" || cfg.OllamaURL != "" || cfg.Timeout != 0 ||
-    cfg.MaxOutput != 0 || cfg.ExtraAllowed != nil {
+  if cfg.Model != "" || cfg.LlamaURL != "" || cfg.Timeout != 0 ||
+    cfg.MaxOutput != 0 || cfg.ExtraAllowed != nil || cfg.Models != nil {
     t.Fatalf("Load() = %+v, want every field zero-valued", cfg)
   }
 }
@@ -46,10 +46,11 @@ func TestLoadParsesEveryKey(t *testing.T) {
   writeConfig(t, `
 # a comment, and a blank line above
 
-model = qwen3:4b
-completion_model = qwen2.5-coder:1.5b-base
+model = qwen3-chat
+completion_model = qwen2.5-coder
 ctags_bin = /usr/local/bin/universal-ctags
-ollama_url = http://localhost:11434
+llama_url = http://localhost:8080
+completion_llama_url = http://localhost:8081
 root = /some/project
 timeout = 30s
 max_output = 5000
@@ -62,23 +63,90 @@ allow = curl, docker
   }
 
   want := Config{
-    Model:           "qwen3:4b",
-    CompletionModel: "qwen2.5-coder:1.5b-base",
-    CtagsBinary:     "/usr/local/bin/universal-ctags",
-    OllamaURL:       "http://localhost:11434",
-    Root:            "/some/project",
-    Timeout:         30 * time.Second,
-    MaxOutput:       5000,
-    ExtraAllowed:    []string{"curl", "docker"},
+    Model:              "qwen3-chat",
+    CompletionModel:    "qwen2.5-coder",
+    CtagsBinary:        "/usr/local/bin/universal-ctags",
+    LlamaURL:           "http://localhost:8080",
+    CompletionLlamaURL: "http://localhost:8081",
+    Root:               "/some/project",
+    Timeout:            30 * time.Second,
+    MaxOutput:          5000,
+    ExtraAllowed:       []string{"curl", "docker"},
   }
 
   if cfg.Model != want.Model || cfg.CompletionModel != want.CompletionModel ||
-    cfg.CtagsBinary != want.CtagsBinary || cfg.OllamaURL != want.OllamaURL ||
+    cfg.CtagsBinary != want.CtagsBinary || cfg.LlamaURL != want.LlamaURL ||
+    cfg.CompletionLlamaURL != want.CompletionLlamaURL ||
     cfg.Root != want.Root || cfg.Timeout != want.Timeout || cfg.MaxOutput != want.MaxOutput {
     t.Fatalf("Load() = %+v, want %+v", cfg, want)
   }
   if len(cfg.ExtraAllowed) != 2 || cfg.ExtraAllowed[0] != "curl" || cfg.ExtraAllowed[1] != "docker" {
     t.Fatalf("ExtraAllowed = %v, want [curl docker]", cfg.ExtraAllowed)
+  }
+}
+
+func TestLoadParsesModelBlocks(t *testing.T) {
+  withConfigDir(t)
+  writeConfig(t, `
+models.chat.url = http://localhost:8080
+
+models.fim.binary = llama-server
+models.fim.model_path = /home/h/models/qwen2.5-coder.gguf
+models.fim.port = 8081
+models.fim.idle_timeout = 5m
+models.fim.args = --ctx-size 8192 --n-gpu-layers 999
+`)
+
+  cfg, err := Load()
+  if err != nil {
+    t.Fatalf("Load: %v", err)
+  }
+
+  if len(cfg.Models) != 2 {
+    t.Fatalf("Models = %+v, want 2 entries", cfg.Models)
+  }
+
+  chat := cfg.Models["chat"]
+  if chat.URL != "http://localhost:8080" {
+    t.Fatalf("chat.URL = %q", chat.URL)
+  }
+
+  fim := cfg.Models["fim"]
+  if fim.Binary != "llama-server" || fim.ModelPath != "/home/h/models/qwen2.5-coder.gguf" {
+    t.Fatalf("fim = %+v", fim)
+  }
+  if fim.Port != 8081 {
+    t.Fatalf("fim.Port = %d, want 8081", fim.Port)
+  }
+  if fim.IdleTimeout != 5*time.Minute {
+    t.Fatalf("fim.IdleTimeout = %v, want 5m", fim.IdleTimeout)
+  }
+  want := []string{"--ctx-size", "8192", "--n-gpu-layers", "999"}
+  if len(fim.Args) != len(want) {
+    t.Fatalf("fim.Args = %v, want %v", fim.Args, want)
+  }
+  for i := range want {
+    if fim.Args[i] != want[i] {
+      t.Fatalf("fim.Args = %v, want %v", fim.Args, want)
+    }
+  }
+}
+
+func TestLoadRejectsUnknownModelKey(t *testing.T) {
+  withConfigDir(t)
+  writeConfig(t, "models.fim.not_a_real_field = value\n")
+
+  if _, err := Load(); err == nil {
+    t.Fatal("expected an error for an unknown models.<name>.<field> key")
+  }
+}
+
+func TestLoadRejectsBadModelPort(t *testing.T) {
+  withConfigDir(t)
+  writeConfig(t, "models.fim.port = not-a-number\n")
+
+  if _, err := Load(); err == nil {
+    t.Fatal("expected an error for an unparseable models.<name>.port")
   }
 }
 

@@ -49,9 +49,8 @@ func (s *Server) inlineCompletion(
   compCtx, cancel, gen := s.startCompletion(p.TextDocument.URI, ctx)
   defer cancel()
 
-  raw, err := s.loop.LLM.Complete(
+  raw, err := s.completionLLM.Complete(
     compCtx, prefix, suffix, llm.CompleteOptions{
-      Model:       s.completionModel,
       Temperature: completionTemperature,
       NumPredict:  completionMaxTokens,
       Stop:        []string{ "\n\n\n" },

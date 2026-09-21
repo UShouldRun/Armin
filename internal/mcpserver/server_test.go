@@ -218,11 +218,25 @@ func TestServeEndToEnd(t *testing.T) {
   if len(lines) != 2 {
     t.Fatalf("got %d response lines, want 2:\n%s", len(lines), out.String())
   }
-  if !strings.Contains(lines[0], `"protocolVersion"`) {
-    t.Fatalf("first response = %s, want the initialize result", lines[0])
+
+  // Requests are now handled concurrently, so responses can arrive in
+  // either order — match each by id instead of assuming line order.
+  byID := map[string]string{}
+  for _, line := range lines {
+    var resp struct {
+      ID json.RawMessage `json:"id"`
+    }
+    if err := json.Unmarshal([]byte(line), &resp); err != nil {
+      t.Fatalf("decoding response line %q: %v", line, err)
+    }
+    byID[string(resp.ID)] = line
   }
-  if !strings.Contains(lines[1], `"tools"`) {
-    t.Fatalf("second response = %s, want the tools/list result", lines[1])
+
+  if !strings.Contains(byID["1"], `"protocolVersion"`) {
+    t.Fatalf("response to id=1 = %s, want the initialize result", byID["1"])
+  }
+  if !strings.Contains(byID["2"], `"tools"`) {
+    t.Fatalf("response to id=2 = %s, want the tools/list result", byID["2"])
   }
 }
 

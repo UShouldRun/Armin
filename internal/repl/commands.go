@@ -9,7 +9,6 @@ import (
 
   "armin/internal/agent"
   "armin/internal/convo"
-  "armin/internal/llm"
   "armin/internal/session"
   "armin/internal/ui"
 )
@@ -174,50 +173,40 @@ func resyncSession(r *REPL) {
 
 func cmdModel(r *REPL, ctx context.Context, args []string) {
   if len(args) == 0 {
-    printCurrentModel(r, ctx)
+    printCurrentModel(r)
     return
   }
 
   name := args[0]
-  models, err := r.LLM.ListModels(ctx)
-  if err == nil && !hasModel(models, name) {
-    ui.Info(
-      "%q isn't in ollama's installed model list — switching "+
-        "anyway; \"ollama pull %s\" first if the next call fails",
-      name, name,
-    )
+  if err := r.Models.Switch(ctx, r.LLM, name); err != nil {
+    ui.Error("switching to %q: %s", name, err)
+    return
   }
-
-  r.LLM.Model = name
   ui.Info("switched to %s", name)
 }
 
-func printCurrentModel(r *REPL, ctx context.Context) {
+func printCurrentModel(r *REPL) {
   fmt.Printf("current model: %s\n", ui.Bold(r.LLM.Model))
 
-  models, err := r.LLM.ListModels(ctx)
-  if err != nil {
-    ui.Info("(couldn't reach ollama to list installed models: %s)", err)
-    return
-  }
-
-  fmt.Println(ui.Dim("installed:"))
-  for _, m := range models {
+  fmt.Println(ui.Dim("configured:"))
+  statuses := r.Models.Names()
+  sort.Slice(statuses, func(i, j int) bool { return statuses[i].Name < statuses[j].Name })
+  for _, s := range statuses {
     marker := "  "
-    if m.Name == r.LLM.Model {
+    if s.Name == r.LLM.Model {
       marker = ui.Green("→ ")
     }
-    fmt.Printf("%s%s\n", marker, m.Name)
-  }
-}
-
-func hasModel(models []llm.TagsModel, name string) bool {
-  for _, m := range models {
-    if m.Name == name {
-      return true
+    state := ""
+    switch {
+    case !s.Managed:
+      state = ui.Dim(" (external)")
+    case s.Running:
+      state = ui.Dim(" (running)")
+    default:
+      state = ui.Dim(" (stopped, spawns on use)")
     }
+    fmt.Printf("%s%s%s\n", marker, s.Name, state)
   }
-  return false
 }
 
 func cmdContext(r *REPL, _ context.Context, _ []string) {

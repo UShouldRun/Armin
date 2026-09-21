@@ -18,6 +18,7 @@ import (
   "fmt"
   "io"
   "os"
+  "sync"
 
   "armin/internal/agent"
   "armin/internal/ctags"
@@ -28,15 +29,23 @@ import (
 
 const serverVersion = "v0.1.0"
 
-// Server is a minimal MCP server. All requests are handled
-// synchronously — every tool here is fast, local, sandboxed I/O,
-// no LLM call in the loop, so there's no need for the per-request
-// goroutines and cancellation bookkeeping internal/lspserver needs.
+// Server is a minimal MCP server. Each request is handled in its own
+// goroutine — most tools here are fast, local, sandboxed I/O, but a
+// few (build_check, run_tests, web_search's first-call Docker
+// startup) can run long enough to block the stdio read loop; without
+// this, one slow call would head-of-line-block every other pending
+// request, including a trivial ping. Responses race to the writer in
+// whatever order they finish, which JSON-RPC allows since callers
+// match responses to requests by id, not by arrival order — writeMu
+// only keeps two responses from interleaving mid-write, and wg lets
+// Serve drain in-flight goroutines before returning at EOF.
 type Server struct {
   sandbox   *sandbox.Config
   webSearch *searxng.Manager
   symbols   *ctags.Index
   out       io.Writer
+  writeMu   sync.Mutex
+  wg        sync.WaitGroup
 }
 
 // New builds a Server around sb — the same sandbox.Config the REPL
@@ -78,8 +87,15 @@ func (s *Server) Serve(
     if err := json.Unmarshal(line, &msg); err != nil {
       continue // malformed frame — nothing sane to respond with
     }
-    s.handle(ctx, msg)
+
+    s.wg.Add(1)
+    go func(msg rpcMessage) {
+      defer s.wg.Done()
+      s.handle(ctx, msg)
+    }(msg)
   }
+
+  s.wg.Wait()
 
   if err := scanner.Err(); err != nil {
     return fmt.Errorf("\n\t... in Serve:\n\t%w", err)
@@ -112,7 +128,7 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
   case "tools/call":
     var p callToolParams
     if err := json.Unmarshal(msg.Params, &p); err != nil {
-      s.respondError(msg.ID, errInvalidRequest, err.Error())
+      s.respondError(msg.ID, errInvalidParams, err.Error())
       return
     }
     s.respond(msg.ID, s.callTool(ctx, p), nil)
@@ -129,7 +145,7 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
 }
 
 // toolList builds MCP's tool list straight from
-// agent.ToolDefinitions — the exact schema Ollama gets for tool
+// agent.ToolDefinitions — the exact schema the model gets for tool
 // calling, reused rather than redefined.
 func toolList() []tool {
   defs := agent.ToolDefinitions()
@@ -147,7 +163,7 @@ func toolList() []tool {
 // callTool dispatches to the same tools.* functions
 // agent.Loop.execute calls for the REPL — duplicated rather than
 // shared, since the two callers need different result shapes
-// (Ollama's tool_calls JSON vs. MCP's CallToolResult) and each
+// (llm.Message's tool_calls shape vs. MCP's CallToolResult) and each
 // dispatch is small enough on its own that sharing it would cost
 // more in indirection than it saves.
 func (s *Server) callTool(
@@ -582,6 +598,9 @@ func (s *Server) write(msg rpcResponse) {
     return
   }
   body = append(body, '\n')
+
+  s.writeMu.Lock()
+  defer s.writeMu.Unlock()
   if _, err := s.out.Write(body); err != nil {
     fmt.Fprintln(os.Stderr, "armin mcp: write failed:", err)
   }

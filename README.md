@@ -1,9 +1,9 @@
 # armin
 
-A terminal chat assistant, backed by a local Ollama model, that reads and
-searches your codebase to answer questions grounded in what's actually
-there — not generic training data. Named after the *Attack on Titan*
-strategist: the one who reads the terrain before anyone moves.
+A terminal chat assistant, backed by a local llama.cpp model, that reads
+and searches your codebase to answer questions grounded in what's
+actually there — not generic training data. Named after the *Attack on
+Titan* strategist: the one who reads the terrain before anyone moves.
 
 Three ways to use the same sandboxed tool layer:
 - **REPL** — a chat loop in your terminal, talking to a local model.
@@ -17,8 +17,11 @@ Three ways to use the same sandboxed tool layer:
 ## Requirements
 
 - Go 1.23+ to build (the binary itself has no runtime dependencies)
-- [Ollama](https://ollama.com) running locally, with a tool-calling model
-  pulled (`ollama pull qwen3:4b` is the default)
+- [llama.cpp](https://github.com/ggml-org/llama.cpp)'s `llama-server`,
+  either already running (point armin at it with `-llama-url`) or on
+  `PATH` if you want armin to spawn/reap it itself (see "Model
+  lifecycle" below) — plus a tool-calling-capable `.gguf` model and,
+  for -lsp inline completion, a separate FIM-capable one
 - [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) on `PATH` —
   `search_code` shells out to it
 - Optional: [Docker](https://docker.com), for the `web_search` tool —
@@ -41,25 +44,48 @@ Three ways to use the same sandboxed tool layer:
 The Go module itself pulls in exactly one dependency,
 `golang.org/x/sys`, for the handful of raw-terminal-mode syscalls
 behind `/ghosttext` — everything else (the REPL, the LSP/MCP
-JSON-RPC servers, the Ollama client, ANSI styling) is hand-rolled
-against the standard library.
+JSON-RPC servers, the llama-server client, ANSI styling) is
+hand-rolled against the standard library.
 
-## Build
+## Install
+
+```sh
+./install.sh
+```
+
+Builds the binary and installs it to `~/.local/bin` (override with
+`--prefix DIR`), then reports on every dependency above — what it
+found, what's missing, and exactly what to do about each one. Writes
+a starter `config.conf` (skip with `--no-config`) only if you don't
+already have one; never overwrites an existing one. Safe to re-run
+any time, e.g. after `git pull`, to rebuild and reinstall.
+
+Prefer to do it by hand instead?
 
 ```sh
 go build -o armin ./cmd/armin
 ```
 
+`install.sh` does nothing beyond that build, a copy onto `PATH`, and
+the dependency checks above — there's no hidden step you'd be
+skipping by not using it.
+
 ## Quickstart
 
 ```sh
-./armin -root /path/to/your/project
+armin .
 ```
+
+A bare path is shorthand for `-root` (`armin .` and
+`armin -root .` are the same thing, and it can go anywhere among your
+other flags — `armin . -lsp` and `armin -lsp .` are equivalent too),
+mirroring how tools like `code .` or `vim .` take a path. Omit it
+entirely and `-root` defaults to `.` anyway.
 
 ```
 armin — terminal codebase assistant
   root: /path/to/your/project
-  model: qwen3:4b (http://localhost:11434)
+  model: chat (http://localhost:8080)
   type /help for commands, /quit to exit
 
 ❯ what does this project do?
@@ -76,7 +102,7 @@ explaining the project by hand.
 | `/help`, `/?` | list commands |
 | `/quit`, `/exit`, `/q` | leave |
 | `/clear` | reset the conversation, keeping only the system prompt |
-| `/model [name]` | show the active model + what's installed in Ollama, or switch |
+| `/model [name]` | show the active model + every configured one, or switch |
 | `/context`, `/ctx` | message count, tool-call count, rough token estimate |
 | `/compact [n]` | ask the model to summarize everything but the last `n` messages, to free up context |
 | `/tools` | list the tools available to the model |
@@ -86,7 +112,7 @@ explaining the project by hand.
 | `/suggest` | toggle 2-3 numbered follow-up questions after each answer — type a number to ask one instead of writing it out |
 | `/ghosttext` | toggle live ghost-text completion while you type (off by default — see below) |
 
-Switching to a model with no Ollama tool-calling support (a plain
+Switching to a model with no tool-calling support (a plain
 completion/FIM base model, say) doesn't fail with a raw HTTP error —
 armin shows a clean one-line message naming the model and pointing
 back at `/model` to pick a different one.
@@ -103,9 +129,11 @@ when you explicitly turn it on.
 
 | Flag | Default | Does |
 |---|---|---|
-| `-root` | `.` | project root; every path argument is jailed to it |
-| `-model` | `qwen3:4b` | Ollama model name |
-| `-ollama-url` | `http://localhost:11434` | Ollama base URL |
+| `-root` | `.` | project root; every path argument is jailed to it (a bare positional argument, e.g. `armin .`, is shorthand for this — see Quickstart) |
+| `-model` | `chat` | name of the model to use for chat — a `models.<name>` entry from `config.conf`, or (with no matching entry) an ad-hoc label for whatever's running at `-llama-url` |
+| `-completion-model` | same as `-model` | name of the model for `-lsp` inline completion; should be a fill-in-the-middle code model, not a chat model |
+| `-llama-url` | `http://localhost:8080` | llama-server base URL used for `-model` when it has no matching `models.<name>` entry |
+| `-completion-llama-url` | (reuses `-llama-url`) | same, for `-completion-model` |
 | `-timeout` | `20s` | per-subprocess timeout |
 | `-max-output` | `4000` | bytes of tool output before truncation |
 | `-dry-run` | off | `run_command` describes what it would execute instead of running it |
@@ -236,14 +264,50 @@ Enforced in code, not left to model judgment:
 
 ```
 # key = value, "#" comments, nothing fancier
-model      = qwen3:4b
-ollama_url = http://localhost:11434
+model      = chat
+llama_url  = http://localhost:8080
 timeout    = 30s
 max_output = 5000
 allow      = curl, docker
+
+# Everything above is the zero-config path: -model's name ("chat")
+# has no models.<name> block below, so it falls back to whatever's
+# already running at llama_url. Add a models.<name> block per name
+# you want armin itself to spawn and reap (see "Model lifecycle").
+models.coder.binary      = llama-server
+models.coder.model_path  = /home/you/models/qwen2.5-coder-7b-q4.gguf
+models.coder.port        = 8081
+models.coder.idle_timeout = 20m
+models.coder.args        = --ctx-size 8192 --n-gpu-layers 999
 ```
 
 `allow` appends to the default binary allowlist; it doesn't replace it.
+
+## Model lifecycle
+
+Unlike Ollama (a single daemon juggling many pulled models), a
+`llama-server` process serves exactly one already-loaded model — so
+`/model <name>` (or `:ArminModel`/`armin.model` over LSP) means
+"point at a different URL", not "ask the same daemon for a different
+model". Two kinds of `models.<name>` entry:
+
+- **External** (`models.<name>.url = ...`) — something you already
+  run yourself, e.g. on a beefy always-on box. armin only ever talks
+  to it; it never starts or stops that process.
+- **Managed** (`models.<name>.binary`/`.model_path`/`.port`, `.args`
+  optional) — armin spawns `llama-server` itself on first use,
+  health-polls it before handing back a client, and — mirroring
+  `internal/searxng`'s Docker container lifecycle — stops only what
+  it started. A managed model left idle (no in-flight request) past
+  its `idle_timeout` (default 20m; a negative value disables this) is
+  stopped by a background reaper and respawned lazily next time it's
+  used, the same tradeoff Ollama's own default `keep_alive` unload
+  already makes.
+
+`-model`/`-completion-model` with no matching `models.<name>` entry
+fall back to an external, unmanaged spec at `-llama-url`/
+`-completion-llama-url` — the zero-config path, for "I already
+started a `llama-server`, just talk to it".
 
 ## Sessions
 
@@ -288,11 +352,12 @@ your real language server, not instead of it:
   return nothing, everything else still works.
 - **`textDocument/inlineCompletion`** — fast, non-agentic fill-in-
   the-middle completion (no tool calls, no chat formatting) via a
-  *separate* model set with `-completion-model` (default
-  `qwen2.5-coder:1.5b-base`). Use a real FIM-tuned code model here,
-  not your chat model — Ollama will reject a non-FIM model outright
-  for this, and the tool degrades gracefully (empty completions, one
-  stderr warning) if the configured model can't do it.
+  *separate* `llm.Client`, pointed at whatever `-completion-model`
+  resolves to (defaults to `-model` itself, i.e. one llama-server for
+  both), talking to llama-server's native `/infill` endpoint. Use a
+  real FIM-tuned code model here, not your chat model — the tool
+  degrades gracefully (empty completions, one stderr warning) if the
+  configured model can't do it.
 - **`workspace/executeCommand`** (`armin.ask`) — a free-form
   question about the project, same agent loop as hover.
 
@@ -305,10 +370,12 @@ or fires until you run a command yourself. See
 ## Project layout
 
 ```
-cmd/armin/main.go         entrypoint: flags, config, wiring
+install.sh                  builds, installs to PATH, checks dependencies, writes a starter config
+cmd/armin/main.go           entrypoint: flags, config, wiring
 internal/
   agent/       tool-calling round trip (send → tool_calls → execute → repeat)
-  llm/         Ollama client (chat, streaming, model listing)
+  llm/         llama-server HTTP client (chat + tool calling, streaming, infill completion)
+  llamacpp/    spawns/health-polls/idle-reaps managed llama-server processes, hands out llm.Clients
   tools/       the tool implementations (pure functions)
   sandbox/     path jail, allowlist, timeouts, truncation, dry-run
   ctags/       symbol index backing find_definition/list_symbols/etc. and -lsp

@@ -88,52 +88,20 @@ local function list_project_files(root)
   return rel
 end
 
--- coding_keywords mark an installed model as coding-focused, for
--- the fastest/best recommendation tags in :ArminModel's picker.
-local coding_keywords = {
-  "coder", "code", "codestral", "starcoder", "codegemma", "deepseek-coder",
-}
-
-local function is_coding_model(name)
-  local lower = name:lower()
-  for _, kw in ipairs(coding_keywords) do
-    if lower:find(kw, 1, true) then
-      return true
-    end
+-- model_state renders a models.<name> entry's lifecycle for
+-- :ArminModel's picker: llama.cpp (unlike Ollama, which this
+-- replaced) has no byte-size-based "fastest"/"best" signal to tag
+-- with — one process serves exactly one already-loaded model, so
+-- what's worth showing instead is whether armin owns that process
+-- and whether it's up right now.
+local function model_state(m)
+  if not m.managed then
+    return "external"
   end
-  return false
-end
-
-local function human_size(bytes)
-  if not bytes or bytes <= 0 then
-    return ""
+  if m.running then
+    return "running"
   end
-  return string.format("%.1fGB", bytes / (1024 * 1024 * 1024))
-end
-
--- tag_models returns a name -> tag map for the coding-focused
--- models among installed ({name, size} entries): the smallest is
--- tagged "fastest", the largest "best" — quality tends to track
--- size within the same model family, a heuristic, not a benchmark.
--- Non-coding models and ties get no tag.
-local function tag_models(installed)
-  local coding = {}
-  for _, m in ipairs(installed) do
-    if is_coding_model(m.name) and m.size and m.size > 0 then
-      coding[#coding + 1] = m
-    end
-  end
-  table.sort(coding, function(a, b) return a.size < b.size end)
-
-  local fastest, best = coding[1], coding[#coding]
-  local tags = {}
-  if fastest and best and fastest ~= best then
-    tags[fastest.name] = "fastest"
-    tags[best.name] = "best"
-  elseif fastest then
-    tags[fastest.name] = "only coding model installed"
-  end
-  return tags
+  return "stopped, spawns on use"
 end
 
 -- extract_mentions finds "@relative/path" references in a question
@@ -787,14 +755,13 @@ function M._insert_file_mention(buf, root)
 end
 
 -- Show or switch armin's chat model, mirroring the REPL's /model.
--- With no argument, lists installed models — size-annotated, with
--- the smallest/largest coding-focused model tagged "fastest"/"best"
--- (see tag_models) — in a floating picker (_select_float), and
--- switches to whichever you pick. Note this switches the *chat*
--- model, used for :ArminAsk and hover; that requires Ollama
--- tool-calling support, which plain completion/FIM-only models
--- (like -completion-model's default) do not have — Ollama rejects
--- those outright here.
+-- With no argument, lists every models.<name> entry from
+-- config.conf — state-annotated via model_state — in a floating
+-- picker (_select_float), and switches to whichever you pick. Note
+-- this switches the *chat* model, used for :ArminAsk and hover;
+-- that requires tool-calling support, which plain completion/FIM-
+-- only models (like -completion-model's default) do not have — the
+-- server rejects those outright here.
 function M.model(name)
   local client = get_client()
   if not client then
@@ -828,25 +795,17 @@ function M.model(name)
       vim.notify("armin: " .. (err.message or tostring(err)), vim.log.levels.ERROR)
       return
     end
-    local installed = (result and result.installed) or {}
-    if #installed == 0 then
+    local configured = (result and result.configured) or {}
+    if #configured == 0 then
       local current = result and result.current or "?"
       vim.notify("armin: current model is " .. current, vim.log.levels.INFO)
       return
     end
 
-    local tags = tag_models(installed)
-    M._select_float(installed, {
+    M._select_float(configured, {
       prompt = "Switch armin model (current: " .. result.current .. ")",
       format_item = function(m)
-        local label = m.name
-        local size = human_size(m.size)
-        if size ~= "" then
-          label = label .. "  " .. size
-        end
-        if tags[m.name] then
-          label = label .. "  [" .. tags[m.name] .. "]"
-        end
+        local label = m.name .. "  [" .. model_state(m) .. "]"
         if m.name == result.current then
           label = label .. "  (current)"
         end

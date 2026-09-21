@@ -44,18 +44,18 @@ than failing.
 |---|---|
 | `:ArminLsp` | attach armin to the current buffer. Root is the nearest ancestor with `.git`, `go.mod`, `package.json`, `pyproject.toml`, or `Cargo.toml`, falling back to cwd. |
 | `:ArminAsk [question]` | open (or focus) a persistent chat window and ask armin something about the project. With no argument, leaves the cursor on an editable prompt line; with one, sends it immediately. Tool calls and the answer stream in live as they happen — `<Esc>` closes, `<C-f>` mentions a file, `<CR>` on a highlighted `file:line` reference opens/updates a preview split on the right, jumped to that line. |
-| `:ArminModel [name]` | show or switch the chat model used by `:ArminAsk`/hover. With no argument, opens a floating picker of installed models (size-annotated, smallest/largest coding-focused model tagged "fastest"/"best") — `j`/`k` or arrows to move, `<CR>` to pick, `<Esc>`/`q` to cancel. |
+| `:ArminModel [name]` | show or switch the chat model used by `:ArminAsk`/hover. With no argument, opens a floating picker of every `models.<name>` entry from `config.conf` (state-annotated: external / running / stopped) — `j`/`k` or arrows to move, `<CR>` to pick, `<Esc>`/`q` to cancel. |
 | `:ArminComplete` | toggle live ghost-text completion for the current buffer — fires automatically on a short pause after you type, once turned on. |
 | `:ArminSuggest` | request one completion at the cursor right now, regardless of whether `:ArminComplete` is on. |
 | `:ArminStop` | detach, turn off completion everywhere it was on, and kill the armin process. |
 
 `:ArminModel` switches the *chat* model — the one `:ArminAsk` and
-hover use, which requires Ollama tool-calling support. It's a
-different thing from `-completion-model` (inline completion): plain
+hover use, which requires tool-calling support. It's a different
+thing from `-completion-model` (inline completion): plain
 completion/FIM base models don't support tools at all. Switching to
 one here doesn't fail silently: `:ArminAsk`/hover show a clean
 one-line notification naming the model and pointing back at
-`:ArminModel`, instead of Ollama's raw HTTP error.
+`:ArminModel`, instead of llama-server's raw HTTP error.
 
 ## Using the chat window
 
