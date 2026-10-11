@@ -68,7 +68,7 @@ func readAllLines(path string) ([]string, error) {
 
   var lines []string
   scanner := bufio.NewScanner(f)
-  scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+  scanner.Buffer(make([]byte, 0, 64 * 1024), 1024 * 1024)
   for scanner.Scan() {
     lines = append(lines, scanner.Text())
   }
@@ -110,5 +110,5 @@ func blockCommentAbove(lines []string, endIdx int) string {
   if start < 0 {
     return ""
   }
-  return strings.Join(lines[start:endIdx+1], "\n")
+  return strings.Join(lines[start:endIdx + 1], "\n")
 }

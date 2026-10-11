@@ -25,12 +25,17 @@ import (
   "fmt"
   "os"
   "os/exec"
+  "path/filepath"
+  "strconv"
   "strings"
   "sync"
   "syscall"
   "time"
 
+  "armin/internal/aws"
   "armin/internal/llm"
+  "armin/internal/scaleway"
+  "armin/internal/stackit"
 )
 
 // DefaultIdleTimeout is how long a managed process may sit unused
@@ -82,7 +87,103 @@ type ModelSpec struct {
   // IdleTimeout overrides DefaultIdleTimeout for this model; a
   // negative value means "never idle-stop this one".
   IdleTimeout time.Duration
+
+  // Flags opt out of serverArgs' memory-saving defaults.
+  Flags SpecFlags
+
+  // Stream, if set, is a second, larger context tier: a llama-server
+  // build with adaptive KV streaming, which keeps a resident pool and
+  // a ring buffer in VRAM and the rest of the KV cache in pinned RAM.
+  // agent.Loop moves between tiers through Window.
+  Stream *StreamSpec
+
+  // Remote, if set, runs Binary/ModelPath/Args on a cloud machine
+  // instead of locally: armin starts it, launches llama-server over
+  // SSH with a tunnel to Port, and stops it again when done (see
+  // remote.go).
+  Remote *RemoteSpec
 }
+
+// StreamSpec configures the streaming tier.
+type StreamSpec struct {
+  Binary   string   // the fork's llama-server; empty reuses Binary
+  Context  int      // window in this tier
+  ArenaMiB int      // --kv-stream-arena-mib: VRAM pool + ring buffer
+  Args     []string // extra flags for this tier only
+}
+
+// Tier is which context tier a model's process runs in.
+type Tier uint8
+
+const (
+  TierResident Tier = 1 << iota // whole KV cache in VRAM: fastest
+  TierStream                    // KV cache streamed from RAM: largest
+  TierAll      = TierResident | TierStream
+)
+
+// contextFlags are llama-server's names for the window size.
+var contextFlags = map[string]bool{ "-c": true, "--ctx-size": true }
+
+// contextOf reads -c / --ctx-size out of args; 0 if absent.
+func contextOf(args []string) int {
+  for i, a := range args {
+    name, val, hasVal := strings.Cut(a, "=")
+    if !contextFlags[name] {
+      continue
+    }
+    if !hasVal && i + 1 < len(args) {
+      val = args[i + 1]
+    }
+    n, _ := strconv.Atoi(val)
+    return n
+  }
+  return 0
+}
+
+// withContext returns args with the window set to n.
+func withContext(args []string, n int) []string {
+  out := make([]string, 0, len(args) + 2)
+  for i := 0; i < len(args); i++ {
+    name, _, hasVal := strings.Cut(args[i], "=")
+    if contextFlags[name] {
+      if !hasVal {
+        i++ // skip the value too
+      }
+      continue
+    }
+    out = append(out, args[i])
+  }
+  return append(out, "-c", strconv.Itoa(n))
+}
+
+// inTier is the spec as it runs in t: the stream tier swaps in the
+// fork's binary, its window and its arena.
+func (s ModelSpec) inTier(t Tier) ModelSpec {
+  if t != TierStream || s.Stream == nil {
+    return s
+  }
+  st := s.Stream
+  if st.Binary != "" {
+    s.Binary = st.Binary
+  }
+  args := withContext(s.Args, st.Context)
+  if st.ArenaMiB > 0 {
+    args = append(args, "--kv-stream-arena-mib", strconv.Itoa(st.ArenaMiB))
+  }
+  s.Args = append(args, st.Args...)
+  return s
+}
+
+// SpecFlags are per-model switches, packed into one byte.
+type SpecFlags uint8
+
+const (
+  // SpecVision keeps a multimodal projector (--mmproj) loadable.
+  SpecVision SpecFlags = 1 << iota
+  // SpecNoLean drops every default in leanDefaults.
+  SpecNoLean
+  SpecAll = SpecVision | SpecNoLean
+)
 
 func (s ModelSpec) managed() bool { return s.URL == "" }
 
@@ -105,15 +206,82 @@ func (s ModelSpec) url() string {
 // touching any process.
 type ModelStatus struct {
   Name    string
+  Model   string // what actually serves it: the .gguf name, a machine, a URL
   Managed bool
   Running bool
 }
 
-// process tracks one spawned (armin-managed) llama-server instance.
+// process tracks one spawned (armin-managed) llama-server — or, for
+// an AWS model, the SSH session running it.
 type process struct {
   cmd      *exec.Cmd
-  refcount int
+  done     chan struct{} // closed once cmd exits; nil if never started
+  out      *tailBuffer
+  remote   *remoteRun
   lastUsed time.Time
+  refcount int
+}
+
+// remoteRun is the cloud side of a remote process.
+type remoteRun struct {
+  machine Machine
+  started bool // armin started the machine, so armin stops it
+}
+
+// exited reports whether the process has already died.
+func (p *process) exited() bool {
+  if p.done == nil {
+    return false
+  }
+  select {
+  case <-p.done:
+    return true
+  default:
+    return false
+  }
+}
+
+// startProcess starts cmd with one goroutine owning cmd.Wait.
+func startProcess(cmd *exec.Cmd) (*process, error) {
+  out := &tailBuffer{ max: 4096 }
+  cmd.Stdout, cmd.Stderr = out, out
+  dieWithParent(cmd)
+  if err := cmd.Start(); err != nil {
+    return nil, err
+  }
+  p := &process{ cmd: cmd, done: make(chan struct{}), out: out }
+  go func() {
+    cmd.Wait()
+    close(p.done)
+  }()
+  return p, nil
+}
+
+// tailBuffer keeps the last max bytes written — enough of a child's
+// output to explain why it died, without holding all of it.
+type tailBuffer struct {
+  mu  sync.Mutex
+  buf []byte
+  max int
+}
+
+func (t *tailBuffer) Write(b []byte) (int, error) {
+  t.mu.Lock()
+  defer t.mu.Unlock()
+  t.buf = append(t.buf, b...)
+  if over := len(t.buf) - t.max; over > 0 {
+    t.buf = append(t.buf[:0], t.buf[over:]...)
+  }
+  return len(b), nil
+}
+
+func (t *tailBuffer) String() string {
+  if t == nil {
+    return ""
+  }
+  t.mu.Lock()
+  defer t.mu.Unlock()
+  return strings.TrimSpace(string(t.buf))
 }
 
 // Manager owns every configured ModelSpec and the armin-managed
@@ -133,6 +301,30 @@ type Manager struct {
 
   stopReap chan struct{}
   reapDone chan struct{}
+  shutdown sync.Once
+
+  // tiers is each model's current tier; absent means resident.
+  tiers map[string]Tier
+
+  // owned is every EC2 instance armin started whose process has since
+  // died, so a respawn onto the still-running instance keeps the
+  // duty to stop it.
+  owned map[string]*remoteRun
+
+  // ReadTimeout is set on every Client this Manager hands out (see
+  // llm.Client.ReadTimeout). Set it before the first Client call.
+  ReadTimeout time.Duration
+
+  // OnStatus, if set, hears progress on slow starts (an EC2 boot
+  // takes minutes). Must not write to stdout in -lsp mode.
+  OnStatus func(string)
+
+  // KnownHostsFile is where SSH records remote host keys (keyed by
+  // machine id, since a stopped machine comes back on a new IP).
+  KnownHostsFile string
+
+  // SSHBinary and the endpoints are overridden by tests.
+  SSHBinary, EC2Endpoint, StackitEndpoint, ScalewayEndpoint string
 }
 
 // New builds a Manager around specs and starts its idle-reaping
@@ -145,10 +337,23 @@ func New(specs map[string]ModelSpec) *Manager {
       scrub[s.APIKeyEnv] = true
     }
   }
+  // No child process ever needs cloud credentials: armin makes the
+  // API calls itself, and ssh authenticates with its own key.
+  for _, name := range aws.CredentialEnv {
+    scrub[name] = true
+  }
+  for _, name := range stackit.CredentialEnv {
+    scrub[name] = true
+  }
+  for _, name := range scaleway.CredentialEnv {
+    scrub[name] = true
+  }
 
   m := &Manager{
     specs:         specs,
     procs:         make(map[string]*process),
+    owned:         make(map[string]*remoteRun),
+    tiers:         make(map[string]Tier),
     scrubEnvNames: scrub,
     stopReap:      make(chan struct{}),
     reapDone:      make(chan struct{}),
@@ -168,10 +373,35 @@ func (m *Manager) Names() []ModelStatus {
   for name, spec := range m.specs {
     _, running := m.procs[name]
     out = append(out, ModelStatus{
-      Name: name, Managed: spec.managed(), Running: running,
+      Name: name, Model: spec.label(),
+      Managed: spec.managed(), Running: running,
     })
   }
   return out
+}
+
+// Label is what serves name, for display and the system prompt;
+// "" for an unknown name.
+func (m *Manager) Label(name string) string {
+  m.mu.Lock()
+  defer m.mu.Unlock()
+  return m.specs[name].label()
+}
+
+// label names what serves the spec: the model file (without its
+// directory and .gguf), plus the machine for a cloud one; the URL for
+// an external endpoint.
+func (s ModelSpec) label() string {
+  if !s.managed() {
+    return s.URL
+  }
+
+  file := strings.TrimSuffix(filepath.Base(s.ModelPath), ".gguf")
+  if s.Remote != nil {
+    return file + " on " + s.Remote.Provider.String() + " " + s.Remote.MachineID
+  }
+
+  return file
 }
 
 // Has reports whether name is a configured model.
@@ -204,21 +434,62 @@ func (m *Manager) Client(ctx context.Context, name string) (*llm.Client, error) 
 // doc comment on llm.Client.Model for the concurrency caveat this
 // carries).
 func (m *Manager) Switch(ctx context.Context, client *llm.Client, name string) error {
+  // Two local models rarely fit one GPU together: free the one being
+  // left before loading the next. Only that one — a separate
+  // completion model may still be in use.
+  if old := client.Model; old != name && m.localManaged(old) && m.localManaged(name) {
+    m.stopModel(ctx, old)
+  }
+
   url, err := m.ensure(ctx, name)
   if err != nil {
     return fmt.Errorf("\n\t... in Switch:\n\t%w", err)
   }
+
   client.BaseURL = url
   client.Model = name
   client.APIKey = m.apiKey(name)
   client.OnRequestStart, client.OnRequestEnd = m.callbacks(name)
+  client.Ready = m.ready(name)
   return nil
+}
+
+// localManaged reports whether name is a llama-server armin runs on
+// this machine (not an external URL, not a cloud machine).
+func (m *Manager) localManaged(name string) bool {
+  m.mu.Lock()
+  defer m.mu.Unlock()
+  spec, ok := m.specs[name]
+  return ok && spec.managed() && spec.Remote == nil
+}
+
+// stopModel stops name's process now, if it's running.
+func (m *Manager) stopModel(ctx context.Context, name string) {
+  m.mu.Lock()
+  proc := m.procs[name]
+  delete(m.procs, name)
+  m.mu.Unlock()
+
+  if proc != nil {
+    proc.stop(ctx)
+  }
+}
+
+// ready is a Client's Ready hook: a no-op while name runs, a respawn
+// after the idle reaper (or a crash) stopped it.
+func (m *Manager) ready(name string) func(ctx context.Context) error {
+  return func(ctx context.Context) error {
+    _, err := m.ensure(ctx, name)
+    return err
+  }
 }
 
 func (m *Manager) newClientFor(name, url string) *llm.Client {
   c := llm.New(url, name)
+  c.ReadTimeout = m.ReadTimeout
   c.APIKey = m.apiKey(name)
   c.OnRequestStart, c.OnRequestEnd = m.callbacks(name)
+  c.Ready = m.ready(name)
   return c
 }
 
@@ -253,9 +524,17 @@ func (m *Manager) ensure(ctx context.Context, name string) (string, error) {
     return spec.url(), nil
   }
   if proc, running := m.procs[name]; running {
-    proc.lastUsed = time.Now()
-    m.mu.Unlock()
-    return spec.url(), nil
+    if !proc.exited() {
+      proc.lastUsed = time.Now()
+      m.mu.Unlock()
+      return spec.url(), nil
+    }
+    // Died under us (crash, dropped SSH): forget it and respawn. An
+    // instance armin started stays armin's to stop (see owned).
+    delete(m.procs, name)
+    if proc.remote != nil && proc.remote.started {
+      m.owned[proc.remote.machine.ID()] = proc.remote
+    }
   }
   m.mu.Unlock()
 
@@ -266,33 +545,109 @@ func (m *Manager) ensure(ctx context.Context, name string) (string, error) {
 }
 
 func (m *Manager) spawn(ctx context.Context, name string, spec ModelSpec) error {
-  args := append([]string{ "-m", spec.ModelPath, "--port", fmt.Sprint(spec.Port) }, spec.Args...)
+  m.mu.Lock()
+  spec = spec.inTier(m.tiers[name])
+  m.mu.Unlock()
+
+  if spec.Remote != nil {
+    return m.spawnRemote(ctx, name, spec)
+  }
+
+  args := append(
+    []string{ "-m", spec.ModelPath, "--port", fmt.Sprint(spec.Port) },
+    serverArgs(spec)...,
+  )
   cmd := exec.Command(spec.Binary, args...)
   // Independent of ctx on purpose: this process must outlive
   // whatever single request triggered spawning it. Its lifetime is
   // owned entirely by the reaper and Shutdown below.
   cmd.Env = m.scrubbedEnviron()
-  if err := cmd.Start(); err != nil {
+  proc, err := startProcess(cmd)
+  if err != nil {
     return fmt.Errorf(
       "\n\t... in spawn:\n\t starting %q for %q: %w",
       spec.Binary, name, err,
     )
   }
+  proc.lastUsed = time.Now()
 
   m.mu.Lock()
-  m.procs[name] = &process{ cmd: cmd, lastUsed: time.Now() }
+  m.procs[name] = proc
   m.mu.Unlock()
 
-  if err := waitHealthy(ctx, spec.url()); err != nil {
+  if err := waitHealthy(ctx, spec.url(), proc, spawnHealthTimeout); err != nil {
     m.mu.Lock()
     delete(m.procs, name)
     m.mu.Unlock()
-    stopProcess(cmd)
+    proc.stop(ctx)
     return fmt.Errorf(
-      "\n\t... in spawn:\n\t %q never became healthy: %w", name, err,
+      "\n\t... in spawn:\n\t %q never became healthy: %w\n\t llama-server said: %s",
+      name, err, lastLines(proc.out.String(), 4),
     )
   }
   return nil
+}
+
+// leanDefaults spend VRAM (and host RAM) on context instead of on
+// things a single-user, text-only agent doesn't use. Each applies
+// only when the user's args set none of its flags.
+var leanDefaults = []struct {
+  flags, args []string
+}{
+  // The vision encoder is a separate projector file llama.cpp loads
+  // only with --mmproj, or by itself when -hf pulls a model that
+  // ships one (~0.9 GB for a 27B Qwen).
+  {
+    []string{
+      "--no-mmproj", "--no-mmproj-auto", "--mmproj-auto",
+      "-mm", "--mmproj", "-mmu", "--mmproj-url",
+    },
+    []string{ "--no-mmproj" },
+  },
+  // One slot: the server's auto default is 4, each with its own
+  // sequence state, for parallel users armin doesn't have.
+  { []string{ "-np", "--parallel" }, []string{ "-np", "1" } },
+  // Flash attention: less scratch memory, and required for a
+  // quantized V cache.
+  { []string{ "-fa", "--flash-attn" }, []string{ "-fa", "on" } },
+  // q8_0 KV cache: half of f16, with negligible quality loss.
+  { []string{ "-ctk", "--cache-type-k" }, []string{ "-ctk", "q8_0" } },
+  { []string{ "-ctv", "--cache-type-v" }, []string{ "-ctv", "q8_0" } },
+  // Host-RAM prompt cache: 8 GiB by default, which a laptop needs
+  // for itself; one slot gains little from it.
+  { []string{ "-cram", "--cache-ram" }, []string{ "-cram", "1024" } },
+}
+
+// serverArgs is spec.Args plus every lean default the args don't
+// already decide (the projector one is skipped with SpecVision).
+func serverArgs(spec ModelSpec) []string {
+  args := append([]string{}, spec.Args...)
+  if spec.Flags & SpecNoLean != 0 {
+    return args
+  }
+
+  set := make(map[string]bool, len(args))
+  for _, a := range args {
+    name, _, _ := strings.Cut(a, "=")
+    set[name] = true
+  }
+
+  for i, d := range leanDefaults {
+    if i == 0 && spec.Flags & SpecVision != 0 {
+      continue
+    }
+    decided := false
+    for _, f := range d.flags {
+      if set[f] {
+        decided = true
+        break
+      }
+    }
+    if !decided {
+      args = append(args, d.args...)
+    }
+  }
+  return args
 }
 
 // scrubbedEnviron is os.Environ() with every configured
@@ -313,8 +668,12 @@ func (m *Manager) scrubbedEnviron() []string {
   return out
 }
 
-func waitHealthy(ctx context.Context, url string) error {
-  ctx, cancel := context.WithTimeout(ctx, spawnHealthTimeout)
+// waitHealthy polls url until llama-server answers, giving up early
+// if the process behind it dies.
+func waitHealthy(
+  ctx context.Context, url string, proc *process, timeout time.Duration,
+) error {
+  ctx, cancel := context.WithTimeout(ctx, timeout)
   defer cancel()
 
   client := llm.New(url, "")
@@ -325,6 +684,8 @@ func waitHealthy(ctx context.Context, url string) error {
     select {
     case <-ctx.Done():
       return fmt.Errorf("timed out waiting for llama-server to come up")
+    case <-proc.done:
+      return fmt.Errorf("the process exited before llama-server came up")
     case <-time.After(healthPoll):
     }
   }
@@ -363,10 +724,7 @@ func (m *Manager) reapIdle() {
   now := time.Now()
 
   m.mu.Lock()
-  var toStop []struct {
-    name string
-    cmd  *exec.Cmd
-  }
+  var toStop []*process
   for name, proc := range m.procs {
     if proc.refcount > 0 {
       continue
@@ -379,62 +737,170 @@ func (m *Manager) reapIdle() {
     if now.Sub(proc.lastUsed) < timeout {
       continue
     }
-    toStop = append(toStop, struct {
-      name string
-      cmd  *exec.Cmd
-    }{ name, proc.cmd })
+    toStop = append(toStop, proc)
     delete(m.procs, name)
   }
   m.mu.Unlock()
 
   for _, p := range toStop {
-    stopProcess(p.cmd)
+    p.stop(context.Background())
   }
 }
 
 // Shutdown stops the reaper and every managed process this Manager
-// spawned — but, mirroring internal/searxng.Manager.Shutdown, never
-// touches an externally managed (URL-only) spec, since armin never
-// started that process in the first place.
+// spawned — and every EC2 instance it started — but never touches an
+// externally managed (URL-only) spec or an instance that was already
+// running. Safe to call more than once (a signal handler may race
+// the normal exit path).
 func (m *Manager) Shutdown(ctx context.Context) error {
-  close(m.stopReap)
-  <-m.reapDone
+  m.shutdown.Do(func() {
+    close(m.stopReap)
+    <-m.reapDone
+  })
 
   m.mu.Lock()
-  procs := m.procs
+  procs, owned := m.procs, m.owned
   m.procs = make(map[string]*process)
+  m.owned = make(map[string]*remoteRun)
   m.mu.Unlock()
 
+  var wg sync.WaitGroup
   for _, proc := range procs {
-    stopProcess(proc.cmd)
+    wg.Add(1)
+    go func() {
+      defer wg.Done()
+      proc.stop(ctx)
+    }()
+  }
+  for _, run := range owned {
+    wg.Add(1)
+    go func() {
+      defer wg.Done()
+      run.stopMachine()
+    }()
+  }
+  wg.Wait()
+  return nil
+}
+
+// stop sends SIGTERM and waits briefly for a clean exit, falling
+// back to SIGKILL; then stops the EC2 instance if armin started it.
+func (p *process) stop(ctx context.Context) {
+  if p.cmd.Process != nil && p.done != nil {
+    p.cmd.Process.Signal(syscall.SIGTERM)
+    select {
+    case <-p.done:
+    case <-time.After(stopGraceTimeout):
+      p.cmd.Process.Kill()
+      <-p.done
+    }
+  }
+  if p.remote != nil && p.remote.started {
+    p.remote.stopMachine()
+  }
+}
+
+// stopMachine gets its own deadline: it must run even when the
+// caller's context is the one being cancelled.
+func (r *remoteRun) stopMachine() {
+  ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
+  defer cancel()
+  r.machine.Stop(ctx)
+}
+
+// SetTier restarts name's process in tier t, unless it's already
+// there. The URL doesn't change, so every Client keeps working.
+func (m *Manager) SetTier(ctx context.Context, name string, t Tier) error {
+  m.mu.Lock()
+  spec, ok := m.specs[name]
+  if !ok || spec.Stream == nil {
+    m.mu.Unlock()
+    return fmt.Errorf("\n\t... in SetTier:\n\t model %q has no stream tier", name)
+  }
+  cur := m.tiers[name]
+  if cur == 0 {
+    cur = TierResident
+  }
+  if cur == t {
+    m.mu.Unlock()
+    return nil
+  }
+  proc := m.procs[name]
+  delete(m.procs, name)
+  m.tiers[name] = t
+  m.mu.Unlock()
+
+  if proc != nil {
+    // Keep a remote machine: only the server on it restarts.
+    remote := proc.remote
+    proc.remote = nil
+    proc.stop(ctx)
+    if remote != nil && remote.started {
+      m.mu.Lock()
+      m.owned[remote.machine.ID()] = remote
+      m.mu.Unlock()
+    }
+  }
+  if _, err := m.ensure(ctx, name); err != nil {
+    return fmt.Errorf("\n\t... in SetTier:\n\t%w", err)
   }
   return nil
 }
 
-// stopProcess sends SIGTERM and waits briefly for a clean exit,
-// falling back to SIGKILL if the process ignores it — the same
-// graceful-then-forced shape cmd/armin/main.go's own HTTP server
-// shutdown uses.
-func stopProcess(cmd *exec.Cmd) {
-  if cmd.Process == nil {
-    return
-  }
-
-  done := make(chan struct{})
-  go func() {
-    cmd.Wait()
-    close(done)
-  }()
-
-  cmd.Process.Signal(syscall.SIGTERM)
-
-  select {
-  case <-done:
-    return
-  case <-time.After(stopGraceTimeout):
-  }
-
-  cmd.Process.Kill()
-  <-done
+// Window is one model's pair of context tiers, as agent.Loop sees
+// them (it satisfies agent.WindowControl).
+type Window struct {
+  m              *Manager
+  name           string
+  resident, max  int
 }
 
+// Window returns name's tier control, or nil when the model has no
+// stream tier or no explicit -c to size the resident one.
+func (m *Manager) Window(name string) *Window {
+  m.mu.Lock()
+  defer m.mu.Unlock()
+  spec, ok := m.specs[name]
+  if !ok || spec.Stream == nil {
+    return nil
+  }
+  resident := contextOf(spec.Args)
+  if resident == 0 || spec.Stream.Context <= resident {
+    return nil
+  }
+  return &Window{ m: m, name: name, resident: resident, max: spec.Stream.Context }
+}
+
+func (w *Window) Resident() int { return w.resident }
+func (w *Window) Max() int      { return w.max }
+
+// Streaming reports whether the large tier is active.
+func (w *Window) Streaming() bool {
+  w.m.mu.Lock()
+  defer w.m.mu.Unlock()
+  return w.m.tiers[w.name] == TierStream
+}
+
+// Size is the active tier's window.
+func (w *Window) Size() int {
+  if w.Streaming() {
+    return w.max
+  }
+  return w.resident
+}
+
+// Grow moves to the stream tier and returns its window.
+func (w *Window) Grow(ctx context.Context) (int, error) {
+  if err := w.m.SetTier(ctx, w.name, TierStream); err != nil {
+    return 0, err
+  }
+  return w.max, nil
+}
+
+// Shrink moves back to the resident tier and returns its window.
+func (w *Window) Shrink(ctx context.Context) (int, error) {
+  if err := w.m.SetTier(ctx, w.name, TierResident); err != nil {
+    return 0, err
+  }
+  return w.resident, nil
+}

@@ -123,7 +123,7 @@ models.fim.args = --ctx-size 8192 --n-gpu-layers 999
   if fim.Port != 8081 {
     t.Fatalf("fim.Port = %d, want 8081", fim.Port)
   }
-  if fim.IdleTimeout != 5*time.Minute {
+  if fim.IdleTimeout != 5 * time.Minute {
     t.Fatalf("fim.IdleTimeout = %v, want 5m", fim.IdleTimeout)
   }
   want := []string{"--ctx-size", "8192", "--n-gpu-layers", "999"}
@@ -326,5 +326,110 @@ func TestPathHonorsXDGConfigHome(t *testing.T) {
   want := filepath.Join(dir, "armin", "config.conf")
   if path != want {
     t.Fatalf("Path() = %q, want %q", path, want)
+  }
+}
+
+func TestLoadParsesAgentKeys(t *testing.T) {
+  withConfigDir(t)
+  writeConfig(t, `
+max_tool_rounds = 80
+context_size    = 65536
+keep_turns      = -1
+read_timeout    = 10m
+build_timeout   = 20m
+auto_approve    = true
+test_cmd        = go test -race ./...
+`)
+
+  cfg, err := Load()
+  if err != nil {
+    t.Fatalf("Load: %v", err)
+  }
+  if cfg.MaxToolRounds != 80 || cfg.ContextSize != 65536 || cfg.KeepTurns != -1 {
+    t.Errorf("ints = %d %d %d", cfg.MaxToolRounds, cfg.ContextSize, cfg.KeepTurns)
+  }
+  if cfg.ReadTimeout != 10 * time.Minute || cfg.BuildTimeout != 20 * time.Minute {
+    t.Errorf("durations = %s %s", cfg.ReadTimeout, cfg.BuildTimeout)
+  }
+  if !cfg.AutoApprove {
+    t.Error("AutoApprove = false")
+  }
+  if strings.Join(cfg.TestCmd, " ") != "go test -race ./..." {
+    t.Errorf("TestCmd = %v", cfg.TestCmd)
+  }
+}
+
+func TestLoadParsesAWSModel(t *testing.T) {
+  withConfigDir(t)
+  writeConfig(t, `
+models.qwen.aws_instance           = i-0abc
+models.qwen.aws_region             = eu-west-1
+models.qwen.ssh_user               = ubuntu
+models.qwen.ssh_key                = ~/.ssh/gpu.pem
+models.qwen.remote_port            = 8080
+models.qwen.aws_stop_on_disconnect = false
+models.qwen.model_path             = /models/q.gguf
+`)
+
+  cfg, err := Load()
+  if err != nil {
+    t.Fatalf("Load: %v", err)
+  }
+  q := cfg.Models["qwen"]
+  if q.AWSInstance != "i-0abc" || q.AWSRegion != "eu-west-1" || q.SSHUser != "ubuntu" ||
+    q.SSHKey != "~/.ssh/gpu.pem" || q.RemotePort != 8080 || !q.KeepOnDisconnect {
+    t.Fatalf("qwen = %+v", q)
+  }
+}
+
+func TestLoadParsesStackitModel(t *testing.T) {
+  withConfigDir(t)
+  writeConfig(t, `
+models.gpu.stackit_server     = 0b8a-server
+models.gpu.stackit_project    = 9f1c-project
+models.gpu.stop_on_disconnect = true
+`)
+  cfg, err := Load()
+  if err != nil {
+    t.Fatalf("Load: %v", err)
+  }
+  g := cfg.Models["gpu"]
+  if g.StackitServer != "0b8a-server" || g.StackitProject != "9f1c-project" || g.KeepOnDisconnect {
+    t.Fatalf("gpu = %+v", g)
+  }
+}
+
+func TestLoadParsesScalewayModel(t *testing.T) {
+  withConfigDir(t)
+  writeConfig(t, `
+models.l40s.scaleway_server = 5f2e-server
+models.l40s.scaleway_zone   = fr-par-2
+`)
+  cfg, err := Load()
+  if err != nil {
+    t.Fatalf("Load: %v", err)
+  }
+  if l := cfg.Models["l40s"]; l.ScalewayServer != "5f2e-server" || l.ScalewayZone != "fr-par-2" {
+    t.Fatalf("l40s = %+v", l)
+  }
+}
+
+func TestLoadParsesStreamTier(t *testing.T) {
+  withConfigDir(t)
+  writeConfig(t, `
+models.local.args             = --jinja -c 98304
+models.local.stream_binary    = /opt/kvstream/llama-server
+models.local.stream_context   = 196608
+models.local.stream_arena_mib = 2048
+models.local.stream_args      = --fit off -b 256 -ub 256
+`)
+  cfg, err := Load()
+  if err != nil {
+    t.Fatalf("Load: %v", err)
+  }
+  l := cfg.Models["local"]
+  if l.StreamBinary != "/opt/kvstream/llama-server" || l.StreamContext != 196608 ||
+    l.StreamArenaMiB != 2048 || strings.Join(l.StreamArgs, " ") != "--fit off -b 256 -ub 256" {
+    t.Fatalf("local = %+v", l)
   }
 }

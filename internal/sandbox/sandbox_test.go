@@ -21,7 +21,7 @@ func newTestConfig(t *testing.T, opts Options) *Config {
 
 func TestNewAppliesDefaults(t *testing.T) {
   cfg := newTestConfig(t, Options{})
-  if cfg.Timeout != 20*time.Second {
+  if cfg.Timeout != 20 * time.Second {
     t.Errorf("default Timeout = %v, want 20s", cfg.Timeout)
   }
   if cfg.MaxOutput != 4000 {
@@ -46,7 +46,7 @@ func TestNewHonorsExplicitOptions(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
-  if cfg.Timeout != 5*time.Second || cfg.MaxOutput != 100 || !cfg.DryRun {
+  if cfg.Timeout != 5 * time.Second || cfg.MaxOutput != 100 || !cfg.DryRun {
     t.Fatalf("New did not honor explicit options: %+v", cfg)
   }
   if !cfg.Allowlist["echo"] || len(cfg.Allowlist) != 1 {

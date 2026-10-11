@@ -1,20 +1,24 @@
-// Package session persists conversation history to disk so
-// --resume can pick a project back up without starting cold (plan
-// Phase 4). One file per project root, keyed by a short hash of its
-// absolute path.
+// Package session persists conversations to disk so they can be
+// resumed: each session is one file named by its id (a UUID), whose
+// first line carries the project directory, model, a title the model
+// wrote, and timestamps.
 //
 // The on-disk format is JSON Lines, not one big JSON document: a
 // metadata line followed by one line per message. That's what makes
-// Append below possible — writing only the messages added since the
-// last save, instead of re-serializing and rewriting the entire,
-// ever-growing history on every single turn. A REPL that autosaves
-// after each turn and rewrote the whole file every time would do
-// O(n) work per turn and O(n^2) total disk I/O over an n-turn
-// session; Append does O(1) amortized work per turn and O(n) total.
+// Append possible — writing only the messages added since the last
+// save, instead of re-serializing the entire, ever-growing history on
+// every turn. A REPL that autosaves after each turn and rewrote the
+// whole file every time would do O(n) work per turn and O(n²) total
+// disk I/O over an n-turn session; Append does O(1) amortized work
+// per turn and O(n) total.
+//
+// Sessions saved before ids existed (one file per project, named
+// <dir>-<hash>.jsonl) still list and load: their id is that name.
 package session
 
 import (
   "bufio"
+  "crypto/rand"
   "crypto/sha256"
   "encoding/hex"
   "encoding/json"
@@ -22,65 +26,119 @@ import (
   "io"
   "os"
   "path/filepath"
+  "sort"
+  "strings"
   "time"
 
   "armin/internal/llm"
 )
 
-// Saved is what Load reconstructs from a session file.
-type Saved struct {
-  Root, Model string
-  UpdatedAt   time.Time
-  History     []llm.Message
-}
-
-// meta is the first line of the JSONL file.
-type meta struct {
+// Meta is a session's first line.
+type Meta struct {
+  ID        string    `json:"id"`
   Root      string    `json:"root"`
   Model     string    `json:"model"`
+  Title     string    `json:"title,omitempty"`
+  CreatedAt time.Time `json:"created_at"`
   UpdatedAt time.Time `json:"updated_at"`
+
+  // Messages is counted by List and Load; it isn't stored.
+  Messages int `json:"-"`
 }
 
-// Dir returns the session storage directory, honoring
-// XDG_DATA_HOME.
-func Dir() (string, error) {
+// Saved is what Load reconstructs from a session file.
+type Saved struct {
+  Meta
+  History []llm.Message
+}
+
+// NewID returns a random RFC 4122 v4 UUID.
+func NewID() string {
+  var b [16]byte
+  rand.Read(b[:])
+  b[6] = b[6] & 0x0f | 0x40
+  b[8] = b[8] & 0x3f | 0x80
+
+  return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+// DataDir returns armin's data directory, honoring XDG_DATA_HOME.
+func DataDir() (string, error) {
   base := os.Getenv("XDG_DATA_HOME")
   if base == "" {
     home, err := os.UserHomeDir()
     if err != nil {
-      return "", fmt.Errorf("\n\t... in Dir:\n\t%w", err)
+      return "", fmt.Errorf("\n\t... in DataDir:\n\t%w", err)
     }
+
     base = filepath.Join(home, ".local", "share")
   }
-  return filepath.Join(base, "armin", "sessions"), nil
+
+  return filepath.Join(base, "armin"), nil
 }
 
-func pathFor(root string) (string, error) {
+// Dir returns the session storage directory.
+func Dir() (string, error) {
+  base, err := DataDir()
+  if err != nil {
+    return "", fmt.Errorf("\n\t... in Dir:\n\t%w", err)
+  }
+
+  return filepath.Join(base, "sessions"), nil
+}
+
+// ProjectKey names a project root on disk: its base name plus a
+// short hash of its absolute path, so two "api" checkouts don't
+// collide.
+func ProjectKey(root string) (string, error) {
+  abs, err := filepath.Abs(root)
+  if err != nil {
+    return "", fmt.Errorf("\n\t... in ProjectKey:\n\t%w", err)
+  }
+
+  sum := sha256.Sum256([]byte(abs))
+
+  return filepath.Base(abs) + "-" + hex.EncodeToString(sum[:])[:8], nil
+}
+
+// ProjectDataDir is <data>/armin/<kind>/<project key> — where
+// per-project state other than sessions (memory, scratch) lives.
+func ProjectDataDir(kind, root string) (string, error) {
+  base, err := DataDir()
+  if err != nil {
+    return "", fmt.Errorf("\n\t... in ProjectDataDir:\n\t%w", err)
+  }
+
+  key, err := ProjectKey(root)
+  if err != nil {
+    return "", fmt.Errorf("\n\t... in ProjectDataDir:\n\t%w", err)
+  }
+
+  return filepath.Join(base, kind, key), nil
+}
+
+func pathFor(id string) (string, error) {
+  if id == "" || strings.ContainsAny(id, `/\`) || strings.HasPrefix(id, ".") {
+    return "", fmt.Errorf("\n\t... in pathFor:\n\t invalid session id %q", id)
+  }
+
   dir, err := Dir()
   if err != nil {
     return "", fmt.Errorf("\n\t... in pathFor:\n\t%w", err)
   }
 
-  abs, err := filepath.Abs(root)
-  if err != nil {
-    return "", fmt.Errorf("\n\t... in pathFor:\n\t%w", err)
-  }
-
-  sum := sha256.Sum256([]byte(abs))
-  hash := hex.EncodeToString(sum[:])[:8]
-  name := filepath.Base(abs) + "-" + hash + ".jsonl"
-  return filepath.Join(dir, name), nil
+  return filepath.Join(dir, id + ".jsonl"), nil
 }
 
-// Save writes a fresh snapshot of history to disk, replacing
-// whatever was there. Use this for infrequent, whole-history writes
-// (an explicit /save, or the final flush on exit) — the per-turn
-// autosave path should use Append instead.
-func Save(root, model string, history []llm.Message) error {
-  path, err := pathFor(root)
+// Save writes a fresh snapshot of the session, replacing whatever
+// was there: for infrequent, whole-history writes (a rename, /save,
+// the exit flush). The per-turn path is Append.
+func Save(m *Meta, history []llm.Message) error {
+  path, err := pathFor(m.ID)
   if err != nil {
     return fmt.Errorf("\n\t... in Save:\n\t%w", err)
   }
+
   if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
     return fmt.Errorf("\n\t... in Save:\n\t%w", err)
   }
@@ -89,27 +147,35 @@ func Save(root, model string, history []llm.Message) error {
   if err != nil {
     return fmt.Errorf("\n\t... in Save:\n\t%w", err)
   }
+
   defer f.Close()
 
-  if err := writeAll(f, root, model, history); err != nil {
+  if err := writeAll(f, m, history); err != nil {
     return fmt.Errorf("\n\t... in Save:\n\t%w", err)
   }
+
   return nil
 }
 
-func writeAll(
-  w io.Writer, root, model string, history []llm.Message,
-) error {
+func writeAll(w io.Writer, m *Meta, history []llm.Message) error {
+  now := time.Now()
+  if m.CreatedAt.IsZero() {
+    m.CreatedAt = now
+  }
+
+  m.UpdatedAt = now
+
   enc := json.NewEncoder(w)
-  head := meta{ Root: root, Model: model, UpdatedAt: time.Now() }
-  if err := enc.Encode(head); err != nil {
+  if err := enc.Encode(m); err != nil {
     return err
   }
-  for _, m := range history {
-    if err := enc.Encode(m); err != nil {
+
+  for _, msg := range history {
+    if err := enc.Encode(msg); err != nil {
       return err
     }
   }
+
   return nil
 }
 
@@ -120,76 +186,72 @@ func writeAll(
 // line.
 //
 // *persisted must accurately reflect what's already on disk;
-// callers that mutate history in place (e.g. /clear, /compact)
-// rather than only appending to it should call Save and reset
-// *persisted themselves instead of calling Append, or the log ends
-// up with lines that no longer correspond to the in-memory history.
-func Append(
-  root, model string, history []llm.Message, persisted *int,
-) error {
+// callers that mutate history in place (/clear, /compact) rather
+// than only appending should Save and reset *persisted themselves.
+func Append(m *Meta, history []llm.Message, persisted *int) error {
   if *persisted == 0 {
-    if err := Save(root, model, history); err != nil {
+    if err := Save(m, history); err != nil {
       return err
     }
+
     *persisted = len(history)
+
     return nil
   }
+
   if *persisted >= len(history) {
     return nil // nothing new
   }
 
-  path, err := pathFor(root)
+  path, err := pathFor(m.ID)
   if err != nil {
     return fmt.Errorf("\n\t... in Append:\n\t%w", err)
   }
 
-  f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+  f, err := os.OpenFile(path, os.O_APPEND | os.O_WRONLY, 0o644)
   if err != nil {
     return fmt.Errorf("\n\t... in Append:\n\t%w", err)
   }
+
   defer f.Close()
 
   enc := json.NewEncoder(f)
-  for _, m := range history[*persisted:] {
-    if err := enc.Encode(m); err != nil {
+  for _, msg := range history[*persisted:] {
+    if err := enc.Encode(msg); err != nil {
       return fmt.Errorf("\n\t... in Append:\n\t%w", err)
     }
   }
 
   *persisted = len(history)
+
   return nil
 }
 
-// Load reads the saved session for root. A missing session returns
-// (nil, nil) — it's a normal, expected state, not an error.
-func Load(root string) (*Saved, error) {
-  path, err := pathFor(root)
+// Load reads a session by id, or by a prefix that matches exactly
+// one session.
+func Load(id string) (*Saved, error) {
+  path, err := resolve(id)
   if err != nil {
     return nil, fmt.Errorf("\n\t... in Load:\n\t%w", err)
   }
 
   f, err := os.Open(path)
-  if os.IsNotExist(err) {
-    return nil, nil
-  }
   if err != nil {
     return nil, fmt.Errorf("\n\t... in Load:\n\t%w", err)
   }
+
   defer f.Close()
 
   scanner := bufio.NewScanner(f)
-  scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
+  scanner.Buffer(make([]byte, 0, 64 * 1024), 8 * 1024 * 1024)
 
   if !scanner.Scan() {
-    return nil, fmt.Errorf(
-      "\n\t... in Load:\n\t %s: empty session file", path,
-    )
+    return nil, fmt.Errorf("\n\t... in Load:\n\t %s: empty session file", path)
   }
-  var m meta
-  if err := json.Unmarshal(scanner.Bytes(), &m); err != nil {
-    return nil, fmt.Errorf(
-      "\n\t... in Load:\n\t parsing metadata: %w", err,
-    )
+
+  m, err := parseMeta(scanner.Bytes(), path)
+  if err != nil {
+    return nil, fmt.Errorf("\n\t... in Load:\n\t parsing metadata: %w", err)
   }
 
   var history []llm.Message
@@ -197,20 +259,171 @@ func Load(root string) (*Saved, error) {
     var msg llm.Message
     if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
       return nil, fmt.Errorf(
-        "\n\t... in Load:\n\t parsing message %d: %w",
-        len(history), err,
+        "\n\t... in Load:\n\t parsing message %d: %w", len(history), err,
       )
     }
+
     history = append(history, msg)
   }
+
   if err := scanner.Err(); err != nil {
     return nil, fmt.Errorf("\n\t... in Load:\n\t%w", err)
   }
 
-  return &Saved{
-    Root:      m.Root,
-    Model:     m.Model,
-    UpdatedAt: m.UpdatedAt,
-    History:   history,
-  }, nil
+  m.Messages = len(history)
+
+  return &Saved{ Meta: m, History: history }, nil
+}
+
+// resolve finds the file for an id or a unique id prefix.
+func resolve(id string) (string, error) {
+  if path, err := pathFor(id); err == nil {
+    if _, err := os.Stat(path); err == nil {
+      return path, nil
+    }
+  }
+
+  list, err := List()
+  if err != nil {
+    return "", err
+  }
+
+  var hits []Meta
+  for _, m := range list {
+    if strings.HasPrefix(m.ID, id) {
+      hits = append(hits, m)
+    }
+  }
+
+  switch len(hits) {
+  case 0:
+    return "", fmt.Errorf("no session with id %q (armin -resume lists them)", id)
+  case 1:
+    return pathFor(hits[0].ID)
+  }
+
+  return "", fmt.Errorf("%q matches %d sessions; use more of the id", id, len(hits))
+}
+
+// parseMeta reads a first line, filling what a legacy file lacks:
+// its id is its file name.
+func parseMeta(line []byte, path string) (Meta, error) {
+  var m Meta
+  if err := json.Unmarshal(line, &m); err != nil {
+    return Meta{}, err
+  }
+
+  if m.ID == "" {
+    m.ID = strings.TrimSuffix(filepath.Base(path), ".jsonl")
+  }
+
+  if m.CreatedAt.IsZero() {
+    m.CreatedAt = m.UpdatedAt
+  }
+
+  return m, nil
+}
+
+// List returns every saved session, most recently updated first. It
+// reads each file's first line and counts the rest, never parsing
+// the messages themselves.
+func List() ([]Meta, error) {
+  dir, err := Dir()
+  if err != nil {
+    return nil, fmt.Errorf("\n\t... in List:\n\t%w", err)
+  }
+
+  entries, err := os.ReadDir(dir)
+  if os.IsNotExist(err) {
+    return nil, nil
+  }
+
+  if err != nil {
+    return nil, fmt.Errorf("\n\t... in List:\n\t%w", err)
+  }
+
+  var out []Meta
+  for _, e := range entries {
+    if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
+      continue
+    }
+
+    if m, ok := readMeta(filepath.Join(dir, e.Name())); ok {
+      out = append(out, m)
+    }
+  }
+
+  sort.Slice(out, func(i, j int) bool {
+    return out[i].UpdatedAt.After(out[j].UpdatedAt)
+  })
+
+  return out, nil
+}
+
+func readMeta(path string) (Meta, bool) {
+  f, err := os.Open(path)
+  if err != nil {
+    return Meta{}, false
+  }
+
+  defer f.Close()
+
+  scanner := bufio.NewScanner(f)
+  scanner.Buffer(make([]byte, 0, 64 * 1024), 8 * 1024 * 1024)
+  if !scanner.Scan() {
+    return Meta{}, false
+  }
+
+  m, err := parseMeta(scanner.Bytes(), path)
+  if err != nil {
+    return Meta{}, false
+  }
+
+  for scanner.Scan() {
+    m.Messages++
+  }
+
+  return m, true
+}
+
+// Latest is the most recently updated session for root, or nil.
+func Latest(root string) (*Saved, error) {
+  abs, err := filepath.Abs(root)
+  if err != nil {
+    return nil, fmt.Errorf("\n\t... in Latest:\n\t%w", err)
+  }
+
+  list, err := List()
+  if err != nil {
+    return nil, fmt.Errorf("\n\t... in Latest:\n\t%w", err)
+  }
+
+  for _, m := range list {
+    if m.Root == abs {
+      return Load(m.ID)
+    }
+  }
+
+  return nil, nil
+}
+
+// Delete removes a session file (by id or unique prefix) and returns
+// what it was, so the caller can clean up what hangs off it (its
+// scratchpad).
+func Delete(id string) (Meta, error) {
+  path, err := resolve(id)
+  if err != nil {
+    return Meta{}, fmt.Errorf("\n\t... in Delete:\n\t%w", err)
+  }
+
+  m, ok := readMeta(path)
+  if !ok {
+    m = Meta{ ID: strings.TrimSuffix(filepath.Base(path), ".jsonl") }
+  }
+
+  if err := os.Remove(path); err != nil {
+    return Meta{}, fmt.Errorf("\n\t... in Delete:\n\t%w", err)
+  }
+
+  return m, nil
 }

@@ -9,6 +9,7 @@ import (
   "net/http/httptest"
   "strings"
   "testing"
+  "time"
 )
 
 func serverReturning(t *testing.T, path string, handler http.HandlerFunc) *httptest.Server {
@@ -157,7 +158,7 @@ func TestChatStreamingAssemblesDeltasAndToolCallFragments(t *testing.T) {
     flusher, _ := w.(http.Flusher)
     write := func(chunk owaiStreamChunk) {
       b, _ := json.Marshal(chunk)
-      io.WriteString(w, "data: "+string(b)+"\n\n")
+      io.WriteString(w, "data: " + string(b) + "\n\n")
       if flusher != nil {
         flusher.Flush()
       }
@@ -402,5 +403,126 @@ func TestNewDefaultsBaseURL(t *testing.T) {
   client := New("", "m")
   if client.BaseURL != "http://localhost:8080" {
     t.Fatalf("BaseURL = %q, want the llama-server default", client.BaseURL)
+  }
+}
+
+func TestChatStreamSeparatesReasoningAndReadsUsage(t *testing.T) {
+  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+    var req owaiChatRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+      t.Fatal(err)
+    }
+    if req.StreamOptions == nil || !req.StreamOptions.IncludeUsage {
+      t.Error("expected stream_options.include_usage on a streamed request")
+    }
+    write := func(chunk owaiStreamChunk) {
+      b, _ := json.Marshal(chunk)
+      io.WriteString(w, "data: " + string(b) + "\n\n")
+    }
+    write(owaiStreamChunk{ Choices: []owaiStreamChoice{ { Delta: owaiStreamDelta{ ReasoningContent: "hmm " } } } })
+    write(owaiStreamChunk{ Choices: []owaiStreamChoice{ { Delta: owaiStreamDelta{ ReasoningContent: "ok" } } } })
+    write(owaiStreamChunk{ Choices: []owaiStreamChoice{ { Delta: owaiStreamDelta{ Content: "answer" } } } })
+    write(owaiStreamChunk{ Usage: &Usage{ PromptTokens: 100, CompletionTokens: 20 } })
+    io.WriteString(w, "data: [DONE]\n\n")
+  })
+
+  client := New(server.URL, "fake-model")
+
+  var tokens, thoughts strings.Builder
+  msg, err := client.ChatStream(context.Background(), nil, nil, StreamHandlers{
+    Token:     func(d string) { tokens.WriteString(d) },
+    Reasoning: func(d string) { thoughts.WriteString(d) },
+  })
+  if err != nil {
+    t.Fatalf("ChatStream: %v", err)
+  }
+  if tokens.String() != "answer" || msg.Content != "answer" {
+    t.Fatalf("content = %q / %q, want \"answer\"", tokens.String(), msg.Content)
+  }
+  if thoughts.String() != "hmm ok" || msg.Reasoning != "hmm ok" {
+    t.Fatalf("reasoning = %q / %q, want \"hmm ok\"", thoughts.String(), msg.Reasoning)
+  }
+  if msg.Usage.Total() != 120 {
+    t.Fatalf("Usage = %+v, want 100+20", msg.Usage)
+  }
+}
+
+func TestChatSendsReasoningBack(t *testing.T) {
+  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+    var req owaiChatRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+      t.Fatal(err)
+    }
+    if req.Messages[0].ReasoningContent != "plan" {
+      t.Errorf("reasoning_content = %q, want \"plan\"", req.Messages[0].ReasoningContent)
+    }
+    json.NewEncoder(w).Encode(owaiChatResponse{
+      Choices: []owaiChoice{ { Message: owaiMessage{ Role: "assistant", Content: "ok" } } },
+      Usage:   &Usage{ PromptTokens: 7 },
+    })
+  })
+
+  client := New(server.URL, "fake-model")
+  msg, err := client.Chat(context.Background(), []Message{
+    { Role: "assistant", Content: "x", Reasoning: "plan" },
+  }, nil, nil)
+  if err != nil {
+    t.Fatalf("Chat: %v", err)
+  }
+  if msg.Usage.PromptTokens != 7 {
+    t.Fatalf("Usage = %+v, want prompt_tokens 7", msg.Usage)
+  }
+}
+
+func TestChatReadTimeoutFiresOnSilence(t *testing.T) {
+  release := make(chan struct{})
+  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+    select {
+    case <-release:
+    case <-r.Context().Done():
+    }
+  })
+  defer close(release)
+
+  client := New(server.URL, "fake-model")
+  client.ReadTimeout = 50 * time.Millisecond
+
+  _, err := client.Chat(context.Background(), nil, nil, nil)
+  if err == nil || !strings.Contains(err.Error(), "read timeout") {
+    t.Fatalf("err = %v, want a read timeout", err)
+  }
+}
+
+func TestChatReadTimeoutResetsWhileStreaming(t *testing.T) {
+  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+    flusher := w.(http.Flusher)
+    for i := 0; i < 6; i++ {
+      b, _ := json.Marshal(owaiStreamChunk{ Choices: []owaiStreamChoice{ { Delta: owaiStreamDelta{ Content: "x" } } } })
+      io.WriteString(w, "data: " + string(b) + "\n\n")
+      flusher.Flush()
+      time.Sleep(30 * time.Millisecond)
+    }
+    io.WriteString(w, "data: [DONE]\n\n")
+  })
+
+  client := New(server.URL, "fake-model")
+  client.ReadTimeout = 80 * time.Millisecond
+
+  msg, err := client.Chat(context.Background(), nil, nil, func(string) {})
+  if err != nil {
+    t.Fatalf("Chat: %v (total time exceeds ReadTimeout, but it never went idle)", err)
+  }
+  if msg.Content != "xxxxxx" {
+    t.Fatalf("Content = %q", msg.Content)
+  }
+}
+
+func TestContextSizeFromProps(t *testing.T) {
+  server := serverReturning(t, "/props", func(w http.ResponseWriter, r *http.Request) {
+    io.WriteString(w, `{"default_generation_settings":{"n_ctx":65536}}`)
+  })
+  n, err := New(server.URL, "m").ContextSize(context.Background())
+  if err != nil || n != 65536 {
+    t.Fatalf("ContextSize = %d, %v; want 65536", n, err)
   }
 }

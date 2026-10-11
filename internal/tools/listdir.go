@@ -34,6 +34,10 @@ var skipDirs = map[string]bool{
   "build":        true,
 }
 
+// SkipDir reports whether a directory name is noise every walker
+// skips (the web UI's file list uses the same set).
+func SkipDir(name string) bool { return skipDirs[name] }
+
 // ListDirectory returns an indented tree of the directory up to the
 // requested depth.
 func ListDirectory(
@@ -87,7 +91,7 @@ func walk(b *strings.Builder, dir, prefix string, depthLeft int) error {
   kept := keptEntries(entries)
 
   for i, e := range kept {
-    last := i == len(kept)-1
+    last := i == len(kept) - 1
 
     connector := "├── "
     nextPrefix := prefix + "│   "
@@ -104,7 +108,7 @@ func walk(b *strings.Builder, dir, prefix string, depthLeft int) error {
 
     if e.IsDir() {
       next := filepath.Join(dir, e.Name())
-      if err := walk(b, next, nextPrefix, depthLeft-1); err != nil {
+      if err := walk(b, next, nextPrefix, depthLeft - 1); err != nil {
         return err
       }
     }

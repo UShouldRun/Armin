@@ -20,7 +20,7 @@ type ReadFileInput struct {
 type ReadFileOutput struct {
   Content    string `json:"content"`
   TotalLines int    `json:"total_lines"`
-  Truncated  bool   `json:"truncated"`
+  Truncated  bool   `json:"truncated,omitempty"`
 }
 
 // maxWholeFileLines is the threshold above which a line range is
@@ -102,7 +102,7 @@ func ReadFile(
     )
   }
 
-  selected := lines[start-1 : end]
+  selected := lines[start - 1 : end]
   return &ReadFileOutput{
     Content:    strings.Join(selected, "\n"),
     TotalLines: s_lines,
@@ -113,7 +113,7 @@ func readLines(f *os.File) ([]string, error) {
   var lines []string
 
   scanner := bufio.NewScanner(f)
-  scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+  scanner.Buffer(make([]byte, 0, 64 * 1024), 1024 * 1024)
   for scanner.Scan() {
     lines = append(lines, scanner.Text())
   }

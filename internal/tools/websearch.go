@@ -12,9 +12,11 @@ import (
 type WebSearchInput struct {
   Query string `json:"query"`
   Count int    `json:"count,omitempty"` // default 5, max 10
+  Topic string `json:"topic,omitempty"` // general (default), code, science
 }
 
 type WebSearchResult struct {
+  ID      int    `json:"id,omitempty"` // citation number, set by the agent
   Title   string `json:"title"`
   URL     string `json:"url"`
   Snippet string `json:"snippet"`
@@ -22,6 +24,7 @@ type WebSearchResult struct {
 
 type WebSearchOutput struct {
   Results []WebSearchResult `json:"results"`
+  Cite    string            `json:"cite,omitempty"`
 }
 
 const (
@@ -54,7 +57,7 @@ func WebSearch(
     count = maxResultCount
   }
 
-  results, err := mgr.Search(ctx, in.Query, count)
+  results, err := mgr.Search(ctx, in.Query, count, in.Topic)
   if err != nil {
     return nil, fmt.Errorf("\n\t... in WebSearch:\n\t%w", err)
   }

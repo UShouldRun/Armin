@@ -75,7 +75,7 @@ func (s *Server) Serve(
   s.out = out
 
   scanner := bufio.NewScanner(in)
-  scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
+  scanner.Buffer(make([]byte, 0, 64 * 1024), 8 * 1024 * 1024)
 
   for scanner.Scan() {
     line := scanner.Bytes()
@@ -187,6 +187,29 @@ func (s *Server) callTool(
       return errorResult(err)
     }
     out, err := tools.ReadFile(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "write_file":
+    var in tools.WriteFileInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    // No tracker: the MCP client owns read-before-write and approval.
+    out, err := tools.WriteFile(s.sandbox, nil, in)
+    if err != nil {
+      return errorResult(err)
+    }
+    return jsonResult(out)
+
+  case "edit_file":
+    var in tools.EditFileInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+    out, err := tools.EditFile(s.sandbox, nil, in)
     if err != nil {
       return errorResult(err)
     }
@@ -531,6 +554,19 @@ func (s *Server) callTool(
     if err != nil {
       return errorResult(err)
     }
+    return jsonResult(out)
+
+  case "read_pdf":
+    var in tools.ReadPDFInput
+    if err := json.Unmarshal(p.Arguments, &in); err != nil {
+      return errorResult(err)
+    }
+
+    out, err := tools.ReadPDF(ctx, s.sandbox, in)
+    if err != nil {
+      return errorResult(err)
+    }
+
     return jsonResult(out)
 
   case "semantic_search":

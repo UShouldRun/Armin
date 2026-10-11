@@ -15,7 +15,7 @@ func TestSplitAtPosition(t *testing.T) {
   if suffix != "Println()\n}\n" {
     t.Fatalf("suffix = %q", suffix)
   }
-  if prefix+suffix != text {
+  if prefix + suffix != text {
     t.Fatalf("prefix+suffix lost or duplicated bytes:\n%q\n+\n%q\n!=\n%q", prefix, suffix, text)
   }
 }

@@ -85,8 +85,8 @@ func TestToolsList(t *testing.T) {
   var result listToolsResult
   remarshal(t, resp.Result, &result)
 
-  if len(result.Tools) != 34 {
-    t.Fatalf("tools/list returned %d tools, want 34", len(result.Tools))
+  if len(result.Tools) != 37 {
+    t.Fatalf("tools/list returned %d tools, want 37", len(result.Tools))
   }
   // noPropsOK are tools with no meaningful parameters at all
   // (list_directory's only param is optional, the rest take

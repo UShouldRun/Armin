@@ -81,7 +81,7 @@ type ListSymbolsInput struct {
 
 type ListSymbolsOutput struct {
   Matches   []SymbolLocation `json:"matches"`
-  Truncated bool             `json:"truncated"`
+  Truncated bool             `json:"truncated,omitempty"`
 }
 
 const maxListSymbolsResults = 200
@@ -148,7 +148,7 @@ type FindReferencesInput struct {
 
 type FindReferencesOutput struct {
   Matches   string `json:"matches"`
-  Truncated bool   `json:"truncated"`
+  Truncated bool   `json:"truncated,omitempty"`
 }
 
 // FindReferences is search_code's word-boundary-matched sibling: it

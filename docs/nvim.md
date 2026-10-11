@@ -74,6 +74,19 @@ a floating window instead of stdout. Only one question can be in
 flight at a time; submitting another while armin is still answering
 just warns instead of queuing or interleaving.
 
+The status lines say what armin is doing in plain words, including
+the newer tools: `◐ Thinking…` while a thinking model reasons (the
+trace itself goes to the scratchpad's `thinking` file, not the
+window), `◐ Loading skill "go-style"…`, `◐ Noting in scratchpad
+"plan"…`, `◐ Recalling "db"…`. When armin manages the context window
+mid-answer — trimming old tool results into the scratchpad archive,
+growing to the KV-streaming tier, compacting — it shows a
+`⚙ context: …` line, the same notices the REPL prints.
+
+In `-lsp` mode armin has the same memories, skills and scratchpad
+as the REPL (their indexes are in its prompt), but no write tools:
+the editor has nobody to approve a change.
+
 When armin flags something worth your attention — a risk, a doubt
 about correctness, a notable behavior — it grounds that specific
 claim in a `file:line` (or `file:start-end`) reference, rendered as

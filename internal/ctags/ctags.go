@@ -128,7 +128,7 @@ func containsFold(s, substr string) bool {
   if len(substr) > len(s) {
     return false
   }
-  for i := 0; i+len(substr) <= len(s); i++ {
+  for i := 0; i + len(substr) <= len(s); i++ {
     if hasPrefixFold(s[i:], substr) {
       return true
     }
@@ -190,7 +190,7 @@ func scan(
     "--languages=" + strings.Join(DefaultLanguages, ","),
   }
   for _, dir := range excludeDirs {
-    args = append(args, "--exclude="+dir)
+    args = append(args, "--exclude=" + dir)
   }
   args = append(args, ".")
 
@@ -293,10 +293,10 @@ func rankSymbols(matches []Symbol, fromFile string) {
     w := weight(current)
     j := i - 1
     for j >= 0 && weight(matches[j]) > w {
-      matches[j+1] = matches[j]
+      matches[j + 1] = matches[j]
       j--
     }
-    matches[j+1] = current
+    matches[j + 1] = current
   }
 }
 

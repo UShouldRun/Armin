@@ -151,8 +151,8 @@ func firstMatchingSnippet(content, lower string, terms []string) string {
     if idx < 0 {
       continue
     }
-    start := max(0, idx-40)
-    end := min(len(content), idx+len(term)+maxSemanticSnippet-40)
+    start := max(0, idx - 40)
+    end := min(len(content), idx + len(term) + maxSemanticSnippet - 40)
     snippet := strings.TrimSpace(content[start:end])
     return strings.ReplaceAll(snippet, "\n", " ")
   }

@@ -42,6 +42,24 @@ type ModelSpecConfig struct {
   Args      []string
 
   IdleTimeout time.Duration
+
+  // Remote machine (see llamacpp.RemoteSpec): an EC2 instance or a
+  // STACKIT server runs Binary/ModelPath; Port is then the local end
+  // of the tunnel.
+  AWSInstance, AWSRegion                       string
+  StackitServer, StackitProject, StackitRegion string
+  ScalewayServer, ScalewayZone                 string
+  SSHUser, SSHKey                              string
+  RemotePort                                   int
+  KeepOnDisconnect                             bool // stop_on_disconnect = false
+  Vision                                       bool // keep the --mmproj projector
+  NoLean                                       bool // lean = false
+
+  // Streaming tier (see llamacpp.StreamSpec).
+  StreamBinary   string
+  StreamContext  int
+  StreamArenaMiB int
+  StreamArgs     []string
 }
 
 // Config holds every value a config file may override. Zero values
@@ -68,6 +86,17 @@ type Config struct {
   Timeout      time.Duration
   MaxOutput    int
   ExtraAllowed []string // appended to sandbox.DefaultAllowlist()
+
+  // Agent behavior. Zero means "use the default".
+  MaxToolRounds int
+  ContextSize   int // tokens; overrides what llama-server reports
+  KeepTurns     int // turns that keep full tool results; -1 never trims
+  ReadTimeout   time.Duration
+  BuildTimeout  time.Duration
+  AutoApprove   bool
+
+  // Project commands as argv, overriding detection.
+  TestCmd, BuildCmd, LintCmd []string
 }
 
 // Dir returns the armin config directory, honoring XDG_CONFIG_HOME —
@@ -136,7 +165,7 @@ func LoadEnv() error {
   if err != nil {
     return fmt.Errorf("\n\t... in LoadEnv:\n\t%w", err)
   }
-  if perm := info.Mode().Perm(); perm&0o077 != 0 {
+  if perm := info.Mode().Perm(); perm & 0o077 != 0 {
     return fmt.Errorf(
       "\n\t... in LoadEnv:\n\t %s is readable by group/other (mode %#o) "+
         "— it may hold API keys; fix this before armin will read it: "+
@@ -267,6 +296,41 @@ func apply(cfg *Config, key, value string) error {
       return fmt.Errorf("\n\t... in apply:\n\t max_output: %w", err)
     }
     cfg.MaxOutput = n
+  case "max_tool_rounds", "context_size", "keep_turns":
+    n, err := strconv.Atoi(value)
+    if err != nil {
+      return fmt.Errorf("\n\t... in apply:\n\t %s: %w", key, err)
+    }
+    switch key {
+    case "max_tool_rounds":
+      cfg.MaxToolRounds = n
+    case "context_size":
+      cfg.ContextSize = n
+    default:
+      cfg.KeepTurns = n
+    }
+  case "read_timeout", "build_timeout":
+    d, err := time.ParseDuration(value)
+    if err != nil {
+      return fmt.Errorf("\n\t... in apply:\n\t %s: %w", key, err)
+    }
+    if key == "read_timeout" {
+      cfg.ReadTimeout = d
+    } else {
+      cfg.BuildTimeout = d
+    }
+  case "auto_approve":
+    b, err := strconv.ParseBool(value)
+    if err != nil {
+      return fmt.Errorf("\n\t... in apply:\n\t auto_approve: %w", err)
+    }
+    cfg.AutoApprove = b
+  case "test_cmd":
+    cfg.TestCmd = strings.Fields(value)
+  case "build_cmd":
+    cfg.BuildCmd = strings.Fields(value)
+  case "lint_cmd":
+    cfg.LintCmd = strings.Fields(value)
   case "allow":
     for _, bin := range strings.Split(value, ",") {
       bin = strings.TrimSpace(bin)
@@ -307,6 +371,72 @@ func applyModel(cfg *Config, name, field, value string) error {
     spec.ModelPath = value
   case "api_key_env":
     spec.APIKeyEnv = value
+  case "aws_instance":
+    spec.AWSInstance = value
+  case "aws_region":
+    spec.AWSRegion = value
+  case "ssh_user":
+    spec.SSHUser = value
+  case "ssh_key":
+    spec.SSHKey = value
+  case "remote_port":
+    n, err := strconv.Atoi(value)
+    if err != nil {
+      return fmt.Errorf(
+        "\n\t... in applyModel:\n\t models.%s.remote_port: %w", name, err,
+      )
+    }
+    spec.RemotePort = n
+  case "vision":
+    b, err := strconv.ParseBool(value)
+    if err != nil {
+      return fmt.Errorf(
+        "\n\t... in applyModel:\n\t models.%s.vision: %w", name, err,
+      )
+    }
+    spec.Vision = b
+  case "stream_binary":
+    spec.StreamBinary = value
+  case "stream_context", "stream_arena_mib":
+    n, err := strconv.Atoi(value)
+    if err != nil {
+      return fmt.Errorf(
+        "\n\t... in applyModel:\n\t models.%s.%s: %w", name, field, err,
+      )
+    }
+    if field == "stream_context" {
+      spec.StreamContext = n
+    } else {
+      spec.StreamArenaMiB = n
+    }
+  case "stream_args":
+    spec.StreamArgs = append(spec.StreamArgs, strings.Fields(value)...)
+  case "scaleway_server":
+    spec.ScalewayServer = value
+  case "scaleway_zone":
+    spec.ScalewayZone = value
+  case "lean":
+    b, err := strconv.ParseBool(value)
+    if err != nil {
+      return fmt.Errorf(
+        "\n\t... in applyModel:\n\t models.%s.lean: %w", name, err,
+      )
+    }
+    spec.NoLean = !b
+  case "stackit_server":
+    spec.StackitServer = value
+  case "stackit_project":
+    spec.StackitProject = value
+  case "stackit_region":
+    spec.StackitRegion = value
+  case "stop_on_disconnect", "aws_stop_on_disconnect":
+    b, err := strconv.ParseBool(value)
+    if err != nil {
+      return fmt.Errorf(
+        "\n\t... in applyModel:\n\t models.%s.%s: %w", name, field, err,
+      )
+    }
+    spec.KeepOnDisconnect = !b
   case "port":
     n, err := strconv.Atoi(value)
     if err != nil {

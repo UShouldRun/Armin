@@ -77,11 +77,11 @@ func decodeUTF8Rest(r *bufio.Reader, first byte) (key, error) {
 
 func utf8SeqLen(b byte) int {
   switch {
-  case b&0xE0 == 0xC0:
+  case b & 0xE0 == 0xC0:
     return 2
-  case b&0xF0 == 0xE0:
+  case b & 0xF0 == 0xE0:
     return 3
-  case b&0xF8 == 0xF0:
+  case b & 0xF8 == 0xF0:
     return 4
   default:
     return 1

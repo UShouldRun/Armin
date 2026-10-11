@@ -24,7 +24,7 @@ type RunCommandOutput struct {
   Stdout    string `json:"stdout"`
   Stderr    string `json:"stderr"`
   ExitCode  int    `json:"exit_code"`
-  Truncated bool   `json:"truncated"`
+  Truncated bool   `json:"truncated,omitempty"`
   DryRun    bool   `json:"dry_run,omitempty"`
 }
 

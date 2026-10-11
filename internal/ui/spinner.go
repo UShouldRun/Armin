@@ -46,7 +46,7 @@ func (s *Spinner) run() {
       fmt.Print("\r\x1b[K")
       return
     case <-ticker.C:
-      frame := Cyan(frames[i%len(frames)])
+      frame := Cyan(frames[i % len(frames)])
       fmt.Printf("\r%s %s", frame, Dim(s.label))
       i++
     }

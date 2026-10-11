@@ -168,7 +168,7 @@ func lastLines(s string, n int) string {
     }
     count++
     if count == n {
-      return s[i+1:]
+      return s[i + 1:]
     }
   }
   return s // fewer than n newlines total: the whole string qualifies
@@ -202,7 +202,7 @@ func cleanCompletion(raw string, maxLines int) string {
   if strings.HasPrefix(text, "```") {
     text = strings.TrimPrefix(text, "```")
     if idx := strings.Index(text, "\n"); idx >= 0 {
-      text = text[idx+1:]
+      text = text[idx + 1:]
     }
     text = strings.TrimSuffix(strings.TrimRight(text, "\n \t"), "```")
   }

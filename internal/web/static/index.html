@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang = "en">
+<head>
+<meta charset = "utf-8">
+<meta
+  name    = "viewport"
+  content = "width=device-width, initial-scale=1"
+>
+<title>armin</title>
+<style>
+  :root {
+    --bg: #fafafa; --panel: #ffffff; --text: #1d1d1f; --dim: #6e6e73;
+    --line: #e3e3e6; --accent: #2a6df4; --code: #f2f2f5;
+    --add: #e6f6ea; --addt: #146c2e; --del: #fdecec; --delt: #a4161a;
+    --hl: #fff4c2;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141416; --panel: #1c1c1f; --text: #e8e8ea; --dim: #9a9aa0;
+      --line: #2c2c31; --accent: #6b9bff; --code: #242428;
+      --add: #12301c; --addt: #7fd69a; --del: #3a1517; --delt: #f19ca0;
+      --hl: #3d3610;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: grid;
+    grid-template-columns: 260px 1fr 42%;
+    grid-template-rows: auto 1fr;
+    background: var(--bg); color: var(--text);
+    font: 14px/1.5 system-ui, sans-serif;
+  }
+
+  header {
+    grid-column: 1 / -1; display: flex; gap: 12px; align-items: center;
+    padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+
+  header b { font-size: 15px; }
+  header .root { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  header select, header button, .bar button, .approve button {
+    font: inherit; padding: 3px 9px; border: 1px solid var(--line);
+    border-radius: 6px; background: var(--panel); color: var(--text); cursor: pointer;
+  }
+
+  .meter { width: 120px; height: 8px; background: var(--code); border-radius: 4px; overflow: hidden; }
+  .meter > div { height: 100%; background: var(--accent); width: 0; }
+  #ctx { color: var(--dim); font-size: 12px; min-width: 150px; }
+
+  aside, main, section { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  aside { border-right: 1px solid var(--line); background: var(--panel); }
+  aside input { margin: 8px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
+  #files { overflow: auto; flex: 1; padding: 0 4px 8px; font: 12px ui-monospace, monospace; }
+  #files div { padding: 2px 6px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #files div:hover, #files div.on { background: var(--code); }
+
+  #log { flex: 1; overflow: auto; padding: 16px 20px; }
+  .msg { margin: 0 0 16px; }
+  .msg.user { background: var(--code); padding: 8px 12px; border-radius: 8px; white-space: pre-wrap; }
+  .tool, .notice { color: var(--dim); font: 12px ui-monospace, monospace; margin: 2px 0; white-space: pre-wrap; word-break: break-all; }
+  .tool b { color: var(--text); }
+  .tool .dot { color: var(--accent); }
+  .tool.result { padding-left: 14px; }
+  .tool.err { padding-left: 14px; color: var(--delt); }
+  .notice { color: var(--accent); }
+  .err { color: var(--delt); }
+  details.think { color: var(--dim); margin: 4px 0; font-size: 13px; }
+  details.think summary { cursor: pointer; }
+  details.think div { white-space: pre-wrap; border-left: 2px solid var(--line); padding-left: 8px; }
+  .approve { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin: 6px 0; background: var(--panel); }
+  .approve pre { margin: 6px 0; max-height: 320px; overflow: auto; font-size: 12px; }
+  .approve .add { background: var(--add); color: var(--addt); display: block; }
+  .approve .del { background: var(--del); color: var(--delt); display: block; }
+  .approve input { width: 60%; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
+  form { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--panel); }
+  textarea {
+    flex: 1; resize: none; height: 64px; padding: 8px; font: inherit;
+    border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text);
+  }
+
+  form button { padding: 0 18px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+  form button:disabled { opacity: .5; }
+
+  section { border-left: 1px solid var(--line); background: var(--panel); }
+  .bar { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+  .bar span { flex: 1; font: 12px ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #preview { flex: 1; overflow: auto; }
+  #preview iframe { width: 100%; height: 100%; border: 0; }
+  #preview img { max-width: 100%; display: block; margin: 12px auto; }
+  #preview .md { padding: 4px 18px; }
+  table.code { border-collapse: collapse; font: 12px/1.45 ui-monospace, monospace; width: 100%; }
+  table.code td { padding: 0 8px; white-space: pre; vertical-align: top; }
+  table.code td.n { color: var(--dim); text-align: right; user-select: none; border-right: 1px solid var(--line); width: 1%; }
+  table.code tr.hl td { background: var(--hl); }
+  .empty { color: var(--dim); padding: 24px; }
+
+  .md pre { background: var(--code); padding: 10px; border-radius: 6px; overflow: auto; font-size: 12.5px; }
+  .md code { background: var(--code); padding: 1px 4px; border-radius: 4px; font-size: 12.5px; }
+  .md pre code { background: none; padding: 0; }
+  .md table { border-collapse: collapse; margin: 8px 0; }
+  .md th, .md td { border: 1px solid var(--line); padding: 3px 8px; }
+  .md blockquote { margin: 6px 0; padding-left: 10px; border-left: 3px solid var(--line); color: var(--dim); }
+  .md a { color: var(--accent); }
+  .md a.ref { text-decoration: none; border-bottom: 1px dotted var(--accent); cursor: pointer; }
+  @media (max-width: 900px) {
+    body { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; }
+    aside { max-height: 160px; }
+    section { min-height: 300px; border-left: 0; border-top: 1px solid var(--line); }
+  }
+
+</style>
+</head>
+<body>
+<header>
+  <b>armin</b>
+  <span
+    class = "root"
+    id    = "root"
+  ></span>
+
+  <select
+    id    = "model"
+    title = "model"
+  ></select>
+
+  <div
+    class = "meter"
+    title = "context used"
+  >
+    <div id = "meter"></div>
+  </div>
+
+  <span id = "ctx"></span>
+
+  <button
+    id    = "compact"
+    title = "summarize older history"
+  >compact</button>
+
+  <button
+    id    = "clear"
+    title = "start a new conversation"
+  >clear</button>
+</header>
+
+<aside>
+  <input
+    id          = "filter"
+    placeholder = "filter files…"
+  >
+  <div id = "files"></div>
+</aside>
+
+<main>
+  <div id = "log"><div class = "empty">Ask about the project. Click a file on the left to preview it; click a <code>file:line</code> in an answer to jump there.</div></div>
+  <form id = "form">
+    <textarea
+      id          = "input"
+      placeholder = "Message (Enter to send, Shift+Enter for a new line)"
+    ></textarea>
+    <button id = "send">Send</button>
+  </form>
+</main>
+
+<section>
+  <div class = "bar">
+    <span id = "ptitle">no file</span>
+    <button
+      id    = "askfile"
+      title = "mention this file in your message"
+    >ask about this file</button>
+  </div>
+  <div id = "preview"><div class = "empty">PDFs, Markdown and code preview here.</div></div>
+</section>
+
+<script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+let files    = [];
+let current  = null;
+let busy     = false;
+
+// ---------- helpers ----------
+
+const escapes = {
+  "&":  "&amp;",
+  "<":  "&lt;",
+  ">":  "&gt;",
+  "\"": "&quot;",
+  "'":  "&#39;",
+};
+
+const esc = (s) => s.replace(/[&<>"']/g, (c) => escapes[c]);
+
+async function api(path, body) {
+  const opts = body === undefined ? {} : {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify(body),
+  };
+
+  const res = await fetch(path, opts);
+  if (!res.ok) {
+    throw new Error((await res.text()).trim() || res.statusText);
+  }
+
+  return res.headers.get("Content-Type")?.includes("json") ? res.json() : res.text();
+}
+
+// ---------- markdown (small, safe: escape first, then build) ----------
+
+const fileRef = /(^|[\s(`\[])((?:[\w.-]+\/)*[\w.-]+\.[A-Za-z0-9]{1,8}):(\d+)(?:-(\d+))?/g;
+
+function inline(s) {
+  const codes = [];
+  s = s.replace(/`([^`]+)`/g, (_, c) => {
+    codes.push(c);
+    return "\u0000" + (codes.length - 1) + "\u0000";
+  });
+  s = esc(s);
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, t, u) => `<a href = "${ u }" target = "_blank" rel = "noopener">${ t }</a>`);
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<i>$2</i>");
+  s = s.replace(fileRef, (m, pre, path, line) => files.includes(path) || files.some((f) => f.endsWith("/" + path))
+    ? `${ pre }<a class = "ref" data-path = "${ path }" data-line = "${ line }">${ m.slice(pre.length) }</a>`
+    : m);
+
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => {
+    const c = codes[+i];
+    const ref = c.match(/^((?:[\w.-]+\/)*[\w.-]+\.[A-Za-z0-9]{1,8}):(\d+)/);
+
+    return ref ? `<a class = "ref" data-path = "${ esc(ref[1]) }" data-line = "${ ref[2] }"><code>${ esc(c) }</code></a>`
+               : `<code>${ esc(c) }</code>`;
+  });
+}
+
+function markdown(src) {
+  const lines = src.replace(/\r/g, "").split("\n");
+  const out   = [];
+  let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    const fence = l.match(/^```(\S*)/);
+    if (fence) {
+      const body = [];
+      for (i++; i < lines.length && !lines[i].startsWith("```"); i++) {
+        body.push(lines[i]);
+      }
+
+      i++;
+      out.push(`<pre><code>${ esc(body.join("\n")) }</code></pre>`);
+      continue;
+    }
+
+    const h = l.match(/^(#{1,6})\s+(.*)/);
+    if (h) {
+      out.push(`<h${ h[1].length }>${ inline(h[2]) }</h${ h[1].length }>`);
+      i++;
+      continue;
+    }
+
+    if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1])) {
+      const row = (r) => r.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+      let t = "<table><tr>" + row(l).map((c) => `<th>${ inline(c) }</th>`).join("") + "</tr>";
+      for (i += 2; i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i]); i++) {
+        t += "<tr>" + row(lines[i]).map((c) => `<td>${ inline(c) }</td>`).join("") + "</tr>";
+      }
+
+      out.push(t + "</table>");
+      continue;
+    }
+
+    if (/^\s*([-*]|\d+\.)\s+/.test(l)) {
+      const ordered = /^\s*\d+\./.test(l);
+      const items   = [];
+      for (; i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i]); i++) {
+        items.push(`<li>${ inline(lines[i].replace(/^\s*([-*]|\d+\.)\s+/, "")) }</li>`);
+      }
+
+      out.push(ordered ? `<ol>${ items.join("") }</ol>` : `<ul>${ items.join("") }</ul>`);
+      continue;
+    }
+
+    if (/^>\s?/.test(l)) {
+      const q = [];
+      for (; i < lines.length && /^>\s?/.test(lines[i]); i++) {
+        q.push(lines[i].replace(/^>\s?/, ""));
+      }
+
+      out.push(`<blockquote>${ inline(q.join(" ")) }</blockquote>`);
+      continue;
+    }
+
+    if (l.trim() === "") {
+      i++;
+      continue;
+    }
+
+    const p = [];
+    for (; i < lines.length && lines[i].trim() !== "" && !/^(```|#{1,6}\s|>|\s*([-*]|\d+\.)\s)/.test(lines[i]); i++) {
+      p.push(lines[i]);
+    }
+    out.push(`<p>${ inline(p.join("\n")).replace(/\n/g, "<br>") }</p>`);
+  }
+  return out.join("\n");
+}
+
+// ---------- header / files ----------
+
+async function refreshInfo() {
+  const info = await api("/api/info");
+  $("root").textContent = info.root;
+  const sel = $("model");
+  const models = info.models || [ { name: info.model, model: info.label } ];
+  const key    = models.map((m) => m.name).join(",");
+  if (sel.dataset.models !== key) {
+    sel.innerHTML = models.map((m) => {
+      const label = m.model && m.model !== m.name ? `${ m.name } — ${ m.model }` : m.name;
+      return `<option value = "${ esc(m.name) }">${ esc(label) }</option>`;
+    }).join("");
+    sel.dataset.models = key;
+  }
+  sel.value = info.model;
+  showContext(info.tokens || info.approx, info.window, info.tier, !info.tokens);
+}
+
+// kTokens renders a token count compactly: 950, 8.4k, 96k.
+const kTokens = (n) => n < 1000 ? String(n) : n < 10000 ? (n / 1000).toFixed(1) + "k" : Math.round(n / 1000) + "k";
+
+// showContext fills the header gauge: used / window, the share, and
+// the tier; yellow past half, red where compaction starts (75%).
+function showContext(used, window, tier, estimate) {
+  const pct  = window ? Math.min(100, Math.round(used * 100 / window)) : 0;
+  const mark = estimate ? "~" : "";
+  const bar  = $("meter");
+
+  bar.style.width      = pct + "%";
+  bar.style.background = pct >= 75 ? "var(--delt)" : pct >= 50 ? "#d4a017" : "var(--accent)";
+
+  $("ctx").textContent = window
+    ? `${ mark }${ kTokens(used) } / ${ kTokens(window) } · ${ pct }%${ tier ? " · " + tier : "" }`
+    : `${ mark }${ kTokens(used) } tokens`;
+}
+
+async function loadFiles() {
+  files = await api("/api/files");
+  renderFiles();
+}
+
+function renderFiles() {
+  const q    = $("filter").value.toLowerCase();
+  const list = files.filter((f) => f.toLowerCase().includes(q)).slice(0, 800);
+  $("files").innerHTML = list.map((f) => `<div data-path = "${ esc(f) }" class = "${ f === current ? "on" : "" }" title = "${ esc(f) }">${ esc(f) }</div>`).join("");
+}
+
+// ---------- preview ----------
+
+const images = [ "png", "jpg", "jpeg", "gif", "webp", "svg" ];
+
+async function preview(path, line) {
+  const full = files.includes(path) ? path : (files.find((f) => f.endsWith("/" + path)) || path);
+  current = full;
+  renderFiles();
+  $("ptitle").textContent = full + (line ? `:${ line }` : "");
+  const ext = full.split(".").pop().toLowerCase();
+  const url = "/api/raw?path=" + encodeURIComponent(full);
+  const box = $("preview");
+
+  if (ext === "pdf") {
+    box.innerHTML = `<iframe src = "${ url }"></iframe>`;
+    return;
+  }
+  if (images.includes(ext)) {
+    box.innerHTML = `<img src = "${ url }" alt = "${ esc(full) }">`;
+    return;
+  }
+  try {
+    const text = await api(url);
+    if ((ext === "md" || ext === "markdown") && !line) {
+      box.innerHTML = `<div class = "md">${ markdown(text) }</div>`;
+      return;
+    }
+    const rows = text.split("\n").map((l, n) => `<tr id = "L${ n + 1 }"${ line && n + 1 === +line ? " class = \"hl\"" : "" }><td class = "n">${ n + 1 }</td><td>${ esc(l) || " " }</td></tr>`);
+    box.innerHTML = `<table class = "code">${ rows.join("") }</table>`;
+    if (line) {
+      document.getElementById("L" + line)?.scrollIntoView({ block: "center" });
+    }
+
+  } catch (e) {
+    box.innerHTML = `<div class = "empty err">${ esc(e.message) }</div>`;
+  }
+}
+
+// ---------- chat ----------
+
+function add(cls, html) {
+  const log = $("log");
+  log.querySelector(".empty")?.remove();
+  const el = document.createElement("div");
+  el.className = cls;
+  el.innerHTML = html;
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+  return el;
+}
+
+function approvalBox(ev) {
+  const lines = ev.preview.split("\n").map((l) => {
+    if (l.startsWith("+ ")) return `<span class = "add">${ esc(l) }</span>`;
+    if (l.startsWith("- ")) return `<span class = "del">${ esc(l) }</span>`;
+    return esc(l);
+  });
+  const box = add("approve", `<div><b>${ esc(ev.tool) }</b> wants to change a file:</div>
+    <pre>${ lines.join("\n") }</pre>
+    <button data-ok = "1">Apply</button> <button data-ok = "0">Decline</button>
+    <input placeholder = "or tell the model what to do instead">`);
+  box.addEventListener("click", async (e) => {
+    if (!e.target.dataset.ok) return;
+    const ok       = e.target.dataset.ok === "1";
+    const feedback = box.querySelector("input").value;
+    await api("/api/approve", { id: ev.id, ok: ok && !feedback, feedback });
+    box.querySelectorAll("button, input").forEach((b) => b.disabled = true);
+    box.insertAdjacentHTML("beforeend", `<div class = "tool">${ ok && !feedback ? "applied" : "declined" }</div>`);
+  });
+}
+
+async function send(text) {
+  busy = true;
+  $("send").disabled = true;
+  add("msg user", esc(text));
+
+  let answer = "", thoughts = "", think = null, msg = null, pending = false;
+  const paint = () => {
+    pending = false;
+    if (msg) msg.innerHTML = markdown(answer);
+    if (think) think.querySelector("div").textContent = thoughts;
+    $("log").scrollTop = $("log").scrollHeight;
+  };
+  const schedule = () => {
+    if (!pending) { pending = true; requestAnimationFrame(paint); }
+  };
+  const handle = (kind, data) => {
+    switch (kind) {
+    case "reasoning":
+      if (!think) {
+        think = document.createElement("details");
+        think.className = "think";
+        think.innerHTML = "<summary>thinking</summary><div></div>";
+        $("log").querySelector(".empty")?.remove();
+        $("log").appendChild(think);
+      }
+      thoughts += data;
+      schedule();
+      break;
+    case "token":
+      if (!msg) msg = add("msg md", "");
+      answer += data;
+      schedule();
+      break;
+    case "tool": {
+      const line = data.line || data.name;
+      const cut  = line.indexOf("  ");
+      const name = cut < 0 ? line : line.slice(0, cut);
+      const rest = cut < 0 ? "" : line.slice(cut + 2);
+      add("tool", `<span class = "dot">●</span> <b>${ esc(name) }</b>  ${ esc(rest) }`);
+      msg = null; answer = ""; think = null; thoughts = "";
+      break;
+    }
+
+    case "result":
+      add(data.startsWith("error:") ? "tool err" : "tool result", "⎿ " + esc(data));
+      break;
+    case "notice":
+      add("notice", "context: " + esc(data));
+      break;
+
+    case "usage":
+      showContext(data.tokens, data.window, data.tier, false);
+      break;
+    case "approve":
+      approvalBox(data);
+      break;
+    case "error":
+      add("msg err", esc(data));
+      break;
+    case "done":
+      if (!msg && data) { msg = add("msg md", ""); answer = data; }
+      else if (data) answer = data;
+      paint();
+      break;
+    }
+  };
+
+  try {
+    const res = await fetch("/api/chat", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ message: text }),
+    });
+    if (!res.ok) throw new Error((await res.text()).trim());
+    const reader = res.body.getReader();
+    const dec    = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let cut;
+      while ((cut = buf.indexOf("\n\n")) >= 0) {
+        const block = buf.slice(0, cut);
+        buf = buf.slice(cut + 2);
+        const kind = block.match(/^event: (.*)$/m)?.[1];
+        const data = block.match(/^data: (.*)$/m)?.[1];
+        if (kind && data !== undefined) handle(kind, JSON.parse(data));
+      }
+    }
+
+  } catch (e) {
+    console.error("[ERROR]: send - ", e);
+    add("msg err", esc(e.message));
+
+  } finally {
+    busy = false;
+    $("send").disabled = false;
+    refreshInfo();
+  }
+}
+
+// ---------- wiring ----------
+
+$("form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = $("input").value.trim();
+  if (!text || busy) return;
+  $("input").value = "";
+  send(text);
+});
+$("input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    $("form").requestSubmit();
+  }
+});
+$("filter").addEventListener("input", renderFiles);
+$("files").addEventListener("click", (e) => {
+  if (e.target.dataset.path) preview(e.target.dataset.path);
+});
+$("log").addEventListener("click", (e) => {
+  const ref = e.target.closest("a.ref");
+  if (ref) preview(ref.dataset.path, ref.dataset.line);
+});
+$("askfile").addEventListener("click", () => {
+  if (!current) return;
+  $("input").value = `About \`${ current }\`: ` + $("input").value;
+  $("input").focus();
+});
+$("model").addEventListener("change", async (e) => {
+  try {
+    const r = await api("/api/command", { name: "model", arg: e.target.value });
+    add("notice", esc(r.result));
+
+  } catch (err) {
+    console.error("[ERROR]: switchModel - ", err);
+    add("msg err", esc(err.message));
+  }
+  refreshInfo();
+});
+for (const name of [ "clear", "compact" ]) {
+  $(name).addEventListener("click", async () => {
+    if (busy) return;
+    try {
+      const r = await api("/api/command", { name });
+      if (name === "clear") $("log").innerHTML = "";
+      add("notice", esc(r.result));
+
+    } catch (err) {
+      console.error(`[ERROR]: ${ name } - `, err);
+      add("msg err", esc(err.message));
+    }
+    refreshInfo();
+  });
+}
+
+loadFiles();
+refreshInfo();
+</script>
+</body>
+</html>

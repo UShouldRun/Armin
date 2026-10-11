@@ -3,6 +3,7 @@ package tools
 import (
   "context"
   "os/exec"
+  "strings"
   "testing"
 
   "armin/internal/sandbox"
@@ -87,17 +88,18 @@ func TestBuildCheckPassing(t *testing.T) {
   }
 }
 
-func TestBuildCheckVet(t *testing.T) {
+func TestBuildCheckFailingReportsTail(t *testing.T) {
   requireGo(t)
   cfg := newTestSandbox(t, sandbox.Options{ Timeout: 60_000_000_000 })
-  writePassingModule(t, cfg.Root)
+  writeFile(t, cfg.Root, "go.mod", "module fixture\n\ngo 1.21\n")
+  writeFile(t, cfg.Root, "bad.go", "package fixture\n\nfunc F() int { return \"x\" }\n")
 
-  out, err := BuildCheck(context.Background(), cfg, BuildCheckInput{ Vet: true })
+  out, err := BuildCheck(context.Background(), cfg, BuildCheckInput{})
   if err != nil {
     t.Fatalf("BuildCheck: %v", err)
   }
-  if !out.Passed {
-    t.Fatalf("Passed = false, want true — output: %s", out.Output)
+  if out.Passed || out.Command != "go build ./..." {
+    t.Fatalf("out = %+v, want a failing go build ./...", out)
   }
 }
 
@@ -115,5 +117,54 @@ func TestLintCheckUnavailableIsNotAnError(t *testing.T) {
   }
   if out.Available {
     t.Fatal("Available = true, but golangci-lint isn't installed in this environment")
+  }
+}
+
+// --- detection ---
+
+func TestDetectCommandsPrecedence(t *testing.T) {
+  cfg := newTestSandbox(t, sandbox.Options{})
+  writeFile(t, cfg.Root, "go.mod", "module fixture\n")
+  writeFile(t, cfg.Root, "Makefile", "build:\n\tgo build\nVAR := x\n")
+  writeFile(t, cfg.Root, ".armin/commands.conf", "test_cmd = go test -race ./...\n")
+  cfg.Commands.Lint = []string{ "mylint", "--strict" }
+
+  pc := DetectCommands(cfg)
+  if got := strings.Join(pc.Test.argv(nil), " "); got != "go test -race ./..." {
+    t.Errorf("test = %q, want the project file's command", got)
+  }
+  if got := strings.Join(pc.Build.argv(nil), " "); got != "make build" {
+    t.Errorf("build = %q, want the Makefile target", got)
+  }
+  if got := strings.Join(pc.Lint.argv(nil), " "); got != "mylint --strict" {
+    t.Errorf("lint = %q, want the user's config", got)
+  }
+  if got := strings.Join(pc.Test.argv([]string{ "./x" }), " "); got != "go test -race ./... ./x" {
+    t.Errorf("test with args = %q", got)
+  }
+}
+
+func TestDetectCommandsNode(t *testing.T) {
+  cfg := newTestSandbox(t, sandbox.Options{})
+  writeFile(t, cfg.Root, "package.json", `{"scripts":{"test":"vitest","lint":"eslint ."}}`)
+  writeFile(t, cfg.Root, "tsconfig.json", "{}")
+
+  pc := DetectCommands(cfg)
+  if got := strings.Join(pc.Test.argv([]string{ "-t", "foo" }), " "); got != "npm run test -- -t foo" {
+    t.Errorf("test = %q", got)
+  }
+  if got := strings.Join(pc.Build.argv(nil), " "); got != "npx tsc --noEmit" {
+    t.Errorf("build = %q, want the tsconfig fallback", got)
+  }
+}
+
+func TestRunProjectWithNoCommandIsAHint(t *testing.T) {
+  cfg := newTestSandbox(t, sandbox.Options{})
+  out, err := RunTests(context.Background(), cfg, RunTestsInput{})
+  if err != nil {
+    t.Fatal(err)
+  }
+  if out.Available || out.Hint == "" {
+    t.Fatalf("out = %+v, want available:false with a hint", out)
   }
 }

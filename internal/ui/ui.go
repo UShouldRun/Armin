@@ -36,7 +36,7 @@ func isTTY(f *os.File) bool {
   if err != nil {
     return false
   }
-  return info.Mode()&os.ModeCharDevice != 0
+  return info.Mode() & os.ModeCharDevice != 0
 }
 
 func style(code, s string) string {
@@ -69,12 +69,39 @@ func Banner(root, model, baseURL string) {
   fmt.Println(Bold(Cyan("armin")) + Dim(" — terminal codebase assistant"))
   fmt.Printf("  %s %s\n", Dim("root:"), root)
   fmt.Printf(
-    "  %s %s %s\n", Dim("model:"), model, Dim("("+baseURL+")"),
+    "  %s %s %s\n", Dim("model:"), model, Dim("(" + baseURL + ")"),
   )
   fmt.Println(Dim(
     "  type " + Bold("/help") + Dim(" for commands, ") +
       Bold("/quit") + Dim(" to exit"),
   ))
+}
+
+// ClearLine wipes the current terminal line, so what prints next
+// starts at column 0. A no-op without a terminal (piped, -no-color).
+func ClearLine() {
+  if Enabled {
+    fmt.Print("\r\x1b[K")
+  }
+}
+
+// ToolLine prints a tool call as the model makes it: a bullet, the
+// tool's name in bold and its arguments in full (see
+// agent.CallLine), like Claude Code shows its own.
+func ToolLine(line string) {
+  name, rest, _ := strings.Cut(line, "  ")
+  fmt.Println(Cyan("● ") + Bold(name) + "  " + rest)
+}
+
+// ToolResultLine prints what a tool returned, one line under its
+// call; errors in red.
+func ToolResultLine(summary string) {
+  if strings.HasPrefix(summary, "error:") {
+    fmt.Println("  " + Red("⎿ " + summary))
+    return
+  }
+
+  fmt.Println(Dim("  ⎿ " + summary))
 }
 
 // ToolCall renders a one-line, dim "doing X" announcement just
@@ -89,16 +116,22 @@ func formatArgs(args map[string]any) string {
     return "()"
   }
 
+  const maxValue = 60
+
   parts := make([]string, 0, len(args))
   for k, v := range args {
-    parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+    s := strings.ReplaceAll(fmt.Sprint(v), "\n", "⏎")
+    if len(s) > maxValue {
+      s = fmt.Sprintf("%s… (%d bytes)", s[:maxValue], len(s))
+    }
+    parts = append(parts, k + "=" + s)
   }
   return "(" + strings.Join(parts, ", ") + ")"
 }
 
 // Error prints a user-facing error line, consistently styled.
 func Error(format string, args ...any) {
-  fmt.Fprintln(os.Stderr, Red("error: ")+fmt.Sprintf(format, args...))
+  fmt.Fprintln(os.Stderr, Red("error: ") + fmt.Sprintf(format, args...))
 }
 
 // Info prints a dim, low-priority status line — session save

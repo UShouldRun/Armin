@@ -45,11 +45,14 @@ type rpcNotification struct {
 // the bundled nvim client only ever has one ask in flight and
 // ignores it.
 type AskEventParams struct {
-  ID    json.RawMessage `json:"id"`
-  Type  string          `json:"type"`
-  Name  string          `json:"name,omitempty"`
-  Args  map[string]any  `json:"args,omitempty"`
-  Delta string          `json:"delta,omitempty"`
+  ID     json.RawMessage `json:"id"`
+  Type   string          `json:"type"`
+  Name   string          `json:"name,omitempty"`
+  Args   map[string]any  `json:"args,omitempty"`
+  Delta  string          `json:"delta,omitempty"`
+  Tier   string          `json:"tier,omitempty"`
+  Tokens int             `json:"tokens,omitempty"` // context used ("usage")
+  Window int             `json:"window,omitempty"` // context window ("usage")
 }
 
 // Error codes we actually emit — the rest of the JSON-RPC/LSP space
@@ -176,8 +179,9 @@ type ModelArgs struct {
 // lifecycle state instead.
 type ModelChoice struct {
   Name    string `json:"name"`
-  Managed bool   `json:"managed"` // false: armin only talks to it, never starts/stops it
-  Running bool   `json:"running"` // true: a managed process is currently up for it
+  Model   string `json:"model,omitempty"` // what serves it: the .gguf name, a machine, a URL
+  Managed bool   `json:"managed"`         // false: armin only talks to it, never starts/stops it
+  Running bool   `json:"running"`         // true: a managed process is currently up for it
 }
 
 // ModelInfo is "armin.model"'s result.

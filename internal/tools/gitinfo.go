@@ -146,7 +146,7 @@ func GitBlame(
     start = 1
   }
   end := in.EndLine
-  if end == 0 || end < start || end-start+1 > maxBlameLines {
+  if end == 0 || end < start || end - start + 1 > maxBlameLines {
     end = start + maxBlameLines - 1
   }
 
@@ -179,7 +179,7 @@ func parseBlame(porcelain string, startLine int) []BlameLine {
   lineNo := startLine
 
   scanner := bufio.NewScanner(strings.NewReader(porcelain))
-  scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+  scanner.Buffer(make([]byte, 0, 64 * 1024), 1024 * 1024)
   for scanner.Scan() {
     line := scanner.Text()
     switch {
@@ -212,7 +212,7 @@ type GitDiffInput struct {
 
 type GitDiffOutput struct {
   Diff      string `json:"diff"`
-  Truncated bool   `json:"truncated"`
+  Truncated bool   `json:"truncated,omitempty"`
 }
 
 // GitDiff diffs From..To (default HEAD vs. the working tree) for
@@ -227,7 +227,7 @@ func GitDiff(
 
   args := []string{ "diff" }
   if in.To != "" {
-    args = append(args, from+".."+in.To)
+    args = append(args, from + ".." + in.To)
   } else {
     args = append(args, from)
   }
@@ -264,7 +264,7 @@ type GitShowInput struct {
 
 type GitShowOutput struct {
   Show      string `json:"show"`
-  Truncated bool   `json:"truncated"`
+  Truncated bool   `json:"truncated,omitempty"`
 }
 
 // GitShow returns one commit's full diff and message by hash.
@@ -298,7 +298,7 @@ type WorkingTreeDiffInput struct {
 type WorkingTreeDiffOutput struct {
   Diff      string   `json:"diff"`
   Untracked []string `json:"untracked,omitempty"`
-  Truncated bool     `json:"truncated"`
+  Truncated bool     `json:"truncated,omitempty"`
 }
 
 // WorkingTreeDiff is uncommitted changes only — distinct from
@@ -354,7 +354,7 @@ type GrepHistoryInput struct {
 
 type GrepHistoryOutput struct {
   Log       string `json:"log"`
-  Truncated bool   `json:"truncated"`
+  Truncated bool   `json:"truncated,omitempty"`
 }
 
 const (

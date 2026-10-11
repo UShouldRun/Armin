@@ -128,7 +128,7 @@ func wordAt(line string, character int) string {
   }
 
   start := character
-  for start > 0 && isIdent(runes[start-1]) {
+  for start > 0 && isIdent(runes[start - 1]) {
     start--
   }
   end := character + 1

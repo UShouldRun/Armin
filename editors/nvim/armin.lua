@@ -145,6 +145,14 @@ function M.start()
           M._chat_on_tool_call(result.name, result.args)
         elseif result.type == "token" then
           M._chat_on_token(result.delta)
+        elseif result.type == "reasoning" then
+          M._chat_on_reasoning()
+        elseif result.type == "notice" then
+          M._chat_on_notice(result.delta)
+        elseif result.type == "tool_result" then
+          M._chat_on_tool_result(result.delta)
+        elseif result.type == "usage" then
+          M._chat_on_usage(result.tokens, result.window, result.tier)
         end
       end,
     },
@@ -326,6 +334,7 @@ end
 local tool_verbs = {
   search_code = function(a) return "Searching for " .. quote_arg(a.pattern) end,
   read_file = function(a) return "Reading " .. tostring(a.path) end,
+  read_pdf = function(a) return "Reading PDF " .. tostring(a.path) end,
   list_directory = function(a)
     return "Listing " .. (a.path and tostring(a.path) or "the project")
   end,
@@ -355,7 +364,7 @@ local tool_verbs = {
   code_owners = function(a) return "Checking who owns " .. tostring(a.path) end,
   commit_stats = function() return "Finding the most-changed files" end,
   run_tests = function() return "Running tests" end,
-  build_check = function() return "Building and vetting the project" end,
+  build_check = function() return "Building the project" end,
   lint_check = function() return "Running the linter" end,
   list_dependencies = function() return "Listing dependencies" end,
   module_graph = function() return "Mapping the package graph" end,
@@ -366,6 +375,17 @@ local tool_verbs = {
     return "Tracing the impact of changing " .. quote_arg(a.name)
   end,
   semantic_search = function(a) return "Searching for " .. quote_arg(a.query) end,
+  edit_file = function(a) return "Editing " .. tostring(a.path) end,
+  write_file = function(a) return "Writing " .. tostring(a.path) end,
+  memory_save = function(a) return "Remembering " .. quote_arg(a.name) end,
+  memory_read = function(a) return "Recalling " .. quote_arg(a.name) end,
+  memory_delete = function(a) return "Forgetting " .. quote_arg(a.name) end,
+  scratchpad_write = function(a) return "Noting in scratchpad " .. quote_arg(a.name) end,
+  scratchpad_read = function(a) return "Reading scratchpad " .. quote_arg(a.name) end,
+  scratchpad_list = function() return "Listing the scratchpad" end,
+  use_skill = function(a)
+    return "Loading skill " .. quote_arg(a.name) .. (a.file and (" (" .. tostring(a.file) .. ")") or "")
+  end,
 }
 
 local function tool_verb(name, args)
@@ -441,6 +461,89 @@ function M._chat_on_tool_call(name, args)
   -- The next token (if any) starts a fresh answer block below this
   -- tool call, not a continuation of whatever came before it.
   M._chat.answer_start = nil
+end
+
+-- M._chat_on_tool_result closes the running tool's status line with
+-- what it returned: "✓ Reading stats.go — 13 lines", or ✗ on error.
+function M._chat_on_tool_result(summary)
+  local chat = M._chat
+  if not chat or not chat_valid() or not chat.active_row or not summary then
+    return
+  end
+
+  local row  = chat.active_row
+  local line = (vim.api.nvim_buf_get_lines(chat.buf, row, row + 1, false))[1] or ""
+  local mark = summary:match("^error:") and "✗" or "✓"
+  line = line:gsub("◐", mark, 1):gsub("…$", "") .. " — " .. summary
+
+  vim.api.nvim_buf_set_lines(chat.buf, row, row + 1, false, { line })
+  vim.bo[chat.buf].modified = false
+  chat.active_row = nil
+end
+
+-- M._chat_on_reasoning shows that the model is thinking: one active
+-- line, not the trace itself (the server announces each stretch once).
+function M._chat_on_reasoning()
+  if not M._chat then
+    return
+  end
+  chat_finish_active()
+  chat_set_active("  ◐ Thinking…")
+  M._chat.answer_start = nil
+end
+
+-- M._chat_on_notice shows a context-management step (trimming,
+-- growing the window, compacting) as its own line, as the REPL does.
+function M._chat_on_notice(msg)
+  if not M._chat or not msg or msg == "" then
+    return
+  end
+  chat_finish_active()
+  chat_insert({ "  ⚙ context: " .. msg })
+  M._chat.answer_start = nil
+end
+
+-- k_tokens renders a token count compactly: 950, 8.4k, 96k.
+local function k_tokens(n)
+  if n < 1000 then
+    return tostring(n)
+  elseif n < 10000 then
+    return string.format("%.1fk", n / 1000)
+  end
+
+  return string.format("%dk", math.floor(n / 1000))
+end
+
+-- M._chat_on_usage shows how full the context window is in the chat
+-- window's bottom border: used / window, the share and the tier,
+-- highlighted as compaction (75%) gets close. Each ask is its own
+-- conversation, so this is that ask's latest request.
+function M._chat_on_usage(tokens, window, tier)
+  local chat = M._chat
+  if not chat or not tokens or not vim.api.nvim_win_is_valid(chat.win) then
+    return
+  end
+
+  local text = " context " .. k_tokens(tokens)
+  local hl   = "Comment"
+  if window and window > 0 then
+    local pct = math.floor(tokens * 100 / window)
+    text = text .. " / " .. k_tokens(window) .. " · " .. pct .. "%"
+    if pct >= 75 then
+      hl = "ErrorMsg"
+    elseif pct >= 50 then
+      hl = "WarningMsg"
+    end
+  end
+
+  if tier and tier ~= "" then
+    text = text .. " · " .. tier
+  end
+
+  vim.api.nvim_win_set_config(chat.win, {
+    footer     = { { text .. " ", hl } },
+    footer_pos = "right",
+  })
 end
 
 -- M._chat_open_ref opens/reuses a vertical split on the right showing
@@ -805,7 +908,11 @@ function M.model(name)
     M._select_float(configured, {
       prompt = "Switch armin model (current: " .. result.current .. ")",
       format_item = function(m)
-        local label = m.name .. "  [" .. model_state(m) .. "]"
+        local label = m.name
+        if m.model and m.model ~= "" and m.model ~= m.name then
+          label = label .. "  " .. m.model
+        end
+        label = label .. "  [" .. model_state(m) .. "]"
         if m.name == result.current then
           label = label .. "  (current)"
         end

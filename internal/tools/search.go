@@ -17,7 +17,7 @@ type SearchCodeInput struct {
 
 type SearchCodeOutput struct {
   Matches   string `json:"matches"`
-  Truncated bool   `json:"truncated"`
+  Truncated bool   `json:"truncated,omitempty"`
 }
 
 // SearchCode wraps ripgrep with a small, fixed set of flags: line

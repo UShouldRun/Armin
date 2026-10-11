@@ -1,287 +1,263 @@
 package session
 
 import (
+  "encoding/json"
   "os"
   "path/filepath"
+  "regexp"
+  "strings"
   "testing"
   "time"
 
   "armin/internal/llm"
 )
 
-// withSessionDir points Dir() at a temp directory for the duration of
-// the test, via XDG_DATA_HOME, so tests never touch the real
-// ~/.local/share/armin/sessions.
-func withSessionDir(t *testing.T) string {
+// withDataDir points XDG_DATA_HOME at a temp dir so tests never
+// touch the real ~/.local/share/armin.
+func withDataDir(t *testing.T) {
   t.Helper()
-  dir := t.TempDir()
-  t.Setenv("XDG_DATA_HOME", dir)
-  return dir
+  t.Setenv("XDG_DATA_HOME", t.TempDir())
+}
+
+func sampleHistory() []llm.Message {
+  return []llm.Message{
+    { Role: "system", Content: "you are armin" },
+    { Role: "user", Content: "hi" },
+    { Role: "assistant", Content: "hello" },
+  }
+}
+
+func newMeta() *Meta {
+  return &Meta{ ID: NewID(), Root: "/tmp/project", Model: "local" }
+}
+
+func lineCount(t *testing.T, id string) int {
+  t.Helper()
+  path, err := pathFor(id)
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  raw, err := os.ReadFile(path)
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  return strings.Count(string(raw), "\n")
+}
+
+func TestNewIDIsAUUIDv4(t *testing.T) {
+  re := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+  a, b := NewID(), NewID()
+  if !re.MatchString(a) || a == b {
+    t.Fatalf("ids %q %q", a, b)
+  }
 }
 
 func TestSaveAndLoadRoundTrip(t *testing.T) {
-  withSessionDir(t)
-  root := t.TempDir()
+  withDataDir(t)
+  m := newMeta()
+  m.Title = "Fix off-by-one in Mean"
 
-  history := []llm.Message{
-    {Role: "system", Content: "sys"},
-    {Role: "user", Content: "hi"},
-    {Role: "assistant", Content: "hello"},
-  }
-
-  if err := Save(root, "qwen3:4b", history); err != nil {
+  if err := Save(m, sampleHistory()); err != nil {
     t.Fatalf("Save: %v", err)
   }
 
-  saved, err := Load(root)
+  got, err := Load(m.ID)
   if err != nil {
     t.Fatalf("Load: %v", err)
   }
-  if saved == nil {
-    t.Fatal("Load returned nil, want a saved session")
+
+  if got.ID != m.ID || got.Root != m.Root || got.Title != m.Title || got.Model != "local" {
+    t.Fatalf("meta = %+v", got.Meta)
   }
-  if saved.Model != "qwen3:4b" || saved.Root != root {
-    t.Fatalf("Load() = %+v, want model qwen3:4b root %s", saved, root)
+  if len(got.History) != 3 || got.History[2].Content != "hello" || got.Messages != 3 {
+    t.Fatalf("history = %+v", got.History)
   }
-  if len(saved.History) != len(history) {
-    t.Fatalf("Load() history has %d messages, want %d", len(saved.History), len(history))
-  }
-  for i, m := range saved.History {
-    if m.Role != history[i].Role || m.Content != history[i].Content {
-      t.Fatalf("message %d = %+v, want %+v", i, m, history[i])
-    }
+  if got.CreatedAt.IsZero() || time.Since(got.UpdatedAt) > time.Minute {
+    t.Fatalf("timestamps = %v / %v", got.CreatedAt, got.UpdatedAt)
   }
 }
 
-func TestLoadMissingSessionReturnsNilNil(t *testing.T) {
-  withSessionDir(t)
+func TestLoadByUniquePrefixAndAmbiguity(t *testing.T) {
+  withDataDir(t)
+  a := &Meta{ ID: "aaaa1111-0000-4000-8000-000000000001" }
+  b := &Meta{ ID: "aaaa2222-0000-4000-8000-000000000002" }
+  Save(a, sampleHistory())
+  Save(b, sampleHistory())
 
-  saved, err := Load(t.TempDir())
-  if err != nil {
-    t.Fatalf("Load on a missing session returned an error: %v", err)
+  got, err := Load("aaaa1")
+  if err != nil || got.ID != a.ID {
+    t.Fatalf("Load(aaaa1) = %v, %v", got, err)
   }
-  if saved != nil {
-    t.Fatalf("Load on a missing session = %+v, want nil", saved)
+
+  if _, err := Load("aaaa"); err == nil || !strings.Contains(err.Error(), "matches 2 sessions") {
+    t.Fatalf("ambiguous prefix err = %v", err)
+  }
+  if _, err := Load("zzzz"); err == nil || !strings.Contains(err.Error(), "no session") {
+    t.Fatalf("missing err = %v", err)
+  }
+  if _, err := Load("../etc/passwd"); err == nil {
+    t.Fatal("a path-like id was accepted")
+  }
+}
+
+func TestListNewestFirstWithCounts(t *testing.T) {
+  withDataDir(t)
+  old := newMeta()
+  Save(old, sampleHistory())
+  time.Sleep(10 * time.Millisecond)
+
+  recent := newMeta()
+  recent.Title = "newer"
+  Save(recent, append(sampleHistory(), llm.Message{ Role: "user", Content: "more" }))
+
+  list, err := List()
+  if err != nil || len(list) != 2 {
+    t.Fatalf("List = %v, %v", list, err)
+  }
+  if list[0].ID != recent.ID || list[0].Messages != 4 || list[1].Messages != 3 {
+    t.Fatalf("order/counts = %+v", list)
+  }
+}
+
+func TestLegacyPerProjectFileStillLists(t *testing.T) {
+  withDataDir(t)
+  dir, _ := Dir()
+  os.MkdirAll(dir, 0o755)
+
+  legacy := filepath.Join(dir, "fox-apsp-mpi-1a2b3c4d.jsonl")
+  head, _ := json.Marshal(map[string]any{
+    "root": "/home/u/fox-apsp-mpi", "model": "local", "updated_at": time.Now(),
+  })
+  body, _ := json.Marshal(llm.Message{ Role: "user", Content: "hi" })
+  os.WriteFile(legacy, []byte(string(head) + "\n" + string(body) + "\n"), 0o644)
+
+  list, _ := List()
+  if len(list) != 1 || list[0].ID != "fox-apsp-mpi-1a2b3c4d" || list[0].Root != "/home/u/fox-apsp-mpi" {
+    t.Fatalf("legacy listing = %+v", list)
+  }
+
+  got, err := Load("fox-apsp")
+  if err != nil || len(got.History) != 1 {
+    t.Fatalf("legacy Load = %v, %v", got, err)
+  }
+
+  latest, err := Latest("/home/u/fox-apsp-mpi")
+  if err != nil || latest == nil || latest.ID != "fox-apsp-mpi-1a2b3c4d" {
+    t.Fatalf("Latest = %v, %v", latest, err)
   }
 }
 
 func TestAppendFirstCallDoesFullSave(t *testing.T) {
-  withSessionDir(t)
-  root := t.TempDir()
-
-  history := []llm.Message{{Role: "system", Content: "sys"}}
+  withDataDir(t)
+  m := newMeta()
   persisted := 0
 
-  if err := Append(root, "m", history, &persisted); err != nil {
+  if err := Append(m, sampleHistory(), &persisted); err != nil {
     t.Fatalf("Append: %v", err)
   }
-  if persisted != 1 {
-    t.Fatalf("persisted = %d, want 1", persisted)
-  }
-
-  saved, err := Load(root)
-  if err != nil || saved == nil {
-    t.Fatalf("Load after first Append: saved=%+v err=%v", saved, err)
-  }
-  if len(saved.History) != 1 {
-    t.Fatalf("history has %d messages, want 1", len(saved.History))
+  if persisted != 3 || lineCount(t, m.ID) != 4 {
+    t.Fatalf("persisted = %d, lines = %d; want 3 and meta+3", persisted, lineCount(t, m.ID))
   }
 }
 
 func TestAppendOnlyWritesNewMessages(t *testing.T) {
-  withSessionDir(t)
-  root := t.TempDir()
-
-  history := []llm.Message{{Role: "system", Content: "sys"}}
+  withDataDir(t)
+  m := newMeta()
+  h := sampleHistory()
   persisted := 0
-  if err := Append(root, "m", history, &persisted); err != nil {
-    t.Fatalf("initial Append: %v", err)
-  }
+  Append(m, h, &persisted)
 
-  history = append(history, llm.Message{Role: "user", Content: "one"})
-  if err := Append(root, "m", history, &persisted); err != nil {
-    t.Fatalf("second Append: %v", err)
-  }
-  if persisted != 2 {
-    t.Fatalf("persisted = %d, want 2", persisted)
-  }
-
-  history = append(history, llm.Message{Role: "assistant", Content: "two"})
-  if err := Append(root, "m", history, &persisted); err != nil {
-    t.Fatalf("third Append: %v", err)
-  }
-
-  saved, err := Load(root)
-  if err != nil {
-    t.Fatalf("Load: %v", err)
-  }
-  if len(saved.History) != 3 {
-    t.Fatalf("history has %d messages, want 3", len(saved.History))
-  }
-  if saved.History[2].Content != "two" {
-    t.Fatalf("history[2] = %+v, want content \"two\"", saved.History[2])
-  }
-}
-
-func TestAppendWithNothingNewIsANoOp(t *testing.T) {
-  withSessionDir(t)
-  root := t.TempDir()
-
-  history := []llm.Message{{Role: "system", Content: "sys"}}
-  persisted := len(history) // pretend everything is already on disk
-
-  if err := Append(root, "m", history, &persisted); err != nil {
+  h = append(h, llm.Message{ Role: "user", Content: "next" })
+  if err := Append(m, h, &persisted); err != nil {
     t.Fatalf("Append: %v", err)
   }
-
-  // Nothing was ever actually written — Load should see no session.
-  saved, err := Load(root)
-  if err != nil {
-    t.Fatalf("Load: %v", err)
+  if persisted != 4 || lineCount(t, m.ID) != 5 {
+    t.Fatalf("persisted = %d, lines = %d", persisted, lineCount(t, m.ID))
   }
-  if saved != nil {
-    t.Fatalf("Load() = %+v, want nil (Append had nothing new to write)", saved)
+
+  if err := Append(m, h, &persisted); err != nil || lineCount(t, m.ID) != 5 {
+    t.Fatal("an Append with nothing new wrote something")
   }
 }
 
-// TestAppendCostIsIndependentOfHistorySize is the regression test for
-// the exact bug this package was rewritten to fix: a REPL that
-// autosaves after every turn by re-serializing and rewriting the whole
-// history does O(n) work per turn and O(n^2) total I/O over an
-// n-message session. Append should do a bounded amount of work per
-// call regardless of how long the history already is — this asserts
-// that directly instead of trusting the implementation by inspection.
+// TestAppendCostIsIndependentOfHistorySize is the O(n²)-session
+// regression check: appending one message onto a long history must
+// cost the same as onto a short one.
 func TestAppendCostIsIndependentOfHistorySize(t *testing.T) {
-  withSessionDir(t)
-  root := t.TempDir()
+  withDataDir(t)
+  m := newMeta()
 
-  history := []llm.Message{{Role: "system", Content: "sys"}}
+  history := []llm.Message{ { Role: "system", Content: "sys" } }
   persisted := 0
-  if err := Append(root, "m", history, &persisted); err != nil {
+  if err := Append(m, history, &persisted); err != nil {
     t.Fatalf("seed Append: %v", err)
   }
 
-  // Grow history to a few thousand messages first, as if a long
-  // session had already happened, without exercising Append's cost
-  // for each one (this loop's own cost isn't what's under test).
   const seedMessages = 5000
   for i := 0; i < seedMessages; i++ {
-    history = append(history, llm.Message{Role: "user", Content: "filler message"})
+    history = append(history, llm.Message{ Role: "user", Content: "filler message" })
   }
-  if err := Append(root, "m", history, &persisted); err != nil {
+  if err := Append(m, history, &persisted); err != nil {
     t.Fatalf("bulk Append: %v", err)
   }
 
-  // Now measure the cost of appending exactly one more message onto
-  // an already-long history — this must not scale with len(history).
   const perAppendAllocLimit = 64
-  history = append(history, llm.Message{Role: "assistant", Content: "one more"})
+  history = append(history, llm.Message{ Role: "assistant", Content: "one more" })
 
-  // p is a fresh copy of persisted on every iteration, so each of the
-  // 20 runs repeats the same "append exactly 1 new message" case
-  // rather than measuring only the first call (every later call would
-  // see p already caught up and become a strictly cheaper no-op).
+  // A fresh copy of persisted each run, so every run appends exactly
+  // one new message instead of later runs becoming no-ops.
   allocs := testing.AllocsPerRun(20, func() {
     p := persisted
-    if err := Append(root, "m", history, &p); err != nil {
+    if err := Append(m, history, &p); err != nil {
       t.Fatalf("timed Append: %v", err)
     }
   })
 
   if allocs > perAppendAllocLimit {
     t.Fatalf(
-      "Append allocated %.0f times to append 1 message onto a %d-message history — "+
-        "want at most %d, independent of history length (this is the O(n^2)-session regression check)",
+      "Append allocated %.0f times to append 1 message onto a %d-message history; "+
+        "want at most %d, independent of history length",
       allocs, len(history), perAppendAllocLimit,
     )
   }
 }
 
-func TestPathForIsStableAndFilesystemSafe(t *testing.T) {
-  withSessionDir(t)
-
-  root := filepath.Join(t.TempDir(), "My Project!")
-  if err := os.MkdirAll(root, 0o755); err != nil {
-    t.Fatal(err)
-  }
-
-  p1, err := pathFor(root)
-  if err != nil {
-    t.Fatalf("pathFor: %v", err)
-  }
-  p2, err := pathFor(root)
-  if err != nil {
-    t.Fatalf("pathFor: %v", err)
-  }
-  if p1 != p2 {
-    t.Fatalf("pathFor is not stable: %q != %q", p1, p2)
-  }
-  if filepath.Ext(p1) != ".jsonl" {
-    t.Fatalf("pathFor = %q, want a .jsonl file", p1)
-  }
-}
-
-func TestLoadRejectsCorruptMetadataLine(t *testing.T) {
-  withSessionDir(t)
-  root := t.TempDir()
-
-  path, err := pathFor(root)
-  if err != nil {
-    t.Fatal(err)
-  }
-  if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-    t.Fatal(err)
-  }
-  if err := os.WriteFile(path, []byte("not json\n"), 0o644); err != nil {
-    t.Fatal(err)
-  }
-
-  if _, err := Load(root); err == nil {
-    t.Fatal("Load on a corrupt metadata line succeeded, want an error")
-  }
-}
-
 func TestSaveOverwritesPreviousContent(t *testing.T) {
-  withSessionDir(t)
-  root := t.TempDir()
+  withDataDir(t)
+  m := newMeta()
+  Save(m, sampleHistory())
+  Save(m, sampleHistory()[:1])
 
-  long := make([]llm.Message, 10)
-  for i := range long {
-    long[i] = llm.Message{Role: "user", Content: "message"}
-  }
-  if err := Save(root, "m", long); err != nil {
-    t.Fatal(err)
-  }
-
-  short := []llm.Message{{Role: "system", Content: "sys"}}
-  if err := Save(root, "m", short); err != nil {
-    t.Fatal(err)
-  }
-
-  saved, err := Load(root)
-  if err != nil {
-    t.Fatal(err)
-  }
-  if len(saved.History) != 1 {
-    t.Fatalf("history has %d messages after overwrite, want 1 (Save must truncate, not append)", len(saved.History))
+  if lineCount(t, m.ID) != 2 {
+    t.Fatalf("lines = %d, want meta+1 after a shorter Save", lineCount(t, m.ID))
   }
 }
 
-func TestMetaUpdatedAtIsRecent(t *testing.T) {
-  withSessionDir(t)
-  root := t.TempDir()
-
-  before := time.Now().Add(-time.Second)
-  if err := Save(root, "m", []llm.Message{{Role: "system", Content: "s"}}); err != nil {
-    t.Fatal(err)
+func TestProjectDataDirIsStable(t *testing.T) {
+  withDataDir(t)
+  a, _ := ProjectDataDir("memory", "/tmp/project")
+  b, _ := ProjectDataDir("memory", "/tmp/project")
+  if a != b || !strings.Contains(a, "project-") {
+    t.Fatalf("ProjectDataDir = %q / %q", a, b)
   }
-  after := time.Now().Add(time.Second)
+}
 
-  saved, err := Load(root)
-  if err != nil {
-    t.Fatal(err)
+func TestDelete(t *testing.T) {
+  withDataDir(t)
+  m := newMeta()
+  m.Title = "to delete"
+  Save(m, sampleHistory())
+
+  got, err := Delete(m.ID[:8])
+  if err != nil || got.ID != m.ID || got.Title != "to delete" {
+    t.Fatalf("Delete = %+v, %v", got, err)
   }
-  if saved.UpdatedAt.Before(before) || saved.UpdatedAt.After(after) {
-    t.Fatalf("UpdatedAt = %v, want between %v and %v", saved.UpdatedAt, before, after)
+  if _, err := Load(m.ID); err == nil {
+    t.Fatal("the session is still loadable after Delete")
+  }
+  if _, err := Delete(m.ID); err == nil {
+    t.Fatal("deleting twice should fail")
   }
 }

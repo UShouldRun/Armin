@@ -169,7 +169,7 @@ func TestLineStateApplyAllocationsStayBounded(t *testing.T) {
   // shrinks before trusting the allocation count below.
   before := s.text()
   s.apply(rk('x'))
-  if s.text() != before+"x" {
+  if s.text() != before + "x" {
     t.Fatalf("typing didn't extend the buffer: got %q", s.text())
   }
   s.apply(ck(keyBackspace))

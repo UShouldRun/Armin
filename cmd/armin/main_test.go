@@ -1,6 +1,7 @@
 package main
 
 import (
+  "strings"
   "reflect"
   "testing"
 )
@@ -80,5 +81,30 @@ func TestExtractPositionalRootVariousOrderings(t *testing.T) {
         t.Errorf("rest = %v, want %v", rest, tc.wantRest)
       }
     })
+  }
+}
+
+func TestExtractResumeWithID(t *testing.T) {
+  dir := t.TempDir()
+
+  rest, pos := extractPositionalRoot([]string{ "-resume", "3f2a91c0", "-model", "quick" })
+  if pos != "" || strings.Join(rest, " ") != "-resume=3f2a91c0 -model quick" {
+    t.Fatalf("id: rest=%v pos=%q", rest, pos)
+  }
+
+  rest, pos = extractPositionalRoot([]string{ "-resume", dir })
+  if pos != dir || strings.Join(rest, " ") != "-resume" {
+    t.Fatalf("directory after -resume must stay the root: rest=%v pos=%q", rest, pos)
+  }
+
+  rest, pos = extractPositionalRoot([]string{ ".", "-resume" })
+  if pos != "." || strings.Join(rest, " ") != "-resume" {
+    t.Fatalf("bare -resume: rest=%v pos=%q", rest, pos)
+  }
+
+  var f resumeFlag
+  f.Set("true")
+  if f != "menu" {
+    t.Fatalf("bare -resume = %q, want menu", f)
   }
 }

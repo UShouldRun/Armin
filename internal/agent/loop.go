@@ -7,18 +7,21 @@ import (
   "context"
   "encoding/json"
   "fmt"
+  "sync"
 
+  "armin/internal/convo"
   "armin/internal/ctags"
   "armin/internal/llm"
+  "armin/internal/notes"
   "armin/internal/sandbox"
   "armin/internal/searxng"
   "armin/internal/tools"
 )
 
-// maxToolRounds bounds how many tool-call round trips a single user
-// turn can take, so a confused model can't loop forever burning
-// tokens.
-const maxToolRounds = 8
+// DefaultMaxRounds bounds how many tool-call round trips one user
+// turn may take. Real edit-build-fix work needs dozens; the cap only
+// stops a model that's looping.
+const DefaultMaxRounds = 50
 
 // Loop wires an LLM client to the sandboxed tool implementations.
 type Loop struct {
@@ -28,29 +31,124 @@ type Loop struct {
   // WebSearch backs the web_search tool. Nil disables it gracefully
   // — the tool is still advertised (see ToolDefinitions), but every
   // call returns a clean "unavailable" error instead of a panic.
-  // cmd/armin/main.go only sets this when docker was found on PATH
-  // at startup, the same degrade-gracefully pattern -ctags-bin uses.
   WebSearch *searxng.Manager
 
-  // Symbols backs find_definition/list_symbols/outline_file/
-  // find_dead_code/read_doc_comment — the same ctags index the LSP
-  // server's real textDocument/definition and workspace/symbol use.
-  // cmd/armin/main.go builds one shared *ctags.Index and wires it
-  // into both this field and lspserver, so -lsp doesn't scan the
-  // repo twice. Nil (no universal-ctags binary at startup) degrades
-  // the same way WebSearch does.
+  // Symbols backs the ctags-based tools; nil degrades the same way
+  // WebSearch does.
   Symbols *ctags.Index
+
+  // Tracker remembers what the model has read, so write_file and
+  // edit_file never act on a file it hasn't seen (or that changed
+  // since).
+  Tracker *tools.FileTracker
+
+  // Memories, Skills and Scratch back the note tools; each one left
+  // nil drops its tools from the definitions.
+  Memories *notes.Memories
+  Skills   *notes.Skills
+  Scratch  *notes.Scratchpad
+
+  // MaxRounds overrides DefaultMaxRounds.
+  MaxRounds int
+
+  // ContextSize is the model's context window in tokens; zero
+  // disables automatic compaction. Ignored when Window is set.
+  ContextSize int
+
+  // Window, if set, is a model with a resident and a streaming
+  // context tier; manageContext moves between them (see Decide).
+  Window WindowControl
+
+  // KeepTurns is how many recent user turns keep their full tool
+  // results; older ones are reduced to a one-line stub (see
+  // elideTurn). Zero uses DefaultKeepTurns, negative disables.
+  KeepTurns int
+
+  // ReadOnly drops write_file/edit_file (-lsp has nobody to approve
+  // a write).
+  ReadOnly bool
+
+  defsOnce   sync.Once
+  defs       []llm.ToolDefinition
+  defsTokens int // rough size of defs, sent with every request
+}
+
+// Hooks are the per-call callbacks of Turn. They're parameters, not
+// Loop fields: lspserver runs concurrent turns against one Loop.
+// Every field may be nil.
+type Hooks struct {
+  // Token and Reasoning receive streamed content and thinking.
+  Token, Reasoning llm.OnToken
+
+  // ToolCall fires just before each tool call executes.
+  ToolCall func(name string, args map[string]any)
+
+  // ToolResult fires after it, with the result as sent to the model
+  // (JSON); ResultLine summarizes it for display.
+  ToolResult func(name, result string)
+
+  // Approve is asked before a file write, with a diff preview. A
+  // false return declines it; feedback, if any, goes to the model.
+  // Nil approves everything.
+  Approve func(tool, preview string) (ok bool, feedback string)
+
+  // Compacted fires after Turn rewrote history in place (compaction
+  // or elision), so the caller can resync anything mirroring it.
+  Compacted func(before, after int)
+
+  // Usage receives the server's token count after each model call.
+  Usage func(llm.Usage)
+
+  // Notice receives one-line status messages about context
+  // management (growing the window, saving notes, compacting).
+  Notice func(string)
 }
 
 // New returns a ready-to-use Loop.
 func New(client *llm.Client, sb *sandbox.Config) *Loop {
-  return &Loop{ LLM: client, Sandbox: sb }
+  return &Loop{
+    LLM:     client,
+    Sandbox: sb,
+    Tracker: tools.NewFileTracker(),
+  }
 }
 
-// ToolDefinitions returns the schema for all 34 tools, sent to the
-// model alongside every chat request. Descriptions are kept short
-// and concrete per plan section 4 — small models are sensitive to
-// prompt bloat.
+// Definitions is what this Loop actually offers the model:
+// ToolDefinitions minus write tools when ReadOnly, plus whichever
+// note tools are configured. Built once.
+func (l *Loop) Definitions() []llm.ToolDefinition {
+  l.defsOnce.Do(func() {
+    for _, d := range ToolDefinitions() {
+      if l.ReadOnly && toolIDs[d.Function.Name].isWrite() {
+        continue
+      }
+      l.defs = append(l.defs, d)
+    }
+    l.defs = append(l.defs, l.noteDefinitions()...)
+    raw, _ := json.Marshal(l.defs)
+    l.defsTokens = len(raw) / 4
+  })
+  return l.defs
+}
+
+// Estimate is the rough size of the next request: history plus the
+// tool definitions that go with every request.
+func (l *Loop) Estimate(history []llm.Message) int {
+  l.Definitions()
+  return convo.Analyze(history).ApproxTokens + l.defsTokens
+}
+
+func (l *Loop) maxRounds() int {
+  if l.MaxRounds > 0 {
+    return l.MaxRounds
+  }
+  return DefaultMaxRounds
+}
+
+// ToolDefinitions returns the schema for the 37 sandboxed tools —
+// everything except the note tools, which need a Loop's stores (see
+// Definitions). Descriptions are kept short and concrete — small
+// models are sensitive to prompt bloat.
 func ToolDefinitions() []llm.ToolDefinition {
   return []llm.ToolDefinition{
     {
@@ -110,6 +208,33 @@ func ToolDefinitions() []llm.ToolDefinition {
     {
       Type: "function",
       Function: llm.ToolFunction{
+        Name: "read_pdf",
+        Description: "Extract the text of a PDF (slides, papers, " +
+          "manuals), a page range at a time, with --- page N --- " +
+          "markers. Default: 10 pages from first_page.",
+        Parameters: llm.ToolParameters{
+          Type: "object",
+          Properties: map[string]llm.ToolProperty{
+            "path": {
+              Type:        "string",
+              Description: "PDF path, relative to the project or absolute in a directory the user added",
+            },
+            "first_page": {
+              Type:        "integer",
+              Description: "1-indexed first page (default 1)",
+            },
+            "last_page": {
+              Type:        "integer",
+              Description: "Last page (default first_page + 9)",
+            },
+          },
+          Required: []string{ "path" },
+        },
+      },
+    },
+    {
+      Type: "function",
+      Function: llm.ToolFunction{
         Name: "list_directory",
         Description: "List a directory as an indented tree, up to " +
           "a given depth. Skips .git, node_modules, vendor, and " +
@@ -146,9 +271,66 @@ func ToolDefinitions() []llm.ToolDefinition {
             "args": {
               Type:        "array",
               Description: `Arguments as separate array entries, e.g. ["log", "--oneline", "-5"]`,
+              Items:       &llm.ToolProperty{ Type: "string" },
             },
           },
           Required: []string{ "binary" },
+        },
+      },
+    },
+    {
+      Type: "function",
+      Function: llm.ToolFunction{
+        Name: "edit_file",
+        Description: "Replace an exact string in a file. Read the " +
+          "file first. old_string must match exactly once, " +
+          "whitespace included — add surrounding lines to make it " +
+          "unique, or set replace_all. Prefer this over write_file " +
+          "for changes to existing files.",
+        Parameters: llm.ToolParameters{
+          Type: "object",
+          Properties: map[string]llm.ToolProperty{
+            "path": {
+              Type:        "string",
+              Description: "File path, relative to project root",
+            },
+            "old_string": {
+              Type:        "string",
+              Description: "Exact text to replace, copied from read_file",
+            },
+            "new_string": {
+              Type:        "string",
+              Description: "Replacement text (empty deletes old_string)",
+            },
+            "replace_all": {
+              Type:        "boolean",
+              Description: "Replace every occurrence (default false)",
+            },
+          },
+          Required: []string{ "path", "old_string", "new_string" },
+        },
+      },
+    },
+    {
+      Type: "function",
+      Function: llm.ToolFunction{
+        Name: "write_file",
+        Description: "Create a file, or overwrite one you have " +
+          "already read. Parent directories are created. Use " +
+          "edit_file for partial changes.",
+        Parameters: llm.ToolParameters{
+          Type: "object",
+          Properties: map[string]llm.ToolProperty{
+            "path": {
+              Type:        "string",
+              Description: "File path, relative to project root",
+            },
+            "content": {
+              Type:        "string",
+              Description: "The complete file content",
+            },
+          },
+          Required: []string{ "path", "content" },
         },
       },
     },
@@ -170,6 +352,11 @@ func ToolDefinitions() []llm.ToolDefinition {
             "count": {
               Type:        "integer",
               Description: "Number of results to return (default 5, max 10)",
+            },
+            "topic": {
+              Type:        "string",
+              Description: "general: web pages and docs (default); code: Stack Overflow and GitHub; science: papers (arXiv, Semantic Scholar, OpenAlex)",
+              Enum:        []string{ "general", "code", "science" },
             },
           },
           Required: []string{ "query" },
@@ -547,61 +734,28 @@ func ToolDefinitions() []llm.ToolDefinition {
     },
 
     // --- build/test/lint ---
-    {
-      Type: "function",
-      Function: llm.ToolFunction{
-        Name: "run_tests",
-        Description: "Run `go test` and report pass/fail plus a " +
-          "summary, instead of raw test output.",
-        Parameters: llm.ToolParameters{
-          Type: "object",
-          Properties: map[string]llm.ToolProperty{
-            "package": {
-              Type:        "string",
-              Description: "Package path to test (default: ./...)",
-            },
-          },
-        },
-      },
-    },
-    {
-      Type: "function",
-      Function: llm.ToolFunction{
-        Name: "build_check",
-        Description: "Run `go build` (or `go vet`) and report " +
-          "pass/fail plus any errors.",
-        Parameters: llm.ToolParameters{
-          Type: "object",
-          Properties: map[string]llm.ToolProperty{
-            "package": {
-              Type:        "string",
-              Description: "Package path to build (default: ./...)",
-            },
-            "vet": {
-              Type:        "boolean",
-              Description: "Run go vet instead of go build",
-            },
-          },
-        },
-      },
-    },
-    {
-      Type: "function",
-      Function: llm.ToolFunction{
-        Name: "lint_check",
-        Description: "Run golangci-lint if it's installed; reports " +
-          "unavailable rather than erroring if it isn't.",
-        Parameters: llm.ToolParameters{
-          Type: "object",
-          Properties: map[string]llm.ToolProperty{
-            "package": {
-              Type:        "string",
-              Description: "Package path to lint (default: ./...)",
-            },
-          },
-        },
-      },
-    },
+    projectRunDef(
+      "run_tests",
+      "Run the project's test command (detected from Makefile, "+
+        "go.mod, Cargo.toml, package.json, or Python config; or "+
+        "user-configured). Reports pass/fail, a failure summary, "+
+        "and the end of the output.",
+      `Extra arguments replacing the default target, e.g. `+
+        `["./internal/tools", "-run", "TestX"] or ["-k", "parser"]`,
+    ),
+    projectRunDef(
+      "build_check",
+      "Run the project's build or type-check command and report "+
+        "pass/fail plus errors. Run it after editing code.",
+      `Extra arguments replacing the default target, e.g. `+
+        `["./cmd/..."]`,
+    ),
+    projectRunDef(
+      "lint_check",
+      "Run the project's linter; reports available:false if the "+
+        "project has none.",
+      "Extra arguments replacing the default target",
+    ),
 
     // --- dependencies ---
     {
@@ -741,47 +895,72 @@ func ToolDefinitions() []llm.ToolDefinition {
   }
 }
 
+// roundLimitNote is sent when a turn runs out of tool rounds: one
+// last call, with no tools, so the user gets a report instead of an
+// error.
+const roundLimitNote = "You have reached the tool-call limit for " +
+  "this turn. Don't call any more tools. Report what you did, what " +
+  "is done and verified, and what is left, so the user can decide " +
+  "how to continue."
+
 // Turn runs one user turn to completion: it sends history, executes
 // any tool calls the model makes, feeds results back, and returns
-// once the model responds with plain text (or the round limit is
-// hit). history is mutated in place so callers can persist it
-// across turns. onToken, if non-nil, receives content deltas as the
-// model streams its reply; onToolCall, if non-nil, is called just
-// before each tool call executes. Both are per-call parameters
-// rather than Loop fields — lspserver dispatches requests onto
-// their own goroutines against one shared *Loop, so a mutable
-// Loop-level callback would race across concurrent asks/hovers.
+// once the model answers in plain text. history is mutated in place
+// so callers can persist it across turns.
 func (l *Loop) Turn(
-  ctx context.Context, history *[]llm.Message,
-  onToken llm.OnToken, onToolCall func(name string, args map[string]any),
+  ctx context.Context, history *[]llm.Message, hooks Hooks,
 ) (string, error) {
-  defs := ToolDefinitions()
+  defs := l.Definitions()
+  stream := llm.StreamHandlers{
+    Token: hooks.Token, Reasoning: hooks.Reasoning,
+  }
+  turnStart := len(*history)
+  var last llm.Usage
+  sources := &turnSources{}
 
-  for round := 0; round < maxToolRounds; round++ {
-    reply, err := l.LLM.Chat(ctx, *history, defs, onToken)
+  defer func() { l.endTurn(history, turnStart, hooks) }()
+
+  for round := 0; round < l.maxRounds(); round++ {
+    if l.manageContext(ctx, history, last, hooks) {
+      turnStart = 0 // indices moved; the end-of-turn pass rescans
+      last = llm.Usage{}
+    }
+
+    reply, err := l.LLM.ChatStream(ctx, *history, defs, stream)
     if err != nil {
       return "", fmt.Errorf(
         "\n\t... in Turn:\n\t model call failed: %w", err,
       )
     }
+    last = reply.Usage
+    if hooks.Usage != nil && last.Total() > 0 {
+      hooks.Usage(last)
+    }
 
     *history = append(*history, *reply)
 
     if len(reply.ToolCalls) == 0 {
-      return reply.Content, nil
+      return l.finish(history, sources, hooks), nil
     }
 
     for _, call := range reply.ToolCalls {
-      if onToolCall != nil {
-        onToolCall(call.Function.Name, call.Function.Arguments)
+      if err := ctx.Err(); err != nil {
+        return "", fmt.Errorf("\n\t... in Turn:\n\t%w", err)
+      }
+      if hooks.ToolCall != nil {
+        hooks.ToolCall(call.Function.Name, call.Function.Arguments)
       }
 
-      result := l.execute(ctx, call)
+      result := l.executeTurn(ctx, call, hooks, sources)
       resultJSON, err := json.Marshal(result)
       if err != nil {
         resultJSON = []byte(fmt.Sprintf(
           `{"error":"failed to encode tool result: %s"}`, err,
         ))
+      }
+
+      if hooks.ToolResult != nil {
+        hooks.ToolResult(call.Function.Name, string(resultJSON))
       }
 
       *history = append(*history, llm.Message{
@@ -793,11 +972,47 @@ func (l *Loop) Turn(
     }
   }
 
-  return "", fmt.Errorf(
-    "\n\t... in Turn:\n\t hit max tool rounds (%d) without a "+
-      "final answer — the model may be looping",
-    maxToolRounds,
-  )
+  *history = append(*history, llm.Message{
+    Role: "user", Content: roundLimitNote,
+  })
+  reply, err := l.LLM.ChatStream(ctx, *history, nil, stream)
+  if err != nil {
+    return "", fmt.Errorf(
+      "\n\t... in Turn:\n\t hit the tool-round limit (%d), and "+
+        "the closing summary call failed: %w",
+      l.maxRounds(), err,
+    )
+  }
+  *history = append(*history, *reply)
+  return l.finish(history, sources, hooks), nil
+}
+
+// finish appends a Sources list to the final answer when the turn
+// searched the web and the model didn't list its sources itself,
+// streaming the addition like the rest of the answer.
+func (l *Loop) finish(
+  history *[]llm.Message, sources *turnSources, hooks Hooks,
+) string {
+  h := *history
+  final := &h[len(h) - 1]
+  if add := sources.appendix(final.Content); add != "" {
+    final.Content += add
+    if hooks.Token != nil {
+      hooks.Token(add)
+    }
+  }
+  return final.Content
+}
+
+// executeTurn is execute plus the turn's citation numbering.
+func (l *Loop) executeTurn(
+  ctx context.Context, call llm.ToolCall, hooks Hooks, sources *turnSources,
+) any {
+  out := l.execute(ctx, call, hooks)
+  if ws, ok := out.(*tools.WebSearchOutput); ok {
+    sources.number(ws)
+  }
+  return out
 }
 
 // execute dispatches one tool call to its implementation and
@@ -805,7 +1020,9 @@ func (l *Loop) Turn(
 // structured data in the result itself (see plan section 6), not as
 // Go errors, so a bad call becomes something the model can read and
 // self-correct from on the next round rather than a crash.
-func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
+func (l *Loop) execute(
+  ctx context.Context, call llm.ToolCall, hooks Hooks,
+) any {
   name := call.Function.Name
 
   raw, err := json.Marshal(call.Function.Arguments)
@@ -815,8 +1032,41 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
   }
 
-  switch name {
-  case "search_code":
+  id := toolIDs[name]
+  if l.ReadOnly && id.isWrite() {
+    return map[string]string{
+      "error": "this session is read-only; " + name + " is unavailable",
+    }
+  }
+
+  if out, ok := l.executeNote(id, raw); ok {
+    return out
+  }
+
+  switch id {
+  case toolWriteFile:
+    var in tools.WriteFileInput
+    if err := json.Unmarshal(raw, &in); err != nil {
+      return malformed(name, err)
+    }
+    change, err := tools.PlanWrite(l.Sandbox, l.Tracker, in)
+    if err != nil {
+      return map[string]string{ "error": err.Error() }
+    }
+    return l.applyChange(name, change, hooks)
+
+  case toolEditFile:
+    var in tools.EditFileInput
+    if err := json.Unmarshal(raw, &in); err != nil {
+      return malformed(name, err)
+    }
+    change, err := tools.PlanEdit(l.Sandbox, l.Tracker, in)
+    if err != nil {
+      return map[string]string{ "error": err.Error() }
+    }
+    return l.applyChange(name, change, hooks)
+
+  case toolSearchCode:
     var in tools.SearchCodeInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -827,7 +1077,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "read_file":
+  case toolReadFile:
     var in tools.ReadFileInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -836,9 +1086,12 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+    if resolved, err := l.Sandbox.ResolvePath(in.Path); err == nil {
+      l.Tracker.Mark(resolved)
+    }
     return out
 
-  case "list_directory":
+  case toolListDirectory:
     var in tools.ListDirectoryInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -849,7 +1102,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "run_command":
+  case toolRunCommand:
     var in tools.RunCommandInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -860,7 +1113,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "web_search":
+  case toolWebSearch:
     var in tools.WebSearchInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -871,7 +1124,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "count_lines":
+  case toolCountLines:
     var in tools.CountLinesInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -882,7 +1135,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "list_languages":
+  case toolListLanguages:
     var in tools.ListLanguagesInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -893,7 +1146,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "find_files":
+  case toolFindFiles:
     var in tools.FindFilesInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -904,7 +1157,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "file_stat":
+  case toolFileStat:
     var in tools.FileStatInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -915,7 +1168,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "find_todo_fixme":
+  case toolFindTodoFixme:
     var in tools.FindTodoFixmeInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -926,7 +1179,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "env_info":
+  case toolEnvInfo:
     var in tools.EnvInfoInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -937,7 +1190,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "project_manifest":
+  case toolProjectManifest:
     var in tools.ProjectManifestInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -948,7 +1201,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "find_definition":
+  case toolFindDefinition:
     var in tools.FindDefinitionInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -959,7 +1212,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "list_symbols":
+  case toolListSymbols:
     var in tools.ListSymbolsInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -970,7 +1223,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "outline_file":
+  case toolOutlineFile:
     var in tools.OutlineFileInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -981,7 +1234,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "find_references":
+  case toolFindReferences:
     var in tools.FindReferencesInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -992,7 +1245,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "git_log":
+  case toolGitLog:
     var in tools.GitLogInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1003,7 +1256,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "git_blame":
+  case toolGitBlame:
     var in tools.GitBlameInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1014,7 +1267,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "git_diff":
+  case toolGitDiff:
     var in tools.GitDiffInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1025,7 +1278,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "git_show":
+  case toolGitShow:
     var in tools.GitShowInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1036,7 +1289,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "working_tree_diff":
+  case toolWorkingTreeDiff:
     var in tools.WorkingTreeDiffInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1047,7 +1300,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "grep_history":
+  case toolGrepHistory:
     var in tools.GrepHistoryInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1058,7 +1311,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "code_owners":
+  case toolCodeOwners:
     var in tools.CodeOwnersInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1069,7 +1322,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "commit_stats":
+  case toolCommitStats:
     var in tools.CommitStatsInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1080,7 +1333,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "run_tests":
+  case toolRunTests:
     var in tools.RunTestsInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1091,7 +1344,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "build_check":
+  case toolBuildCheck:
     var in tools.BuildCheckInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1102,7 +1355,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "lint_check":
+  case toolLintCheck:
     var in tools.LintCheckInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1113,7 +1366,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "list_dependencies":
+  case toolListDependencies:
     var in tools.ListDependenciesInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1124,7 +1377,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "module_graph":
+  case toolModuleGraph:
     var in tools.ModuleGraphInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1135,7 +1388,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "read_doc_comment":
+  case toolReadDocComment:
     var in tools.ReadDocCommentInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1146,7 +1399,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "find_callers":
+  case toolFindCallers:
     var in tools.FindCallersInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1157,7 +1410,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "find_dead_code":
+  case toolFindDeadCode:
     var in tools.FindDeadCodeInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1168,7 +1421,7 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "impact_analysis":
+  case toolImpactAnalysis:
     var in tools.ImpactAnalysisInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1179,7 +1432,20 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
     }
     return out
 
-  case "semantic_search":
+  case toolReadPDF:
+    var in tools.ReadPDFInput
+    if err := json.Unmarshal(raw, &in); err != nil {
+      return malformed(name, err)
+    }
+
+    out, err := tools.ReadPDF(ctx, l.Sandbox, in)
+    if err != nil {
+      return map[string]string{ "error": err.Error() }
+    }
+
+    return out
+
+  case toolSemanticSearch:
     var in tools.SemanticSearchInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
@@ -1192,6 +1458,52 @@ func (l *Loop) execute(ctx context.Context, call llm.ToolCall) any {
 
   default:
     return map[string]string{ "error": fmt.Sprintf("unknown tool %q", name) }
+  }
+}
+
+// applyChange asks hooks.Approve (if set) before writing.
+func (l *Loop) applyChange(
+  name string, change *tools.Change, hooks Hooks,
+) any {
+  if hooks.Approve != nil {
+    ok, feedback := hooks.Approve(name, change.Preview())
+    if !ok {
+      out := map[string]string{
+        "error": "the user declined this change; nothing was written",
+      }
+      if feedback != "" {
+        out["user_feedback"] = feedback
+      }
+      return out
+    }
+  }
+
+  out, err := change.Apply(l.Sandbox, l.Tracker)
+  if err != nil {
+    return map[string]string{ "error": err.Error() }
+  }
+  return out
+}
+
+// projectRunDef is the shared schema of run_tests/build_check/
+// lint_check.
+func projectRunDef(name, description, argsHelp string) llm.ToolDefinition {
+  return llm.ToolDefinition{
+    Type: "function",
+    Function: llm.ToolFunction{
+      Name:        name,
+      Description: description,
+      Parameters: llm.ToolParameters{
+        Type: "object",
+        Properties: map[string]llm.ToolProperty{
+          "args": {
+            Type:        "array",
+            Description: argsHelp,
+            Items:       &llm.ToolProperty{ Type: "string" },
+          },
+        },
+      },
+    },
   }
 }
 

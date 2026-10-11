@@ -12,33 +12,86 @@ package main
 
 import (
   "context"
+  "io"
   "flag"
   "fmt"
   "os"
   "os/exec"
   "os/signal"
   "path/filepath"
+  "strconv"
   "strings"
+  "sync/atomic"
+  "syscall"
   "time"
 
   "armin/internal/agent"
   "armin/internal/config"
   "armin/internal/ctags"
   "armin/internal/llamacpp"
+  "armin/internal/llm"
   "armin/internal/lspserver"
   "armin/internal/mcpserver"
+  "armin/internal/notes"
   "armin/internal/repl"
   "armin/internal/sandbox"
   "armin/internal/searxng"
   "armin/internal/session"
   "armin/internal/ui"
+  "armin/internal/web"
 )
 
-const systemPrompt = `You are a terminal assistant named Armin that helps a developer understand and work in their codebase.
-You have tools to search, read, and list files in the project, plus a narrow set of read-only shell commands.
-Ground every answer in what the tools actually return — don't guess at file contents or project structure.
-Prefer search_code before read_file on anything you haven't already located.
+const basePrompt = `You are Armin, a coding assistant working in the user's project from their terminal.
+You can search, read and edit files, run the project's build, tests and linter, look at git history, and search the web.
+
+How to work:
+- Ground every answer in what the tools return; never guess at file contents or project structure.
+- Locate before reading: search_code / find_definition / outline_file, then read_file a narrow range.
+- To change code: read the exact region, then edit_file with old_string copied exactly (whitespace included). Use write_file only for new files or full rewrites.
+- After changing code, run build_check, and run_tests when tests exist. Fix what you broke before reporting back.
+- For multi-step work, write the plan to the scratchpad (scratchpad_write "plan") and tick items off as you go; put long findings there too. Keep only names and pointers in mind, and re-read when needed — your context is limited.
+- Old tool results get replaced by stubs; call the tool again if you need one back.
+- Save durable facts (user preferences, project conventions, decisions) with memory_save; not task progress.
+- If a skill in the index covers the task, load it with use_skill first.
+- If web_search reports an error or finds nothing relevant, tell the user so plainly. Never present what you write from memory as researched or sourced.
+- When you used web_search in this turn, cite every claim that comes from a result inline as [id], using the result's id, and end the answer with a Sources list: "- [title](url)" for each id you cited. If you didn't search, don't add a Sources section; cite files as file:line instead.
+- Your reasoning from earlier turns is saved in the scratchpad file "thinking"; old tool results you see as stubs are archived there too — read them back instead of re-running the tool.
+- If the user declines a change, read their feedback and adjust; don't retry the same change.
 Keep answers concise; this is a terminal, not a document.`
+
+const readOnlyPrompt = `You are Armin, a coding assistant answering questions about the user's project inside their editor.
+You can search and read files and look at git history, but not change anything.
+Ground every answer in what the tools return; don't guess at file contents or project structure.
+Locate before reading: search_code / find_definition, then read_file a narrow range.
+If a skill in the index covers the question, load it with use_skill; memories hold the user's preferences and project facts.
+When you used web_search, cite each claim from a result inline as [id] and end with a Sources list: "- [title](url)" per id cited.
+Keep answers concise.`
+
+// buildSystemPrompt appends the project's instruction file and the
+// memory and skill indexes — names and one-liners only; the bodies
+// are a tool call away.
+func buildSystemPrompt(
+  base, root string, mem *notes.Memories, skills *notes.Skills,
+) string {
+  var b strings.Builder
+  b.WriteString(base)
+
+  if name, body := notes.ProjectInstructions(root); body != "" {
+    fmt.Fprintf(&b, "\n\n# Project instructions (%s)\n%s", name, body)
+  }
+
+  if index := mem.Index(); index != "" {
+    b.WriteString("\n\n# Memories (memory_read for details)\n")
+    b.WriteString(index)
+  }
+
+  if skills.Len() > 0 {
+    b.WriteString("\n\n# Skills (use_skill to load)\n")
+    b.WriteString(skills.Index())
+  }
+
+  return b.String()
+}
 
 func main() {
   if err := run(); err != nil {
@@ -62,6 +115,25 @@ func run() error {
 
   flags := parseFlags(fileCfg)
 
+  // Picked before the sandbox exists: a session from another
+  // directory resumes there.
+  var resumed *session.Saved
+  switch flags.resume {
+  case "":
+  case "menu":
+    resumed, err = pickSession(flags.root)
+  default:
+    resumed, err = session.Load(flags.resume)
+  }
+
+  if err != nil {
+    return fmt.Errorf("\n\t... in run:\n\t resuming: %w", err)
+  }
+
+  if resumed != nil && resumed.Root != "" {
+    flags.root = resumed.Root
+  }
+
   if flags.noColor {
     ui.Enabled = false
   }
@@ -72,10 +144,16 @@ func run() error {
   }
 
   sb, err := sandbox.New(flags.root, sandbox.Options{
-    Timeout:   flags.timeout,
-    MaxOutput: flags.maxOutput,
-    Allowlist: allowlist,
-    DryRun:    flags.dryRun,
+    Timeout:      flags.timeout,
+    BuildTimeout: fileCfg.BuildTimeout,
+    MaxOutput:    flags.maxOutput,
+    Allowlist:    allowlist,
+    DryRun:       flags.dryRun,
+    Commands: sandbox.Commands{
+      Test:  fileCfg.TestCmd,
+      Build: fileCfg.BuildCmd,
+      Lint:  fileCfg.LintCmd,
+    },
   })
   if err != nil {
     return fmt.Errorf(
@@ -86,11 +164,37 @@ func run() error {
   ctx, cancel := context.WithCancel(context.Background())
   defer cancel()
 
+  // SIGTERM / SIGHUP (kill, closed terminal) skip the REPL's normal
+  // exit path, so they shut models down here — an EC2 instance armin
+  // started must not outlive it.
+  var terminate atomic.Pointer[func()]
+  term := make(chan os.Signal, 1)
+  signal.Notify(term, syscall.SIGTERM, syscall.SIGHUP)
+  go func() {
+    <-term
+    cancel()
+    if f := terminate.Load(); f != nil {
+      (*f)()
+    }
+
+    os.Exit(1)
+  }()
+
+  // Ctrl-C cancels the REPL's turn in flight if there is one, and
+  // only otherwise everything.
+  var interrupt atomic.Pointer[func() bool]
   stop := make(chan os.Signal, 1)
   signal.Notify(stop, os.Interrupt)
   go func() {
-    <-stop
-    cancel()
+    for range stop {
+      if f := interrupt.Load(); f != nil && (*f)() {
+        continue
+      }
+
+      cancel()
+
+      return
+    }
   }()
 
   // web_search degrades gracefully, same as -ctags-bin: no docker on
@@ -105,7 +209,7 @@ func run() error {
     webSearch = searxng.New()
     defer func() {
       shutdownCtx, cancel := context.WithTimeout(
-        context.Background(), 15*time.Second,
+        context.Background(), 15 * time.Second,
       )
       defer cancel()
       if err := webSearch.Shutdown(shutdownCtx); err != nil {
@@ -132,9 +236,29 @@ func run() error {
   // (see internal/llamacpp). This shutdown, like webSearch's above,
   // only stops what armin itself started.
   models := llamacpp.New(buildModelSpecs(fileCfg, flags))
+  models.ReadTimeout = fileCfg.ReadTimeout
+  // stderr, not stdout: -lsp speaks its protocol on stdout.
+  models.OnStatus = func(s string) {
+    fmt.Fprintln(os.Stderr, ui.Dim("  " + s))
+  }
+
+  if data, err := session.DataDir(); err == nil {
+    os.MkdirAll(data, 0o700)
+    models.KnownHostsFile = filepath.Join(data, "remote_known_hosts")
+  }
+
+  onTerminate := func() {
+    shutdownCtx, cancel := context.WithTimeout(
+      context.Background(), 15 * time.Second,
+    )
+    defer cancel()
+    models.Shutdown(shutdownCtx)
+  }
+
+  terminate.Store(&onTerminate)
   defer func() {
     shutdownCtx, cancel := context.WithTimeout(
-      context.Background(), 15*time.Second,
+      context.Background(), 15 * time.Second,
     )
     defer cancel()
     if err := models.Shutdown(shutdownCtx); err != nil {
@@ -152,8 +276,28 @@ func run() error {
   loop := agent.New(client, sb)
   loop.WebSearch = webSearch
   loop.Symbols = symbols
+  loop.MaxRounds = flags.maxRounds
+  loop.KeepTurns = fileCfg.KeepTurns
+  loop.ContextSize = fileCfg.ContextSize
+  if loop.ContextSize == 0 {
+    loop.ContextSize = queryContextSize(ctx, client)
+  }
+
+  // A model with a stream tier gets a window control instead: armin
+  // moves between its fast resident window and the large streamed one.
+  if w := models.Window(flags.model); w != nil {
+    loop.Window = w
+  }
+
+  mem, skills, scratch, err := openNotes(sb.Root)
+  if err != nil {
+    return fmt.Errorf("\n\t... in run:\n\t%w", err)
+  }
+
+  loop.Memories, loop.Skills, loop.Scratch = mem, skills, scratch
 
   if flags.lspMode {
+    loop.ReadOnly = true
     completionClient, err := models.Client(ctx, flags.completionModel)
     if err != nil {
       return fmt.Errorf(
@@ -161,52 +305,232 @@ func run() error {
         flags.completionModel, err,
       )
     }
+
     server := lspserver.New(
-      loop, sb, systemPrompt, completionClient, models, symbols,
+      loop, sb, buildSystemPrompt(readOnlyPrompt, sb.Root, mem, skills),
+      completionClient, models, symbols,
     )
     if err := server.Serve(ctx, os.Stdin, os.Stdout); err != nil {
       return fmt.Errorf("\n\t... in run:\n\t%w", err)
     }
+
     return nil
   }
 
-  var resumed *session.Saved
-  if flags.resume {
-    resumed, err = session.Load(sb.Root)
-    if err != nil {
-      return fmt.Errorf(
-        "\n\t... in run:\n\t resuming session: %w", err,
+  systemPrompt := buildSystemPrompt(basePrompt, sb.Root, mem, skills)
+
+  if flags.webAddr != "" {
+    return web.Serve(ctx, web.Config{
+      Addr:         flags.webAddr,
+      Loop:         loop,
+      Client:       client,
+      Models:       models,
+      Sandbox:      sb,
+      SystemPrompt: systemPrompt,
+      AutoApprove:  flags.autoApprove || fileCfg.AutoApprove,
+    })
+  }
+
+  if resumed != nil && resumed.Model != "" && resumed.Model != client.Model && models.Has(resumed.Model) {
+    if err := models.Switch(ctx, client, resumed.Model); err != nil {
+      ui.Error(
+        "resuming with model %q: %s (staying on %q)",
+        resumed.Model, err, flags.model,
       )
-    }
-    if resumed != nil {
-      if err := models.Switch(ctx, client, resumed.Model); err != nil {
-        ui.Error(
-          "resuming with model %q: %s (staying on %q)",
-          resumed.Model, err, flags.model,
-        )
-      }
     }
   }
 
   r := repl.New(
     loop, client, sb, systemPrompt, resumed, !flags.noSave, models,
   )
+  r.SetAutoApprove(flags.autoApprove || fileCfg.AutoApprove)
+  r.ScratchBase = scratch.Dir
+  r.BindScratch()
+  for _, dir := range splitList(flags.addDirs) {
+    if err := r.AddDir(dir); err != nil {
+      ui.Error("-add-dir %s: %s", dir, err)
+    }
+  }
+  r.ContextFromServer = fileCfg.ContextSize == 0
   if resumed == nil {
     r.LoadAutoContext(ctx)
   }
+
+  onInterrupt := r.Interrupt
+  interrupt.Store(&onInterrupt)
 
   if err := r.Run(ctx); err != nil {
     return fmt.Errorf("\n\t... in run:\n\t%w", err)
   }
 
   if !flags.noSave {
-    err := session.Save(sb.Root, client.Model, r.History)
-    if err != nil {
+    if err := r.SaveNow(); err != nil {
       ui.Error("failed to save session on exit: %s", err)
+    } else if r.Meta.Title != "" || len(r.History) > 1 {
+      fmt.Println(ui.Dim("resume with: armin -resume " + repl.ShortID(r.Meta.ID)))
     }
   }
 
   return nil
+}
+
+// remoteSpec builds the cloud-machine part of a model, if it has
+// one, filling defaults: the Ubuntu image user, llama-server's
+// default port, and the usual region variables.
+func remoteSpec(c config.ModelSpecConfig) *llamacpp.RemoteSpec {
+  r := &llamacpp.RemoteSpec{
+    SSHUser:          firstNonEmpty(c.SSHUser, "ubuntu"),
+    SSHKey:           c.SSHKey,
+    RemotePort:       firstNonZeroInt(c.RemotePort, 8080),
+    StopOnDisconnect: !c.KeepOnDisconnect,
+  }
+
+  switch {
+  case c.AWSInstance != "":
+    r.Provider, r.MachineID = llamacpp.ProviderAWS, c.AWSInstance
+    r.Region = firstNonEmpty(
+      c.AWSRegion,
+      firstNonEmpty(os.Getenv("AWS_REGION"), os.Getenv("AWS_DEFAULT_REGION")),
+    )
+  case c.StackitServer != "":
+    r.Provider, r.MachineID = llamacpp.ProviderSTACKIT, c.StackitServer
+    r.ProjectID = firstNonEmpty(c.StackitProject, os.Getenv("STACKIT_PROJECT_ID"))
+    r.Region = firstNonEmpty(
+      c.StackitRegion, firstNonEmpty(os.Getenv("STACKIT_REGION"), "eu01"),
+    )
+  case c.ScalewayServer != "":
+    r.Provider, r.MachineID = llamacpp.ProviderScaleway, c.ScalewayServer
+    r.Region = firstNonEmpty(
+      c.ScalewayZone, firstNonEmpty(os.Getenv("SCW_DEFAULT_ZONE"), "fr-par-2"),
+    )
+    // Scaleway's GPU images log in as root.
+    r.SSHUser = firstNonEmpty(c.SSHUser, "root")
+  default:
+    return nil
+  }
+
+  return r
+}
+
+// pickSession shows the saved sessions and reads a choice: a menu
+// number, an id (or prefix), or Enter for a new session.
+func pickSession(root string) (*session.Saved, error) {
+  list, err := session.List()
+  if err != nil {
+    return nil, fmt.Errorf("\n\t... in pickSession:\n\t%w", err)
+  }
+
+  if len(list) == 0 {
+    ui.Info("no saved sessions yet — starting a new one")
+    return nil, nil
+  }
+
+  abs, _ := filepath.Abs(root)
+  fmt.Println(ui.Bold("resume a session") + ui.Dim("  (* = this directory)"))
+  repl.PrintSessions(list, abs, "", true)
+  fmt.Print("\nnumber or id, Enter for a new session: ")
+
+  line := strings.TrimSpace(readLine(os.Stdin))
+  if line == "" {
+    return nil, nil
+  }
+
+  if n, err := strconv.Atoi(line); err == nil {
+    if n < 1 || n > min(len(list), 25) {
+      return nil, fmt.Errorf("\n\t... in pickSession:\n\t no session %d in the list", n)
+    }
+
+    return session.Load(list[n - 1].ID)
+  }
+
+  return session.Load(line)
+}
+
+// splitList splits a comma-separated flag value, dropping empties.
+func splitList(s string) []string {
+  var out []string
+  for _, part := range strings.Split(s, ",") {
+    if part = strings.TrimSpace(part); part != "" {
+      out = append(out, part)
+    }
+  }
+
+  return out
+}
+
+// readLine reads up to a newline one byte at a time: a buffered
+// reader would swallow input meant for the REPL that starts next.
+func readLine(r io.Reader) string {
+  var b strings.Builder
+  var c [1]byte
+  for {
+    n, err := r.Read(c[:])
+    if n == 1 {
+      if c[0] == '\n' {
+        break
+      }
+
+      b.WriteByte(c[0])
+    }
+
+    if err != nil {
+      break
+    }
+  }
+
+  return b.String()
+}
+
+// queryContextSize asks the server for its window, briefly — a
+// remote endpoint without /props just leaves auto-compaction off.
+func queryContextSize(ctx context.Context, client *llm.Client) int {
+  ctx, cancel := context.WithTimeout(ctx, 5 * time.Second)
+  defer cancel()
+  n, err := client.ContextSize(ctx)
+  if err != nil {
+    return 0
+  }
+
+  return n
+}
+
+// openNotes sets up memories (per project and per user), skills
+// (~/.config/armin/skills and <root>/.armin/skills) and the
+// project's scratchpad.
+func openNotes(root string) (
+  *notes.Memories, *notes.Skills, *notes.Scratchpad, error,
+) {
+  projectMem, err := session.ProjectDataDir("memory", root)
+  if err != nil {
+    return nil, nil, nil, fmt.Errorf("\n\t... in openNotes:\n\t%w", err)
+  }
+
+  data, err := session.DataDir()
+  if err != nil {
+    return nil, nil, nil, fmt.Errorf("\n\t... in openNotes:\n\t%w", err)
+  }
+
+  scratchDir, err := session.ProjectDataDir("scratch", root)
+  if err != nil {
+    return nil, nil, nil, fmt.Errorf("\n\t... in openNotes:\n\t%w", err)
+  }
+
+  confDir, err := config.Dir()
+  if err != nil {
+    return nil, nil, nil, fmt.Errorf("\n\t... in openNotes:\n\t%w", err)
+  }
+
+  mem := &notes.Memories{
+    ProjectDir: projectMem,
+    UserDir:    filepath.Join(data, "memory", "user"),
+  }
+
+  skills := notes.LoadSkills(
+    filepath.Join(confDir, "skills"),
+    filepath.Join(root, ".armin", "skills"),
+  )
+
+  return mem, skills, &notes.Scratchpad{ Dir: scratchDir }, nil
 }
 
 // buildModelSpecs merges config.conf's models.<name> blocks with
@@ -220,23 +544,51 @@ func run() error {
 func buildModelSpecs(
   fileCfg config.Config, flags cliFlags,
 ) map[string]llamacpp.ModelSpec {
-  specs := make(map[string]llamacpp.ModelSpec, len(fileCfg.Models)+2)
+  specs := make(map[string]llamacpp.ModelSpec, len(fileCfg.Models) + 2)
   for name, c := range fileCfg.Models {
-    specs[name] = llamacpp.ModelSpec{
+    spec := llamacpp.ModelSpec{
       URL: c.URL, APIKeyEnv: c.APIKeyEnv,
       Binary: c.Binary, ModelPath: c.ModelPath,
       Port: c.Port, Args: c.Args, IdleTimeout: c.IdleTimeout,
     }
+
+    if c.Vision {
+      spec.Flags |= llamacpp.SpecVision
+    }
+
+    if c.NoLean {
+      spec.Flags |= llamacpp.SpecNoLean
+    }
+
+    if c.StreamContext > 0 {
+      spec.Stream = &llamacpp.StreamSpec{
+        Binary:   c.StreamBinary,
+        Context:  c.StreamContext,
+        ArenaMiB: c.StreamArenaMiB,
+        Args:     c.StreamArgs,
+      }
+    }
+
+    if r := remoteSpec(c); r != nil {
+      spec.Remote = r
+      spec.Binary = firstNonEmpty(spec.Binary, "llama-server")
+      // 18180, not 18080: that one is the local SearXNG container's.
+      spec.Port = firstNonZeroInt(spec.Port, 18180)
+    }
+
+    specs[name] = spec
   }
 
   if _, ok := specs[flags.model]; !ok {
     specs[flags.model] = llamacpp.ModelSpec{ URL: flags.llamaURL }
   }
+
   if _, ok := specs[flags.completionModel]; !ok {
     url := flags.completionLlamaURL
     if url == "" {
       url = flags.llamaURL
     }
+
     specs[flags.completionModel] = llamacpp.ModelSpec{ URL: url }
   }
 
@@ -248,10 +600,13 @@ func buildModelSpecs(
 // from one place.
 type cliFlags struct {
   root, model, completionModel, ctagsBin string
+  webAddr, addDirs                       string
   llamaURL, completionLlamaURL           string
   timeout                                time.Duration
-  maxOutput                              int
-  dryRun, mcpMode, lspMode, resume, noSave, noColor bool
+  maxOutput, maxRounds                   int
+  resume                                 string // "": no; "menu"; else a session id
+  dryRun, mcpMode, lspMode, noSave, noColor bool
+  autoApprove                                       bool
 }
 
 func parseFlags(fileCfg config.Config) cliFlags {
@@ -283,19 +638,31 @@ func parseFlags(fileCfg config.Config) cliFlags {
     "llama-server base URL used for -completion-model when it has "+
       "no matching models.<name> entry; empty reuses -llama-url")
   flag.DurationVar(&f.timeout, "timeout",
-    firstNonZeroDuration(fileCfg.Timeout, 20*time.Second),
+    firstNonZeroDuration(fileCfg.Timeout, 20 * time.Second),
     "per-subprocess timeout")
   flag.IntVar(&f.maxOutput, "max-output",
     firstNonZeroInt(fileCfg.MaxOutput, 4000),
     "max bytes of tool output before truncation")
+  flag.IntVar(&f.maxRounds, "max-rounds",
+    firstNonZeroInt(fileCfg.MaxToolRounds, agent.DefaultMaxRounds),
+    "max tool-call rounds per turn before the model must report back")
+  flag.StringVar(&f.addDirs, "add-dir", "",
+    "comma-separated directories outside the project armin may read "+
+      "(never write), e.g. -add-dir .. for slides next to the repo")
+  flag.StringVar(&f.webAddr, "web", "",
+    "serve the chat in a browser at this localhost address "+
+      "(e.g. 127.0.0.1:7777) instead of the REPL")
+  flag.BoolVar(&f.autoApprove, "yes", false,
+    "apply file writes without asking first")
   flag.BoolVar(&f.dryRun, "dry-run", false,
     "describe what run_command would execute instead of running it")
   flag.BoolVar(&f.mcpMode, "mcp", false,
     "serve the sandboxed tools over MCP stdio instead of the REPL")
   flag.BoolVar(&f.lspMode, "lsp", false,
     "serve hover + an ask command over LSP stdio instead of the REPL")
-  flag.BoolVar(&f.resume, "resume", false,
-    "resume the most recent saved session for this project root")
+  flag.Var((*resumeFlag)(&f.resume), "resume",
+    "resume a saved session: alone, pick from a menu of sessions; "+
+      "-resume <id> (or a unique prefix of it) resumes that one")
   flag.BoolVar(&f.noSave, "no-save", false,
     "don't persist the session to disk after each turn")
   flag.BoolVar(&f.noColor, "no-color", false, "disable ANSI styling")
@@ -322,6 +689,7 @@ func parseFlags(fileCfg config.Config) cliFlags {
         "armin: both -root and a positional path were given — use one or the other")
       os.Exit(2)
     }
+
     f.root = positional
   }
 
@@ -333,12 +701,33 @@ func parseFlags(fileCfg config.Config) cliFlags {
   return f
 }
 
+// resumeFlag is -resume: a bool flag that can also carry a value.
+// "-resume" alone means "show the menu"; "-resume=<id>" (or
+// "-resume <id>", see extractPositionalRoot) names a session.
+type resumeFlag string
+
+func (f *resumeFlag) String() string   { return string(*f) }
+func (f *resumeFlag) IsBoolFlag() bool { return true }
+
+func (f *resumeFlag) Set(v string) error {
+  switch v {
+  case "true":
+    *f = "menu"
+  case "false":
+    *f = ""
+  default:
+    *f = resumeFlag(v)
+  }
+
+  return nil
+}
+
 // boolFlagNames lists every flag registered above that takes no
 // value (bool flags): extractPositionalRoot needs to know which
 // "-name" tokens consume the following argv element and which
 // don't, the same distinction flag.Parse itself makes internally.
 var boolFlagNames = map[string]bool{
-  "dry-run": true, "mcp": true, "lsp": true,
+  "dry-run": true, "mcp": true, "lsp": true, "yes": true,
   "resume": true, "no-save": true, "no-color": true,
   "h": true, "help": true,
 }
@@ -358,6 +747,7 @@ func extractPositionalRoot(args []string) (rest []string, positional string) {
     switch {
     case a == "--":
       rest = append(rest, args[i:]...)
+
       return rest, positional
 
     case !strings.HasPrefix(a, "-") || a == "-":
@@ -373,13 +763,34 @@ func extractPositionalRoot(args []string) (rest []string, positional string) {
     default:
       rest = append(rest, a)
       name := strings.TrimLeft(a, "-")
-      if !boolFlagNames[name] && i+1 < len(args) {
+
+      // "-resume <id>": the next word is a session id unless it's
+      // a directory (then it's the project root, as before).
+      if name == "resume" && i + 1 < len(args) && looksLikeSessionID(args[i + 1]) {
+        i++
+        rest[len(rest) - 1] = "-resume=" + args[i]
+        continue
+      }
+
+      if !boolFlagNames[name] && i + 1 < len(args) {
         i++
         rest = append(rest, args[i])
       }
     }
   }
+
   return rest, positional
+}
+
+// looksLikeSessionID: not a flag, not an existing directory.
+func looksLikeSessionID(s string) bool {
+  if s == "" || strings.HasPrefix(s, "-") {
+    return false
+  }
+
+  info, err := os.Stat(s)
+
+  return err != nil || !info.IsDir()
 }
 
 // rootExplicitlySet reports whether -root was actually passed on the
@@ -393,6 +804,7 @@ func rootExplicitlySet() bool {
       set = true
     }
   })
+
   return set
 }
 
@@ -406,12 +818,14 @@ func resolveCtagsBinary() string {
   if p, err := exec.LookPath("universal-ctags"); err == nil {
     return p
   }
+
   if home, err := os.UserHomeDir(); err == nil {
     p := filepath.Join(home, ".local", "bin", "universal-ctags")
     if _, err := os.Stat(p); err == nil {
       return p
     }
   }
+
   return ""
 }
 
@@ -419,6 +833,7 @@ func firstNonEmpty(a, b string) string {
   if a != "" {
     return a
   }
+
   return b
 }
 
@@ -426,6 +841,7 @@ func firstNonZeroDuration(a, b time.Duration) time.Duration {
   if a != 0 {
     return a
   }
+
   return b
 }
 
@@ -433,5 +849,6 @@ func firstNonZeroInt(a, b int) int {
   if a != 0 {
     return a
   }
+
   return b
 }

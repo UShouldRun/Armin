@@ -51,7 +51,24 @@ type Message struct {
   // wire protocol to disambiguate results when a model requests
   // more than one tool call in the same turn.
   ToolCallID string `json:"tool_call_id,omitempty"`
+  // Reasoning is the model's thinking (llama-server's
+  // reasoning_content). Sent back within a turn so thinking models
+  // keep their chain across tool calls; agent.Loop drops it once the
+  // turn ends.
+  Reasoning string `json:"reasoning_content,omitempty"`
+  // Usage is what the server reported for the request that produced
+  // this message. Never persisted.
+  Usage Usage `json:"-"`
 }
+
+// Usage is the server's token accounting for one request.
+type Usage struct {
+  PromptTokens     int `json:"prompt_tokens"`
+  CompletionTokens int `json:"completion_tokens"`
+}
+
+// Total is the context the conversation occupied after this reply.
+func (u Usage) Total() int { return u.PromptTokens + u.CompletionTokens }
 
 // ToolCall is a single tool invocation the model asked for. ID
 // comes from the model when it supplies one; fromWireMessage
@@ -90,8 +107,10 @@ type ToolParameters struct {
 }
 
 type ToolProperty struct {
-  Type        string `json:"type"`
-  Description string `json:"description,omitempty"`
+  Type        string        `json:"type"`
+  Description string        `json:"description,omitempty"`
+  Items       *ToolProperty `json:"items,omitempty"`
+  Enum        []string      `json:"enum,omitempty"`
 }
 
 // Client is a minimal HTTP client for one already-running
@@ -133,7 +152,23 @@ type Client struct {
   // Client just skips them.
   OnRequestStart func()
   OnRequestEnd   func()
+
+  // Ready, if set, runs before every request: internal/llamacpp uses
+  // it to respawn a managed llama-server the idle reaper stopped.
+  // It runs before OnRequestStart, so the in-flight count lands on
+  // the process that actually serves the request.
+  Ready func(ctx context.Context) error
+
+  // ReadTimeout cancels a request once the server has sent nothing
+  // for this long. Unlike a whole-request timeout it never kills a
+  // long generation that keeps streaming. Zero uses
+  // DefaultReadTimeout.
+  ReadTimeout time.Duration
 }
+
+// DefaultReadTimeout covers prompt processing of a large context on
+// a remote box before the first byte arrives.
+const DefaultReadTimeout = 5 * time.Minute
 
 // New returns a Client pointed at a local llama-server instance.
 func New(baseURL, model string) *Client {
@@ -143,7 +178,7 @@ func New(baseURL, model string) *Client {
   return &Client{
     BaseURL: baseURL,
     Model:   model,
-    HTTP:    &http.Client{ Timeout: 5 * time.Minute },
+    HTTP:    &http.Client{},
   }
 }
 
@@ -152,11 +187,21 @@ func New(baseURL, model string) *Client {
 // like a plain non-streaming call.
 type OnToken func(delta string)
 
+// StreamHandlers receives a reply as it streams. Either field may be
+// nil; with both nil the request isn't streamed at all.
+type StreamHandlers struct {
+  Token, Reasoning OnToken
+}
+
+func (h StreamHandlers) streaming() bool {
+  return h.Token != nil || h.Reasoning != nil
+}
+
 // setAuthHeader adds the Authorization header when APIKey is set —
 // a no-op for the common local-llama-server case, where it's empty.
 func (c *Client) setAuthHeader(req *http.Request) {
   if c.APIKey != "" {
-    req.Header.Set("Authorization", "Bearer "+c.APIKey)
+    req.Header.Set("Authorization", "Bearer " + c.APIKey)
   }
 }
 
@@ -174,16 +219,29 @@ func (c *Client) requestBracket() func() {
 // Chat sends the full message history plus tool definitions and
 // returns the model's next message (which may itself contain tool
 // calls). llama-server has no server-side conversation state, so
-// callers must resend the whole history every turn. When onToken is
-// non-nil, content deltas are streamed to it as they arrive over
-// server-sent events; tool-call argument fragments can also arrive
-// incrementally in the stream (unlike Ollama, which only ever sent
-// them complete on the final chunk) — readStreamedReply accumulates
-// them by index before returning.
+// callers must resend the whole history every turn. A non-nil
+// onToken streams content deltas; see ChatStream for reasoning too.
 func (c *Client) Chat(
   ctx context.Context, messages []Message,
   tools []ToolDefinition, onToken OnToken,
 ) (*Message, error) {
+  return c.ChatStream(
+    ctx, messages, tools, StreamHandlers{ Token: onToken },
+  )
+}
+
+// ChatStream is Chat with separate handlers for content and
+// reasoning deltas. Tool-call argument fragments arrive
+// incrementally too; readStreamedReply assembles them by index.
+func (c *Client) ChatStream(
+  ctx context.Context, messages []Message,
+  tools []ToolDefinition, h StreamHandlers,
+) (*Message, error) {
+  if c.Ready != nil {
+    if err := c.Ready(ctx); err != nil {
+      return nil, fmt.Errorf("\n\t... in ChatStream:\n\t%w", err)
+    }
+  }
   defer c.requestBracket()()
 
   wireTools := make([]owaiTool, 0, len(tools))
@@ -197,15 +255,21 @@ func (c *Client) Chat(
     Model:    c.Model,
     Messages: toWireMessages(messages),
     Tools:    wireTools,
-    Stream:   onToken != nil,
+    Stream:   h.streaming(),
+  }
+  if reqBody.Stream {
+    reqBody.StreamOptions = &owaiStreamOptions{ IncludeUsage: true }
   }
 
   body, err := json.Marshal(reqBody)
   if err != nil {
     return nil, fmt.Errorf(
-      "\n\t... in Chat:\n\t marshaling chat request: %w", err,
+      "\n\t... in ChatStream:\n\t marshaling chat request: %w", err,
     )
   }
+
+  ctx, idle := c.watchIdle(ctx)
+  defer idle.stop()
 
   url := c.BaseURL + "/v1/chat/completions"
   req, err := http.NewRequestWithContext(
@@ -213,7 +277,7 @@ func (c *Client) Chat(
   )
   if err != nil {
     return nil, fmt.Errorf(
-      "\n\t... in Chat:\n\t building request: %w", err,
+      "\n\t... in ChatStream:\n\t building request: %w", err,
     )
   }
   req.Header.Set("Content-Type", "application/json")
@@ -222,29 +286,104 @@ func (c *Client) Chat(
   resp, err := c.HTTP.Do(req)
   if err != nil {
     return nil, fmt.Errorf(
-      "\n\t... in Chat:\n\t calling llama-server at %s: %w",
-      c.BaseURL, err,
+      "\n\t... in ChatStream:\n\t calling llama-server at %s: %w",
+      c.BaseURL, idle.explain(err),
     )
   }
-  defer resp.Body.Close()
+  defer drainClose(resp.Body)
+  idle.touch()
 
   if resp.StatusCode != http.StatusOK {
     respBody, _ := io.ReadAll(resp.Body)
     if looksLikeToolsUnsupported(respBody) {
       return nil, fmt.Errorf(
-        "\n\t... in Chat:\n\t %w: %s", ErrToolsUnsupported, c.Model,
+        "\n\t... in ChatStream:\n\t %w: %s",
+        ErrToolsUnsupported, c.Model,
       )
     }
     return nil, fmt.Errorf(
-      "\n\t... in Chat:\n\t llama-server returned %d: %s",
+      "\n\t... in ChatStream:\n\t llama-server returned %d: %s",
       resp.StatusCode, string(respBody),
     )
   }
 
-  if onToken == nil {
-    return readWholeReply(resp.Body)
+  r := idleReader{ r: resp.Body, w: idle }
+  var msg *Message
+  if reqBody.Stream {
+    msg, err = readStreamedReply(r, h)
+  } else {
+    msg, err = readWholeReply(r)
   }
-  return readStreamedReply(resp.Body, onToken)
+  if err != nil {
+    return nil, fmt.Errorf(
+      "\n\t... in ChatStream:\n\t%w", idle.explain(err),
+    )
+  }
+  return msg, nil
+}
+
+// drainClose reads what's left of a body (bounded) before closing
+// it: Go's transport only reuses a keep-alive connection whose body
+// was read to EOF. Over a remote link that saves a TCP+TLS
+// handshake per request.
+func drainClose(body io.ReadCloser) {
+  io.Copy(io.Discard, io.LimitReader(body, 64 << 10))
+  body.Close()
+}
+
+// idleWatch cancels a request's context once nothing has been read
+// for the client's ReadTimeout.
+type idleWatch struct {
+  timer   *time.Timer
+  after   time.Duration
+  expired chan struct{}
+}
+
+func (c *Client) watchIdle(
+  ctx context.Context,
+) (context.Context, *idleWatch) {
+  after := c.ReadTimeout
+  if after <= 0 {
+    after = DefaultReadTimeout
+  }
+
+  ctx, cancel := context.WithCancel(ctx)
+  w := &idleWatch{ after: after, expired: make(chan struct{}) }
+  w.timer = time.AfterFunc(after, func() {
+    close(w.expired)
+    cancel()
+  })
+  return ctx, w
+}
+
+func (w *idleWatch) touch() { w.timer.Reset(w.after) }
+func (w *idleWatch) stop()  { w.timer.Stop() }
+
+// explain swaps a bare "context canceled" for the real reason when
+// the idle timer is what fired.
+func (w *idleWatch) explain(err error) error {
+  select {
+  case <-w.expired:
+    return fmt.Errorf(
+      "no data from the server for %s (read timeout): %w",
+      w.after, err,
+    )
+  default:
+    return err
+  }
+}
+
+type idleReader struct {
+  r io.Reader
+  w *idleWatch
+}
+
+func (ir idleReader) Read(p []byte) (int, error) {
+  n, err := ir.r.Read(p)
+  if n > 0 {
+    ir.w.touch()
+  }
+  return n, err
 }
 
 // looksLikeToolsUnsupported is a best-effort heuristic, not a
@@ -295,6 +434,9 @@ func readWholeReply(r io.Reader) (*Message, error) {
   if err != nil {
     return nil, fmt.Errorf("\n\t... in readWholeReply:\n\t%w", err)
   }
+  if parsed.Usage != nil {
+    msg.Usage = *parsed.Usage
+  }
   return &msg, nil
 }
 
@@ -305,43 +447,62 @@ func readWholeReply(r io.Reader) (*Message, error) {
 // (OpenAI-shaped streaming can split one tool call's arguments
 // across many chunks, unlike Ollama's always-whole-on-final-chunk
 // shape) before returning the fully assembled message.
-func readStreamedReply(r io.Reader, onToken OnToken) (*Message, error) {
-  scanner := bufio.NewScanner(r)
-  scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+var (
+  sseData = []byte("data:")
+  sseDone = []byte("[DONE]")
+)
 
-  var content strings.Builder
+func readStreamedReply(
+  r io.Reader, h StreamHandlers,
+) (*Message, error) {
+  scanner := bufio.NewScanner(r)
+  scanner.Buffer(make([]byte, 0, 64 * 1024), 1024 * 1024)
+
+  var content, reasoning strings.Builder
+  var usage Usage
   calls := map[int]*toolCallAccumulator{}
   var order []int
 
   for scanner.Scan() {
-    line := scanner.Text()
-    data, ok := strings.CutPrefix(line, "data:")
+    // Bytes, not Text: no string allocation per SSE line.
+    data, ok := bytes.CutPrefix(scanner.Bytes(), sseData)
     if !ok {
       continue // blank line, "event:" field, or SSE comment — none used here
     }
-    data = strings.TrimSpace(data)
-    if data == "" {
+    data = bytes.TrimSpace(data)
+    if len(data) == 0 {
       continue
     }
-    if data == "[DONE]" {
+    if bytes.Equal(data, sseDone) {
       break
     }
 
     var chunk owaiStreamChunk
-    if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+    if err := json.Unmarshal(data, &chunk); err != nil {
       return nil, fmt.Errorf(
         "\n\t... in readStreamedReply:\n\t parsing chunk: %w (line: %s)",
         err, data,
       )
+    }
+    if chunk.Usage != nil {
+      usage = *chunk.Usage
     }
     if len(chunk.Choices) == 0 {
       continue
     }
 
     delta := chunk.Choices[0].Delta
+    if delta.ReasoningContent != "" {
+      reasoning.WriteString(delta.ReasoningContent)
+      if h.Reasoning != nil {
+        h.Reasoning(delta.ReasoningContent)
+      }
+    }
     if delta.Content != "" {
       content.WriteString(delta.Content)
-      onToken(delta.Content)
+      if h.Token != nil {
+        h.Token(delta.Content)
+      }
     }
 
     for _, tc := range delta.ToolCalls {
@@ -368,7 +529,12 @@ func readStreamedReply(r io.Reader, onToken OnToken) (*Message, error) {
     )
   }
 
-  final := Message{ Role: "assistant", Content: content.String() }
+  final := Message{
+    Role:      "assistant",
+    Content:   content.String(),
+    Reasoning: reasoning.String(),
+    Usage:     usage,
+  }
 
   sort.Ints(order)
   for _, idx := range order {
@@ -441,6 +607,11 @@ type infillResponse struct {
 func (c *Client) Complete(
   ctx context.Context, prefix, suffix string, opts CompleteOptions,
 ) (string, error) {
+  if c.Ready != nil {
+    if err := c.Ready(ctx); err != nil {
+      return "", fmt.Errorf("\n\t... in Complete:\n\t%w", err)
+    }
+  }
   defer c.requestBracket()()
 
   body, err := json.Marshal(infillRequest{
@@ -454,6 +625,9 @@ func (c *Client) Complete(
   if err != nil {
     return "", fmt.Errorf("\n\t... in Complete:\n\t%w", err)
   }
+
+  ctx, idle := c.watchIdle(ctx)
+  defer idle.stop()
 
   url := c.BaseURL + "/infill"
   req, err := http.NewRequestWithContext(
@@ -469,14 +643,16 @@ func (c *Client) Complete(
   if err != nil {
     return "", fmt.Errorf(
       "\n\t... in Complete:\n\t calling llama-server at %s: %w",
-      c.BaseURL, err,
+      c.BaseURL, idle.explain(err),
     )
   }
   defer resp.Body.Close()
 
-  respBody, err := io.ReadAll(resp.Body)
+  respBody, err := io.ReadAll(idleReader{ r: resp.Body, w: idle })
   if err != nil {
-    return "", fmt.Errorf("\n\t... in Complete:\n\t%w", err)
+    return "", fmt.Errorf(
+      "\n\t... in Complete:\n\t%w", idle.explain(err),
+    )
   }
   if resp.StatusCode != http.StatusOK {
     return "", fmt.Errorf(
@@ -520,6 +696,45 @@ func (c *Client) Health(ctx context.Context) error {
   return nil
 }
 
+type propsResponse struct {
+  NCtx                      int `json:"n_ctx"`
+  DefaultGenerationSettings struct {
+    NCtx int `json:"n_ctx"`
+  } `json:"default_generation_settings"`
+}
+
+// ContextSize asks llama-server's /props for the per-slot context
+// window. Zero with a nil error means the server didn't say (a
+// remote OpenAI-compatible endpoint has no /props at all).
+func (c *Client) ContextSize(ctx context.Context) (int, error) {
+  req, err := http.NewRequestWithContext(
+    ctx, http.MethodGet, c.BaseURL + "/props", nil,
+  )
+  if err != nil {
+    return 0, fmt.Errorf("\n\t... in ContextSize:\n\t%w", err)
+  }
+  c.setAuthHeader(req)
+
+  resp, err := c.HTTP.Do(req)
+  if err != nil {
+    return 0, fmt.Errorf("\n\t... in ContextSize:\n\t%w", err)
+  }
+  defer resp.Body.Close()
+
+  if resp.StatusCode != http.StatusOK {
+    return 0, nil
+  }
+
+  var p propsResponse
+  if err := json.NewDecoder(resp.Body).Decode(&p); err != nil {
+    return 0, nil
+  }
+  if p.DefaultGenerationSettings.NCtx > 0 {
+    return p.DefaultGenerationSettings.NCtx, nil
+  }
+  return p.NCtx, nil
+}
+
 // --- OpenAI-compatible wire shapes, private to this package -------
 //
 // llama-server's chat endpoint mirrors OpenAI's Chat Completions
@@ -546,17 +761,23 @@ type owaiToolCallFunc struct {
 }
 
 type owaiMessage struct {
-  Role       string         `json:"role"`
-  Content    string         `json:"content"`
-  ToolCalls  []owaiToolCall `json:"tool_calls,omitempty"`
-  ToolCallID string         `json:"tool_call_id,omitempty"`
+  Role             string         `json:"role"`
+  Content          string         `json:"content"`
+  ReasoningContent string         `json:"reasoning_content,omitempty"`
+  ToolCalls        []owaiToolCall `json:"tool_calls,omitempty"`
+  ToolCallID       string         `json:"tool_call_id,omitempty"`
+}
+
+type owaiStreamOptions struct {
+  IncludeUsage bool `json:"include_usage"`
 }
 
 type owaiChatRequest struct {
-  Model    string        `json:"model"`
-  Messages []owaiMessage `json:"messages"`
-  Tools    []owaiTool    `json:"tools,omitempty"`
-  Stream   bool          `json:"stream"`
+  Model         string             `json:"model"`
+  Messages      []owaiMessage      `json:"messages"`
+  Tools         []owaiTool         `json:"tools,omitempty"`
+  Stream        bool               `json:"stream"`
+  StreamOptions *owaiStreamOptions `json:"stream_options,omitempty"`
 }
 
 type owaiChoice struct {
@@ -570,6 +791,7 @@ type owaiError struct {
 
 type owaiChatResponse struct {
   Choices []owaiChoice `json:"choices"`
+  Usage   *Usage       `json:"usage,omitempty"`
   Error   *owaiError   `json:"error,omitempty"`
 }
 
@@ -580,8 +802,9 @@ type owaiStreamToolCall struct {
 }
 
 type owaiStreamDelta struct {
-  Content   string               `json:"content,omitempty"`
-  ToolCalls []owaiStreamToolCall `json:"tool_calls,omitempty"`
+  Content          string               `json:"content,omitempty"`
+  ReasoningContent string               `json:"reasoning_content,omitempty"`
+  ToolCalls        []owaiStreamToolCall `json:"tool_calls,omitempty"`
 }
 
 type owaiStreamChoice struct {
@@ -590,6 +813,7 @@ type owaiStreamChoice struct {
 
 type owaiStreamChunk struct {
   Choices []owaiStreamChoice `json:"choices"`
+  Usage   *Usage             `json:"usage,omitempty"`
 }
 
 // toWireMessages translates outgoing history to the OpenAI shape —
@@ -600,7 +824,10 @@ func toWireMessages(msgs []Message) []owaiMessage {
   out := make([]owaiMessage, len(msgs))
   for i, m := range msgs {
     wm := owaiMessage{
-      Role: m.Role, Content: m.Content, ToolCallID: m.ToolCallID,
+      Role:             m.Role,
+      Content:          m.Content,
+      ReasoningContent: m.Reasoning,
+      ToolCallID:       m.ToolCallID,
     }
     for _, tc := range m.ToolCalls {
       args, err := json.Marshal(tc.Function.Arguments)
@@ -629,7 +856,11 @@ func fromWireMessage(wm owaiMessage) (Message, error) {
   if role == "" {
     role = "assistant"
   }
-  m := Message{ Role: role, Content: wm.Content }
+  m := Message{
+    Role:      role,
+    Content:   wm.Content,
+    Reasoning: wm.ReasoningContent,
+  }
 
   for i, tc := range wm.ToolCalls {
     var args map[string]any

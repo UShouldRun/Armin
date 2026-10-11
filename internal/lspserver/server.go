@@ -151,9 +151,23 @@ func (s *Server) Serve(
       continue // malformed frame — nothing sane to respond with
     }
 
+    // exit returns instead of calling os.Exit, so the caller's
+    // deferred cleanup runs — it stops the llama-server processes
+    // (and any cloud machine) armin started.
+    if msg.Method == "exit" {
+      if s.shutdownReceived {
+        return nil
+      }
+      return ErrExitWithoutShutdown
+    }
+
     s.handle(ctx, msg)
   }
 }
+
+// ErrExitWithoutShutdown is the LSP spec's "exit before shutdown":
+// the server stops, with a failing exit code.
+var ErrExitWithoutShutdown = errors.New("lsp: exit received before shutdown")
 
 func (s *Server) handle(ctx context.Context, msg rpcMessage) {
   switch msg.Method {
@@ -167,12 +181,6 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
     s.shutdownReceived = true
     s.respond(msg.ID, nil, nil)
 
-  case "exit":
-    if s.shutdownReceived {
-      os.Exit(0)
-    }
-    os.Exit(1)
-
   case "textDocument/didOpen":
     var p DidOpenParams
     if err := json.Unmarshal(msg.Params, &p); err == nil {
@@ -183,7 +191,7 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
     var p DidChangeParams
     err := json.Unmarshal(msg.Params, &p)
     if err == nil && len(p.ContentChanges) > 0 {
-      last := p.ContentChanges[len(p.ContentChanges)-1]
+      last := p.ContentChanges[len(p.ContentChanges) - 1]
       s.setDoc(p.TextDocument.URI, last.Text)
     }
 
@@ -267,7 +275,7 @@ func (s *Server) hover(
   word := wordAt(lineText, p.Position.Character)
   fact := s.symbolFact(ctx, word, p.TextDocument.URI)
 
-  key := cacheKey(p.TextDocument.URI, p.Position.Line, snippet+"|"+word)
+  key := cacheKey(p.TextDocument.URI, p.Position.Line, snippet + "|" + word)
   if cached, ok := s.cachedHover(key); ok {
     s.respond(id, hoverResult(cached), nil)
     return
@@ -276,10 +284,10 @@ func (s *Server) hover(
   question := fmt.Sprintf(
     "Explain concisely (max one short paragraph, no preamble) "+
       "what this code does. File: %s, near line %d%s:\n\n```\n%s\n```",
-    s.relPath(p.TextDocument.URI), p.Position.Line+1, fact, snippet,
+    s.relPath(p.TextDocument.URI), p.Position.Line + 1, fact, snippet,
   )
 
-  answer, err := s.ask(ctx, question, nil, nil)
+  answer, err := s.ask(ctx, question, agent.Hooks{})
   if err != nil {
     s.respondAskError(id, err)
     return
@@ -350,7 +358,7 @@ func (s *Server) executeAsk(
   }
   question += citationInstruction
 
-  answer, err := s.ask(ctx, question, s.sendAskToken(id), s.sendAskToolCall(id))
+  answer, err := s.ask(ctx, question, s.askHooks(id))
   if err != nil {
     s.respondAskError(id, err)
     return
@@ -358,25 +366,51 @@ func (s *Server) executeAsk(
   s.respond(id, answer, nil)
 }
 
-// sendAskToken and sendAskToolCall build the per-request streaming
-// callbacks armin.ask passes into Turn — each armin/askEvent
-// notification echoes id so a client tracking more than one
-// in-flight ask can route them correctly (see AskEventParams).
-func (s *Server) sendAskToken(id json.RawMessage) llm.OnToken {
-  return func(delta string) {
-    s.notify("armin/askEvent", AskEventParams{
-      ID: id, Type: "token", Delta: delta,
-    })
+// askHooks builds the per-request streaming callbacks armin.ask
+// passes into Turn. Each armin/askEvent echoes id, so a client
+// tracking more than one in-flight ask can route them (see
+// AskEventParams). Reasoning is announced once per stretch, not per
+// delta: the client shows "thinking", not the trace itself.
+func (s *Server) askHooks(id json.RawMessage) agent.Hooks {
+  thinking := false
+  send := func(e AskEventParams) {
+    e.ID = id
+    s.notify("armin/askEvent", e)
   }
-}
 
-func (s *Server) sendAskToolCall(
-  id json.RawMessage,
-) func(name string, args map[string]any) {
-  return func(name string, args map[string]any) {
-    s.notify("armin/askEvent", AskEventParams{
-      ID: id, Type: "tool_call", Name: name, Args: args,
-    })
+  return agent.Hooks{
+    Token: func(delta string) {
+      thinking = false
+      send(AskEventParams{ Type: "token", Delta: delta })
+    },
+    Reasoning: func(string) {
+      if !thinking {
+        thinking = true
+        send(AskEventParams{ Type: "reasoning" })
+      }
+    },
+    ToolCall: func(name string, args map[string]any) {
+      thinking = false
+      send(AskEventParams{ Type: "tool_call", Name: name, Args: args })
+    },
+    ToolResult: func(name, result string) {
+      send(AskEventParams{
+        Type:  "tool_result",
+        Name:  name,
+        Delta: agent.ResultLine(name, result),
+      })
+    },
+    Notice: func(msg string) {
+      send(AskEventParams{ Type: "notice", Delta: msg })
+    },
+    Usage: func(u llm.Usage) {
+      send(AskEventParams{
+        Type:   "usage",
+        Tokens: u.Total(),
+        Window: s.loop.WindowSize(),
+        Tier:   s.loop.Tier(),
+      })
+    },
   }
 }
 
@@ -409,29 +443,32 @@ func (s *Server) executeModel(
   info := ModelInfo{ Current: s.loop.LLM.Model }
   for _, status := range s.models.Names() {
     info.Configured = append(info.Configured, ModelChoice{
-      Name: status.Name, Managed: status.Managed, Running: status.Running,
+      Name: status.Name, Model: status.Model,
+      Managed: status.Managed, Running: status.Running,
     })
   }
   s.respond(id, info, nil)
 }
 
 // ask runs one stateless turn through the same agent loop the REPL
-// uses: fresh history every call, full tool access. onToken and
-// onToolCall are nil for hover (its popup isn't incremental); armin.ask
-// passes both to stream progress to the client as armin/askEvent
-// notifications ahead of this call's return.
+// uses: fresh history every call, full tool access. Hover passes no
+// hooks (its popup isn't incremental); armin.ask passes askHooks to
+// stream progress as armin/askEvent notifications.
 func (s *Server) ask(
-  ctx context.Context, question string,
-  onToken llm.OnToken, onToolCall func(name string, args map[string]any),
+  ctx context.Context, question string, hooks agent.Hooks,
 ) (string, error) {
   askCtx, cancel := context.WithTimeout(ctx, askTimeout)
   defer cancel()
 
+  // The model line is set per ask, so it's right after armin.model.
+  model := s.loop.LLM.Model
+  system := agent.WithModelLine(s.system, model, s.models.Label(model))
+
   history := []llm.Message{
-    { Role: "system", Content: s.system },
+    { Role: "system", Content: system },
     { Role: "user", Content: question },
   }
-  return s.loop.Turn(askCtx, &history, onToken, onToolCall)
+  return s.loop.Turn(askCtx, &history, hooks)
 }
 
 func (s *Server) setDoc(uri, text string) {
@@ -490,11 +527,11 @@ func contextWindow(
   }
   lineText = text[start:end]
 
-  winStart, _, ok := lineOffset(text, line-radius)
+  winStart, _, ok := lineOffset(text, line - radius)
   if !ok {
     winStart = 0
   }
-  _, winEnd, ok := lineOffset(text, line+radius)
+  _, winEnd, ok := lineOffset(text, line + radius)
   if !ok {
     winEnd = len(text)
   }

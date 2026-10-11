@@ -63,7 +63,7 @@ func (s *lineState) apply(k key) outcome {
     if len(s.buf) == 0 {
       return outcome{}
     }
-    s.buf = s.buf[:len(s.buf)-1]
+    s.buf = s.buf[:len(s.buf) - 1]
     s.suggestion = nil
     return outcome{ changed: true }
 
@@ -150,6 +150,13 @@ func editLine(
   ctx context.Context, reader *bufio.Reader, prompt string,
   suggest SuggestFunc,
 ) (string, error) {
+  // Leading newlines go out once: redraw reprints the prompt on
+  // every keystroke from the start of the line.
+  if trimmed := strings.TrimLeft(prompt, "\n"); trimmed != prompt {
+    fmt.Print(prompt[:len(prompt) - len(trimmed)])
+    prompt = trimmed
+  }
+
   var (
     mu    sync.Mutex
     state lineState

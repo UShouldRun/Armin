@@ -8,21 +8,28 @@
 # rebuilds/reinstalls the binary and never touches an existing
 # config.conf.
 #
-# Usage: ./install.sh [--prefix DIR] [--no-config]
+# Usage: ./install.sh [--prefix DIR] [--no-config] [--no-skills]
+#                     [--update-skills]
 #
-#   --prefix DIR   install the binary here (default: ~/.local/bin)
-#   --no-config    skip writing a starter config.conf
+#   --prefix DIR      install the binary here (default: ~/.local/bin)
+#   --no-config       skip writing a starter config.conf
+#   --no-skills       skip installing the bundled skills
+#   --update-skills   overwrite installed copies of the bundled skills
 
 set -eu
 
 prefix="${HOME}/.local/bin"
 write_config=1
+install_skills=1
+update_skills=0
 
 usage() {
-  echo "Usage: ./install.sh [--prefix DIR] [--no-config]"
+  echo "Usage: ./install.sh [--prefix DIR] [--no-config] [--no-skills] [--update-skills]"
   echo
-  echo "  --prefix DIR   install the binary here (default: ~/.local/bin)"
-  echo "  --no-config    skip writing a starter config.conf"
+  echo "  --prefix DIR      install the binary here (default: ~/.local/bin)"
+  echo "  --no-config       skip writing a starter config.conf"
+  echo "  --no-skills       skip installing the bundled skills"
+  echo "  --update-skills   overwrite installed copies of the bundled skills"
 }
 
 while [ $# -gt 0 ]; do
@@ -38,6 +45,14 @@ while [ $# -gt 0 ]; do
       ;;
     --no-config)
       write_config=0
+      shift
+      ;;
+    --no-skills)
+      install_skills=0
+      shift
+      ;;
+    --update-skills)
+      update_skills=1
       shift
       ;;
     -h|--help)
@@ -183,6 +198,31 @@ EOF
     chmod 600 "$env_path"
     ok "wrote an empty .env template to $env_path (mode 600)"
   fi
+fi
+
+# --- Bundled skills ---------------------------------------------------------
+# Copied to the user skill directory, where armin loads them for every
+# project. An installed skill is never overwritten (it may have been
+# edited) unless --update-skills is given.
+
+skills_dir="$config_dir/skills"
+
+if [ "$install_skills" -eq 1 ] && [ -d skills ]; then
+  mkdir -p "$skills_dir"
+
+  for src in skills/*/; do
+    name=$(basename "$src")
+    dst="$skills_dir/$name"
+
+    if [ -e "$dst" ] && [ "$update_skills" -eq 0 ]; then
+      ok "skill $name already installed — left untouched (--update-skills to replace)"
+      continue
+    fi
+
+    rm -rf "$dst"
+    cp -R "$src" "$dst"
+    ok "installed skill $name to $dst"
+  done
 fi
 
 echo

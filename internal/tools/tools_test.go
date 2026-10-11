@@ -51,7 +51,7 @@ func TestReadFileRequiresRangeAboveThreshold(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
 
   var b strings.Builder
-  for i := 0; i < maxWholeFileLines+1; i++ {
+  for i := 0; i < maxWholeFileLines + 1; i++ {
     b.WriteString("line\n")
   }
   writeFile(t, cfg.Root, "big.txt", b.String())

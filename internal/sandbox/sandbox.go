@@ -35,6 +35,61 @@ type Config struct {
   // executed instead of executing it. Wired up by run_command so you
   // can trust the loop before letting it actually touch a subprocess.
   DryRun bool
+
+  // Commands overrides the detected test/build/lint commands (see
+  // tools.DetectCommands). Like Allowlist, only the user sets these.
+  Commands Commands
+
+  // BuildTimeout bounds run_tests/build_check/lint_check, which
+  // legitimately run far longer than an inspection command.
+  BuildTimeout time.Duration
+
+  // ReadRoots are extra directories the user granted read access to
+  // (/add-dir): read tools may resolve paths under them; writes stay
+  // jailed to Root (see InRoot).
+  ReadRoots []string
+}
+
+// AddReadRoot grants read access to dir (resolved, symlinks
+// followed) and returns the resolved path.
+func (c *Config) AddReadRoot(dir string) (string, error) {
+  abs, err := filepath.Abs(dir)
+  if err != nil {
+    return "", fmt.Errorf("\n\t... in AddReadRoot:\n\t%w", err)
+  }
+
+  resolved, err := filepath.EvalSymlinks(abs)
+  if err != nil {
+    return "", fmt.Errorf("\n\t... in AddReadRoot:\n\t%w", err)
+  }
+
+  for _, r := range c.ReadRoots {
+    if r == resolved {
+      return resolved, nil
+    }
+  }
+
+  c.ReadRoots = append(c.ReadRoots, resolved)
+  return resolved, nil
+}
+
+// within reports whether path (resolved) is base or under it.
+func within(base, path string) bool {
+  rel, err := filepath.Rel(base, path)
+  return err == nil && rel != ".." &&
+    !strings.HasPrefix(rel, ".." + string(filepath.Separator))
+}
+
+// InRoot reports whether a resolved path is inside the project
+// itself — what every write must satisfy, whatever ReadRoots allow.
+func (c *Config) InRoot(resolved string) bool {
+  return within(c.Root, resolved)
+}
+
+// Commands holds user-configured project commands as argv; nil
+// means "detect it".
+type Commands struct {
+  Test, Build, Lint []string
 }
 
 // DefaultAllowlist is a conservative starting set: read-only
@@ -58,10 +113,12 @@ func DefaultAllowlist() map[string]bool {
 // sane defaults so callers that only care about the path jail don't
 // have to spell everything out.
 type Options struct {
-  Timeout   time.Duration
-  MaxOutput int
-  Allowlist map[string]bool
-  DryRun    bool
+  Timeout      time.Duration
+  BuildTimeout time.Duration
+  MaxOutput    int
+  Allowlist    map[string]bool
+  DryRun       bool
+  Commands     Commands
 }
 
 // New resolves root to an absolute, symlink-resolved path and returns
@@ -92,12 +149,19 @@ func New(root string, opts Options) (*Config, error) {
     maxOutput = 4000
   }
 
+  buildTimeout := opts.BuildTimeout
+  if buildTimeout == 0 {
+    buildTimeout = 10 * time.Minute
+  }
+
   return &Config{
-    Root:      resolved,
-    Allowlist: allowlist,
-    Timeout:   timeout,
-    MaxOutput: maxOutput,
-    DryRun:    opts.DryRun,
+    Root:         resolved,
+    Allowlist:    allowlist,
+    Timeout:      timeout,
+    BuildTimeout: buildTimeout,
+    MaxOutput:    maxOutput,
+    DryRun:       opts.DryRun,
+    Commands:     opts.Commands,
   }, nil
 }
 
@@ -127,17 +191,21 @@ func (c *Config) ResolvePath(path string) (string, error) {
     return "", fmt.Errorf("\n\t... in ResolvePath:\n\t%w", err)
   }
 
-  rel, err := filepath.Rel(c.Root, resolved)
-  escapes := err != nil || rel == ".." ||
-    strings.HasPrefix(rel, ".."+string(filepath.Separator))
-  if escapes {
-    return "", fmt.Errorf(
-      "\n\t... in ResolvePath:\n\t path %q escapes project root %q",
-      path, c.Root,
-    )
+  if within(c.Root, resolved) {
+    return resolved, nil
   }
 
-  return resolved, nil
+  for _, r := range c.ReadRoots {
+    if within(r, resolved) {
+      return resolved, nil
+    }
+  }
+
+  return "", fmt.Errorf(
+    "\n\t... in ResolvePath:\n\t path %q escapes project root %q "+
+      "(the user can grant read access with /add-dir)",
+    path, c.Root,
+  )
 }
 
 // resolveExistingPrefix evaluates symlinks on the longest existing
@@ -199,8 +267,8 @@ const (
   RunAll = RunTruncated | RunDryRun
 )
 
-func (f RunFlags) Truncated() bool { return f&RunTruncated != 0 }
-func (f RunFlags) DryRun() bool    { return f&RunDryRun != 0 }
+func (f RunFlags) Truncated() bool { return f & RunTruncated != 0 }
+func (f RunFlags) DryRun() bool    { return f & RunDryRun != 0 }
 
 // RunResult is the outcome of a sandboxed subprocess call.
 type RunResult struct {
@@ -277,10 +345,32 @@ func (c *Config) RunForceFull(
   return &RunResult{ Stdout: stdout, Stderr: stderr, ExitCode: exitCode }, nil
 }
 
+// RunBuild is RunForceFull under BuildTimeout instead of Timeout,
+// for test/build/lint runs. Output is untruncated: the caller keeps
+// the tail, where failures are reported, rather than the head.
+func (c *Config) RunBuild(
+  ctx context.Context, binary string, args []string,
+) (*RunResult, error) {
+  stdout, stderr, exitCode, err := c.runWith(
+    ctx, "RunBuild", c.BuildTimeout, binary, args,
+  )
+  if err != nil {
+    return nil, err
+  }
+  return &RunResult{ Stdout: stdout, Stderr: stderr, ExitCode: exitCode }, nil
+}
+
 func (c *Config) runRaw(
   ctx context.Context, callerName, binary string, args []string,
 ) (stdout, stderr string, exitCode int, err error) {
-  ctx, cancel := context.WithTimeout(ctx, c.Timeout)
+  return c.runWith(ctx, callerName, c.Timeout, binary, args)
+}
+
+func (c *Config) runWith(
+  ctx context.Context, callerName string, timeout time.Duration,
+  binary string, args []string,
+) (stdout, stderr string, exitCode int, err error) {
+  ctx, cancel := context.WithTimeout(ctx, timeout)
   defer cancel()
 
   cmd := exec.CommandContext(ctx, binary, args...)
@@ -295,7 +385,7 @@ func (c *Config) runRaw(
   if ctx.Err() == context.DeadlineExceeded {
     return "", "", 0, fmt.Errorf(
       "\n\t... in %s:\n\t command %q timed out after %s",
-      callerName, binary, c.Timeout,
+      callerName, binary, timeout,
     )
   }
 
@@ -318,13 +408,29 @@ func DescribeArgs(binary string, args []string) string {
   return binary + " " + strings.Join(args, " ")
 }
 
+// TruncateTail keeps the last max bytes of s — for build and test
+// output, where the verdict and the failures come last.
+func TruncateTail(s string, max int) (string, bool) {
+  if len(s) <= max {
+    return s, false
+  }
+  cut := len(s) - max
+  if i := strings.IndexByte(s[cut:], '\n'); i >= 0 && i < 200 {
+    cut += i + 1
+  }
+  note := fmt.Sprintf(
+    "[... %d earlier bytes truncated — the end is kept]\n", cut,
+  )
+  return note + s[cut:], true
+}
+
 func truncate(s string, max int) (string, bool) {
   if len(s) <= max {
     return s, false
   }
   note := fmt.Sprintf(
     "\n... [truncated, %d more bytes — narrow your query to see the rest]",
-    len(s)-max,
+    len(s) - max,
   )
   return s[:max] + note, true
 }

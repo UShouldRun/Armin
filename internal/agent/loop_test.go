@@ -17,8 +17,8 @@ import (
 
 func TestToolDefinitionsShape(t *testing.T) {
   defs := ToolDefinitions()
-  if len(defs) != 34 {
-    t.Fatalf("ToolDefinitions() has %d entries, want 34", len(defs))
+  if len(defs) != 37 {
+    t.Fatalf("ToolDefinitions() has %d entries, want 37", len(defs))
   }
 
   names := map[string]bool{}
@@ -34,6 +34,7 @@ func TestToolDefinitionsShape(t *testing.T) {
 
   for _, want := range []string{
     "search_code", "read_file", "list_directory", "run_command", "web_search",
+    "write_file", "edit_file", "read_pdf",
     "count_lines", "list_languages", "find_files", "file_stat", "find_todo_fixme",
     "env_info", "project_manifest",
     "find_definition", "list_symbols", "outline_file", "find_references",
@@ -146,7 +147,7 @@ func TestTurnExecutesToolThenReturnsAnswer(t *testing.T) {
   onToolCall := func(name string, _ map[string]any) { toolCallSeen = name }
 
   history := []llm.Message{{Role: "system", Content: "sys"}}
-  answer, err := loop.Turn(context.Background(), &history, nil, onToolCall)
+  answer, err := loop.Turn(context.Background(), &history, Hooks{ ToolCall: onToolCall })
   if err != nil {
     t.Fatalf("Turn: %v", err)
   }
@@ -189,7 +190,7 @@ func TestTurnSurfacesToolErrorAsStructuredResult(t *testing.T) {
   })
 
   history := []llm.Message{{Role: "system", Content: "sys"}}
-  if _, err := loop.Turn(context.Background(), &history, nil, nil); err != nil {
+  if _, err := loop.Turn(context.Background(), &history, Hooks{}); err != nil {
     t.Fatalf("Turn: %v", err)
   }
 
@@ -205,24 +206,37 @@ func TestTurnSurfacesToolErrorAsStructuredResult(t *testing.T) {
   }
 }
 
-func TestTurnHitsMaxRounds(t *testing.T) {
+func TestTurnHitsMaxRoundsThenSummarizes(t *testing.T) {
+  calls := 0
   loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    // Always asks for another tool call — a confused model that never
-    // produces a final answer.
-    reply := llm.Message{
+    calls++
+    var req struct {
+      Tools []any `json:"tools"`
+    }
+    json.NewDecoder(r.Body).Decode(&req)
+    if len(req.Tools) == 0 {
+      // The closing call: no tools offered, so it must answer.
+      writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "partial report" })
+      return
+    }
+    // Always asks for another tool call — a model that never stops.
+    writeChatResponse(t, w, llm.Message{
       Role: "assistant",
-      ToolCalls: []llm.ToolCall{{Function: llm.ToolCallFunction{
+      ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
         Name:      "list_directory",
         Arguments: map[string]any{},
-      }}},
-    }
-    writeChatResponse(t, w, reply)
+      } } },
+    })
   })
+  loop.MaxRounds = 3
 
-  history := []llm.Message{{Role: "system", Content: "sys"}}
-  _, err := loop.Turn(context.Background(), &history, nil, nil)
-  if err == nil {
-    t.Fatal("expected an error once maxToolRounds is exceeded")
+  history := []llm.Message{ { Role: "system", Content: "sys" } }
+  answer, err := loop.Turn(context.Background(), &history, Hooks{})
+  if err != nil {
+    t.Fatalf("Turn: %v", err)
+  }
+  if answer != "partial report" || calls != 4 {
+    t.Fatalf("answer = %q after %d calls, want the summary after 3+1", answer, calls)
   }
 }
 
@@ -251,7 +265,7 @@ func TestTurnDispatchesWebSearchWithNilManager(t *testing.T) {
   })
 
   history := []llm.Message{{Role: "system", Content: "sys"}}
-  if _, err := loop.Turn(context.Background(), &history, nil, nil); err != nil {
+  if _, err := loop.Turn(context.Background(), &history, Hooks{}); err != nil {
     t.Fatalf("Turn: %v", err)
   }
 
@@ -278,13 +292,13 @@ func TestTurnRejectsUnknownTool(t *testing.T) {
 
   history := []llm.Message{{Role: "system", Content: "sys"}}
   // The fake server always offers the same bogus tool call, so this
-  // will run out the clock on maxToolRounds — what matters here is
-  // that execute() doesn't panic on an unrecognized tool name and
-  // instead produces a structured error result each round.
-  if _, err := loop.Turn(context.Background(), &history, nil, nil); err == nil {
-    t.Fatal("expected the max-rounds error")
+  // runs out the round limit — what matters is that execute()
+  // doesn't panic on an unknown name but returns a structured error.
+  loop.MaxRounds = 2
+  if _, err := loop.Turn(context.Background(), &history, Hooks{}); err != nil {
+    t.Fatalf("Turn: %v", err)
   }
-  if history[1].Role != "assistant" {
-    t.Fatalf("history[1] = %+v", history[1])
+  if !strings.Contains(history[2].Content, "unknown tool") {
+    t.Fatalf("history[2] = %+v, want an unknown-tool error", history[2])
   }
 }

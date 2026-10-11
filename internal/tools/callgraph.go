@@ -276,7 +276,7 @@ type ImpactAnalysisInput struct {
 
 type ImpactAnalysisOutput struct {
   Affected  []string `json:"affected"` // function names that transitively call Name
-  Truncated bool     `json:"truncated"`
+  Truncated bool     `json:"truncated,omitempty"`
 }
 
 const (

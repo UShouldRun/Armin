@@ -26,7 +26,7 @@ func TestModelSpecIdleTimeout(t *testing.T) {
   if got := (ModelSpec{}).idleTimeout(); got != DefaultIdleTimeout {
     t.Fatalf("zero IdleTimeout = %v, want DefaultIdleTimeout", got)
   }
-  if got := (ModelSpec{ IdleTimeout: 5 * time.Minute }).idleTimeout(); got != 5*time.Minute {
+  if got := (ModelSpec{ IdleTimeout: 5 * time.Minute }).idleTimeout(); got != 5 * time.Minute {
     t.Fatalf("idleTimeout() = %v, want the override", got)
   }
   if got := (ModelSpec{ IdleTimeout: -1 }).idleTimeout(); got >= 0 {
@@ -231,8 +231,8 @@ func TestHelperProcess(t *testing.T) {
 
   var port string
   for i, a := range os.Args {
-    if a == "--port" && i+1 < len(os.Args) {
-      port = os.Args[i+1]
+    if a == "--port" && i + 1 < len(os.Args) {
+      port = os.Args[i + 1]
     }
   }
   if port == "" {
@@ -255,7 +255,7 @@ func TestHelperProcess(t *testing.T) {
       w.Write([]byte("0"))
     }
   })
-  ln, err := net.Listen("tcp", "127.0.0.1:"+port)
+  ln, err := net.Listen("tcp", "127.0.0.1:" + port)
   if err != nil {
     fmt.Fprintln(os.Stderr, "helper: listen:", err)
     os.Exit(1)
@@ -304,7 +304,7 @@ func TestSpawnHealthPollAndShutdown(t *testing.T) {
     "fim": { Binary: bin, ModelPath: "unused.gguf", Port: port },
   })
 
-  ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+  ctx, cancel := context.WithTimeout(context.Background(), 15 * time.Second)
   defer cancel()
 
   client, err := m.Client(ctx, "fim")
@@ -370,7 +370,7 @@ func TestSpawnScrubsSecretEnvVars(t *testing.T) {
   })
   defer m.Shutdown(context.Background())
 
-  ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+  ctx, cancel := context.WithTimeout(context.Background(), 15 * time.Second)
   defer cancel()
 
   if _, err := m.Client(ctx, "fim"); err != nil {
@@ -408,7 +408,7 @@ func TestSwitchMutatesClientInPlace(t *testing.T) {
   })
   defer m.Shutdown(context.Background())
 
-  ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+  ctx, cancel := context.WithTimeout(context.Background(), 15 * time.Second)
   defer cancel()
 
   client, err := m.Client(ctx, "fim")
@@ -425,5 +425,90 @@ func TestSwitchMutatesClientInPlace(t *testing.T) {
   }
   if client.Model != "fim" {
     t.Fatalf("Model = %q, want %q", client.Model, "fim")
+  }
+}
+
+func TestReadyRespawnsAStoppedModel(t *testing.T) {
+  if testing.Short() {
+    t.Skip("spawns a real subprocess")
+  }
+
+  m := New(map[string]ModelSpec{
+    "chat": { Binary: fakeLlamaServerBinary(t), ModelPath: "unused.gguf", Port: freePort(t) },
+  })
+  defer m.Shutdown(context.Background())
+
+  ctx, cancel := context.WithTimeout(context.Background(), 20 * time.Second)
+  defer cancel()
+
+  client, err := m.Client(ctx, "chat")
+  if err != nil {
+    t.Fatalf("Client: %v", err)
+  }
+
+  // What the idle reaper does after idle_timeout.
+  m.stopModel(ctx, "chat")
+  if err := client.Health(ctx); err == nil {
+    t.Fatal("the model should be down after being stopped")
+  }
+
+  if client.Ready == nil {
+    t.Fatal("managed clients must carry a Ready hook")
+  }
+  if err := client.Ready(ctx); err != nil {
+    t.Fatalf("Ready: %v", err)
+  }
+  if err := client.Health(ctx); err != nil {
+    t.Fatalf("Ready didn't bring the model back: %v", err)
+  }
+}
+
+func TestSwitchFreesTheGPUFromThePreviousLocalModel(t *testing.T) {
+  if testing.Short() {
+    t.Skip("spawns real subprocesses")
+  }
+
+  bin := fakeLlamaServerBinary(t)
+  m := New(map[string]ModelSpec{
+    "a":    { Binary: bin, ModelPath: "a.gguf", Port: freePort(t) },
+    "b":    { Binary: bin, ModelPath: "b.gguf", Port: freePort(t) },
+    "fim":  { Binary: bin, ModelPath: "f.gguf", Port: freePort(t) },
+    "api":  { URL: "http://127.0.0.1:1" },
+  })
+  defer m.Shutdown(context.Background())
+
+  ctx, cancel := context.WithTimeout(context.Background(), 20 * time.Second)
+  defer cancel()
+
+  chat, err := m.Client(ctx, "a")
+  if err != nil {
+    t.Fatalf("Client a: %v", err)
+  }
+  if _, err := m.Client(ctx, "fim"); err != nil {
+    t.Fatalf("Client fim: %v", err)
+  }
+
+  if err := m.Switch(ctx, chat, "b"); err != nil {
+    t.Fatalf("Switch: %v", err)
+  }
+
+  m.mu.Lock()
+  _, aUp := m.procs["a"]
+  _, bUp := m.procs["b"]
+  _, fimUp := m.procs["fim"]
+  m.mu.Unlock()
+  if aUp || !bUp || !fimUp {
+    t.Fatalf("a=%v b=%v fim=%v; want a stopped, b and the completion model running", aUp, bUp, fimUp)
+  }
+
+  // An external model isn't armin's to stop; switching to it leaves b alone.
+  if err := m.Switch(ctx, chat, "api"); err != nil {
+    t.Fatalf("Switch to external: %v", err)
+  }
+  m.mu.Lock()
+  _, bUp = m.procs["b"]
+  m.mu.Unlock()
+  if !bUp {
+    t.Fatal("switching to an external model stopped a local one")
   }
 }

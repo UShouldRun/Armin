@@ -133,7 +133,7 @@ func countFileLines(path string) (int, bool) {
   }
 
   scanner := bufio.NewScanner(f)
-  scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+  scanner.Buffer(make([]byte, 0, 64 * 1024), 1024 * 1024)
   lines := 0
   for scanner.Scan() {
     lines++
@@ -239,7 +239,7 @@ type FindFilesInput struct {
 
 type FindFilesOutput struct {
   Files     []string `json:"files"`
-  Truncated bool     `json:"truncated"`
+  Truncated bool     `json:"truncated,omitempty"`
 }
 
 const maxFindFilesResults = 200
@@ -305,7 +305,7 @@ type FileStatOutput struct {
   SizeBytes int64  `json:"size_bytes"`
   Lines     int    `json:"lines,omitempty"` // 0 for binary files
   ModTime   string `json:"mod_time"`        // RFC3339
-  IsBinary  bool   `json:"is_binary"`
+  IsBinary  bool   `json:"is_binary,omitempty"`
 }
 
 // FileStat reports one file's size, line count, and mtime without
@@ -350,7 +350,7 @@ type FindTodoFixmeInput struct {
 
 type FindTodoFixmeOutput struct {
   Matches   string `json:"matches"`
-  Truncated bool   `json:"truncated"`
+  Truncated bool   `json:"truncated,omitempty"`
 }
 
 // FindTodoFixme is a fixed search_code preset for TODO/FIXME/XXX
