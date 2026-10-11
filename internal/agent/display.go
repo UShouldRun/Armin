@@ -84,6 +84,9 @@ func CallLine(name string, args map[string]any) string {
 
     return line
 
+  case toolRequestAccess:
+    return name + "  " + str("dir") + " — " + str("reason")
+
   case toolScratchpadWrite:
     verb := "write"
     if a, _ := args["append"].(bool); a {
@@ -128,6 +131,10 @@ func ResultLine(name, result string) string {
 
   if ref, ok := r["archived"].(string); ok {
     return "archived: " + ref
+  }
+
+  if dir, ok := r["granted"].(string); ok {
+    return "read access granted: " + dir
   }
 
   num := func(k string) int {

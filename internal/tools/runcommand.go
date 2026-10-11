@@ -2,7 +2,9 @@ package tools
 
 import (
   "context"
+  "fmt"
   "sort"
+  "strings"
 
   "armin/internal/sandbox"
 )
@@ -55,7 +57,12 @@ func RunCommand(
     }
   }
 
-  res, err := cfg.Run(ctx, in.Binary, in.Args)
+  args, err := guardArgs(in.Binary, in.Args)
+  if err != nil {
+    return nil, &RunCommandError{ Error: err.Error() }
+  }
+
+  res, err := cfg.Run(ctx, in.Binary, args)
   if err != nil {
     return nil, &RunCommandError{ Error: err.Error() }
   }
@@ -69,11 +76,63 @@ func RunCommand(
   }, nil
 }
 
+// findWrites are find's actions that delete, run or write.
+var findWrites = map[string]bool{
+  "-delete": true, "-exec": true, "-execdir": true, "-ok": true,
+  "-okdir": true, "-fprint": true, "-fprint0": true, "-fprintf": true,
+  "-fls": true,
+}
+
+// sedInPlace spots -i in any spelling: -i, -i.bak, -ni (short flags
+// bundled), --in-place[=suffix]. sed's other short flags (-n -E -r
+// -s -u -z) have no "i", and -e takes its script as the next word.
+func sedInPlace(a string) bool {
+  if a == "--in-place" || strings.HasPrefix(a, "--in-place=") {
+    return true
+  }
+
+  short := strings.HasPrefix(a, "-") && !strings.HasPrefix(a, "--")
+
+  return short && !strings.HasPrefix(a, "-e") && strings.ContainsRune(a, 'i')
+}
+
+// guardArgs keeps the allowlisted tools that *can* write read-only:
+// sed never edits in place and always runs in --sandbox (which
+// rejects its w, r and e commands); find can't delete, exec or write.
+func guardArgs(binary string, args []string) ([]string, error) {
+  switch binary {
+  case "sed":
+    for _, a := range args {
+      if sedInPlace(a) {
+        return nil, fmt.Errorf(
+          "sed -i (editing in place) isn't allowed: run_command is " +
+            "read-only — use edit_file to change files",
+        )
+      }
+    }
+
+    return append([]string{ "--sandbox" }, args...), nil
+
+  case "find":
+    for _, a := range args {
+      if findWrites[a] {
+        return nil, fmt.Errorf(
+          "find %s isn't allowed: run_command is read-only", a,
+        )
+      }
+    }
+  }
+
+  return args, nil
+}
+
 func allowedBinaries(cfg *sandbox.Config) []string {
   allowed := make([]string, 0, len(cfg.Allowlist))
   for b := range cfg.Allowlist {
     allowed = append(allowed, b)
   }
+
   sort.Strings(allowed)
+
   return allowed
 }

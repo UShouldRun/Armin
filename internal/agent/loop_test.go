@@ -26,9 +26,11 @@ func TestToolDefinitionsShape(t *testing.T) {
     if d.Type != "function" {
       t.Errorf("tool %q has Type %q, want \"function\"", d.Function.Name, d.Type)
     }
+
     if d.Function.Description == "" {
       t.Errorf("tool %q has an empty description", d.Function.Name)
     }
+
     names[d.Function.Name] = true
   }
 
@@ -66,11 +68,13 @@ func writeChatResponse(t *testing.T, w http.ResponseWriter, msg llm.Message) {
     Name      string `json:"name"`
     Arguments string `json:"arguments"`
   }
+
   type wireToolCall struct {
     ID       string   `json:"id"`
     Type     string   `json:"type"`
     Function wireFunc `json:"function"`
   }
+
   type wireMessage struct {
     Role      string         `json:"role"`
     Content   string         `json:"content"`
@@ -83,10 +87,12 @@ func writeChatResponse(t *testing.T, w http.ResponseWriter, msg llm.Message) {
     if err != nil {
       t.Fatal(err)
     }
+
     id := tc.ID
     if id == "" {
       id = fmt.Sprintf("call_%d", i)
     }
+
     wm.ToolCalls = append(wm.ToolCalls, wireToolCall{
       ID: id, Type: "function",
       Function: wireFunc{ Name: tc.Function.Name, Arguments: string(args) },
@@ -117,6 +123,7 @@ func newTestLoop(t *testing.T, chatHandler http.HandlerFunc) (*Loop, string) {
   }
 
   client := llm.New(server.URL, "fake-model")
+
   return New(client, sb), root
 }
 
@@ -140,6 +147,7 @@ func TestTurnExecutesToolThenReturnsAnswer(t *testing.T) {
     } else {
       reply = llm.Message{Role: "assistant", Content: "the file says hello world"}
     }
+
     writeChatResponse(t, w, reply)
   })
 
@@ -151,12 +159,15 @@ func TestTurnExecutesToolThenReturnsAnswer(t *testing.T) {
   if err != nil {
     t.Fatalf("Turn: %v", err)
   }
+
   if answer != "the file says hello world" {
     t.Fatalf("answer = %q", answer)
   }
+
   if toolCallSeen != "read_file" {
     t.Fatalf("OnToolCall saw %q, want read_file", toolCallSeen)
   }
+
   if round != 2 {
     t.Fatalf("model was called %d times, want exactly 2 (tool call, then answer)", round)
   }
@@ -165,6 +176,7 @@ func TestTurnExecutesToolThenReturnsAnswer(t *testing.T) {
   if len(history) != 4 {
     t.Fatalf("history has %d messages, want 4, got %+v", len(history), history)
   }
+
   if history[2].Role != "tool" || history[2].ToolName != "read_file" {
     t.Fatalf("history[2] = %+v, want the read_file tool result", history[2])
   }
@@ -186,6 +198,7 @@ func TestTurnSurfacesToolErrorAsStructuredResult(t *testing.T) {
     } else {
       reply = llm.Message{Role: "assistant", Content: "couldn't find that file"}
     }
+
     writeChatResponse(t, w, reply)
   })
 
@@ -197,10 +210,12 @@ func TestTurnSurfacesToolErrorAsStructuredResult(t *testing.T) {
   if history[2].Role != "tool" {
     t.Fatalf("history[2] = %+v, want a tool-role error result", history[2])
   }
+
   var result map[string]string
   if err := json.Unmarshal([]byte(history[2].Content), &result); err != nil {
     t.Fatalf("tool error result isn't valid JSON: %v", err)
   }
+
   if result["error"] == "" {
     t.Fatal("expected the tool error result to carry a non-empty \"error\" field")
   }
@@ -213,12 +228,15 @@ func TestTurnHitsMaxRoundsThenSummarizes(t *testing.T) {
     var req struct {
       Tools []any `json:"tools"`
     }
+
     json.NewDecoder(r.Body).Decode(&req)
     if len(req.Tools) == 0 {
       // The closing call: no tools offered, so it must answer.
       writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "partial report" })
+
       return
     }
+
     // Always asks for another tool call — a model that never stops.
     writeChatResponse(t, w, llm.Message{
       Role: "assistant",
@@ -235,6 +253,7 @@ func TestTurnHitsMaxRoundsThenSummarizes(t *testing.T) {
   if err != nil {
     t.Fatalf("Turn: %v", err)
   }
+
   if answer != "partial report" || calls != 4 {
     t.Fatalf("answer = %q after %d calls, want the summary after 3+1", answer, calls)
   }
@@ -261,6 +280,7 @@ func TestTurnDispatchesWebSearchWithNilManager(t *testing.T) {
     } else {
       reply = llm.Message{Role: "assistant", Content: "search is unavailable"}
     }
+
     writeChatResponse(t, w, reply)
   })
 
@@ -272,10 +292,12 @@ func TestTurnDispatchesWebSearchWithNilManager(t *testing.T) {
   if history[2].Role != "tool" {
     t.Fatalf("history[2] = %+v, want a tool-role error result", history[2])
   }
+
   var result map[string]string
   if err := json.Unmarshal([]byte(history[2].Content), &result); err != nil {
     t.Fatalf("tool error result isn't valid JSON: %v", err)
   }
+
   if !strings.Contains(result["error"], "docker") {
     t.Fatalf(`result["error"] = %q, want it to mention docker`, result["error"])
   }
@@ -287,6 +309,7 @@ func TestTurnRejectsUnknownTool(t *testing.T) {
       Role: "assistant",
       ToolCalls: []llm.ToolCall{{Function: llm.ToolCallFunction{Name: "delete_everything"}}},
     }
+
     writeChatResponse(t, w, reply)
   })
 
@@ -298,7 +321,79 @@ func TestTurnRejectsUnknownTool(t *testing.T) {
   if _, err := loop.Turn(context.Background(), &history, Hooks{}); err != nil {
     t.Fatalf("Turn: %v", err)
   }
+
   if !strings.Contains(history[2].Content, "unknown tool") {
     t.Fatalf("history[2] = %+v, want an unknown-tool error", history[2])
   }
+}
+
+// TestTurnBlocksARepeatedFailedCall: the same failing call twice in
+// a turn is answered by the guard, not run again.
+func TestTurnBlocksARepeatedFailedCall(t *testing.T) {
+  round := 0
+  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
+    round++
+    reply := llm.Message{ Role: "assistant", Content: "giving up" }
+    if round <= 2 {
+      reply = llm.Message{
+        Role: "assistant",
+        ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
+          Name:      "read_file",
+          Arguments: map[string]any{ "path": "missing.txt" },
+        } } },
+      }
+    }
+
+    writeChatResponse(t, w, reply)
+  })
+
+  history := []llm.Message{ { Role: "system", Content: "sys" } }
+  if _, err := loop.Turn(context.Background(), &history, Hooks{}); err != nil {
+    t.Fatalf("Turn: %v", err)
+  }
+
+  second := history[4]
+  if second.Role != "tool" || !strings.Contains(second.Content, "already made this exact call") {
+    t.Fatalf("second result = %+v", second)
+  }
+}
+
+func TestRequestAccessAsksThenGrants(t *testing.T) {
+  loop, root := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {})
+  outside := t.TempDir()
+  os.WriteFile(filepath.Join(outside, "slides.pdf"), []byte("x"), 0o644)
+  raw, _ := json.Marshal(map[string]string{ "dir": outside, "reason": "read slides" })
+
+  if out := loop.requestAccess(raw, Hooks{}); !strings.Contains(fmt.Sprint(out), "-add-dir") {
+    t.Fatalf("with no Approve hook = %v", out)
+  }
+
+  asked := ""
+  deny := Hooks{ Approve: func(tool, preview string) (bool, string) {
+    asked = preview
+    return false, ""
+  } }
+  if out := loop.requestAccess(raw, deny); !strings.Contains(fmt.Sprint(out), "declined") {
+    t.Fatalf("declined = %v", out)
+  }
+
+  if !strings.Contains(asked, outside) || !strings.Contains(asked, "read slides") {
+    t.Fatalf("question = %q", asked)
+  }
+
+  if _, err := loop.Sandbox.ResolvePath(filepath.Join(outside, "slides.pdf")); err == nil {
+    t.Fatal("readable after a decline")
+  }
+
+  allow := Hooks{ Approve: func(string, string) (bool, string) { return true, "" } }
+  out, _ := loop.requestAccess(raw, allow).(map[string]any)
+  if out["granted"] == nil {
+    t.Fatalf("granted = %v", out)
+  }
+
+  if _, err := loop.Sandbox.ResolvePath(filepath.Join(outside, "slides.pdf")); err != nil {
+    t.Fatalf("not readable after a grant: %v", err)
+  }
+
+  _ = root
 }

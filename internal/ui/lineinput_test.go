@@ -48,6 +48,7 @@ func TestLineStateEnterSubmits(t *testing.T) {
   if !out.submit {
     t.Fatalf("out = %+v, want submit=true", out)
   }
+
   if s.text() != "hello" {
     t.Fatalf("text after submit = %q", s.text())
   }
@@ -84,9 +85,11 @@ func TestLineStateTabAcceptsSuggestion(t *testing.T) {
   if !out.changed {
     t.Fatal("accepting a suggestion should report a change")
   }
+
   if s.text() != "func main() {}" {
     t.Fatalf("text after Tab-accept = %q", s.text())
   }
+
   if len(s.suggestion) != 0 {
     t.Fatal("suggestion should be cleared after being accepted")
   }
@@ -99,6 +102,7 @@ func TestLineStateTabWithNoSuggestionIsNoOp(t *testing.T) {
   if out.changed {
     t.Fatal("Tab with no suggestion shown should not change the buffer")
   }
+
   if s.text() != "abc" {
     t.Fatalf("text = %q, want unchanged \"abc\"", s.text())
   }
@@ -113,6 +117,7 @@ func TestLineStateTypingClearsSuggestion(t *testing.T) {
   if len(s.suggestion) != 0 {
     t.Fatal("typing over a shown suggestion should clear it")
   }
+
   if s.text() != "foo" {
     t.Fatalf("text = %q, want foo", s.text())
   }
@@ -138,6 +143,7 @@ func TestLineStateRender(t *testing.T) {
   if visible != "> foo" {
     t.Fatalf("visible = %q, want \"> foo\"", visible)
   }
+
   if ghost != "bar" {
     t.Fatalf("ghost = %q, want \"bar\"", ghost)
   }
@@ -150,6 +156,7 @@ func TestLineStateIgnoredKeyIsNoOp(t *testing.T) {
   if out.changed {
     t.Fatal("keyIgnored should never report a change")
   }
+
   if s.text() != "x" {
     t.Fatalf("text = %q, want unchanged \"x\"", s.text())
   }
@@ -172,6 +179,7 @@ func TestLineStateApplyAllocationsStayBounded(t *testing.T) {
   if s.text() != before + "x" {
     t.Fatalf("typing didn't extend the buffer: got %q", s.text())
   }
+
   s.apply(ck(keyBackspace))
   if s.text() != before {
     t.Fatalf("backspace didn't shrink the buffer: got %q", s.text())
@@ -233,5 +241,22 @@ func TestReadLineWithGhostTextFallsBackWhenSuggestIsNil(t *testing.T) {
   )
   if err != nil || line != "plain input" {
     t.Fatalf("ReadLineWithGhostText(nil suggest) = (%q, %v)", line, err)
+  }
+}
+
+func TestKillLineAndWord(t *testing.T) {
+  s := lineState{ buf: []rune("fix the  parser  ") }
+  s.apply(key{ control: keyKillWord })
+  if s.text() != "fix the  " {
+    t.Fatalf("after Ctrl-W = %q", s.text())
+  }
+
+  s.apply(key{ control: keyKillLine })
+  if s.text() != "" {
+    t.Fatalf("after Ctrl-U = %q", s.text())
+  }
+
+  if out := s.apply(key{ control: keyKillWord }); out.changed {
+    t.Fatal("Ctrl-W on an empty line changed it")
   }
 }

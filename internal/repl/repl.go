@@ -300,6 +300,12 @@ func (r *REPL) Run(ctx context.Context) error {
       continue
     }
 
+    if cmd, ok := slashless(input); ok {
+      ui.Info("treating that as %s (commands start with /)", cmd)
+      r.dispatch(ctx, cmd)
+      continue
+    }
+
     if err := r.turn(ctx, input); err != nil {
       if errors.Is(err, llm.ErrToolsUnsupported) {
         ui.Error(
@@ -487,4 +493,26 @@ func ShortID(id string) string {
   }
 
   return id
+}
+
+// slashless recognizes "add-dir <dir>" typed without the slash, but
+// only when <dir> exists: anything else is a message for the model.
+func slashless(input string) (string, bool) {
+  dir, ok := strings.CutPrefix(input, "add-dir ")
+  if !ok {
+    return "", false
+  }
+
+  dir = strings.TrimSpace(dir)
+  if strings.HasPrefix(dir, "~/") {
+    if home, err := os.UserHomeDir(); err == nil {
+      dir = filepath.Join(home, dir[2:])
+    }
+  }
+
+  if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+    return "", false
+  }
+
+  return "/add-dir " + strings.TrimSpace(input[len("add-dir "):]), true
 }

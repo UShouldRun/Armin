@@ -133,13 +133,22 @@ completion/FIM base model, say) doesn't fail with a raw HTTP error —
 armin shows a clean one-line message naming the model and pointing
 back at `/model` to pick a different one.
 
-`/ghosttext` is a real trade: it switches your terminal into raw mode
-to show and Tab-accept inline suggestions as you type, which means
-you lose the terminal's own arrow-key editing and history for the
-duration. It falls back to a normal read with zero side effects
-whenever stdin isn't an interactive terminal (piped input, scripts),
-so it's always safe to leave configured — it only changes behavior
-when you explicitly turn it on.
+### Reading width
+
+On a wide terminal armin keeps text to 75% of the width; up to 100
+columns it uses the whole width (120 columns → 100, 200 → 150).
+Answers and thinking word-wrap there as they stream, list items
+with a hanging indent. Code blocks, tables, indented code, tool
+lines and diffs are never wrapped, since breaking them would change
+what they mean. The width is re-read every turn, so resizing the
+window takes effect. Piped output is never wrapped.
+
+The input line wraps at the same width, continuation rows lined up
+under the text. To do that, armin edits the line itself in raw
+mode: typing, Backspace, Ctrl-U (clear), Ctrl-W (delete word),
+Ctrl-C, Ctrl-D; no arrow-key movement or history. `/ghosttext`
+adds dim inline suggestions that Tab accepts. Piped input and
+scripts get a plain buffered read.
 
 ## Flags
 
@@ -193,8 +202,12 @@ The original five:
 - **`list_directory`** — an indented tree, skips `.git`, `node_modules`,
   `vendor`, and build output.
 - **`run_command`** — execs an allowlisted, read-only binary directly
-  (`exec.Command(binary, args...)`, never a shell) — `git`, `go`, `rg`,
-  `grep`, `find`, `cat`, `ls`, `wc` by default.
+  (`exec.Command(binary, args...)`, never a shell), from the project
+  root. The default allowlist: `rg grep find git go cat ls wc head
+  tail sed sort uniq cut tr diff stat file tree du df pwd echo which
+  uname date basename dirname realpath nl sha256sum md5sum`. `sed`
+  always runs with `--sandbox` and `-i` is refused; `find` refuses
+  `-exec`, `-delete` and the `-fprint` family.
 - **`web_search`** — queries a local [SearXNG](https://docs.searxng.org)
   instance for things not in the codebase (library docs, error
   messages, current facts). `internal/searxng` owns a Docker container
@@ -311,6 +324,14 @@ inside them, and every write tool still refuses anything outside
 the project. armin tells the model what it can now read and lists
 the directory, so "read the slides in the parent folder" works.
 
+The model can also ask: `request_access` names a directory and a
+reason, and armin asks `grant read access?`. That question is
+asked even under `-yes` or "all this session", which only cover
+file writes. Front ends with no one to ask (the editor's
+read-only mode, MCP) refuse and tell the model to suggest
+`-add-dir`. In the REPL, `add-dir <dir>` without the slash also
+works, when `<dir>` exists.
+
 ### Web search engines
 
 `web_search` takes a `topic`: `general` (Yandex, Bing, Wikipedia),
@@ -336,6 +357,9 @@ Enforced in code, not left to model judgment:
   allowed; extend it via config, never by letting the model ask.
 - **No shell** — arguments are always a literal argv array; there's
   nothing for `;`, `|`, `&&`, `$()` etc. to be interpreted by.
+- **Repeat guard** — a call identical to one that failed, with no
+  successful call in between, isn't run again; the model is told to
+  change approach or tell the user.
 - **Timeout + output cap** — every subprocess call is bounded and
   truncated, with a clear truncation message telling the model how to
   narrow its query.
@@ -615,6 +639,7 @@ Bundled skills, in `skills/` and installed by `./install.sh`:
 | `git` | safe git: inspect first, branches, conflicts, undo by least-destructive step, never force or reset without asking |
 | `bash` | strict-mode, quoted, shellcheck-clean scripts; arrays, traps, argument parsing |
 | `zsh` | zsh vs bash pitfalls (no word splitting, 1-based arrays, glob errors), `.zshrc` editing |
+| `markdown` | READMEs and docs: prose wrapped at 80 columns (or narrower if asked), tables exempt but aligned |
 | `linux` | diagnosing processes, disk, memory, GPU, services, logs, network; asks before system-wide changes |
 
 The system prompt lists each skill's name and description; the

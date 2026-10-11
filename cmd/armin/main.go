@@ -57,6 +57,16 @@ How to work:
 - When you used web_search in this turn, cite every claim that comes from a result inline as [id], using the result's id, and end the answer with a Sources list: "- [title](url)" for each id you cited. If you didn't search, don't add a Sources section; cite files as file:line instead.
 - Your reasoning from earlier turns is saved in the scratchpad file "thinking"; old tool results you see as stubs are archived there too — read them back instead of re-running the tool.
 - If the user declines a change, read their feedback and adjust; don't retry the same change.
+
+How tools run:
+- run_command runs ONE allowlisted program directly, with no shell. Pipes (|), redirects (>, <), &&, ;, globs (*.go), $VARS and cd do not work. Put the program in "binary" and each argument as its own array element: {"binary":"grep","args":["-rn","TODO","internal"]}, never {"binary":"grep -rn TODO | head"}.
+- The working directory is always the project root. Use paths relative to it, or absolute paths; there is no cd. Need several steps? Make several calls.
+- sed only prints (no -i); edit files with edit_file. find can't -exec or -delete.
+- Prefer the dedicated tools: read_file over cat/head/tail, search_code over grep, read_pdf for PDFs (cat or pdftotext through run_command won't work).
+- Files outside the project are off limits until granted. If you need a directory outside it (e.g. ".." or ~/Documents), call request_access with the directory and a one-line reason; the user approves or declines. Don't guess around the sandbox with other paths or commands.
+- Lines starting with "/" (like /add-dir, /model) are the user's REPL commands, not tools; you can't run them. Suggest one when it would help.
+- If a tool keeps failing, don't repeat it. After two failed attempts at the same thing, stop and tell the user exactly what failed and what you need.
+
 Keep answers concise; this is a terminal, not a document.`
 
 const readOnlyPrompt = `You are Armin, a coding assistant answering questions about the user's project inside their editor.
@@ -351,6 +361,7 @@ func run() error {
       ui.Error("-add-dir %s: %s", dir, err)
     }
   }
+
   r.ContextFromServer = fileCfg.ContextSize == 0
   if resumed == nil {
     r.LoadAutoContext(ctx)

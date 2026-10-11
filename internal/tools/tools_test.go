@@ -282,3 +282,36 @@ func TestWebSearchRequiresQuery(t *testing.T) {
     t.Fatal("expected an error for an empty query")
   }
 }
+
+func TestRunCommandGuardsSedAndFind(t *testing.T) {
+  cfg := newTestSandbox(t, sandbox.Options{})
+  writeFile(t, cfg.Root, "a.txt", "hello\n")
+
+  for _, args := range [][]string{
+    { "-i", "s/hello/bye/", "a.txt" },
+    { "-ni", "p", "a.txt" },
+    { "-i.bak", "s/a/b/", "a.txt" },
+    { "--in-place", "s/a/b/", "a.txt" },
+  } {
+    if _, err := RunCommand(context.Background(), cfg, RunCommandInput{ Binary: "sed", Args: args }); err == nil {
+      t.Errorf("sed %v was allowed", args)
+    }
+  }
+
+  out, err := RunCommand(context.Background(), cfg, RunCommandInput{ Binary: "sed", Args: []string{ "-n", "s/hello/bye/p", "a.txt" } })
+  if err != nil || strings.TrimSpace(out.Stdout) != "bye" {
+    t.Fatalf("read-only sed = %+v, %v", out, err)
+  }
+
+  // --sandbox blocks the w command, so sed can't write a file.
+  RunCommand(context.Background(), cfg, RunCommandInput{ Binary: "sed", Args: []string{ "w written.txt", "a.txt" } })
+  if _, err := os.Stat(filepath.Join(cfg.Root, "written.txt")); err == nil {
+    t.Fatal("sed's w command wrote a file")
+  }
+
+  for _, a := range []string{ "-delete", "-exec", "-fprint" } {
+    if _, err := RunCommand(context.Background(), cfg, RunCommandInput{ Binary: "find", Args: []string{ ".", a } }); err == nil {
+      t.Errorf("find %s was allowed", a)
+    }
+  }
+}

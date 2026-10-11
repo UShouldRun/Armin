@@ -102,7 +102,10 @@ ok "built ./armin"
 # --- Install ------------------------------------------------------------
 
 mkdir -p "$prefix"
-cp armin "$prefix/armin"
+# Copy then rename: renaming over a running binary is fine, while
+# writing into it fails with "Text file busy".
+cp armin "$prefix/armin.new"
+mv -f "$prefix/armin.new" "$prefix/armin"
 chmod +x "$prefix/armin"
 ok "installed to $prefix/armin"
 

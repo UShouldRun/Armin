@@ -383,6 +383,7 @@ local tool_verbs = {
   scratchpad_write = function(a) return "Noting in scratchpad " .. quote_arg(a.name) end,
   scratchpad_read = function(a) return "Reading scratchpad " .. quote_arg(a.name) end,
   scratchpad_list = function() return "Listing the scratchpad" end,
+  request_access = function(a) return "Asking to read " .. tostring(a.dir) end,
   use_skill = function(a)
     return "Loading skill " .. quote_arg(a.name) .. (a.file and (" (" .. tostring(a.file) .. ")") or "")
   end,

@@ -379,10 +379,12 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
     },
   }
 
-  if !s.cfg.AutoApprove {
-    hooks.Approve = func(tool, preview string) (bool, string) {
-      return s.ask(r.Context(), ev, tool, preview)
+  hooks.Approve = func(tool, preview string) (bool, string) {
+    if s.cfg.AutoApprove && tool != "request_access" {
+      return true, ""
     }
+
+    return s.ask(r.Context(), ev, tool, preview)
   }
 
   answer, err := s.cfg.Loop.Turn(r.Context(), &s.history, hooks)

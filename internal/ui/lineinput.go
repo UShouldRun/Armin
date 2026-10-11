@@ -10,7 +10,6 @@ import (
   "strings"
   "sync"
   "time"
-  "unicode/utf8"
 )
 
 // ErrInterrupted is returned by ReadLineWithGhostText when the user
@@ -63,16 +62,48 @@ func (s *lineState) apply(k key) outcome {
     if len(s.buf) == 0 {
       return outcome{}
     }
+
     s.buf = s.buf[:len(s.buf) - 1]
     s.suggestion = nil
+
+    return outcome{ changed: true }
+
+  case keyKillLine:
+    if len(s.buf) == 0 {
+      return outcome{}
+    }
+
+    s.buf, s.suggestion = s.buf[:0], nil
+
+    return outcome{ changed: true }
+
+  case keyKillWord:
+    // Like a shell: trailing spaces, then the word before them.
+    n := len(s.buf)
+    for n > 0 && s.buf[n - 1] == ' ' {
+      n--
+    }
+
+    for n > 0 && s.buf[n - 1] != ' ' {
+      n--
+    }
+
+    if n == len(s.buf) {
+      return outcome{}
+    }
+
+    s.buf, s.suggestion = s.buf[:n], nil
+
     return outcome{ changed: true }
 
   case keyTab:
     if len(s.suggestion) == 0 {
       return outcome{}
     }
+
     s.buf = append(s.buf, s.suggestion...)
     s.suggestion = nil
+
     return outcome{ changed: true }
 
   case keyInterrupt:
@@ -82,6 +113,7 @@ func (s *lineState) apply(k key) outcome {
     if len(s.buf) == 0 {
       return outcome{ eof: true }
     }
+
     return outcome{}
 
   case keyIgnored:
@@ -90,6 +122,7 @@ func (s *lineState) apply(k key) outcome {
 
   s.buf = append(s.buf, k.r)
   s.suggestion = nil
+
   return outcome{ changed: true }
 }
 
@@ -105,20 +138,19 @@ func (s *lineState) render(prompt string) (visible, ghost string) {
   return prompt + string(s.buf), string(s.suggestion)
 }
 
-// ReadLineWithGhostText reads one line from stdin, showing a dim
-// inline suggestion (from suggest) that Tab accepts. It only
-// switches the terminal into raw mode — and so only supports Tab-
-// accept and linear typing, not arrow-key cursor movement or
-// history — when suggest is non-nil and stdin is a real terminal;
-// otherwise it falls back to a plain buffered read, identical to
-// the terminal's own normal line editing. That fallback is what
-// runs for piped input, scripts, and tests, and whenever the
-// caller hasn't turned ghost text on.
+// ReadLineWithGhostText reads one line from stdin. On a terminal it
+// edits the line in raw mode — linear typing, Backspace, Ctrl-U,
+// Ctrl-W, no arrow-key movement or history — wrapping it at
+// TextWidth, and, when suggest is non-nil, shows a dim inline
+// suggestion that Tab accepts. Without a terminal (piped input,
+// scripts, tests) it falls back to a plain buffered read.
 func ReadLineWithGhostText(
   ctx context.Context, reader *bufio.Reader, prompt string,
   suggest SuggestFunc,
 ) (string, error) {
-  if suggest == nil || !isTTY(os.Stdin) {
+  // The raw editor runs on every terminal, ghost text or not: it is
+  // what wraps the input at TextWidth.
+  if !isTTY(os.Stdin) || !isTTY(os.Stdout) {
     return readLinePlain(reader, prompt)
   }
 
@@ -127,6 +159,7 @@ func ReadLineWithGhostText(
   if err != nil {
     return readLinePlain(reader, prompt)
   }
+
   defer restoreMode(fd, state)
 
   return editLine(ctx, reader, prompt, suggest)
@@ -138,6 +171,7 @@ func readLinePlain(reader *bufio.Reader, prompt string) (string, error) {
   if err != nil && line == "" {
     return "", err
   }
+
   return strings.TrimRight(line, "\r\n"), nil
 }
 
@@ -166,17 +200,82 @@ func editLine(
   var cancelPrev context.CancelFunc = func() {}
   defer func() { cancelPrev() }()
 
+  // The input wraps at the same width as the answers, continuation
+  // rows lining up under the text after the prompt. row is where the
+  // cursor sits, counted from the prompt's row, so a redraw can go
+  // back up to it.
+  width := TextWidth()
+  if width <= 0 {
+    width = 80
+  }
+
+  promptW := visibleWidth(prompt)
+  hang := promptW
+  if width - promptW < 20 {
+    hang = 0
+  }
+
+  row := 0
   redraw := func() {
     mu.Lock()
-    visible, ghost := state.render(prompt)
+    typed := len(state.buf)
+    text := append(append([]rune{}, state.buf...), state.suggestion...)
     mu.Unlock()
 
-    fmt.Print("\r\x1b[K" + visible + Dim(ghost))
-    if n := utf8.RuneCountInString(ghost); n > 0 {
-      fmt.Printf("\x1b[%dD", n)
+    rows := layoutInput(text, width - promptW, width - hang)
+
+    var b strings.Builder
+    if row > 0 {
+      fmt.Fprintf(&b, "\x1b[%dA", row)
     }
+
+    b.WriteString("\r\x1b[J" + prompt)
+    at := 0
+    for i, r := range rows {
+      if i > 0 {
+        b.WriteString("\r\n" + strings.Repeat(" ", hang))
+      }
+
+      // Runes past what was typed are the suggestion, shown dim.
+      split := min(max(typed - at, 0), len(r))
+      b.WriteString(string(r[:split]))
+      if split < len(r) {
+        b.WriteString(Dim(string(r[split:])))
+      }
+
+      at += len(r)
+    }
+
+    cr, cc := cursorAt(rows, typed)
+    if up := len(rows) - 1 - cr; up > 0 {
+      fmt.Fprintf(&b, "\x1b[%dA", up)
+    }
+
+    left := hang
+    if cr == 0 {
+      left = promptW
+    }
+
+    b.WriteString("\r")
+    if left + cc > 0 {
+      fmt.Fprintf(&b, "\x1b[%dC", left + cc)
+    }
+
+    row = cr
+    fmt.Print(b.String())
   }
+
   redraw()
+
+  // done leaves the line as typed, without a suggestion, and moves
+  // below it.
+  done := func() {
+    mu.Lock()
+    state.suggestion = nil
+    mu.Unlock()
+    redraw()
+    fmt.Print("\r\n")
+  }
 
   scheduleSuggest := func() {
     cancelPrev()
@@ -188,7 +287,7 @@ func editLine(
     myGen := gen
     partial := state.text()
     mu.Unlock()
-    if partial == "" {
+    if partial == "" || suggest == nil {
       return
     }
 
@@ -198,6 +297,7 @@ func editLine(
       case <-suggestCtx.Done():
         return
       }
+
       sug := suggest(suggestCtx, partial)
       if sug == "" || suggestCtx.Err() != nil {
         return
@@ -208,6 +308,7 @@ func editLine(
       if !stale {
         state.setSuggestion(sug)
       }
+
       mu.Unlock()
 
       if !stale {
@@ -219,7 +320,7 @@ func editLine(
   for {
     k, err := decodeKey(reader)
     if err != nil {
-      fmt.Print("\r\n")
+      done()
       return "", err
     }
 
@@ -229,16 +330,19 @@ func editLine(
 
     switch {
     case out.submit:
-      fmt.Print("\r\n")
+      done()
       mu.Lock()
       line := state.text()
       mu.Unlock()
+
       return line, nil
     case out.interrupted:
-      fmt.Print("\r\n")
+      done()
+
       return "", ErrInterrupted
     case out.eof:
-      fmt.Print("\r\n")
+      done()
+
       return "", io.EOF
     }
 

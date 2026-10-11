@@ -24,6 +24,8 @@ const (
   keyTab
   keyInterrupt // Ctrl-C
   keyEOF       // Ctrl-D
+  keyKillLine  // Ctrl-U
+  keyKillWord  // Ctrl-W
   keyIgnored   // a recognized-but-unsupported sequence (arrow keys)
 )
 
@@ -50,13 +52,22 @@ func decodeKey(r *bufio.Reader) (key, error) {
     return key{ control: keyInterrupt }, nil
   case 4: // Ctrl-D
     return key{ control: keyEOF }, nil
+  case 21: // Ctrl-U
+    return key{ control: keyKillLine }, nil
+  case 23: // Ctrl-W
+    return key{ control: keyKillWord }, nil
   case 0x1b: // ESC
     return decodeEscape(r)
+  }
+
+  if b < 0x20 {
+    return key{ control: keyIgnored }, nil // other control bytes
   }
 
   if b < 0x80 {
     return key{ r: rune(b) }, nil
   }
+
   return decodeUTF8Rest(r, b)
 }
 
@@ -69,9 +80,12 @@ func decodeUTF8Rest(r *bufio.Reader, first byte) (key, error) {
     if err != nil {
       return key{}, err
     }
+
     buf[i] = b
   }
+
   ru, _ := utf8.DecodeRune(buf)
+
   return key{ r: ru }, nil
 }
 
@@ -97,6 +111,7 @@ func decodeEscape(r *bufio.Reader) (key, error) {
   if err != nil {
     return key{ control: keyIgnored }, nil
   }
+
   if b1 != '[' && b1 != 'O' {
     return key{ control: keyIgnored }, nil
   }
@@ -106,6 +121,7 @@ func decodeEscape(r *bufio.Reader) (key, error) {
     if err != nil {
       return key{ control: keyIgnored }, nil
     }
+
     if b2 >= 0x40 && b2 <= 0x7e {
       return key{ control: keyIgnored }, nil
     }

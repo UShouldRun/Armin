@@ -22,6 +22,7 @@ const (
 // thinking (dim) and answer text, tool-call lines and approvals.
 type turnView struct {
   spinner      *ui.Spinner
+  wrap         *ui.Wrapper // prose at ui.TextWidth
   mode         uint8
   showThinking bool
   streamed     bool
@@ -43,11 +44,28 @@ func (v *turnView) startSpinner() {
 // endLine closes whatever was streaming, so the next thing printed
 // starts on its own line.
 func (v *turnView) endLine() {
+  v.flush()
   if v.mode != modeIdle {
     fmt.Println()
   }
 
+  v.wrap.Reset()
   v.mode = modeIdle
+}
+
+// flush prints the word the wrapper holds back, styled like the
+// stream it belongs to.
+func (v *turnView) flush() {
+  rest := v.wrap.Flush()
+  if rest == "" {
+    return
+  }
+
+  if v.mode == modeThinking {
+    rest = ui.Dim(rest)
+  }
+
+  fmt.Print(rest)
 }
 
 func (v *turnView) reasoning(delta string) {
@@ -61,7 +79,9 @@ func (v *turnView) reasoning(delta string) {
     v.mode = modeThinking
   }
 
-  fmt.Print(ui.Dim(delta))
+  if out := v.wrap.Write(delta); out != "" {
+    fmt.Print(ui.Dim(out))
+  }
 }
 
 func (v *turnView) token(delta string) {
@@ -76,12 +96,14 @@ func (v *turnView) token(delta string) {
 
   v.stopSpinner()
   if v.mode == modeThinking {
+    v.flush()
     fmt.Print("\n\n")
+    v.wrap.Reset()
   }
 
   v.mode = modeAnswer
   v.streamed = true
-  fmt.Print(delta)
+  fmt.Print(v.wrap.Write(delta))
 }
 
 func (v *turnView) toolCall(name string, args map[string]any) {
@@ -118,7 +140,11 @@ func (r *REPL) turn(ctx context.Context, input string) error {
     cancel()
   }()
 
-  v := &turnView{ showThinking: r.state & flagHideThinking == 0 }
+  v := &turnView{
+    showThinking: r.state & flagHideThinking == 0,
+    wrap:         ui.NewWrapper(ui.TextWidth()),
+  }
+
   v.startSpinner()
 
   hooks := agent.Hooks{
@@ -145,8 +171,14 @@ func (r *REPL) turn(ctx context.Context, input string) error {
     },
   }
 
-  if r.state & flagAutoApprove == 0 {
+  {
     hooks.Approve = func(tool, preview string) (bool, string) {
+      // Auto-approve covers file writes; access outside the project
+      // is always asked.
+      if r.state & flagAutoApprove != 0 && tool != "request_access" {
+        return true, ""
+      }
+
       v.stopSpinner()
       v.endLine()
       ok, feedback := r.approve(tool, preview)
@@ -172,10 +204,11 @@ func (r *REPL) turn(ctx context.Context, input string) error {
   }
 
   if v.streamed {
+    v.flush()
     fmt.Println()
   } else if answer != "" {
     v.endLine()
-    fmt.Println(answer)
+    fmt.Println(ui.Wrap(answer, ui.TextWidth()))
   }
 
   r.maybeShowSuggestions(ctx)
@@ -200,9 +233,14 @@ func (r *REPL) approve(tool, preview string) (bool, string) {
     }
   }
 
+  question := "apply " + tool + "?"
+  if tool == "request_access" {
+    question = "grant read access?"
+  }
+
   fmt.Printf(
     "%s %s ",
-    ui.Yellow("apply " + tool + "?"),
+    ui.Yellow(question),
     ui.Dim("[y]es / [n]o / [a]ll this session / or type feedback:"),
   )
   answer, err := r.reader.ReadString('\n')

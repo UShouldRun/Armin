@@ -4,9 +4,13 @@
 package agent
 
 import (
+  "bytes"
   "context"
   "encoding/json"
   "fmt"
+  "os"
+  "path/filepath"
+  "strings"
   "sync"
 
   "armin/internal/convo"
@@ -122,12 +126,15 @@ func (l *Loop) Definitions() []llm.ToolDefinition {
       if l.ReadOnly && toolIDs[d.Function.Name].isWrite() {
         continue
       }
+
       l.defs = append(l.defs, d)
     }
+
     l.defs = append(l.defs, l.noteDefinitions()...)
     raw, _ := json.Marshal(l.defs)
     l.defsTokens = len(raw) / 4
   })
+
   return l.defs
 }
 
@@ -142,6 +149,7 @@ func (l *Loop) maxRounds() int {
   if l.MaxRounds > 0 {
     return l.MaxRounds
   }
+
   return DefaultMaxRounds
 }
 
@@ -914,9 +922,11 @@ func (l *Loop) Turn(
   stream := llm.StreamHandlers{
     Token: hooks.Token, Reasoning: hooks.Reasoning,
   }
+
   turnStart := len(*history)
   var last llm.Usage
   sources := &turnSources{}
+  failed := map[string]string{} // name+args → error since the last success
 
   defer func() { l.endTurn(history, turnStart, hooks) }()
 
@@ -932,6 +942,7 @@ func (l *Loop) Turn(
         "\n\t... in Turn:\n\t model call failed: %w", err,
       )
     }
+
     last = reply.Usage
     if hooks.Usage != nil && last.Total() > 0 {
       hooks.Usage(last)
@@ -947,16 +958,37 @@ func (l *Loop) Turn(
       if err := ctx.Err(); err != nil {
         return "", fmt.Errorf("\n\t... in Turn:\n\t%w", err)
       }
+
       if hooks.ToolCall != nil {
         hooks.ToolCall(call.Function.Name, call.Function.Arguments)
       }
 
-      result := l.executeTurn(ctx, call, hooks, sources)
-      resultJSON, err := json.Marshal(result)
-      if err != nil {
-        resultJSON = []byte(fmt.Sprintf(
-          `{"error":"failed to encode tool result: %s"}`, err,
-        ))
+      key := callKey(call)
+      var resultJSON []byte
+      if prev, ok := failed[key]; ok {
+        resultJSON, _ = json.Marshal(map[string]string{
+          "error": "you already made this exact call this turn and it " +
+            "failed: " + prev + ". Don't repeat it: change the " +
+            "arguments, use another tool, or stop and tell the user " +
+            "what is blocking you.",
+        })
+      } else {
+        result := l.executeTurn(ctx, call, hooks, sources)
+        resultJSON, err = json.Marshal(result)
+        if err != nil {
+          resultJSON = []byte(fmt.Sprintf(
+            `{"error":"failed to encode tool result: %s"}`, err,
+          ))
+        }
+
+        // A success in between may have changed what a failed call
+        // depends on (read_file before an edit), so only a repeat
+        // with nothing working in between is blocked.
+        if msg := errorOf(resultJSON); msg != "" {
+          failed[key] = msg
+        } else {
+          clear(failed)
+        }
       }
 
       if hooks.ToolResult != nil {
@@ -983,8 +1015,34 @@ func (l *Loop) Turn(
       l.maxRounds(), err,
     )
   }
+
   *history = append(*history, *reply)
+
   return l.finish(history, sources, hooks), nil
+}
+
+// callKey identifies a call by tool and arguments; json.Marshal
+// sorts map keys, so equal arguments give equal keys.
+func callKey(call llm.ToolCall) string {
+  args, _ := json.Marshal(call.Function.Arguments)
+  return call.Function.Name + string(args)
+}
+
+// errorOf returns a result's top-level "error", or "". The cheap
+// substring test first: inside a JSON string every quote is escaped,
+// so `"error":"` only appears as a real key.
+func errorOf(result []byte) string {
+  if !bytes.Contains(result, []byte(`"error":"`)) {
+    return ""
+  }
+
+  var r struct {
+    Error string `json:"error"`
+  }
+
+  json.Unmarshal(result, &r)
+
+  return lastErrorLine(r.Error)
 }
 
 // finish appends a Sources list to the final answer when the turn
@@ -1001,6 +1059,7 @@ func (l *Loop) finish(
       hooks.Token(add)
     }
   }
+
   return final.Content
 }
 
@@ -1012,6 +1071,7 @@ func (l *Loop) executeTurn(
   if ws, ok := out.(*tools.WebSearchOutput); ok {
     sources.number(ws)
   }
+
   return out
 }
 
@@ -1043,16 +1103,22 @@ func (l *Loop) execute(
     return out
   }
 
+  if id == toolRequestAccess {
+    return l.requestAccess(raw, hooks)
+  }
+
   switch id {
   case toolWriteFile:
     var in tools.WriteFileInput
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     change, err := tools.PlanWrite(l.Sandbox, l.Tracker, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return l.applyChange(name, change, hooks)
 
   case toolEditFile:
@@ -1060,10 +1126,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     change, err := tools.PlanEdit(l.Sandbox, l.Tracker, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return l.applyChange(name, change, hooks)
 
   case toolSearchCode:
@@ -1071,10 +1139,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.SearchCode(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolReadFile:
@@ -1082,13 +1152,16 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.ReadFile(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     if resolved, err := l.Sandbox.ResolvePath(in.Path); err == nil {
       l.Tracker.Mark(resolved)
     }
+
     return out
 
   case toolListDirectory:
@@ -1096,10 +1169,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.ListDirectory(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolRunCommand:
@@ -1107,10 +1182,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, cmdErr := tools.RunCommand(ctx, l.Sandbox, in)
     if cmdErr != nil {
       return cmdErr
     }
+
     return out
 
   case toolWebSearch:
@@ -1118,10 +1195,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.WebSearch(ctx, l.WebSearch, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolCountLines:
@@ -1129,10 +1208,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.CountLines(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolListLanguages:
@@ -1140,10 +1221,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.ListLanguages(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolFindFiles:
@@ -1151,10 +1234,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.FindFiles(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolFileStat:
@@ -1162,10 +1247,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.FileStat(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolFindTodoFixme:
@@ -1173,10 +1260,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.FindTodoFixme(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolEnvInfo:
@@ -1184,10 +1273,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.EnvInfo(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolProjectManifest:
@@ -1195,10 +1286,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.ProjectManifest(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolFindDefinition:
@@ -1206,10 +1299,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.FindDefinition(ctx, l.Symbols, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolListSymbols:
@@ -1217,10 +1312,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.ListSymbols(ctx, l.Symbols, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolOutlineFile:
@@ -1228,10 +1325,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.OutlineFile(ctx, l.Symbols, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolFindReferences:
@@ -1239,10 +1338,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.FindReferences(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolGitLog:
@@ -1250,10 +1351,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.GitLog(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolGitBlame:
@@ -1261,10 +1364,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.GitBlame(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolGitDiff:
@@ -1272,10 +1377,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.GitDiff(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolGitShow:
@@ -1283,10 +1390,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.GitShow(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolWorkingTreeDiff:
@@ -1294,10 +1403,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.WorkingTreeDiff(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolGrepHistory:
@@ -1305,10 +1416,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.GrepHistory(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolCodeOwners:
@@ -1316,10 +1429,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.CodeOwners(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolCommitStats:
@@ -1327,10 +1442,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.CommitStats(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolRunTests:
@@ -1338,10 +1455,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.RunTests(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolBuildCheck:
@@ -1349,10 +1468,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.BuildCheck(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolLintCheck:
@@ -1360,10 +1481,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.LintCheck(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolListDependencies:
@@ -1371,10 +1494,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.ListDependencies(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolModuleGraph:
@@ -1382,10 +1507,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.ModuleGraph(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolReadDocComment:
@@ -1393,10 +1520,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.ReadDocComment(ctx, l.Symbols, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolFindCallers:
@@ -1404,10 +1533,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.FindCallers(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolFindDeadCode:
@@ -1415,10 +1546,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.FindDeadCode(ctx, l.Symbols, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolImpactAnalysis:
@@ -1426,10 +1559,12 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.ImpactAnalysis(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   case toolReadPDF:
@@ -1450,14 +1585,94 @@ func (l *Loop) execute(
     if err := json.Unmarshal(raw, &in); err != nil {
       return malformed(name, err)
     }
+
     out, err := tools.SemanticSearch(ctx, l.Sandbox, in)
     if err != nil {
       return map[string]string{ "error": err.Error() }
     }
+
     return out
 
   default:
     return map[string]string{ "error": fmt.Sprintf("unknown tool %q", name) }
+  }
+}
+
+// requestAccess asks the user to let the model read a directory
+// outside the project. With no one to ask (no Approve hook) it says
+// how the user can grant it instead.
+func (l *Loop) requestAccess(raw []byte, hooks Hooks) any {
+  var in struct {
+    Dir, Reason string
+  }
+
+  if err := json.Unmarshal(raw, &in); err != nil {
+    return malformed("request_access", err)
+  }
+
+  dir := strings.TrimSpace(in.Dir)
+  switch {
+  case dir == "":
+    return map[string]string{ "error": "dir is required" }
+  case strings.HasPrefix(dir, "~/"):
+    if home, err := os.UserHomeDir(); err == nil {
+      dir = filepath.Join(home, dir[2:])
+    }
+  case !filepath.IsAbs(dir):
+    dir = filepath.Join(l.Sandbox.Root, dir)
+  }
+
+  dir = filepath.Clean(dir)
+  if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+    return map[string]string{ "error": dir + " is not a directory" }
+  }
+
+  if hooks.Approve == nil {
+    return map[string]string{
+      "error": "no one to ask here; tell the user to start armin " +
+        "with -add-dir " + dir + " (or type /add-dir " + dir + " in the REPL)",
+    }
+  }
+
+  ok, feedback := hooks.Approve(
+    "request_access", "read access to " + dir + "\nreason: " + in.Reason,
+  )
+  if !ok {
+    out := map[string]string{ "error": "the user declined access to " + dir }
+    if feedback != "" {
+      out["user_feedback"] = feedback
+    }
+
+    return out
+  }
+
+  resolved, err := l.Sandbox.AddReadRoot(dir)
+  if err != nil {
+    return map[string]string{ "error": err.Error() }
+  }
+
+  var names []string
+  entries, _ := os.ReadDir(resolved)
+  for _, e := range entries {
+    if strings.HasPrefix(e.Name(), ".") {
+      continue
+    }
+
+    if e.IsDir() {
+      names = append(names, e.Name() + "/")
+    } else {
+      names = append(names, e.Name())
+    }
+
+    if len(names) == 40 {
+      break
+    }
+  }
+
+  return map[string]any{
+    "granted":  resolved,
+    "contents": names,
+    "note":     "read tools accept absolute paths under " + resolved + " now (e.g. " + filepath.Join(resolved, "<file>") + ")",
   }
 }
 
@@ -1471,9 +1686,11 @@ func (l *Loop) applyChange(
       out := map[string]string{
         "error": "the user declined this change; nothing was written",
       }
+
       if feedback != "" {
         out["user_feedback"] = feedback
       }
+
       return out
     }
   }
@@ -1482,6 +1699,7 @@ func (l *Loop) applyChange(
   if err != nil {
     return map[string]string{ "error": err.Error() }
   }
+
   return out
 }
 

@@ -70,6 +70,7 @@ func (c *Config) AddReadRoot(dir string) (string, error) {
   }
 
   c.ReadRoots = append(c.ReadRoots, resolved)
+
   return resolved, nil
 }
 
@@ -95,16 +96,20 @@ type Commands struct {
 // DefaultAllowlist is a conservative starting set: read-only
 // inspection tools. No write-capable commands (rm, mv, redirection)
 // belong here.
+//
+// Not here on purpose: cd and exit (no shell, so they do nothing —
+// every command runs in Root), env and printenv (they would print
+// API keys), and anything that writes. sed and find are allowed but
+// argument-checked (see tools.RunCommand).
 func DefaultAllowlist() map[string]bool {
   return map[string]bool{
-    "rg":   true,
-    "grep": true,
-    "find": true,
-    "git":  true,
-    "go":   true,
-    "cat":  true,
-    "ls":   true,
-    "wc":   true,
+    "rg": true, "grep": true, "find": true, "git": true, "go": true,
+    "cat": true, "ls": true, "wc": true, "head": true, "tail": true,
+    "sed": true, "sort": true, "uniq": true, "cut": true, "tr": true,
+    "diff": true, "stat": true, "file": true, "tree": true,
+    "du": true, "df": true, "pwd": true, "echo": true, "which": true,
+    "uname": true, "date": true, "basename": true, "dirname": true,
+    "realpath": true, "nl": true, "sha256sum": true, "md5sum": true,
   }
 }
 
@@ -180,6 +185,7 @@ func (c *Config) ResolvePath(path string) (string, error) {
   } else {
     candidate = filepath.Join(c.Root, path)
   }
+
   candidate = filepath.Clean(candidate)
 
   // EvalSymlinks requires the path to exist. Walk up to the first
@@ -244,11 +250,13 @@ func (c *Config) CheckBinary(bin string) error {
       bin,
     )
   }
+
   if !c.Allowlist[bin] {
     return fmt.Errorf(
       "\n\t... in CheckBinary:\n\t binary %q not in allowlist", bin,
     )
   }
+
   return nil
 }
 
@@ -300,6 +308,7 @@ func (c *Config) Run(
       Flags: RunDryRun,
     }, nil
   }
+
   return c.RunForce(ctx, binary, args)
 }
 
@@ -342,6 +351,7 @@ func (c *Config) RunForceFull(
   if err != nil {
     return nil, err
   }
+
   return &RunResult{ Stdout: stdout, Stderr: stderr, ExitCode: exitCode }, nil
 }
 
@@ -357,6 +367,7 @@ func (c *Config) RunBuild(
   if err != nil {
     return nil, err
   }
+
   return &RunResult{ Stdout: stdout, Stderr: stderr, ExitCode: exitCode }, nil
 }
 
@@ -396,6 +407,7 @@ func (c *Config) runWith(
         "\n\t... in %s:\n\t running %q: %w", callerName, binary, runErr,
       )
     }
+
     exitCode = exitErr.ExitCode()
   }
 
@@ -414,13 +426,16 @@ func TruncateTail(s string, max int) (string, bool) {
   if len(s) <= max {
     return s, false
   }
+
   cut := len(s) - max
   if i := strings.IndexByte(s[cut:], '\n'); i >= 0 && i < 200 {
     cut += i + 1
   }
+
   note := fmt.Sprintf(
     "[... %d earlier bytes truncated — the end is kept]\n", cut,
   )
+
   return note + s[cut:], true
 }
 
@@ -428,9 +443,11 @@ func truncate(s string, max int) (string, bool) {
   if len(s) <= max {
     return s, false
   }
+
   note := fmt.Sprintf(
     "\n... [truncated, %d more bytes — narrow your query to see the rest]",
     len(s) - max,
   )
+
   return s[:max] + note, true
 }

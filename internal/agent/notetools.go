@@ -111,6 +111,19 @@ func (l *Loop) noteDefinitions() []llm.ToolDefinition {
     )
   }
 
+  defs = append(defs, noteDef(
+    "request_access",
+    "Ask the user for read access to a directory outside the project "+
+      "(e.g. slides or docs in the parent folder). The user approves "+
+      "or declines; on approval, read tools accept absolute paths in "+
+      "it. Read-only: writes stay inside the project.",
+    map[string]llm.ToolProperty{
+      "dir":    stringProp("Directory: absolute, ~/..., or relative to the project (\"..\")"),
+      "reason": stringProp("One line: why you need it"),
+    },
+    "dir", "reason",
+  ))
+
   if l.Skills != nil && l.Skills.Len() > 0 {
     defs = append(defs, noteDef(
       "use_skill",

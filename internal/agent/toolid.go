@@ -51,6 +51,7 @@ const (
   toolScratchpadRead
   toolScratchpadList
   toolUseSkill
+  toolRequestAccess
   toolCount
 )
 
@@ -99,6 +100,7 @@ var toolIDs = map[string]ToolID{
   "scratchpad_write": toolScratchpadWrite,
   "scratchpad_read": toolScratchpadRead,
   "scratchpad_list": toolScratchpadList,
+  "request_access":  toolRequestAccess,
   "use_skill":       toolUseSkill,
 }
 
