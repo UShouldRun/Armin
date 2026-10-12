@@ -4,6 +4,7 @@ import (
   "bufio"
   "context"
   "encoding/json"
+  "io"
   "net/http"
   "net/http/httptest"
   "os"
@@ -15,6 +16,7 @@ import (
   "armin/internal/agent"
   "armin/internal/llm"
   "armin/internal/sandbox"
+  "armin/internal/session"
 )
 
 // fakeModel answers the first request with a write_file call and the
@@ -169,5 +171,62 @@ func TestChatStreamsAndWaitsForApproval(t *testing.T) {
 
   if got, _ := os.ReadFile(filepath.Join(root, "new.txt")); string(got) != "hi\n" {
     t.Fatalf("new.txt = %q (approval didn't apply the write)", got)
+  }
+}
+
+// TestChatSavesAndResumes: a web turn is saved like a REPL turn, and
+// a server started with that session shows it in /api/history.
+func TestChatSavesAndResumes(t *testing.T) {
+  t.Setenv("XDG_DATA_HOME", t.TempDir())
+  root := t.TempDir()
+  sb, _ := sandbox.New(root, sandbox.Options{})
+  model := fakeModel(t)
+  defer model.Close()
+
+  client := llm.New(model.URL, "fake")
+  cfg := Config{
+    Loop: agent.New(client, sb), Client: client, Sandbox: sb,
+    SystemPrompt: "sys", AutoApprove: true, Autosave: true,
+  }
+
+  srv := httptest.NewServer(New(context.Background(), cfg).routes())
+  resp, err := http.Post(srv.URL + "/api/chat", "application/json", strings.NewReader(`{"message":"make new.txt"}`))
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  io.ReadAll(resp.Body) // the handler saves before it returns
+  resp.Body.Close()
+  srv.Close()
+
+  list, _ := session.List()
+  if len(list) != 1 || list[0].Title == "" {
+    t.Fatalf("sessions = %+v", list)
+  }
+
+  saved, err := session.Load(list[0].ID)
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  cfg.Resumed = saved
+  srv = httptest.NewServer(New(context.Background(), cfg).routes())
+  defer srv.Close()
+
+  resp, err = http.Get(srv.URL + "/api/history")
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  defer resp.Body.Close()
+
+  var h struct {
+    ID      string
+    Entries []historyEntry
+  }
+
+  json.NewDecoder(resp.Body).Decode(&h)
+  if h.ID != saved.ID || len(h.Entries) != 3 || h.Entries[0].Text != "make new.txt" || h.Entries[1].Role != "tool" {
+    t.Fatalf("history = %+v", h)
   }
 }

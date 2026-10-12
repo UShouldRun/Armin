@@ -7,6 +7,7 @@ import (
   "bytes"
   "context"
   "encoding/json"
+  "errors"
   "fmt"
   "os"
   "path/filepath"
@@ -280,6 +281,36 @@ func ToolDefinitions() []llm.ToolDefinition {
               Type:        "array",
               Description: `Arguments as separate array entries, e.g. ["log", "--oneline", "-5"]`,
               Items:       &llm.ToolProperty{ Type: "string" },
+            },
+          },
+          Required: []string{ "binary" },
+        },
+      },
+    },
+    {
+      Type: "function",
+      Function: llm.ToolFunction{
+        Name: "run_program",
+        Description: "Build, compile, test or run code: make, cmake, gcc, " +
+          "g++, clang, mpicc, mpirun, go, cargo, python3, node, npm... " +
+          "or a program the project built (\"./build/app\"). No shell: " +
+          "binary plus an args array. The user approves each run. " +
+          "Prefer run_tests / build_check when they fit.",
+        Parameters: llm.ToolParameters{
+          Type: "object",
+          Properties: map[string]llm.ToolProperty{
+            "binary": {
+              Type:        "string",
+              Description: "Program: a bare name (make, gcc, mpirun) or a relative path inside the project (./fox)",
+            },
+            "args": {
+              Type:        "array",
+              Description: `Arguments as separate entries, e.g. ["-O2", "-o", "fox", "src/fox.c"]`,
+              Items:       &llm.ToolProperty{ Type: "string" },
+            },
+            "dir": {
+              Type:        "string",
+              Description: "Working directory inside the project (default: project root), e.g. \"build\"",
             },
           },
           Required: []string{ "binary" },
@@ -911,6 +942,17 @@ const roundLimitNote = "You have reached the tool-call limit for " +
   "is done and verified, and what is left, so the user can decide " +
   "how to continue."
 
+// maxBlocked is how many repeats the guard refuses before the turn
+// stops: a model that keeps retrying a blocked call won't stop on
+// its own.
+const maxBlocked = 2
+
+const repeatNote = "[armin] You kept repeating a call that had " +
+  "already failed or that the user declined, so tools are off for " +
+  "the rest of this turn. Don't call any more tools. Tell the user " +
+  "what you were trying to do, what failed, and — if they gave " +
+  "feedback — how you'll follow it, then ask how to continue."
+
 // Turn runs one user turn to completion: it sends history, executes
 // any tool calls the model makes, feeds results back, and returns
 // once the model answers in plain text. history is mutated in place
@@ -927,8 +969,12 @@ func (l *Loop) Turn(
   var last llm.Usage
   sources := &turnSources{}
   failed := map[string]string{} // name+args → error since the last success
+  declined := map[string]bool{}  // directories the user refused this turn
+  blocked := 0                   // repeats the guard refused this turn
 
   defer func() { l.endTurn(history, turnStart, hooks) }()
+
+  stopNote := roundLimitNote
 
   for round := 0; round < l.maxRounds(); round++ {
     if l.manageContext(ctx, history, last, hooks) {
@@ -966,14 +1012,21 @@ func (l *Loop) Turn(
       key := callKey(call)
       var resultJSON []byte
       if prev, ok := failed[key]; ok {
+        blocked++
         resultJSON, _ = json.Marshal(map[string]string{
           "error": "you already made this exact call this turn and it " +
-            "failed: " + prev + ". Don't repeat it: change the " +
+            "failed: " + prev + " Don't repeat it: change the " +
             "arguments, use another tool, or stop and tell the user " +
             "what is blocking you.",
         })
+      } else if blocked >= maxBlocked {
+        // Once the turn is being wound down, the rest of this reply's
+        // calls get a result (every call needs one) but don't run.
+        resultJSON, _ = json.Marshal(map[string]string{
+          "error": "not run: this turn is stopping",
+        })
       } else {
-        result := l.executeTurn(ctx, call, hooks, sources)
+        result := l.executeTurn(ctx, call, hooks, sources, declined)
         resultJSON, err = json.Marshal(result)
         if err != nil {
           resultJSON = []byte(fmt.Sprintf(
@@ -1002,16 +1055,21 @@ func (l *Loop) Turn(
         Content:    string(resultJSON),
       })
     }
+
+    if blocked >= maxBlocked {
+      stopNote = repeatNote
+      break
+    }
   }
 
   *history = append(*history, llm.Message{
-    Role: "user", Content: roundLimitNote,
+    Role: "user", Content: stopNote,
   })
   reply, err := l.LLM.ChatStream(ctx, *history, nil, stream)
   if err != nil {
     return "", fmt.Errorf(
-      "\n\t... in Turn:\n\t hit the tool-round limit (%d), and "+
-        "the closing summary call failed: %w",
+      "\n\t... in Turn:\n\t stopping the turn (tool-round limit %d or "+
+        "repeated calls), and the closing summary call failed: %w",
       l.maxRounds(), err,
     )
   }
@@ -1063,16 +1121,87 @@ func (l *Loop) finish(
   return final.Content
 }
 
-// executeTurn is execute plus the turn's citation numbering.
+// executeTurn is execute plus the turn's citation numbering and the
+// access check for reads outside the project.
 func (l *Loop) executeTurn(
-  ctx context.Context, call llm.ToolCall, hooks Hooks, sources *turnSources,
+  ctx context.Context, call llm.ToolCall, hooks Hooks,
+  sources *turnSources, declined map[string]bool,
 ) any {
+  if out := l.askAccess(call, hooks, declined); out != nil {
+    return out
+  }
+
   out := l.execute(ctx, call, hooks)
   if ws, ok := out.(*tools.WebSearchOutput); ok {
     sources.number(ws)
   }
 
   return out
+}
+
+// askAccess handles a read pointed outside the project. Small models
+// rarely think to call request_access first, so armin asks the user
+// itself, before the call runs, and grants the directory on a yes.
+// A directory declined once isn't asked about again this turn.
+func (l *Loop) askAccess(
+  call llm.ToolCall, hooks Hooks, declined map[string]bool,
+) any {
+  if hooks.Approve == nil {
+    return nil // nobody to ask: the call fails with a pointer to -add-dir
+  }
+
+  for _, p := range readPaths(call) {
+    var outside *sandbox.OutsideError
+    if _, err := l.Sandbox.ResolvePath(p); !errors.As(err, &outside) {
+      continue
+    }
+
+    dir := outside.Dir()
+    if declined[dir] {
+      return map[string]string{
+        "error": "the user declined read access to " + dir + " this turn; don't ask again",
+      }
+    }
+
+    ok, feedback := hooks.Approve(
+      "request_access",
+      "read access to " + dir + "\nneeded for: " +
+        CallLine(call.Function.Name, call.Function.Arguments),
+    )
+    if !ok {
+      declined[dir] = true
+      return declinedResult("read access to " + dir, feedback)
+    }
+
+    if _, err := l.Sandbox.AddReadRoot(dir); err != nil {
+      return map[string]string{ "error": err.Error() }
+    }
+  }
+
+  return nil
+}
+
+// readPaths are the paths a read-only call will open.
+func readPaths(call llm.ToolCall) []string {
+  args := call.Function.Arguments
+  switch toolIDs[call.Function.Name] {
+  case toolReadFile, toolReadPDF, toolSearchCode, toolListDirectory:
+    if p, _ := args["path"].(string); p != "" {
+      return []string{ p }
+    }
+
+  case toolRunCommand:
+    bin, _ := args["binary"].(string)
+    list, _ := args["args"].([]any)
+    strs := make([]string, 0, len(list))
+    for _, a := range list {
+      strs = append(strs, fmt.Sprint(a))
+    }
+
+    return tools.PathArgs(bin, strs)
+  }
+
+  return nil
 }
 
 // execute dispatches one tool call to its implementation and
@@ -1489,6 +1618,14 @@ func (l *Loop) execute(
 
     return out
 
+  case toolRunProgram:
+    var in tools.RunProgramInput
+    if err := json.Unmarshal(raw, &in); err != nil {
+      return malformed(name, err)
+    }
+
+    return l.runProgram(ctx, in, hooks)
+
   case toolListDependencies:
     var in tools.ListDependenciesInput
     if err := json.Unmarshal(raw, &in); err != nil {
@@ -1638,12 +1775,7 @@ func (l *Loop) requestAccess(raw []byte, hooks Hooks) any {
     "request_access", "read access to " + dir + "\nreason: " + in.Reason,
   )
   if !ok {
-    out := map[string]string{ "error": "the user declined access to " + dir }
-    if feedback != "" {
-      out["user_feedback"] = feedback
-    }
-
-    return out
+    return declinedResult("read access to " + dir, feedback)
   }
 
   resolved, err := l.Sandbox.AddReadRoot(dir)
@@ -1676,6 +1808,73 @@ func (l *Loop) requestAccess(raw []byte, hooks Hooks) any {
   }
 }
 
+// ApprovePrivileged is the tool name Approve gets for a privileged
+// run_program (rm, cp, mv, scp, rsync).
+const ApprovePrivileged = "run_program (privileged)"
+
+// AlwaysAsk reports whether an approval must reach the user even
+// under -yes or "all this session": reads outside the project and
+// privileged programs.
+func AlwaysAsk(tool string) bool {
+  return tool == "request_access" || tool == ApprovePrivileged
+}
+
+// runProgram checks a run_program call, asks the user (with nobody
+// to ask, it doesn't run), then runs it.
+func (l *Loop) runProgram(
+  ctx context.Context, in tools.RunProgramInput, hooks Hooks,
+) any {
+  dir, _, err := tools.PlanProgram(l.Sandbox, in)
+  if err != nil {
+    return map[string]string{ "error": err.Error() }
+  }
+
+  if hooks.Approve == nil {
+    return map[string]string{
+      "error": "run_program needs the user's approval and nobody can " +
+        "approve here; use run_tests / build_check, or ask the user to run it",
+    }
+  }
+
+  preview := "$ " + strings.TrimSpace(sandbox.DescribeArgs(in.Binary, in.Args))
+  if dir != l.Sandbox.Root {
+    preview += "\nin " + dir
+  }
+
+  tool := "run_program"
+  if sandbox.Privileged(in.Binary) {
+    tool = ApprovePrivileged
+    preview += "\n(privileged: deletes, moves, copies or sends files — always asked)"
+  }
+
+  ok, feedback := hooks.Approve(tool, preview)
+  if !ok {
+    return declinedResult("running this", feedback)
+  }
+
+  out, err := tools.RunProgram(ctx, l.Sandbox, in)
+  if err != nil {
+    return map[string]string{ "error": err.Error() }
+  }
+
+  return out
+}
+
+// declinedResult tells the model the user said no. Their words go
+// in the error itself, not a side field: small models read the
+// error and skip the rest.
+func declinedResult(what, feedback string) map[string]string {
+  msg := "the user declined " + what + "."
+  if feedback = strings.TrimSpace(feedback); feedback != "" {
+    msg += " The user said: \"" + feedback + "\". Do what they said " +
+      "instead of retrying the same call; if it isn't clear, stop and ask them."
+  } else {
+    msg += " Don't retry it: change approach, or stop and ask the user."
+  }
+
+  return map[string]string{ "error": msg }
+}
+
 // applyChange asks hooks.Approve (if set) before writing.
 func (l *Loop) applyChange(
   name string, change *tools.Change, hooks Hooks,
@@ -1683,15 +1882,7 @@ func (l *Loop) applyChange(
   if hooks.Approve != nil {
     ok, feedback := hooks.Approve(name, change.Preview())
     if !ok {
-      out := map[string]string{
-        "error": "the user declined this change; nothing was written",
-      }
-
-      if feedback != "" {
-        out["user_feedback"] = feedback
-      }
-
-      return out
+      return declinedResult("this change (nothing was written)", feedback)
     }
   }
 

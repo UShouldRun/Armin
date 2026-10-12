@@ -36,6 +36,7 @@ const (
   toolRunTests
   toolBuildCheck
   toolLintCheck
+  toolRunProgram
   toolListDependencies
   toolModuleGraph
   toolReadDocComment
@@ -86,6 +87,7 @@ var toolIDs = map[string]ToolID{
   "run_tests":       toolRunTests,
   "build_check":     toolBuildCheck,
   "lint_check":      toolLintCheck,
+  "run_program":     toolRunProgram,
   "list_dependencies": toolListDependencies,
   "module_graph":    toolModuleGraph,
   "read_doc_comment": toolReadDocComment,
@@ -104,7 +106,8 @@ var toolIDs = map[string]ToolID{
   "use_skill":       toolUseSkill,
 }
 
-// isWrite reports whether id changes files.
+// isWrite reports whether id changes files (run_program builds and
+// runs code, so it counts).
 func (id ToolID) isWrite() bool {
-  return id == toolWriteFile || id == toolEditFile
+  return id == toolWriteFile || id == toolEditFile || id == toolRunProgram
 }

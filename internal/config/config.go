@@ -86,6 +86,7 @@ type Config struct {
   Timeout      time.Duration
   MaxOutput    int
   ExtraAllowed []string // appended to sandbox.DefaultAllowlist()
+  ExtraExec    []string // appended to sandbox.DefaultExecAllowlist()
 
   // Agent behavior. Zero means "use the default".
   MaxToolRounds int
@@ -111,8 +112,10 @@ func Dir() (string, error) {
     if err != nil {
       return "", fmt.Errorf("\n\t... in Dir:\n\t%w", err)
     }
+
     base = filepath.Join(home, ".config")
   }
+
   return filepath.Join(base, "armin"), nil
 }
 
@@ -122,6 +125,7 @@ func Path() (string, error) {
   if err != nil {
     return "", fmt.Errorf("\n\t... in Path:\n\t%w", err)
   }
+
   return filepath.Join(dir, "config.conf"), nil
 }
 
@@ -135,6 +139,7 @@ func EnvPath() (string, error) {
   if err != nil {
     return "", fmt.Errorf("\n\t... in EnvPath:\n\t%w", err)
   }
+
   return filepath.Join(dir, ".env"), nil
 }
 
@@ -162,9 +167,11 @@ func LoadEnv() error {
   if os.IsNotExist(err) {
     return nil
   }
+
   if err != nil {
     return fmt.Errorf("\n\t... in LoadEnv:\n\t%w", err)
   }
+
   if perm := info.Mode().Perm(); perm & 0o077 != 0 {
     return fmt.Errorf(
       "\n\t... in LoadEnv:\n\t %s is readable by group/other (mode %#o) "+
@@ -178,6 +185,7 @@ func LoadEnv() error {
   if err != nil {
     return fmt.Errorf("\n\t... in LoadEnv:\n\t%w", err)
   }
+
   defer f.Close()
 
   scanner := bufio.NewScanner(f)
@@ -197,21 +205,25 @@ func LoadEnv() error {
         path, lineNo, line,
       )
     }
+
     key = strings.TrimSpace(key)
     value = strings.TrimSpace(value)
 
     if _, alreadySet := os.LookupEnv(key); alreadySet {
       continue
     }
+
     if err := os.Setenv(key, value); err != nil {
       return fmt.Errorf(
         "\n\t... in LoadEnv:\n\t setting %s: %w", key, err,
       )
     }
   }
+
   if err := scanner.Err(); err != nil {
     return fmt.Errorf("\n\t... in LoadEnv:\n\t%w", err)
   }
+
   return nil
 }
 
@@ -227,9 +239,11 @@ func Load() (Config, error) {
   if os.IsNotExist(err) {
     return Config{}, nil
   }
+
   if err != nil {
     return Config{}, fmt.Errorf("\n\t... in Load:\n\t%w", err)
   }
+
   defer f.Close()
 
   var cfg Config
@@ -250,6 +264,7 @@ func Load() (Config, error) {
         path, lineNo, line,
       )
     }
+
     key = strings.TrimSpace(key)
     value = strings.TrimSpace(value)
 
@@ -259,6 +274,7 @@ func Load() (Config, error) {
       )
     }
   }
+
   if err := scanner.Err(); err != nil {
     return Config{}, fmt.Errorf("\n\t... in Load:\n\t%w", err)
   }
@@ -289,18 +305,21 @@ func apply(cfg *Config, key, value string) error {
     if err != nil {
       return fmt.Errorf("\n\t... in apply:\n\t timeout: %w", err)
     }
+
     cfg.Timeout = d
   case "max_output":
     n, err := strconv.Atoi(value)
     if err != nil {
       return fmt.Errorf("\n\t... in apply:\n\t max_output: %w", err)
     }
+
     cfg.MaxOutput = n
   case "max_tool_rounds", "context_size", "keep_turns":
     n, err := strconv.Atoi(value)
     if err != nil {
       return fmt.Errorf("\n\t... in apply:\n\t %s: %w", key, err)
     }
+
     switch key {
     case "max_tool_rounds":
       cfg.MaxToolRounds = n
@@ -314,6 +333,7 @@ func apply(cfg *Config, key, value string) error {
     if err != nil {
       return fmt.Errorf("\n\t... in apply:\n\t %s: %w", key, err)
     }
+
     if key == "read_timeout" {
       cfg.ReadTimeout = d
     } else {
@@ -324,6 +344,7 @@ func apply(cfg *Config, key, value string) error {
     if err != nil {
       return fmt.Errorf("\n\t... in apply:\n\t auto_approve: %w", err)
     }
+
     cfg.AutoApprove = b
   case "test_cmd":
     cfg.TestCmd = strings.Fields(value)
@@ -338,9 +359,17 @@ func apply(cfg *Config, key, value string) error {
         cfg.ExtraAllowed = append(cfg.ExtraAllowed, bin)
       }
     }
+  case "allow_exec":
+    for _, bin := range strings.Split(value, ",") {
+      bin = strings.TrimSpace(bin)
+      if bin != "" {
+        cfg.ExtraExec = append(cfg.ExtraExec, bin)
+      }
+    }
   default:
     return fmt.Errorf("\n\t... in apply:\n\t unknown config key %q", key)
   }
+
   return nil
 }
 
@@ -352,7 +381,9 @@ func cutModelKey(key string) (name, field string, ok bool) {
   if !ok {
     return "", "", false
   }
+
   name, field, ok = strings.Cut(rest, ".")
+
   return name, field, ok
 }
 
@@ -360,6 +391,7 @@ func applyModel(cfg *Config, name, field, value string) error {
   if cfg.Models == nil {
     cfg.Models = make(map[string]ModelSpecConfig)
   }
+
   spec := cfg.Models[name]
 
   switch field {
@@ -386,6 +418,7 @@ func applyModel(cfg *Config, name, field, value string) error {
         "\n\t... in applyModel:\n\t models.%s.remote_port: %w", name, err,
       )
     }
+
     spec.RemotePort = n
   case "vision":
     b, err := strconv.ParseBool(value)
@@ -394,6 +427,7 @@ func applyModel(cfg *Config, name, field, value string) error {
         "\n\t... in applyModel:\n\t models.%s.vision: %w", name, err,
       )
     }
+
     spec.Vision = b
   case "stream_binary":
     spec.StreamBinary = value
@@ -404,6 +438,7 @@ func applyModel(cfg *Config, name, field, value string) error {
         "\n\t... in applyModel:\n\t models.%s.%s: %w", name, field, err,
       )
     }
+
     if field == "stream_context" {
       spec.StreamContext = n
     } else {
@@ -422,6 +457,7 @@ func applyModel(cfg *Config, name, field, value string) error {
         "\n\t... in applyModel:\n\t models.%s.lean: %w", name, err,
       )
     }
+
     spec.NoLean = !b
   case "stackit_server":
     spec.StackitServer = value
@@ -436,6 +472,7 @@ func applyModel(cfg *Config, name, field, value string) error {
         "\n\t... in applyModel:\n\t models.%s.%s: %w", name, field, err,
       )
     }
+
     spec.KeepOnDisconnect = !b
   case "port":
     n, err := strconv.Atoi(value)
@@ -444,6 +481,7 @@ func applyModel(cfg *Config, name, field, value string) error {
         "\n\t... in applyModel:\n\t models.%s.port: %w", name, err,
       )
     }
+
     spec.Port = n
   case "idle_timeout":
     d, err := time.ParseDuration(value)
@@ -453,6 +491,7 @@ func applyModel(cfg *Config, name, field, value string) error {
         name, err,
       )
     }
+
     spec.IdleTimeout = d
   case "args":
     // Whitespace-split, not comma-split like "allow" above: this is
@@ -468,5 +507,6 @@ func applyModel(cfg *Config, name, field, value string) error {
   }
 
   cfg.Models[name] = spec
+
   return nil
 }

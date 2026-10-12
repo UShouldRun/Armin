@@ -131,12 +131,16 @@ func contextOf(args []string) int {
     if !contextFlags[name] {
       continue
     }
+
     if !hasVal && i + 1 < len(args) {
       val = args[i + 1]
     }
+
     n, _ := strconv.Atoi(val)
+
     return n
   }
+
   return 0
 }
 
@@ -149,10 +153,13 @@ func withContext(args []string, n int) []string {
       if !hasVal {
         i++ // skip the value too
       }
+
       continue
     }
+
     out = append(out, args[i])
   }
+
   return append(out, "-c", strconv.Itoa(n))
 }
 
@@ -162,15 +169,19 @@ func (s ModelSpec) inTier(t Tier) ModelSpec {
   if t != TierStream || s.Stream == nil {
     return s
   }
+
   st := s.Stream
   if st.Binary != "" {
     s.Binary = st.Binary
   }
+
   args := withContext(s.Args, st.Context)
   if st.ArenaMiB > 0 {
     args = append(args, "--kv-stream-arena-mib", strconv.Itoa(st.ArenaMiB))
   }
+
   s.Args = append(args, st.Args...)
+
   return s
 }
 
@@ -191,6 +202,7 @@ func (s ModelSpec) idleTimeout() time.Duration {
   if s.IdleTimeout != 0 {
     return s.IdleTimeout
   }
+
   return DefaultIdleTimeout
 }
 
@@ -198,6 +210,7 @@ func (s ModelSpec) url() string {
   if !s.managed() {
     return s.URL
   }
+
   return fmt.Sprintf("http://127.0.0.1:%d", s.Port)
 }
 
@@ -233,6 +246,7 @@ func (p *process) exited() bool {
   if p.done == nil {
     return false
   }
+
   select {
   case <-p.done:
     return true
@@ -249,11 +263,13 @@ func startProcess(cmd *exec.Cmd) (*process, error) {
   if err := cmd.Start(); err != nil {
     return nil, err
   }
+
   p := &process{ cmd: cmd, done: make(chan struct{}), out: out }
   go func() {
     cmd.Wait()
     close(p.done)
   }()
+
   return p, nil
 }
 
@@ -272,6 +288,7 @@ func (t *tailBuffer) Write(b []byte) (int, error) {
   if over := len(t.buf) - t.max; over > 0 {
     t.buf = append(t.buf[:0], t.buf[over:]...)
   }
+
   return len(b), nil
 }
 
@@ -279,8 +296,10 @@ func (t *tailBuffer) String() string {
   if t == nil {
     return ""
   }
+
   t.mu.Lock()
   defer t.mu.Unlock()
+
   return strings.TrimSpace(string(t.buf))
 }
 
@@ -337,14 +356,17 @@ func New(specs map[string]ModelSpec) *Manager {
       scrub[s.APIKeyEnv] = true
     }
   }
+
   // No child process ever needs cloud credentials: armin makes the
   // API calls itself, and ssh authenticates with its own key.
   for _, name := range aws.CredentialEnv {
     scrub[name] = true
   }
+
   for _, name := range stackit.CredentialEnv {
     scrub[name] = true
   }
+
   for _, name := range scaleway.CredentialEnv {
     scrub[name] = true
   }
@@ -358,7 +380,9 @@ func New(specs map[string]ModelSpec) *Manager {
     stopReap:      make(chan struct{}),
     reapDone:      make(chan struct{}),
   }
+
   go m.reapLoop()
+
   return m
 }
 
@@ -377,6 +401,7 @@ func (m *Manager) Names() []ModelStatus {
       Managed: spec.managed(), Running: running,
     })
   }
+
   return out
 }
 
@@ -385,6 +410,7 @@ func (m *Manager) Names() []ModelStatus {
 func (m *Manager) Label(name string) string {
   m.mu.Lock()
   defer m.mu.Unlock()
+
   return m.specs[name].label()
 }
 
@@ -409,6 +435,7 @@ func (m *Manager) Has(name string) bool {
   m.mu.Lock()
   defer m.mu.Unlock()
   _, ok := m.specs[name]
+
   return ok
 }
 
@@ -423,6 +450,7 @@ func (m *Manager) Client(ctx context.Context, name string) (*llm.Client, error) 
   if err != nil {
     return nil, fmt.Errorf("\n\t... in Client:\n\t%w", err)
   }
+
   return m.newClientFor(name, url), nil
 }
 
@@ -451,6 +479,7 @@ func (m *Manager) Switch(ctx context.Context, client *llm.Client, name string) e
   client.APIKey = m.apiKey(name)
   client.OnRequestStart, client.OnRequestEnd = m.callbacks(name)
   client.Ready = m.ready(name)
+
   return nil
 }
 
@@ -460,6 +489,7 @@ func (m *Manager) localManaged(name string) bool {
   m.mu.Lock()
   defer m.mu.Unlock()
   spec, ok := m.specs[name]
+
   return ok && spec.managed() && spec.Remote == nil
 }
 
@@ -490,6 +520,7 @@ func (m *Manager) newClientFor(name, url string) *llm.Client {
   c.APIKey = m.apiKey(name)
   c.OnRequestStart, c.OnRequestEnd = m.callbacks(name)
   c.Ready = m.ready(name)
+
   return c
 }
 
@@ -503,6 +534,7 @@ func (m *Manager) apiKey(name string) string {
   m.mu.Lock()
   envName := m.specs[name].APIKeyEnv
   m.mu.Unlock()
+
   return os.Getenv(envName)
 }
 
@@ -519,16 +551,20 @@ func (m *Manager) ensure(ctx context.Context, name string) (string, error) {
     m.mu.Unlock()
     return "", fmt.Errorf("unconfigured model %q", name)
   }
+
   if !spec.managed() {
     m.mu.Unlock()
     return spec.url(), nil
   }
+
   if proc, running := m.procs[name]; running {
     if !proc.exited() {
       proc.lastUsed = time.Now()
       m.mu.Unlock()
+
       return spec.url(), nil
     }
+
     // Died under us (crash, dropped SSH): forget it and respawn. An
     // instance armin started stays armin's to stop (see owned).
     delete(m.procs, name)
@@ -536,11 +572,13 @@ func (m *Manager) ensure(ctx context.Context, name string) (string, error) {
       m.owned[proc.remote.machine.ID()] = proc.remote
     }
   }
+
   m.mu.Unlock()
 
   if err := m.spawn(ctx, name, spec); err != nil {
     return "", err
   }
+
   return spec.url(), nil
 }
 
@@ -569,6 +607,7 @@ func (m *Manager) spawn(ctx context.Context, name string, spec ModelSpec) error 
       spec.Binary, name, err,
     )
   }
+
   proc.lastUsed = time.Now()
 
   m.mu.Lock()
@@ -580,11 +619,13 @@ func (m *Manager) spawn(ctx context.Context, name string, spec ModelSpec) error 
     delete(m.procs, name)
     m.mu.Unlock()
     proc.stop(ctx)
+
     return fmt.Errorf(
       "\n\t... in spawn:\n\t %q never became healthy: %w\n\t llama-server said: %s",
       name, err, lastLines(proc.out.String(), 4),
     )
   }
+
   return nil
 }
 
@@ -636,6 +677,7 @@ func serverArgs(spec ModelSpec) []string {
     if i == 0 && spec.Flags & SpecVision != 0 {
       continue
     }
+
     decided := false
     for _, f := range d.flags {
       if set[f] {
@@ -643,10 +685,12 @@ func serverArgs(spec ModelSpec) []string {
         break
       }
     }
+
     if !decided {
       args = append(args, d.args...)
     }
   }
+
   return args
 }
 
@@ -655,6 +699,13 @@ func serverArgs(spec ModelSpec) []string {
 // inherits the parent's environment in full, which would otherwise
 // hand a Claude (or any other remote model's) API key to a local
 // llama-server process that has no business seeing it.
+// Environ is armin's environment without any API key or cloud
+// credential, for every other process armin starts (builds, tests,
+// programs the model runs).
+func (m *Manager) Environ() []string {
+  return m.scrubbedEnviron()
+}
+
 func (m *Manager) scrubbedEnviron() []string {
   full := os.Environ()
   out := make([]string, 0, len(full))
@@ -663,8 +714,10 @@ func (m *Manager) scrubbedEnviron() []string {
     if m.scrubEnvNames[name] {
       continue
     }
+
     out = append(out, kv)
   }
+
   return out
 }
 
@@ -681,6 +734,7 @@ func waitHealthy(
     if err := client.Health(ctx); err == nil {
       return nil
     }
+
     select {
     case <-ctx.Done():
       return fmt.Errorf("timed out waiting for llama-server to come up")
@@ -729,17 +783,21 @@ func (m *Manager) reapIdle() {
     if proc.refcount > 0 {
       continue
     }
+
     spec := m.specs[name]
     timeout := spec.idleTimeout()
     if timeout < 0 {
       continue // idle shutdown disabled for this model
     }
+
     if now.Sub(proc.lastUsed) < timeout {
       continue
     }
+
     toStop = append(toStop, proc)
     delete(m.procs, name)
   }
+
   m.mu.Unlock()
 
   for _, p := range toStop {
@@ -772,6 +830,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
       proc.stop(ctx)
     }()
   }
+
   for _, run := range owned {
     wg.Add(1)
     go func() {
@@ -779,7 +838,9 @@ func (m *Manager) Shutdown(ctx context.Context) error {
       run.stopMachine()
     }()
   }
+
   wg.Wait()
+
   return nil
 }
 
@@ -795,6 +856,7 @@ func (p *process) stop(ctx context.Context) {
       <-p.done
     }
   }
+
   if p.remote != nil && p.remote.started {
     p.remote.stopMachine()
   }
@@ -817,14 +879,17 @@ func (m *Manager) SetTier(ctx context.Context, name string, t Tier) error {
     m.mu.Unlock()
     return fmt.Errorf("\n\t... in SetTier:\n\t model %q has no stream tier", name)
   }
+
   cur := m.tiers[name]
   if cur == 0 {
     cur = TierResident
   }
+
   if cur == t {
     m.mu.Unlock()
     return nil
   }
+
   proc := m.procs[name]
   delete(m.procs, name)
   m.tiers[name] = t
@@ -841,9 +906,11 @@ func (m *Manager) SetTier(ctx context.Context, name string, t Tier) error {
       m.mu.Unlock()
     }
   }
+
   if _, err := m.ensure(ctx, name); err != nil {
     return fmt.Errorf("\n\t... in SetTier:\n\t%w", err)
   }
+
   return nil
 }
 
@@ -864,10 +931,12 @@ func (m *Manager) Window(name string) *Window {
   if !ok || spec.Stream == nil {
     return nil
   }
+
   resident := contextOf(spec.Args)
   if resident == 0 || spec.Stream.Context <= resident {
     return nil
   }
+
   return &Window{ m: m, name: name, resident: resident, max: spec.Stream.Context }
 }
 
@@ -878,6 +947,7 @@ func (w *Window) Max() int      { return w.max }
 func (w *Window) Streaming() bool {
   w.m.mu.Lock()
   defer w.m.mu.Unlock()
+
   return w.m.tiers[w.name] == TierStream
 }
 
@@ -886,6 +956,7 @@ func (w *Window) Size() int {
   if w.Streaming() {
     return w.max
   }
+
   return w.resident
 }
 
@@ -894,6 +965,7 @@ func (w *Window) Grow(ctx context.Context) (int, error) {
   if err := w.m.SetTier(ctx, w.name, TierStream); err != nil {
     return 0, err
   }
+
   return w.max, nil
 }
 
@@ -902,5 +974,6 @@ func (w *Window) Shrink(ctx context.Context) (int, error) {
   if err := w.m.SetTier(ctx, w.name, TierResident); err != nil {
     return 0, err
   }
+
   return w.resident, nil
 }

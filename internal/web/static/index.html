@@ -345,8 +345,30 @@ function showContext(used, window, tier, estimate) {
 }
 
 async function loadFiles() {
-  files = await api("/api/files");
-  renderFiles();
+  try {
+    files = await api("/api/files");
+    renderFiles();
+
+  } catch (e) {
+    console.error("[ERROR]: loadFiles - ", e);
+  }
+}
+
+// Tools that create or change files: after one succeeds, the file
+// list reloads, and so does the preview when it shows what changed.
+const changers = [ "write_file", "edit_file", "run_program" ];
+let   reloadTimer = null;
+
+function filesChanged(call) {
+  clearTimeout(reloadTimer);
+  reloadTimer = setTimeout(async () => {
+    await loadFiles();
+    if (!current) return;
+
+    const path = call.args?.path || "";
+    const same = path && (path === current || path.endsWith("/" + current) || current.endsWith("/" + path));
+    if (same || call.name === "run_program") preview(current, null, true);
+  }, 150);
 }
 
 function renderFiles() {
@@ -359,8 +381,9 @@ function renderFiles() {
 
 const images = [ "png", "jpg", "jpeg", "gif", "webp", "svg" ];
 
-async function preview(path, line) {
+async function preview(path, line, keepScroll) {
   const full = files.includes(path) ? path : (files.find((f) => f.endsWith("/" + path)) || path);
+  const top  = keepScroll ? $("preview").scrollTop : 0;
   current = full;
   renderFiles();
   $("ptitle").textContent = full + (line ? `:${ line }` : "");
@@ -386,6 +409,8 @@ async function preview(path, line) {
     box.innerHTML = `<table class = "code">${ rows.join("") }</table>`;
     if (line) {
       document.getElementById("L" + line)?.scrollIntoView({ block: "center" });
+    } else {
+      box.scrollTop = top;
     }
 
   } catch (e) {
@@ -406,15 +431,24 @@ function add(cls, html) {
   return el;
 }
 
+// What each kind of approval asks, and its buttons.
+const approvalText = {
+  edit:           { what: "wants to change a file:", yes: "Apply", done: "applied" },
+  run_program:    { what: "wants to run:", yes: "Run", done: "ran" },
+  "run_program (privileged)": { what: "wants to run a privileged command:", yes: "Run", done: "ran" },
+  request_access: { what: "wants to read outside the project:", yes: "Grant", done: "granted" },
+};
+
 function approvalBox(ev) {
   const lines = ev.preview.split("\n").map((l) => {
     if (l.startsWith("+ ")) return `<span class = "add">${ esc(l) }</span>`;
     if (l.startsWith("- ")) return `<span class = "del">${ esc(l) }</span>`;
     return esc(l);
   });
-  const box = add("approve", `<div><b>${ esc(ev.tool) }</b> wants to change a file:</div>
+  const ask = approvalText[ev.tool] || approvalText.edit;
+  const box = add("approve", `<div><b>${ esc(ev.tool) }</b> ${ ask.what }</div>
     <pre>${ lines.join("\n") }</pre>
-    <button data-ok = "1">Apply</button> <button data-ok = "0">Decline</button>
+    <button data-ok = "1">${ ask.yes }</button> <button data-ok = "0">Decline</button>
     <input placeholder = "or tell the model what to do instead">`);
   box.addEventListener("click", async (e) => {
     if (!e.target.dataset.ok) return;
@@ -422,7 +456,7 @@ function approvalBox(ev) {
     const feedback = box.querySelector("input").value;
     await api("/api/approve", { id: ev.id, ok: ok && !feedback, feedback });
     box.querySelectorAll("button, input").forEach((b) => b.disabled = true);
-    box.insertAdjacentHTML("beforeend", `<div class = "tool">${ ok && !feedback ? "applied" : "declined" }</div>`);
+    box.insertAdjacentHTML("beforeend", `<div class = "tool">${ ok && !feedback ? ask.done : "declined" }</div>`);
   });
 }
 
@@ -432,6 +466,7 @@ async function send(text) {
   add("msg user", esc(text));
 
   let answer = "", thoughts = "", think = null, msg = null, pending = false;
+  let lastCall = null;
   const paint = () => {
     pending = false;
     if (msg) msg.innerHTML = markdown(answer);
@@ -466,11 +501,16 @@ async function send(text) {
       const rest = cut < 0 ? "" : line.slice(cut + 2);
       add("tool", `<span class = "dot">●</span> <b>${ esc(name) }</b>  ${ esc(rest) }`);
       msg = null; answer = ""; think = null; thoughts = "";
+      lastCall = data;
       break;
     }
 
     case "result":
       add(data.startsWith("error:") ? "tool err" : "tool result", "⎿ " + esc(data));
+      if (!data.startsWith("error:") && lastCall && changers.includes(lastCall.name)) {
+        filesChanged(lastCall);
+      }
+
       break;
     case "notice":
       add("notice", "context: " + esc(data));
@@ -525,6 +565,7 @@ async function send(text) {
     busy = false;
     $("send").disabled = false;
     refreshInfo();
+    loadFiles();
   }
 }
 
@@ -583,7 +624,35 @@ for (const name of [ "clear", "compact" ]) {
   });
 }
 
+// Files changed outside armin (an editor, a terminal) show up when
+// you come back to the tab.
+window.addEventListener("focus", () => { if (!busy) loadFiles(); });
+
+// A resumed session shows what was said before.
+async function loadHistory() {
+  try {
+    const h = await api("/api/history");
+    for (const e of h.entries) {
+      if (e.role === "user") add("msg user", esc(e.text));
+      else if (e.role === "assistant") add("msg md", markdown(e.text));
+      else {
+        const cut = e.text.indexOf("  ");
+        const name = cut < 0 ? e.text : e.text.slice(0, cut);
+        const rest = cut < 0 ? "" : e.text.slice(cut + 2);
+        add("tool", `<span class = "dot">●</span> <b>${ esc(name) }</b>  ${ esc(rest) }`);
+      }
+    }
+
+    if (h.entries.length) add("notice", `resumed session: ${ esc(h.title || "untitled") } (${ esc(h.id.split("-")[0]) })`);
+    $("log").scrollTop = $("log").scrollHeight;
+
+  } catch (e) {
+    console.error("[ERROR]: loadHistory - ", e);
+  }
+}
+
 loadFiles();
+loadHistory();
 refreshInfo();
 </script>
 </body>

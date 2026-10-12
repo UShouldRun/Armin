@@ -3,6 +3,8 @@ package tools
 import (
   "context"
   "fmt"
+  "os"
+  "path/filepath"
   "sort"
   "strings"
 
@@ -62,6 +64,13 @@ func RunCommand(
     return nil, &RunCommandError{ Error: err.Error() }
   }
 
+  // Path arguments are jailed like every other tool's paths.
+  for _, p := range PathArgs(in.Binary, in.Args) {
+    if _, err := cfg.ResolvePath(p); err != nil {
+      return nil, &RunCommandError{ Error: err.Error() }
+    }
+  }
+
   res, err := cfg.Run(ctx, in.Binary, args)
   if err != nil {
     return nil, &RunCommandError{ Error: err.Error() }
@@ -100,6 +109,17 @@ func sedInPlace(a string) bool {
 // sed never edits in place and always runs in --sandbox (which
 // rejects its w, r and e commands); find can't delete, exec or write.
 func guardArgs(binary string, args []string) ([]string, error) {
+  if readsContent[binary] {
+    for _, a := range args {
+      if strings.HasSuffix(strings.ToLower(a), ".pdf") {
+        return nil, fmt.Errorf(
+          "%s is a PDF (compressed binary; %s can't read it): use " +
+            "read_pdf with path %q instead", a, binary, a,
+        )
+      }
+    }
+  }
+
   switch binary {
   case "sed":
     for _, a := range args {
@@ -124,6 +144,59 @@ func guardArgs(binary string, args []string) ([]string, error) {
   }
 
   return args, nil
+}
+
+// textOnly binaries take no paths; their arguments are text, and a
+// "/" in them (tr / _) means nothing.
+var textOnly = map[string]bool{
+  "echo": true, "tr": true, "date": true, "uname": true, "which": true,
+}
+
+// readsContent binaries print or search a file's bytes: useless on a
+// PDF, which is compressed.
+var readsContent = map[string]bool{
+  "cat": true, "head": true, "tail": true, "grep": true, "rg": true,
+  "sed": true, "nl": true, "wc": true, "sort": true, "uniq": true,
+  "cut": true, "diff": true,
+}
+
+// PathArgs picks the arguments of a run_command call that look like
+// paths — ".", "..", anything with a "/" or starting with "~/", and
+// the value of a --flag=path — so they can be jailed. A pattern
+// that merely looks like a path ("a/b") resolves inside the project
+// and passes.
+func PathArgs(binary string, args []string) []string {
+  if textOnly[binary] {
+    return nil
+  }
+
+  var out []string
+  for _, a := range args {
+    if strings.HasPrefix(a, "-") {
+      _, v, ok := strings.Cut(a, "=")
+      if !ok {
+        continue
+      }
+
+      a = v
+    }
+
+    if a == "." || a == ".." || strings.Contains(a, "/") || strings.HasPrefix(a, "~") {
+      out = append(out, expandHome(a))
+    }
+  }
+
+  return out
+}
+
+func expandHome(p string) string {
+  if p == "~" || strings.HasPrefix(p, "~/") {
+    if home, err := os.UserHomeDir(); err == nil {
+      return filepath.Join(home, p[1:])
+    }
+  }
+
+  return p
 }
 
 func allowedBinaries(cfg *sandbox.Config) []string {

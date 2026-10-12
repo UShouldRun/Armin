@@ -3,6 +3,7 @@ package tools
 import (
   "context"
   "os"
+  "os/exec"
   "path/filepath"
   "strings"
   "testing"
@@ -18,6 +19,7 @@ func newTestSandbox(t *testing.T, opts sandbox.Options) *sandbox.Config {
   if err != nil {
     t.Fatalf("sandbox.New: %v", err)
   }
+
   return cfg
 }
 
@@ -27,6 +29,7 @@ func writeFile(t *testing.T, root, name, content string) {
   if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
     t.Fatal(err)
   }
+
   if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
     t.Fatal(err)
   }
@@ -42,6 +45,7 @@ func TestReadFileWholeSmallFile(t *testing.T) {
   if err != nil {
     t.Fatalf("ReadFile: %v", err)
   }
+
   if out.Content != "one\ntwo\nthree" || out.TotalLines != 3 {
     t.Fatalf("ReadFile = %+v", out)
   }
@@ -54,6 +58,7 @@ func TestReadFileRequiresRangeAboveThreshold(t *testing.T) {
   for i := 0; i < maxWholeFileLines + 1; i++ {
     b.WriteString("line\n")
   }
+
   writeFile(t, cfg.Root, "big.txt", b.String())
 
   if _, err := ReadFile(context.Background(), cfg, ReadFileInput{Path: "big.txt"}); err == nil {
@@ -64,6 +69,7 @@ func TestReadFileRequiresRangeAboveThreshold(t *testing.T) {
   if err != nil {
     t.Fatalf("ranged ReadFile: %v", err)
   }
+
   if out.Content != "line\nline" {
     t.Fatalf("ranged content = %q", out.Content)
   }
@@ -77,6 +83,7 @@ func TestReadFileRangeClampsAndValidates(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   if out.Content != "3\n4\n5" {
     t.Fatalf("clamped end_line: content = %q", out.Content)
   }
@@ -84,6 +91,7 @@ func TestReadFileRangeClampsAndValidates(t *testing.T) {
   if _, err := ReadFile(context.Background(), cfg, ReadFileInput{Path: "a.txt", StartLine: 10, EndLine: 20}); err == nil {
     t.Fatal("expected an error for start_line beyond the end of the file")
   }
+
   if _, err := ReadFile(context.Background(), cfg, ReadFileInput{Path: "a.txt", StartLine: 4, EndLine: 2}); err == nil {
     t.Fatal("expected an error for start_line after end_line")
   }
@@ -94,6 +102,7 @@ func TestReadFileRejectsDirectory(t *testing.T) {
   if err := os.Mkdir(filepath.Join(cfg.Root, "sub"), 0o755); err != nil {
     t.Fatal(err)
   }
+
   if _, err := ReadFile(context.Background(), cfg, ReadFileInput{Path: "sub"}); err == nil {
     t.Fatal("expected an error reading a directory as a file")
   }
@@ -118,12 +127,15 @@ func TestListDirectorySkipsNoiseDirs(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   if strings.Contains(out.Tree, "node_modules") {
     t.Fatalf("tree includes node_modules, should be skipped:\n%s", out.Tree)
   }
+
   if strings.Contains(out.Tree, ".git") {
     t.Fatalf("tree includes .git, should be skipped:\n%s", out.Tree)
   }
+
   if !strings.Contains(out.Tree, "src/") {
     t.Fatalf("tree missing src/:\n%s", out.Tree)
   }
@@ -137,9 +149,11 @@ func TestListDirectoryRespectsDepth(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   if strings.Contains(out.Tree, "deep.txt") {
     t.Fatalf("depth=1 tree should not reach 3 levels down:\n%s", out.Tree)
   }
+
   if !strings.Contains(out.Tree, "a/") {
     t.Fatalf("depth=1 tree missing top-level a/:\n%s", out.Tree)
   }
@@ -162,15 +176,18 @@ func TestRunCommandRejectsUnlistedBinary(t *testing.T) {
   if out != nil {
     t.Fatalf("RunCommand returned output for a disallowed binary: %+v", out)
   }
+
   if cmdErr == nil {
     t.Fatal("expected an error for a disallowed binary")
   }
+
   found := false
   for _, b := range cmdErr.Allowed {
     if b == "echo" {
       found = true
     }
   }
+
   if !found {
     t.Fatalf("error.Allowed = %v, want it to list \"echo\"", cmdErr.Allowed)
   }
@@ -190,9 +207,11 @@ func TestRunCommandSuccess(t *testing.T) {
   if cmdErr != nil {
     t.Fatalf("RunCommand: %+v", cmdErr)
   }
+
   if strings.TrimSpace(out.Stdout) != "hi" {
     t.Fatalf("Stdout = %q", out.Stdout)
   }
+
   if out.ExitCode != 0 || out.DryRun {
     t.Fatalf("unexpected result flags: %+v", out)
   }
@@ -205,6 +224,7 @@ func TestRunCommandDryRunFlowsThrough(t *testing.T) {
   if cmdErr != nil {
     t.Fatalf("RunCommand: %+v", cmdErr)
   }
+
   if !out.DryRun {
     t.Fatalf("expected DryRun=true to flow through to the tool output, got %+v", out)
   }
@@ -220,6 +240,7 @@ func requireRipgrep(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   if _, err := cfg.RunForce(context.Background(), "rg", []string{"--version"}); err != nil {
     t.Skip("ripgrep (rg) not available — skipping search_code tests")
   }
@@ -234,6 +255,7 @@ func TestSearchCodeFindsMatches(t *testing.T) {
   if err != nil {
     t.Fatalf("SearchCode: %v", err)
   }
+
   if !strings.Contains(out.Matches, "NeedleFunc") {
     t.Fatalf("Matches = %q, want it to contain NeedleFunc", out.Matches)
   }
@@ -248,6 +270,7 @@ func TestSearchCodeNoMatches(t *testing.T) {
   if err != nil {
     t.Fatalf("SearchCode: %v", err)
   }
+
   if out.Matches != "(no matches)" {
     t.Fatalf("Matches = %q, want the no-matches sentinel", out.Matches)
   }
@@ -269,6 +292,7 @@ func TestWebSearchNilManagerIsCleanError(t *testing.T) {
   if err == nil {
     t.Fatal("expected an error when no searxng.Manager is configured")
   }
+
   if !strings.Contains(err.Error(), "docker") {
     t.Fatalf("error = %q, want it to explain docker wasn't found", err)
   }
@@ -313,5 +337,77 @@ func TestRunCommandGuardsSedAndFind(t *testing.T) {
     if _, err := RunCommand(context.Background(), cfg, RunCommandInput{ Binary: "find", Args: []string{ ".", a } }); err == nil {
       t.Errorf("find %s was allowed", a)
     }
+  }
+}
+
+func TestRunCommandJailsPathArgs(t *testing.T) {
+  cfg := newTestSandbox(t, sandbox.Options{})
+  writeFile(t, cfg.Root, "a.txt", "hello\n")
+  ctx := context.Background()
+
+  for _, args := range [][]string{
+    { "../secret.txt" },
+    { "/etc/hostname" },
+    { "--file=/etc/hostname" },
+    { "~/.bashrc" },
+  } {
+    _, err := RunCommand(ctx, cfg, RunCommandInput{ Binary: "cat", Args: args })
+    if err == nil || !strings.Contains(err.Error, "request_access") {
+      t.Errorf("cat %v = %v, want an outside-the-project error", args, err)
+    }
+  }
+
+  out, err := RunCommand(ctx, cfg, RunCommandInput{ Binary: "grep", Args: []string{ "-n", "s/he/x/", "a.txt", "./a.txt" } })
+  if err != nil || out.ExitCode > 1 {
+    t.Fatalf("in-project paths and path-like patterns refused: %v %+v", err, out)
+  }
+
+  if _, err := RunCommand(ctx, cfg, RunCommandInput{ Binary: "echo", Args: []string{ "/etc" } }); err != nil {
+    t.Fatalf("echo takes text, not paths: %v", err)
+  }
+
+  _, err = RunCommand(ctx, cfg, RunCommandInput{ Binary: "cat", Args: []string{ "slides.PDF" } })
+  if err == nil || !strings.Contains(err.Error, "read_pdf") {
+    t.Fatalf("cat on a PDF = %v, want a read_pdf hint", err)
+  }
+}
+
+func TestRunProgramPlanAndRun(t *testing.T) {
+  cfg := newTestSandbox(t, sandbox.Options{})
+  writeFile(t, cfg.Root, "hello.c", "#include <stdio.h>\nint main(void) { puts(\"hi\"); return 3; }\n")
+  os.MkdirAll(filepath.Join(cfg.Root, "build"), 0o755)
+  ctx := context.Background()
+
+  for _, in := range []RunProgramInput{
+    { Binary: "curl", Args: []string{ "example.com" } },
+    { Binary: "rm", Args: []string{ "-rf", "/" } },
+    { Binary: "rm", Args: []string{ "-rf", "~" } },
+    { Binary: "/usr/bin/gcc" },
+    { Binary: "gcc", Args: []string{ "-o", "../out", "hello.c" } },
+    { Binary: "gcc", Dir: ".." },
+    { Binary: "./missing" },
+  } {
+    if _, _, err := PlanProgram(cfg, in); err == nil {
+      t.Errorf("PlanProgram(%+v) was allowed", in)
+    }
+  }
+
+  if _, err := exec.LookPath("cc"); err != nil {
+    t.Skip("no C compiler")
+  }
+
+  out, err := RunProgram(ctx, cfg, RunProgramInput{ Binary: "cc", Args: []string{ "-o", "build/hello", "hello.c" } })
+  if err != nil || out.ExitCode != 0 {
+    t.Fatalf("compile = %+v, %v", out, err)
+  }
+
+  out, err = RunProgram(ctx, cfg, RunProgramInput{ Binary: "./hello", Dir: "build" })
+  if err != nil || out.ExitCode != 3 || out.Dir != "build" {
+    t.Fatalf("./hello in build = %+v, %v", out, err)
+  }
+
+  out, err = RunProgram(ctx, cfg, RunProgramInput{ Binary: "./build/hello" })
+  if err != nil || out.ExitCode != 3 || !strings.Contains(out.Output, "hi") {
+    t.Fatalf("run = %+v, %v", out, err)
   }
 }

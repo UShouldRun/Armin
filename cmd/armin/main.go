@@ -62,8 +62,11 @@ How tools run:
 - run_command runs ONE allowlisted program directly, with no shell. Pipes (|), redirects (>, <), &&, ;, globs (*.go), $VARS and cd do not work. Put the program in "binary" and each argument as its own array element: {"binary":"grep","args":["-rn","TODO","internal"]}, never {"binary":"grep -rn TODO | head"}.
 - The working directory is always the project root. Use paths relative to it, or absolute paths; there is no cd. Need several steps? Make several calls.
 - sed only prints (no -i); edit files with edit_file. find can't -exec or -delete.
+- run_command is read-only. To build, compile, test or run code (make, gcc, mpicc, mpirun, go build, cargo, python3, ./a.out) use run_program: same binary + args form, optional "dir" inside the project, and the user approves each run. Prefer run_tests / build_check when they fit; use run_program for anything else (a specific make target, compiling one file, running the built program with mpirun -np 4).
+- Deleting, moving or copying files (rm, mv, cp) and sending them elsewhere (scp, rsync) also go through run_program; the user is asked every time. Only do it when the task needs it, and never rm anything you didn't create without saying why.
 - Prefer the dedicated tools: read_file over cat/head/tail, search_code over grep, read_pdf for PDFs (cat or pdftotext through run_command won't work).
-- Files outside the project are off limits until granted. If you need a directory outside it (e.g. ".." or ~/Documents), call request_access with the directory and a one-line reason; the user approves or declines. Don't guess around the sandbox with other paths or commands.
+- Files outside the project (e.g. "../slides.pdf", ~/Documents/x.pdf): just call the read tool with that path. armin asks the user for read access before it runs; if they decline, say so and don't retry. To ask for a whole folder up front, call request_access. Never work around the sandbox with other commands.
+- PDFs: always read_pdf (with paths outside the project too). Earlier failures in this conversation don't mean it can't work now: try it.
 - Lines starting with "/" (like /add-dir, /model) are the user's REPL commands, not tools; you can't run them. Suggest one when it would help.
 - If a tool keeps failing, don't repeat it. After two failed attempts at the same thing, stop and tell the user exactly what failed and what you need.
 
@@ -153,7 +156,13 @@ func run() error {
     allowlist[bin] = true
   }
 
+  execAllowlist := sandbox.DefaultExecAllowlist()
+  for _, bin := range fileCfg.ExtraExec {
+    execAllowlist[bin] = true
+  }
+
   sb, err := sandbox.New(flags.root, sandbox.Options{
+    ExecAllowlist: execAllowlist,
     Timeout:      flags.timeout,
     BuildTimeout: fileCfg.BuildTimeout,
     MaxOutput:    flags.maxOutput,
@@ -246,6 +255,7 @@ func run() error {
   // (see internal/llamacpp). This shutdown, like webSearch's above,
   // only stops what armin itself started.
   models := llamacpp.New(buildModelSpecs(fileCfg, flags))
+  sb.Env = models.Environ // no API keys for builds, tests or programs
   models.ReadTimeout = fileCfg.ReadTimeout
   // stderr, not stdout: -lsp speaks its protocol on stdout.
   models.OnStatus = func(s string) {
@@ -329,7 +339,22 @@ func run() error {
 
   systemPrompt := buildSystemPrompt(basePrompt, sb.Root, mem, skills)
 
+  if resumed != nil && resumed.Model != "" && resumed.Model != client.Model && models.Has(resumed.Model) {
+    if err := models.Switch(ctx, client, resumed.Model); err != nil {
+      ui.Error(
+        "resuming with model %q: %s (staying on %q)",
+        resumed.Model, err, flags.model,
+      )
+    }
+  }
+
   if flags.webAddr != "" {
+    for _, dir := range splitList(flags.addDirs) {
+      if _, err := sb.AddReadRoot(dir); err != nil {
+        ui.Error("-add-dir %s: %s", dir, err)
+      }
+    }
+
     return web.Serve(ctx, web.Config{
       Addr:         flags.webAddr,
       Loop:         loop,
@@ -338,16 +363,10 @@ func run() error {
       Sandbox:      sb,
       SystemPrompt: systemPrompt,
       AutoApprove:  flags.autoApprove || fileCfg.AutoApprove,
+      Resumed:      resumed,
+      Autosave:     !flags.noSave,
+      ScratchBase:  scratch.Dir,
     })
-  }
-
-  if resumed != nil && resumed.Model != "" && resumed.Model != client.Model && models.Has(resumed.Model) {
-    if err := models.Switch(ctx, client, resumed.Model); err != nil {
-      ui.Error(
-        "resuming with model %q: %s (staying on %q)",
-        resumed.Model, err, flags.model,
-      )
-    }
   }
 
   r := repl.New(
@@ -695,6 +714,19 @@ func parseFlags(fileCfg config.Config) cliFlags {
   flag.CommandLine.Parse(rest)
 
   if positional != "" {
+    if info, err := os.Stat(positional); err != nil || !info.IsDir() {
+      if positional == "help" {
+        flag.Usage()
+        os.Exit(0)
+      }
+
+      fmt.Fprintf(os.Stderr,
+        "armin: %q isn't a directory. armin takes a project folder, not a "+
+          "command: armin [path] [flags] (armin -h lists the flags)\n",
+        positional)
+      os.Exit(2)
+    }
+
     if rootExplicitlySet() {
       fmt.Fprintln(os.Stderr,
         "armin: both -root and a positional path were given — use one or the other")

@@ -34,6 +34,21 @@ func CallLine(name string, args map[string]any) string {
 
     return name + "  " + strings.Join(parts, " ")
 
+  case toolRunProgram:
+    parts := []string{ str("binary") }
+    if list, ok := args["args"].([]any); ok {
+      for _, a := range list {
+        parts = append(parts, shellWord(fmt.Sprint(a)))
+      }
+    }
+
+    line := name + "  " + strings.Join(parts, " ")
+    if d := str("dir"); d != "" && d != "." {
+      line += "  (in " + d + ")"
+    }
+
+    return line
+
   case toolReadFile:
     loc := str("path")
     if s, e := num("start_line"), num("end_line"); s > 0 || e > 0 {
@@ -189,6 +204,21 @@ func ResultLine(name, result string) string {
 
     return line
 
+  case toolRunProgram:
+    out := strings.TrimSpace(str("output"))
+    line := fmt.Sprintf("exit %d", num("exit_code"))
+    if out != "" {
+      line += " · " + plural(strings.Count(out, "\n") + 1, "line") + " of output"
+    }
+
+    if num("exit_code") != 0 {
+      if last := lastLine(out); last != "" {
+        line += " · " + last
+      }
+    }
+
+    return line
+
   case toolRunTests, toolBuildCheck, toolLintCheck:
     if avail, ok := r["available"].(bool); ok && !avail {
       return "unavailable: " + str("hint")
@@ -256,6 +286,15 @@ func lines(v any) int {
   }
 
   return strings.Count(strings.TrimSuffix(s, "\n"), "\n") + 1
+}
+
+func lastLine(s string) string {
+  s = strings.TrimSpace(s)
+  if i := strings.LastIndexByte(s, '\n'); i >= 0 {
+    return strings.TrimSpace(s[i + 1:])
+  }
+
+  return s
 }
 
 func firstLine(s string) string {

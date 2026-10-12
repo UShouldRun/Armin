@@ -13,12 +13,13 @@ import (
 
   "armin/internal/llm"
   "armin/internal/sandbox"
+  "armin/internal/tools"
 )
 
 func TestToolDefinitionsShape(t *testing.T) {
   defs := ToolDefinitions()
-  if len(defs) != 37 {
-    t.Fatalf("ToolDefinitions() has %d entries, want 37", len(defs))
+  if len(defs) != 38 {
+    t.Fatalf("ToolDefinitions() has %d entries, want 38", len(defs))
   }
 
   names := map[string]bool{}
@@ -396,4 +397,175 @@ func TestRequestAccessAsksThenGrants(t *testing.T) {
   }
 
   _ = root
+}
+
+// TestTurnAsksBeforeReadingOutside: a read outside the project makes
+// armin ask the user before the call runs; a yes grants the folder
+// and the read goes through, a no is remembered for the turn.
+func TestTurnAsksBeforeReadingOutside(t *testing.T) {
+  outside := t.TempDir()
+  os.WriteFile(filepath.Join(outside, "notes.txt"), []byte("fox algorithm"), 0o644)
+  target := filepath.Join(outside, "notes.txt")
+
+  run := func(answer bool) ([]llm.Message, []string) {
+    round := 0
+    loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
+      round++
+      reply := llm.Message{ Role: "assistant", Content: "done" }
+      if round <= 2 {
+        reply = llm.Message{
+          Role: "assistant",
+          ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
+            Name:      "read_file",
+            Arguments: map[string]any{ "path": target, "start_line": float64(round) },
+          } } },
+        }
+      }
+
+      writeChatResponse(t, w, reply)
+    })
+
+    var asked []string
+    hooks := Hooks{ Approve: func(tool, preview string) (bool, string) {
+      asked = append(asked, preview)
+      return answer, ""
+    } }
+
+    history := []llm.Message{ { Role: "system", Content: "sys" } }
+    if _, err := loop.Turn(context.Background(), &history, hooks); err != nil {
+      t.Fatalf("Turn: %v", err)
+    }
+
+    return history, asked
+  }
+
+  history, asked := run(true)
+  if len(asked) != 1 || !strings.Contains(asked[0], outside) {
+    t.Fatalf("asked = %q, want one question naming %s", asked, outside)
+  }
+
+  if !strings.Contains(history[2].Content, "fox algorithm") {
+    t.Fatalf("read after the grant = %s", history[2].Content)
+  }
+
+  history, asked = run(false)
+  if len(asked) != 1 {
+    t.Fatalf("asked %d times after a decline, want 1", len(asked))
+  }
+
+  if !strings.Contains(history[2].Content, "declined") || !strings.Contains(history[4].Content, "declined") {
+    t.Fatalf("results = %s / %s", history[2].Content, history[4].Content)
+  }
+}
+
+func TestRunProgramNeedsApproval(t *testing.T) {
+  loop, _ := newTestLoop(t, func(http.ResponseWriter, *http.Request) {})
+  in := tools.RunProgramInput{ Binary: "go", Args: []string{ "version" } }
+
+  if out := fmt.Sprint(loop.runProgram(context.Background(), in, Hooks{})); !strings.Contains(out, "approval") {
+    t.Fatalf("with nobody to ask = %s", out)
+  }
+
+  var asked string
+  deny := Hooks{ Approve: func(tool, preview string) (bool, string) {
+    asked = tool + ": " + preview
+    return false, "not now"
+  } }
+  out := fmt.Sprint(loop.runProgram(context.Background(), in, deny))
+  if !strings.Contains(out, "declined") || !strings.Contains(out, "not now") {
+    t.Fatalf("declined = %s", out)
+  }
+
+  if asked != "run_program: $ go version" {
+    t.Fatalf("question = %q", asked)
+  }
+
+  allow := Hooks{ Approve: func(string, string) (bool, string) { return true, "" } }
+  res, ok := loop.runProgram(context.Background(), in, allow).(*tools.RunProgramOutput)
+  if !ok || res.ExitCode != 0 || !strings.Contains(res.Output, "go version") {
+    t.Fatalf("approved = %+v", res)
+  }
+}
+
+// TestTurnStopsAModelThatKeepsRetrying replays a session: the user
+// declines "make" with feedback, the model calls make again and
+// again. The feedback must be in the error, and the turn must end in
+// a tool-less answer after maxBlocked refusals, not run to the
+// round limit.
+func TestTurnStopsAModelThatKeepsRetrying(t *testing.T) {
+  calls := 0
+  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
+    calls++
+    var req struct {
+      Tools []any `json:"tools"`
+    }
+
+    json.NewDecoder(r.Body).Decode(&req)
+
+    reply := llm.Message{ Role: "assistant", Content: "sorry, stopping" }
+    if len(req.Tools) > 0 {
+      reply = llm.Message{
+        Role: "assistant",
+        ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
+          Name:      "run_program",
+          Arguments: map[string]any{ "binary": "make" },
+        } } },
+      }
+    }
+
+    writeChatResponse(t, w, reply)
+  })
+
+  asked := 0
+  hooks := Hooks{ Approve: func(string, string) (bool, string) {
+    asked++
+    return false, "this is C, run with gcc"
+  } }
+
+  history := []llm.Message{ { Role: "system", Content: "sys" } }
+  answer, err := loop.Turn(context.Background(), &history, hooks)
+  if err != nil {
+    t.Fatalf("Turn: %v", err)
+  }
+
+  if asked != 1 || answer != "sorry, stopping" {
+    t.Fatalf("asked %d times, answer %q", asked, answer)
+  }
+
+  if calls != 1 + 1 + maxBlocked {
+    t.Fatalf("model called %d times, want %d", calls, 2 + maxBlocked)
+  }
+
+  if !strings.Contains(history[2].Content, "run with gcc") {
+    t.Fatalf("decline result = %s", history[2].Content)
+  }
+}
+
+// TestPrivilegedProgramsAlwaysAsk: rm and friends reach the user as
+// ApprovePrivileged, which no auto-approval may answer.
+func TestPrivilegedProgramsAlwaysAsk(t *testing.T) {
+  loop, root := newTestLoop(t, func(http.ResponseWriter, *http.Request) {})
+  var tool, preview string
+  hooks := Hooks{ Approve: func(t, p string) (bool, string) {
+    tool, preview = t, p
+    return true, ""
+  } }
+
+  out := loop.runProgram(context.Background(), tools.RunProgramInput{ Binary: "rm", Args: []string{ "f.txt" } }, hooks)
+  if tool != ApprovePrivileged || !AlwaysAsk(tool) || !strings.Contains(preview, "$ rm f.txt") {
+    t.Fatalf("asked %q / %q", tool, preview)
+  }
+
+  if res, ok := out.(*tools.RunProgramOutput); !ok || res.ExitCode != 0 {
+    t.Fatalf("rm = %+v", out)
+  }
+
+  if _, err := os.Stat(filepath.Join(root, "f.txt")); !os.IsNotExist(err) {
+    t.Fatal("f.txt still there after an approved rm")
+  }
+
+  loop.runProgram(context.Background(), tools.RunProgramInput{ Binary: "go", Args: []string{ "version" } }, hooks)
+  if AlwaysAsk(tool) {
+    t.Fatalf("go version is asked as %q, want an ordinary run", tool)
+  }
 }

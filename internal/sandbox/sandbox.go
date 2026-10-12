@@ -7,6 +7,7 @@ import (
   "bytes"
   "context"
   "fmt"
+  "os"
   "os/exec"
   "path/filepath"
   "strings"
@@ -48,6 +49,16 @@ type Config struct {
   // (/add-dir): read tools may resolve paths under them; writes stay
   // jailed to Root (see InRoot).
   ReadRoots []string
+
+  // ExecAllowlist is what run_program may start: compilers, build
+  // tools, test runners. Unlike Allowlist these write files and run
+  // project code, so every run is approved by the user.
+  ExecAllowlist map[string]bool
+
+  // Env, if set, is the environment every command gets — armin's
+  // own minus API keys and cloud credentials, which a Makefile or a
+  // test has no business seeing.
+  Env func() []string
 }
 
 // AddReadRoot grants read access to dir (resolved, symlinks
@@ -113,6 +124,95 @@ func DefaultAllowlist() map[string]bool {
   }
 }
 
+// DefaultExecAllowlist is run_program's starting set: build systems,
+// compilers, MPI launchers and test runners. Package managers that
+// install from the network (pip, npx, go install) aren't in it.
+func DefaultExecAllowlist() map[string]bool {
+  out := map[string]bool{}
+  for _, b := range []string{
+    "make", "cmake", "ninja", "meson", "ctest",
+    "gcc", "g++", "cc", "c++", "clang", "clang++", "ld", "ar",
+    "mpicc", "mpicxx", "mpic++", "mpirun", "mpiexec",
+    "go", "gofmt", "cargo", "rustc", "zig",
+    "python3", "python", "pytest",
+    "node", "npm", "pnpm", "yarn", "bun", "deno", "tsc",
+    "javac", "java", "mvn", "gradle", "dotnet",
+    "typst", "pdflatex", "latexmk",
+    "valgrind", "gdb", "time",
+    "rm", "cp", "mv", "scp", "rsync",
+  } {
+    out[b] = true
+  }
+
+  return out
+}
+
+// privileged programs delete, overwrite or move files, or send them
+// to another machine: every run is asked, even when the user
+// approved everything else for the session.
+var privileged = map[string]bool{
+  "rm": true, "cp": true, "mv": true, "scp": true, "rsync": true,
+}
+
+// Privileged reports whether bin is always asked about.
+func Privileged(bin string) bool {
+  return privileged[filepath.Base(bin)]
+}
+
+// CheckExec allows an ExecAllowlist name, or a program inside the
+// project given as a path relative to dir ("./fox", "bin/test.sh"):
+// what the project itself built.
+func (c *Config) CheckExec(bin, dir string) (string, error) {
+  if bin == filepath.Base(bin) {
+    if !c.ExecAllowlist[bin] {
+      return "", fmt.Errorf(
+        "\n\t... in CheckExec:\n\t %q isn't in run_program's allowlist " +
+          "(the user can add it with allow_exec in config.conf)", bin,
+      )
+    }
+
+    return bin, nil
+  }
+
+  if filepath.IsAbs(bin) {
+    return "", fmt.Errorf(
+      "\n\t... in CheckExec:\n\t %q: give programs inside the project " +
+        "as relative paths (./build/x); outside ones aren't allowed", bin,
+    )
+  }
+
+  resolved, err := c.ResolvePath(filepath.Join(dir, bin))
+  if err != nil || !c.InRoot(resolved) {
+    return "", fmt.Errorf(
+      "\n\t... in CheckExec:\n\t %q isn't a program inside the project", bin,
+    )
+  }
+
+  info, err := os.Stat(resolved)
+  if err != nil || info.IsDir() || info.Mode() & 0o111 == 0 {
+    return "", fmt.Errorf(
+      "\n\t... in CheckExec:\n\t %q doesn't exist or isn't executable " +
+        "(build it first)", bin,
+    )
+  }
+
+  return resolved, nil
+}
+
+// RunIn is RunBuild in dir, a directory inside the project.
+func (c *Config) RunIn(
+  ctx context.Context, dir, binary string, args []string,
+) (*RunResult, error) {
+  stdout, stderr, exitCode, err := c.runAt(
+    ctx, "RunIn", c.BuildTimeout, dir, binary, args,
+  )
+  if err != nil {
+    return nil, err
+  }
+
+  return &RunResult{ Stdout: stdout, Stderr: stderr, ExitCode: exitCode }, nil
+}
+
 // Options configures New. Zero-value Options is a workable default:
 // empty root resolves to ".", zero Timeout/MaxOutput fall back to
 // sane defaults so callers that only care about the path jail don't
@@ -123,6 +223,8 @@ type Options struct {
   MaxOutput    int
   Allowlist    map[string]bool
   DryRun       bool
+
+  ExecAllowlist map[string]bool
   Commands     Commands
 }
 
@@ -142,6 +244,11 @@ func New(root string, opts Options) (*Config, error) {
   allowlist := opts.Allowlist
   if allowlist == nil {
     allowlist = DefaultAllowlist()
+  }
+
+  execAllowlist := opts.ExecAllowlist
+  if execAllowlist == nil {
+    execAllowlist = DefaultExecAllowlist()
   }
 
   timeout := opts.Timeout
@@ -167,6 +274,8 @@ func New(root string, opts Options) (*Config, error) {
     MaxOutput:    maxOutput,
     DryRun:       opts.DryRun,
     Commands:     opts.Commands,
+
+    ExecAllowlist: execAllowlist,
   }, nil
 }
 
@@ -208,10 +317,36 @@ func (c *Config) ResolvePath(path string) (string, error) {
   }
 
   return "", fmt.Errorf(
-    "\n\t... in ResolvePath:\n\t path %q escapes project root %q "+
-      "(the user can grant read access with /add-dir)",
-    path, c.Root,
+    "\n\t... in ResolvePath:\n\t%w",
+    &OutsideError{ Path: path, Resolved: resolved, Root: c.Root },
   )
+}
+
+// OutsideError is a path outside the project and every granted
+// directory. Callers that can ask the user (the agent loop) look for
+// it with errors.As and offer to grant Dir.
+type OutsideError struct {
+  Path     string // as given
+  Resolved string // absolute, symlinks resolved
+  Root     string
+}
+
+func (e *OutsideError) Error() string {
+  return fmt.Sprintf(
+    "path %q is outside the project %q and not readable yet: call "+
+      "request_access with its directory to ask the user for read access",
+    e.Path, e.Root,
+  )
+}
+
+// Dir is the directory to grant for the path: itself if it is one,
+// else its parent.
+func (e *OutsideError) Dir() string {
+  if info, err := os.Stat(e.Resolved); err == nil && info.IsDir() {
+    return e.Resolved
+  }
+
+  return filepath.Dir(e.Resolved)
 }
 
 // resolveExistingPrefix evaluates symlinks on the longest existing
@@ -381,11 +516,24 @@ func (c *Config) runWith(
   ctx context.Context, callerName string, timeout time.Duration,
   binary string, args []string,
 ) (stdout, stderr string, exitCode int, err error) {
+  return c.runAt(ctx, callerName, timeout, c.Root, binary, args)
+}
+
+func (c *Config) runAt(
+  ctx context.Context, callerName string, timeout time.Duration,
+  dir, binary string, args []string,
+) (stdout, stderr string, exitCode int, err error) {
   ctx, cancel := context.WithTimeout(ctx, timeout)
   defer cancel()
 
   cmd := exec.CommandContext(ctx, binary, args...)
-  cmd.Dir = c.Root
+  cmd.Dir = dir
+  // A killed make can leave a compiler holding the output pipes;
+  // don't wait on it forever.
+  cmd.WaitDelay = 5 * time.Second
+  if c.Env != nil {
+    cmd.Env = c.Env()
+  }
 
   var outBuf, errBuf bytes.Buffer
   cmd.Stdout = &outBuf

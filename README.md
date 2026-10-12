@@ -208,6 +208,21 @@ The original five:
   uname date basename dirname realpath nl sha256sum md5sum`. `sed`
   always runs with `--sandbox` and `-i` is refused; `find` refuses
   `-exec`, `-delete` and the `-fprint` family.
+- **`run_program`** — builds, compiles, tests and runs code: `make`,
+  `cmake`, `ninja`, `gcc`, `g++`, `clang`, `mpicc`, `mpirun`,
+  `go`, `cargo`, `python3`, `pytest`, `node`, `npm`, `javac`,
+  `typst`, `valgrind`, `gdb` and more, or a program the project
+  built (`./build/fox`). Same no-shell `binary` + `args` form, an
+  optional `dir` inside the project, and the build timeout. Each
+  run is shown as `$ command` and asks `run it?`; `a` approves
+  the rest of the session and `-yes` skips the question. It never
+  runs where nobody can approve (the editor's read-only mode,
+  MCP). Paths stay inside the project, and every command armin
+  starts gets an environment with API keys and cloud credentials
+  removed. `allow_exec = a, b` in config.conf adds programs.
+  `rm`, `cp`, `mv`, `scp` and `rsync` are **privileged**: asked
+  every time, even under `-yes` or after `a`, which only covers
+  that one run for them.
 - **`web_search`** — queries a local [SearXNG](https://docs.searxng.org)
   instance for things not in the codebase (library docs, error
   messages, current facts). `internal/searxng` owns a Docker container
@@ -324,8 +339,12 @@ inside them, and every write tool still refuses anything outside
 the project. armin tells the model what it can now read and lists
 the directory, so "read the slides in the parent folder" works.
 
-The model can also ask: `request_access` names a directory and a
-reason, and armin asks `grant read access?`. That question is
+You don't have to do it up front: when the model reads a path
+outside the project (`read_pdf ../slides.pdf`, `cat ../notes.txt`),
+armin asks `grant read access?` before the call runs, and grants
+the file's folder on a yes. A folder you decline isn't asked about
+again that turn. The model can also ask for a whole folder with
+`request_access`, which names a directory and a reason. That question is
 asked even under `-yes` or "all this session", which only cover
 file writes. Front ends with no one to ask (the editor's
 read-only mode, MCP) refuse and tell the model to suggest
@@ -355,6 +374,8 @@ Enforced in code, not left to model judgment:
   path and must stay under `-root`.
 - **Binary allowlist** — `run_command` only execs names explicitly
   allowed; extend it via config, never by letting the model ask.
+  Its path-like arguments (`..`, anything with a `/`, `~/…`,
+  `--flag=path`) go through the same jail as every other tool's.
 - **No shell** — arguments are always a literal argv array; there's
   nothing for `;`, `|`, `&&`, `$()` etc. to be interpreted by.
 - **Repeat guard** — a call identical to one that failed, with no
@@ -382,6 +403,7 @@ llama_url  = http://localhost:8080
 timeout    = 30s
 max_output = 5000
 allow      = curl, docker
+allow_exec = mpirun, bazel   # extra run_program programs
 
 # Everything above is the zero-config path: -model's name ("chat")
 # has no models.<name> block below, so it falls back to whatever's
@@ -395,6 +417,7 @@ models.coder.args        = --ctx-size 8192 --n-gpu-layers 999
 ```
 
 `allow` appends to the default binary allowlist; it doesn't replace it.
+`allow_exec` does the same for `run_program`'s list.
 
 Every llama-server armin starts, local or remote, gets lean
 defaults that spend memory on context instead of features a
@@ -831,8 +854,13 @@ not have in a terminal:
   Web-search answers carry their numbered Sources.
 - **Thinking** streams into a collapsed "thinking" block; tool calls
   and `context:` notices appear as they happen.
-- **File writes** show their diff with Apply / Decline and a box to
-  tell the model what to do instead (`-yes` skips this).
+- **Approvals**: file writes show their diff (Apply), `run_program`
+  the command (Run), reads outside the project the folder (Grant),
+  each with Decline and a box to tell the model what to do instead
+  (`-yes` skips writes and runs, never access).
+- **The file list** reloads after the model writes a file or runs a
+  program, at the end of each turn, and when you return to the tab;
+  an open preview of a changed file reloads too.
 - **Header**: model picker, a context meter (with the tier when the
   model has a streaming one), `compact` and `clear`. "Ask about this
   file" puts the previewed file into your message.
@@ -842,8 +870,13 @@ the binary — no build step, no libraries, nothing fetched from the
 internet. It only binds to a loopback address, and rejects requests
 whose `Host` or `Origin` isn't local, so another site open in your
 browser can't drive it. Previewed project files are served as plain
-text (never as HTML on armin's origin). The browser session lives in
-memory; it isn't saved like REPL sessions are.
+text (never as HTML on armin's origin).
+
+The browser conversation is a session like a REPL one: saved after
+every turn, named by the model, listed by `armin -resume`, and
+resumable in either front end. `armin -resume <id> -web …` opens it
+in the browser with the earlier messages shown; `clear` starts a new
+session. `-add-dir` works here too.
 
 ## Sessions
 

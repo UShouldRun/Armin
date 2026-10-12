@@ -173,9 +173,9 @@ func (r *REPL) turn(ctx context.Context, input string) error {
 
   {
     hooks.Approve = func(tool, preview string) (bool, string) {
-      // Auto-approve covers file writes; access outside the project
-      // is always asked.
-      if r.state & flagAutoApprove != 0 && tool != "request_access" {
+      // Auto-approve covers file writes and runs; access outside the
+      // project and privileged programs are always asked.
+      if r.state & flagAutoApprove != 0 && !agent.AlwaysAsk(tool) {
         return true, ""
       }
 
@@ -234,15 +234,20 @@ func (r *REPL) approve(tool, preview string) (bool, string) {
   }
 
   question := "apply " + tool + "?"
-  if tool == "request_access" {
+  switch tool {
+  case "request_access":
     question = "grant read access?"
+  case "run_program", agent.ApprovePrivileged:
+    question = "run it?"
   }
 
-  fmt.Printf(
-    "%s %s ",
-    ui.Yellow(question),
-    ui.Dim("[y]es / [n]o / [a]ll this session / or type feedback:"),
-  )
+  // What's always asked can't be approved for the whole session.
+  options := "[y]es / [n]o / [a]ll this session / or type feedback:"
+  if agent.AlwaysAsk(tool) {
+    options = "[y]es / [n]o / or type feedback:"
+  }
+
+  fmt.Printf("%s %s ", ui.Yellow(question), ui.Dim(options))
   answer, err := r.reader.ReadString('\n')
   if err != nil {
     return false, ""
@@ -253,6 +258,10 @@ func (r *REPL) approve(tool, preview string) (bool, string) {
   case "y", "yes", "":
     return true, ""
   case "a", "all":
+    if agent.AlwaysAsk(tool) {
+      return true, "" // just this once
+    }
+
     r.state |= flagAutoApprove
 
     return true, ""

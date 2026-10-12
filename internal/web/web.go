@@ -22,6 +22,7 @@ import (
   "strings"
   "sync"
   "sync/atomic"
+  "syscall"
   "time"
 
   "armin/internal/agent"
@@ -55,15 +56,25 @@ type Config struct {
   SystemPrompt string
   // AutoApprove applies file writes without asking.
   AutoApprove bool
+
+  // Resumed, if set, is the session to continue (armin -resume).
+  Resumed *session.Saved
+  // Autosave writes the session after every turn, like the REPL.
+  Autosave bool
+  // ScratchBase is the project's scratch folder; the session's own
+  // scratchpad is a folder under it named by the session id.
+  ScratchBase string
 }
 
 // Server holds the one browser session.
 type Server struct {
   cfg Config
 
-  mu      sync.Mutex // guards history and turns: one turn at a time
-  history []llm.Message
-  tokens  int
+  mu        sync.Mutex // guards history and turns: one turn at a time
+  history   []llm.Message
+  tokens    int
+  meta      session.Meta
+  persisted int // messages of history already on disk
 
   approvals sync.Map // id → chan decision
   nextID    atomic.Uint64
@@ -77,10 +88,25 @@ type decision struct {
 // New builds a server with a fresh session, oriented the same way
 // the REPL's is (project manifest folded into the system prompt).
 func New(ctx context.Context, cfg Config) *Server {
+  if cfg.ScratchBase == "" && cfg.Loop.Scratch != nil {
+    cfg.ScratchBase = cfg.Loop.Scratch.Dir
+  }
+
   s := &Server{ cfg: cfg }
-  // The browser session gets its own scratchpad, like a REPL session.
-  if sp := cfg.Loop.Scratch; sp != nil {
-    sp.Dir = filepath.Join(sp.Dir, "web-" + session.NewID())
+  if r := cfg.Resumed; r != nil {
+    s.history = r.History
+    s.meta = r.Meta
+    // Today's prompt replaces the saved one (memories and skills may
+    // have changed), so the first save rewrites the file.
+    if len(s.history) > 0 && s.history[0].Role == "system" {
+      s.history[0].Content = cfg.SystemPrompt
+    }
+
+    cfg.Loop.ElideOld(s.history)
+    agent.SetModelLine(s.history, cfg.Client.Model, s.label(cfg.Client.Model))
+    s.bindScratch()
+
+    return s
   }
 
   s.reset(ctx)
@@ -88,7 +114,50 @@ func New(ctx context.Context, cfg Config) *Server {
   return s
 }
 
+// bindScratch gives the session its own scratchpad folder, like the
+// REPL's; a legacy session keeps the project-wide one.
+func (s *Server) bindScratch() {
+  sp := s.cfg.Loop.Scratch
+  if sp == nil {
+    return
+  }
+
+  base := s.cfg.ScratchBase
+  sp.Dir = base
+  if len(s.meta.ID) == 36 {
+    sp.Dir = filepath.Join(base, s.meta.ID)
+  }
+}
+
+// save appends the turn to the session file, naming the session
+// after its first turn. Called with s.mu held.
+func (s *Server) save(ctx context.Context) {
+  if !s.cfg.Autosave {
+    return
+  }
+
+  if s.meta.Title == "" {
+    tctx, cancel := context.WithTimeout(ctx, 30 * time.Second)
+    s.meta.Title = convo.Title(tctx, s.cfg.Client, s.history)
+    cancel()
+    s.persisted = 0 // the title is in the first line
+  }
+
+  s.meta.Model = s.cfg.Client.Model
+  if err := session.Append(&s.meta, s.history, &s.persisted); err != nil {
+    fmt.Fprintf(os.Stderr, "armin: saving session: %s\n", err)
+  }
+}
+
+// reset starts a new session: a fresh id, prompt and scratchpad.
 func (s *Server) reset(ctx context.Context) {
+  s.meta = session.Meta{
+    ID: session.NewID(), Root: s.cfg.Sandbox.Root, Model: s.cfg.Client.Model,
+  }
+
+  s.persisted = 0
+  s.bindScratch()
+
   prompt := s.cfg.SystemPrompt
   out, err := tools.ProjectManifest(ctx, s.cfg.Sandbox, tools.ProjectManifestInput{})
   if err == nil && out.Note != "" {
@@ -130,8 +199,17 @@ func Serve(ctx context.Context, cfg Config) error {
     srv.Shutdown(shut)
   }()
 
+  ln, err := net.Listen("tcp", cfg.Addr)
+  if errors.Is(err, syscall.EADDRINUSE) {
+    return fmt.Errorf("\n\t... in Serve:\n\t %s", inUse(cfg.Addr))
+  }
+
+  if err != nil {
+    return fmt.Errorf("\n\t... in Serve:\n\t%w", err)
+  }
+
   fmt.Fprintf(os.Stderr, "armin web UI: http://%s\n", cfg.Addr)
-  if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+  if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
     return fmt.Errorf("\n\t... in Serve:\n\t%w", err)
   }
 
@@ -144,6 +222,7 @@ func (s *Server) routes() http.Handler {
   mux.Handle("GET /", http.FileServerFS(page))
   mux.HandleFunc("GET /api/info", s.info)
   mux.HandleFunc("GET /api/files", s.files)
+  mux.HandleFunc("GET /api/history", s.historyView)
   mux.HandleFunc("GET /api/raw", s.raw)
   mux.HandleFunc("POST /api/chat", s.chat)
   mux.HandleFunc("POST /api/approve", s.approve)
@@ -375,12 +454,13 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
       })
     },
     Compacted: func(before, after int) {
+      s.persisted = 0 // history was rewritten; next save is full
       ev.send("notice", compactedNote(before, after))
     },
   }
 
   hooks.Approve = func(tool, preview string) (bool, string) {
-    if s.cfg.AutoApprove && tool != "request_access" {
+    if s.cfg.AutoApprove && !agent.AlwaysAsk(tool) {
       return true, ""
     }
 
@@ -390,10 +470,75 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
   answer, err := s.cfg.Loop.Turn(r.Context(), &s.history, hooks)
   if err != nil {
     ev.send("error", err.Error())
-    return
+  } else {
+    ev.send("done", answer)
   }
 
-  ev.send("done", answer)
+  // Saved after the answer is on screen: naming the session costs a
+  // model call the user shouldn't wait for. A failed turn is saved
+  // too — what it did (edits, runs) happened.
+  s.save(context.WithoutCancel(r.Context()))
+}
+
+// inUse explains a busy address: another armin web UI (it answers
+// /api/info) or some other program.
+func inUse(addr string) string {
+  host, port, _ := net.SplitHostPort(addr)
+  next, _ := strconv.Atoi(port)
+  other := net.JoinHostPort(host, strconv.Itoa(next + 1))
+
+  client := http.Client{ Timeout: time.Second }
+  resp, err := client.Get("http://" + addr + "/api/info")
+  if err == nil {
+    resp.Body.Close()
+    if resp.StatusCode == http.StatusOK {
+      return "another armin web UI is already running at http://" + addr +
+        ": open that one, or stop it first (Ctrl-C in its terminal), " +
+        "or use another address (-web " + other + ")"
+    }
+  }
+
+  return addr + " is in use by another program: pick another address (-web " + other + ")"
+}
+
+// historyEntry is one line of the conversation for the page to
+// redraw a resumed session.
+type historyEntry struct {
+  Role string `json:"role"` // user, assistant, tool
+  Text string `json:"text"`
+}
+
+// historyView is what the page shows of the history: what the user
+// and the model said, and the tools called. Tool results, notes
+// armin added and the system prompt stay out.
+func (s *Server) historyView(w http.ResponseWriter, r *http.Request) {
+  s.mu.Lock()
+  defer s.mu.Unlock()
+
+  out := []historyEntry{}
+  for _, m := range s.history {
+    switch m.Role {
+    case "user":
+      if !strings.HasPrefix(m.Content, "[armin]") {
+        out = append(out, historyEntry{ "user", m.Content })
+      }
+
+    case "assistant":
+      for _, c := range m.ToolCalls {
+        out = append(out, historyEntry{ "tool", agent.CallLine(c.Function.Name, c.Function.Arguments) })
+      }
+
+      if strings.TrimSpace(m.Content) != "" {
+        out = append(out, historyEntry{ "assistant", m.Content })
+      }
+    }
+  }
+
+  writeJSON(w, map[string]any{
+    "title":   s.meta.Title,
+    "id":      s.meta.ID,
+    "entries": out,
+  })
 }
 
 // ask sends a write's diff to the page and waits for its decision.
@@ -482,6 +627,9 @@ func (s *Server) command(w http.ResponseWriter, r *http.Request) {
       http.Error(w, err.Error(), http.StatusBadRequest)
       return
     }
+
+    s.persisted = 0
+    s.save(r.Context())
 
     after := convo.Analyze(s.history).ApproxTokens
     writeJSON(w, map[string]string{
