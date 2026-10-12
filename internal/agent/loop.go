@@ -11,6 +11,7 @@ import (
   "fmt"
   "os"
   "path/filepath"
+  "sort"
   "strings"
   "sync"
 
@@ -75,6 +76,7 @@ type Loop struct {
 
   defsOnce   sync.Once
   defs       []llm.ToolDefinition
+  params     map[string]map[string]bool // tool → its parameter names
   defsTokens int // rough size of defs, sent with every request
 }
 
@@ -134,6 +136,16 @@ func (l *Loop) Definitions() []llm.ToolDefinition {
     l.defs = append(l.defs, l.noteDefinitions()...)
     raw, _ := json.Marshal(l.defs)
     l.defsTokens = len(raw) / 4
+
+    l.params = make(map[string]map[string]bool, len(l.defs))
+    for _, d := range l.defs {
+      names := make(map[string]bool, len(d.Function.Parameters.Properties))
+      for k := range d.Function.Parameters.Properties {
+        names[k] = true
+      }
+
+      l.params[d.Function.Name] = names
+    }
   })
 
   return l.defs
@@ -971,6 +983,7 @@ func (l *Loop) Turn(
   failed := map[string]string{} // name+args → error since the last success
   declined := map[string]bool{}  // directories the user refused this turn
   blocked := 0                   // repeats the guard refused this turn
+  ran := map[string]string{}     // run tool call → its result, this turn
 
   defer func() { l.endTurn(history, turnStart, hooks) }()
 
@@ -1005,6 +1018,7 @@ func (l *Loop) Turn(
         return "", fmt.Errorf("\n\t... in Turn:\n\t%w", err)
       }
 
+      normalizeArgs(&call)
       if hooks.ToolCall != nil {
         hooks.ToolCall(call.Function.Name, call.Function.Arguments)
       }
@@ -1039,8 +1053,23 @@ func (l *Loop) Turn(
         // with nothing working in between is blocked.
         if msg := errorOf(resultJSON); msg != "" {
           failed[key] = msg
+        } else if prev, ok := ran[key]; ok && prev == string(resultJSON) && runTool(call.Function.Name) {
+          // The same run, the same output: running it again won't
+          // change anything.
+          blocked++
+          resultJSON, _ = json.Marshal(map[string]any{
+            "error": "this is the same call you already ran this turn, " +
+              "and it gave exactly the same result as before (below). " +
+              "Running it again won't change anything: do something " +
+              "else, or stop and tell the user.",
+            "result": json.RawMessage(resultJSON),
+          })
         } else {
           clear(failed)
+        }
+
+        if runTool(call.Function.Name) && errorOf(resultJSON) == "" {
+          ran[key] = string(resultJSON)
         }
       }
 
@@ -1077,6 +1106,146 @@ func (l *Loop) Turn(
   *history = append(*history, *reply)
 
   return l.finish(history, sources, hooks), nil
+}
+
+// unknownParams names arguments the tool doesn't have. Decoding
+// would silently drop them — "arguments" for "args" ran a bare
+// find — so they're an error the model can correct.
+func (l *Loop) unknownParams(name string, args map[string]any) string {
+  l.Definitions()
+  known, ok := l.params[name]
+  if !ok {
+    return "" // unknown tools are reported by the dispatch
+  }
+
+  var bad []string
+  for k := range args {
+    if !known[k] {
+      bad = append(bad, k)
+    }
+  }
+
+  if len(bad) == 0 {
+    return ""
+  }
+
+  valid := make([]string, 0, len(known))
+  for k := range known {
+    valid = append(valid, k)
+  }
+
+  sort.Strings(bad)
+  sort.Strings(valid)
+
+  return fmt.Sprintf(
+    "%s has no parameter %s; its parameters are: %s. Nothing was run.",
+    name, strings.Join(bad, ", "), strings.Join(valid, ", "),
+  )
+}
+
+// argAliases are names small models use for run_command's and
+// run_program's "args".
+var argAliases = []string{ "arguments", "argv", "arg", "cmd_args", "params", "flags" }
+
+// normalizeArgs fixes the shapes small models give run_command and
+// run_program in place, before the call is shown or run: an alias
+// for "args", args as one string, or the whole command line in
+// "binary". The model's history then holds the fixed call, so it
+// sees the right form.
+func normalizeArgs(call *llm.ToolCall) {
+  id := toolIDs[call.Function.Name]
+  if id != toolRunCommand && id != toolRunProgram {
+    return
+  }
+
+  a := call.Function.Arguments
+  if a == nil {
+    return
+  }
+
+  if _, ok := a["args"]; !ok {
+    for _, alias := range argAliases {
+      if v, ok := a[alias]; ok {
+        a["args"] = v
+        delete(a, alias)
+        break
+      }
+    }
+  }
+
+  if s, ok := a["args"].(string); ok {
+    a["args"] = toAny(splitWords(s))
+  }
+
+  bin, _ := a["binary"].(string)
+  if words := splitWords(bin); len(words) > 1 {
+    list, _ := a["args"].([]any)
+    a["binary"] = words[0]
+    a["args"] = append(toAny(words[1:]), list...)
+  }
+}
+
+func toAny(words []string) []any {
+  out := make([]any, len(words))
+  for i, w := range words {
+    out[i] = w
+  }
+
+  return out
+}
+
+// splitWords splits a command line the way a shell would split
+// plain words and quotes — no variables, globs or escapes beyond
+// quotes.
+func splitWords(s string) []string {
+  var (
+    words []string
+    cur   strings.Builder
+    quote rune
+    in    bool
+  )
+
+  for _, r := range s {
+    switch {
+    case quote != 0:
+      if r == quote {
+        quote = 0
+      } else {
+        cur.WriteRune(r)
+      }
+
+    case r == '\'' || r == '"':
+      quote, in = r, true
+
+    case r == ' ' || r == '\t' || r == '\n':
+      if in {
+        words = append(words, cur.String())
+        cur.Reset()
+        in = false
+      }
+
+    default:
+      cur.WriteRune(r)
+      in = true
+    }
+  }
+
+  if in {
+    words = append(words, cur.String())
+  }
+
+  return words
+}
+
+// runTools execute something; the same call returning the same
+// result again is a loop, not progress.
+func runTool(name string) bool {
+  switch toolIDs[name] {
+  case toolRunCommand, toolRunProgram, toolRunTests, toolBuildCheck, toolLintCheck:
+    return true
+  }
+
+  return false
 }
 
 // callKey identifies a call by tool and arguments; json.Marshal
@@ -1226,6 +1395,10 @@ func (l *Loop) execute(
     return map[string]string{
       "error": "this session is read-only; " + name + " is unavailable",
     }
+  }
+
+  if msg := l.unknownParams(name, call.Function.Arguments); msg != "" {
+    return map[string]string{ "error": msg }
   }
 
   if out, ok := l.executeNote(id, raw); ok {

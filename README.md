@@ -379,8 +379,15 @@ Enforced in code, not left to model judgment:
 - **No shell** — arguments are always a literal argv array; there's
   nothing for `;`, `|`, `&&`, `$()` etc. to be interpreted by.
 - **Repeat guard** — a call identical to one that failed, with no
-  successful call in between, isn't run again; the model is told to
-  change approach or tell the user.
+  successful call in between, isn't run again, and a run (command,
+  build, tests) repeated with exactly the same result is flagged;
+  after two of either the turn stops and the model has to report
+  back.
+- **Strict arguments** — a parameter a tool doesn't have is an error
+  listing the real ones, never silently dropped. For `run_command`
+  and `run_program`, the shapes small models produce are fixed
+  before the call is shown or run: `args` as one string, an alias
+  (`arguments`, `argv`), or the whole command line in `binary`.
 - **Timeout + output cap** — every subprocess call is bounded and
   truncated, with a clear truncation message telling the model how to
   narrow its query.

@@ -569,3 +569,69 @@ func TestPrivilegedProgramsAlwaysAsk(t *testing.T) {
     t.Fatalf("go version is asked as %q, want an ordinary run", tool)
   }
 }
+
+func TestNormalizeArgs(t *testing.T) {
+  cases := []struct {
+    in   map[string]any
+    want string
+  }{
+    { map[string]any{ "binary": "find", "arguments": []any{ ".", "-name", "*.h" } }, `find [. -name *.h]` },
+    { map[string]any{ "binary": "find", "args": `. -name "my file.h"` }, `find [. -name my file.h]` },
+    { map[string]any{ "binary": "mpirun -np 4 ./fox" }, `mpirun [-np 4 ./fox]` },
+    { map[string]any{ "binary": "make", "args": []any{ "run" } }, `make [run]` },
+  }
+
+  for _, c := range cases {
+    call := llm.ToolCall{ Function: llm.ToolCallFunction{ Name: "run_program", Arguments: c.in } }
+    normalizeArgs(&call)
+    got := fmt.Sprint(call.Function.Arguments["binary"], " ", call.Function.Arguments["args"])
+    if got != c.want {
+      t.Errorf("normalizeArgs(%v) = %s, want %s", c.in, got, c.want)
+    }
+  }
+}
+
+func TestUnknownParamsAreAnError(t *testing.T) {
+  loop, _ := newTestLoop(t, func(http.ResponseWriter, *http.Request) {})
+  out := fmt.Sprint(loop.execute(context.Background(), llm.ToolCall{ Function: llm.ToolCallFunction{
+    Name: "read_file", Arguments: map[string]any{ "path": "f.txt", "lines": "1-5" },
+  } }, Hooks{}))
+
+  if !strings.Contains(out, "no parameter lines") || !strings.Contains(out, "start_line") {
+    t.Fatalf("result = %s", out)
+  }
+}
+
+// TestTurnStopsIdenticalReruns: make, make, make with the same
+// "nothing to be done" each time is a loop.
+func TestTurnStopsIdenticalReruns(t *testing.T) {
+  calls := 0
+  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
+    calls++
+    var req struct {
+      Tools []any `json:"tools"`
+    }
+
+    json.NewDecoder(r.Body).Decode(&req)
+
+    reply := llm.Message{ Role: "assistant", Content: "it's built" }
+    if len(req.Tools) > 0 {
+      reply = llm.Message{ Role: "assistant", ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
+        Name: "run_command", Arguments: map[string]any{ "binary": "ls" },
+      } } } }
+    }
+
+    writeChatResponse(t, w, reply)
+  })
+
+  history := []llm.Message{ { Role: "system", Content: "sys" } }
+  answer, err := loop.Turn(context.Background(), &history, Hooks{})
+  if err != nil || answer != "it's built" {
+    t.Fatalf("Turn = %q, %v", answer, err)
+  }
+
+  // ls, ls (same: blocked 1), ls (same: blocked 2, stop), summary.
+  if calls != 4 {
+    t.Fatalf("model called %d times, want 4", calls)
+  }
+}

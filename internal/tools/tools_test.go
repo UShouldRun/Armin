@@ -172,7 +172,7 @@ func TestListDirectoryRejectsNonDirectory(t *testing.T) {
 func TestRunCommandRejectsUnlistedBinary(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{Allowlist: map[string]bool{"echo": true}})
 
-  out, cmdErr := RunCommand(context.Background(), cfg, RunCommandInput{Binary: "rm", Args: []string{"-rf", "/"}})
+  out, cmdErr := RunCommand(context.Background(), cfg, RunCommandInput{Binary: "curl", Args: []string{"example.com"}})
   if out != nil {
     t.Fatalf("RunCommand returned output for a disallowed binary: %+v", out)
   }
@@ -409,5 +409,15 @@ func TestRunProgramPlanAndRun(t *testing.T) {
   out, err = RunProgram(ctx, cfg, RunProgramInput{ Binary: "./build/hello" })
   if err != nil || out.ExitCode != 3 || !strings.Contains(out.Output, "hi") {
     t.Fatalf("run = %+v, %v", out, err)
+  }
+}
+
+func TestRunCommandPointsAtRunProgram(t *testing.T) {
+  cfg := newTestSandbox(t, sandbox.Options{})
+  for _, bin := range []string{ "make", "rm" } {
+    _, err := RunCommand(context.Background(), cfg, RunCommandInput{ Binary: bin })
+    if err == nil || !strings.Contains(err.Error, "run_program") {
+      t.Errorf("run_command %s = %v, want a pointer to run_program", bin, err)
+    }
   }
 }
