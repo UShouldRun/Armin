@@ -11,7 +11,8 @@ func TestWriteThenReadMessageRoundTrip(t *testing.T) {
   var buf bytes.Buffer
   payload := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "test"}
 
-  if err := writeMessage(&buf, payload); err != nil {
+  err := writeMessage(&buf, payload)
+  if err != nil {
     t.Fatalf("writeMessage: %v", err)
   }
 
@@ -26,7 +27,8 @@ func TestWriteThenReadMessageRoundTrip(t *testing.T) {
 
 func TestReadMessageMissingContentLength(t *testing.T) {
   r := bufio.NewReader(strings.NewReader("Foo: bar\r\n\r\n{}"))
-  if _, err := readMessage(r); err == nil {
+  _, err := readMessage(r)
+  if err == nil {
     t.Fatal("expected an error for a frame with no Content-Length header")
   }
 }
@@ -46,7 +48,8 @@ func TestReadMessageHeaderCaseInsensitive(t *testing.T) {
 
 func TestReadMessageEOF(t *testing.T) {
   r := bufio.NewReader(strings.NewReader(""))
-  if _, err := readMessage(r); err == nil {
+  _, err := readMessage(r)
+  if err == nil {
     t.Fatal("expected an error (EOF) reading from an empty stream")
   }
 }
@@ -66,10 +69,12 @@ func TestReadMessageIgnoresUnknownHeaders(t *testing.T) {
 
 func TestReadMessageSequential(t *testing.T) {
   var buf bytes.Buffer
-  if err := writeMessage(&buf, map[string]int{"n": 1}); err != nil {
+  err := writeMessage(&buf, map[string]int{"n": 1})
+  if err != nil {
     t.Fatal(err)
   }
-  if err := writeMessage(&buf, map[string]int{"n": 2}); err != nil {
+  err = writeMessage(&buf, map[string]int{"n": 2})
+  if err != nil {
     t.Fatal(err)
   }
 

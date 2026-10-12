@@ -10,7 +10,8 @@ import (
 
 func TestTruncateSnippetShortStringUnchanged(t *testing.T) {
   s := "a short snippet"
-  if got := truncateSnippet(s); got != s {
+  got := truncateSnippet(s)
+  if got != s {
     t.Fatalf("truncateSnippet(%q) = %q, want unchanged", s, got)
   }
 }
@@ -143,7 +144,8 @@ func TestEnsureSettingsLeavesUserFileAlone(t *testing.T) {
 func TestCategory(t *testing.T) {
   cases := map[string]string{ "": "general", "general": "general", "code": "general,it", "science": "science,general", "bogus": "general" }
   for in, want := range cases {
-    if got := Category(in); got != want {
+    got := Category(in)
+    if got != want {
       t.Errorf("Category(%q) = %q, want %q", in, got, want)
     }
   }

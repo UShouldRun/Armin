@@ -16,7 +16,8 @@ import (
 func newTestServer(t *testing.T) *Server {
   t.Helper()
   root := t.TempDir()
-  if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte("hello"), 0o644); err != nil {
+  err := os.WriteFile(filepath.Join(root, "f.txt"), []byte("hello"), 0o644)
+  if err != nil {
     t.Fatal(err)
   }
   cfg, err := sandbox.New(root, sandbox.Options{})
@@ -50,7 +51,8 @@ func call(t *testing.T, s *Server, id int, method string, params any) rpcRespons
   })
 
   var resp rpcResponse
-  if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &resp); err != nil {
+  err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &resp)
+  if err != nil {
     t.Fatalf("decoding response to %s: %v (raw: %s)", method, err, out.String())
   }
   return resp
@@ -210,7 +212,8 @@ func TestServeEndToEnd(t *testing.T) {
   in.WriteString(`{"jsonrpc":"2.0","id":2,"method":"tools/list"}` + "\n")
 
   var out bytes.Buffer
-  if err := s.Serve(context.Background(), &in, &out); err != nil {
+  err := s.Serve(context.Background(), &in, &out)
+  if err != nil {
     t.Fatalf("Serve: %v", err)
   }
 
@@ -226,7 +229,8 @@ func TestServeEndToEnd(t *testing.T) {
     var resp struct {
       ID json.RawMessage `json:"id"`
     }
-    if err := json.Unmarshal([]byte(line), &resp); err != nil {
+    err := json.Unmarshal([]byte(line), &resp)
+    if err != nil {
       t.Fatalf("decoding response line %q: %v", line, err)
     }
     byID[string(resp.ID)] = line
@@ -246,7 +250,8 @@ func remarshal(t *testing.T, from any, to any) {
   if err != nil {
     t.Fatal(err)
   }
-  if err := json.Unmarshal(b, to); err != nil {
+  err = json.Unmarshal(b, to)
+  if err != nil {
     t.Fatal(err)
   }
 }

@@ -43,7 +43,8 @@ func TestSemanticSearchRanksByTermFrequency(t *testing.T) {
 
 func TestSemanticSearchRequiresQuery(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
-  if _, err := SemanticSearch(context.Background(), cfg, SemanticSearchInput{}); err == nil {
+  _, err := SemanticSearch(context.Background(), cfg, SemanticSearchInput{})
+  if err == nil {
     t.Fatal("expected an error for an empty query")
   }
 }

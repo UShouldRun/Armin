@@ -8,9 +8,6 @@ import (
   "strings"
 )
 
-// Scope says which memory directory an entry lives in.
-type Scope uint8
-
 const (
   ScopeProject Scope = 1 << iota // facts about this codebase
   ScopeUser                      // the user's preferences, any project
@@ -35,19 +32,6 @@ func ParseScope(s string) (Scope, error) {
   }
 
   return 0, fmt.Errorf("scope must be \"project\" or \"user\", got %q", s)
-}
-
-// Memory is one remembered fact: a file whose frontmatter carries
-// the name and a one-line description for the index.
-type Memory struct {
-  Name, Description string
-  Scope             Scope
-  Path              string
-}
-
-// Memories is the two-directory memory store.
-type Memories struct {
-  ProjectDir, UserDir string
 }
 
 func (m *Memories) dir(s Scope) string {
@@ -110,7 +94,8 @@ func (m *Memories) find(name string) (Memory, error) {
 
   for _, s := range []Scope{ ScopeProject, ScopeUser } {
     path := filepath.Join(m.dir(s), safe + ".md")
-    if _, err := os.Stat(path); err == nil {
+    _, err := os.Stat(path)
+    if err == nil {
       return Memory{ Name: safe, Scope: s, Path: path }, nil
     }
   }
@@ -159,7 +144,8 @@ func (m *Memories) Save(
     "---\nname: %s\ndescription: %s\n---\n\n%s\n",
     safe, description, strings.TrimSpace(body),
   )
-  if err := writeAtomic(path, []byte(content)); err != nil {
+  err = writeAtomic(path, []byte(content))
+  if err != nil {
     return Memory{}, fmt.Errorf("\n\t... in Save:\n\t%w", err)
   }
 
@@ -182,7 +168,8 @@ func (m *Memories) Delete(name string) (Memory, error) {
     return Memory{}, fmt.Errorf("\n\t... in Delete:\n\t%w", err)
   }
 
-  if err := os.Remove(mem.Path); err != nil {
+  err = os.Remove(mem.Path)
+  if err != nil {
     return Memory{}, fmt.Errorf("\n\t... in Delete:\n\t%w", err)
   }
 

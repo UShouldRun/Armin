@@ -33,138 +33,8 @@ import (
 // HTTP error.
 var ErrToolsUnsupported = errors.New("model does not support tool calling")
 
-// Message is armin's own message shape, independent of the wire
-// format any particular backend wants — toWireMessages/
-// fromWireMessage translate to and from llama-server's
-// OpenAI-compatible JSON at the edges of this package. Role is one
-// of "system", "user", "assistant", or "tool".
-type Message struct {
-  Role      string     `json:"role"`
-  Content   string     `json:"content"`
-  ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-  // ToolName is set on role:"tool" messages so a human-readable log
-  // doesn't need to cross-reference ToolCallID against the
-  // assistant message that issued it.
-  ToolName string `json:"tool_name,omitempty"`
-  // ToolCallID echoes back the ToolCall.ID that produced this
-  // role:"tool" message's result — required by the OpenAI-shaped
-  // wire protocol to disambiguate results when a model requests
-  // more than one tool call in the same turn.
-  ToolCallID string `json:"tool_call_id,omitempty"`
-  // Reasoning is the model's thinking (llama-server's
-  // reasoning_content). Sent back within a turn so thinking models
-  // keep their chain across tool calls; agent.Loop drops it once the
-  // turn ends.
-  Reasoning string `json:"reasoning_content,omitempty"`
-  // Usage is what the server reported for the request that produced
-  // this message. Never persisted.
-  Usage Usage `json:"-"`
-}
-
-// Usage is the server's token accounting for one request.
-type Usage struct {
-  PromptTokens     int `json:"prompt_tokens"`
-  CompletionTokens int `json:"completion_tokens"`
-}
-
 // Total is the context the conversation occupied after this reply.
 func (u Usage) Total() int { return u.PromptTokens + u.CompletionTokens }
-
-// ToolCall is a single tool invocation the model asked for. ID
-// comes from the model when it supplies one; fromWireMessage
-// synthesizes a positional one ("call_0", "call_1", ...) when it
-// doesn't, so callers can always rely on it being non-empty.
-type ToolCall struct {
-  ID       string           `json:"id"`
-  Function ToolCallFunction `json:"function"`
-}
-
-type ToolCallFunction struct {
-  Name      string         `json:"name"`
-  Arguments map[string]any `json:"arguments"`
-}
-
-// ToolDefinition describes one callable tool using the JSON-schema
-// shape OpenAI-style tool calling (and so llama.cpp's
-// OpenAI-compatible endpoint) expects. Keep Description short —
-// small models are sensitive to prompt bloat, and tool schemas
-// share the same context budget as the conversation.
-type ToolDefinition struct {
-  Type     string       `json:"type"` // always "function"
-  Function ToolFunction `json:"function"`
-}
-
-type ToolFunction struct {
-  Name        string         `json:"name"`
-  Description string         `json:"description"`
-  Parameters  ToolParameters `json:"parameters"`
-}
-
-type ToolParameters struct {
-  Type       string                  `json:"type"` // "object"
-  Properties map[string]ToolProperty `json:"properties"`
-  Required   []string                `json:"required,omitempty"`
-}
-
-type ToolProperty struct {
-  Type        string        `json:"type"`
-  Description string        `json:"description,omitempty"`
-  Items       *ToolProperty `json:"items,omitempty"`
-  Enum        []string      `json:"enum,omitempty"`
-}
-
-// Client is a minimal HTTP client for one already-running
-// llama-server instance.
-type Client struct {
-  BaseURL string
-  // Model is a display label only — llama-server ignores the
-  // "model" field in requests and always answers with whatever
-  // .gguf it was started with. It's still sent, since the
-  // OpenAI-compatible endpoint expects the field to be present, and
-  // used locally for session labels and REPL/LSP display.
-  //
-  // BaseURL/Model are mutated in place by internal/llamacpp's
-  // Manager.Switch on a /model (or armin.model) switch, rather than
-  // this Client being replaced wholesale — callers across the REPL,
-  // agent.Loop, and lspserver all hold the same *Client pointer, so
-  // in-place mutation is what makes a switch visible everywhere at
-  // once. That mutation isn't synchronized against a concurrent
-  // in-flight request (a pre-existing property of this pattern, not
-  // new here) — a /model switch racing a request already in flight
-  // on the same Client can send that request to the new BaseURL
-  // mid-call.
-  Model string
-  HTTP  *http.Client
-
-  // APIKey, if set, is sent as "Authorization: Bearer <APIKey>" on
-  // every request — for a remote OpenAI-compatible endpoint that
-  // needs auth (Claude's, an OpenRouter/LiteLLM proxy, ...), unlike
-  // a local llama-server, which needs none and leaves this empty.
-  // internal/llamacpp.Manager resolves it from a models.<name>.
-  // api_key_env config entry, never a literal key in config.conf.
-  APIKey string
-
-  // OnRequestStart/OnRequestEnd, if set, bracket every Chat/Complete
-  // HTTP round trip (started before the request, ended via defer
-  // once it returns). internal/llamacpp's Manager wires these to
-  // know when a spawned model process is actually in use, so its
-  // idle reaper never stops one mid-request. nil-safe: a zero-value
-  // Client just skips them.
-  OnRequestStart func()
-  OnRequestEnd   func()
-
-  // Ready, if set, runs before every request: internal/llamacpp uses
-  // it to respawn a managed llama-server the idle reaper stopped.
-  // It runs before OnRequestStart, so the in-flight count lands on
-  // the process that actually serves the request.
-  Ready func(ctx context.Context) error
-
-  // ReadTimeout cancels a request once the server has sent nothing
-  // for this long. Unlike a whole-request timeout it never kills a
-  // long generation that keeps streaming. Zero uses
-  // DefaultReadTimeout.
-  ReadTimeout time.Duration
-}
 
 // DefaultReadTimeout covers prompt processing of a large context on
 // a remote box before the first byte arrives.
@@ -181,22 +51,6 @@ func New(baseURL, model string) *Client {
     Model:   model,
     HTTP:    &http.Client{},
   }
-}
-
-// OnToken is called once per content delta as the model streams a
-// reply. It's nil-safe to skip: pass nil to Chat and it behaves
-// like a plain non-streaming call.
-type OnToken func(delta string)
-
-// StreamHandlers receives a reply as it streams. Either field may be
-// nil; with both nil the request isn't streamed at all.
-type StreamHandlers struct {
-  Token, Reasoning OnToken
-
-  // Progress, if set, gets llama-server's prompt-processing
-  // progress (tokens read of total) before the first token: on a
-  // long context that's the silent stretch that looks like a hang.
-  Progress func(done, total int)
 }
 
 func (h StreamHandlers) streaming() bool {
@@ -245,7 +99,8 @@ func (c *Client) ChatStream(
   tools []ToolDefinition, h StreamHandlers,
 ) (*Message, error) {
   if c.Ready != nil {
-    if err := c.Ready(ctx); err != nil {
+    err := c.Ready(ctx)
+    if err != nil {
       return nil, fmt.Errorf("\n\t... in ChatStream:\n\t%w", err)
     }
   }
@@ -259,11 +114,20 @@ func (c *Client) ChatStream(
     )
   }
 
+  model := c.Model
+  if c.ID != "" {
+    model = c.ID
+  }
+
   reqBody := owaiChatRequest{
-    Model:    c.Model,
+    Model:    model,
     Messages: toWireMessages(messages),
     Tools:    wireTools,
     Stream:   h.streaming(),
+  }
+
+  if c.Effort != "" {
+    reqBody.Reasoning = &owaiReasoning{ Effort: c.Effort }
   }
 
   if reqBody.Stream {
@@ -283,7 +147,7 @@ func (c *Client) ChatStream(
   ctx, idle := c.watchIdle(ctx)
   defer idle.stop()
 
-  url := c.BaseURL + "/v1/chat/completions"
+  url := c.endpoint("/v1/chat/completions")
   req, err := http.NewRequestWithContext(
     ctx, http.MethodPost, url, bytes.NewReader(body),
   )
@@ -348,14 +212,6 @@ func drainClose(body io.ReadCloser) {
   body.Close()
 }
 
-// idleWatch cancels a request's context once nothing has been read
-// for the client's ReadTimeout.
-type idleWatch struct {
-  timer   *time.Timer
-  after   time.Duration
-  expired chan struct{}
-}
-
 func (c *Client) watchIdle(
   ctx context.Context,
 ) (context.Context, *idleWatch) {
@@ -389,11 +245,6 @@ func (w *idleWatch) explain(err error) error {
   default:
     return err
   }
-}
-
-type idleReader struct {
-  r io.Reader
-  w *idleWatch
 }
 
 func (ir idleReader) Read(p []byte) (int, error) {
@@ -431,7 +282,8 @@ func readWholeReply(r io.Reader) (*Message, error) {
   }
 
   var parsed owaiChatResponse
-  if err := json.Unmarshal(body, &parsed); err != nil {
+  err = json.Unmarshal(body, &parsed)
+  if err != nil {
     return nil, fmt.Errorf(
       "\n\t... in readWholeReply:\n\t parsing llama-server response: %w (body: %s)",
       err, string(body),
@@ -504,7 +356,8 @@ func readStreamedReply(
     }
 
     var chunk owaiStreamChunk
-    if err := json.Unmarshal(data, &chunk); err != nil {
+    err := json.Unmarshal(data, &chunk)
+    if err != nil {
       return nil, fmt.Errorf(
         "\n\t... in readStreamedReply:\n\t parsing chunk: %w (line: %s)",
         err, data,
@@ -515,7 +368,8 @@ func readStreamedReply(
       usage = *chunk.Usage
     }
 
-    if p := chunk.Progress; p != nil && h.Progress != nil {
+    p := chunk.Progress
+    if p != nil && h.Progress != nil {
       h.Progress(p.Processed, p.Total)
     }
 
@@ -558,7 +412,8 @@ func readStreamedReply(
     }
   }
 
-  if err := scanner.Err(); err != nil {
+  err := scanner.Err()
+  if err != nil {
     return nil, fmt.Errorf(
       "\n\t... in readStreamedReply:\n\t streaming llama-server response: %w",
       err,
@@ -578,7 +433,8 @@ func readStreamedReply(
 
     var args map[string]any
     if acc.arguments.Len() > 0 {
-      if err := json.Unmarshal([]byte(acc.arguments.String()), &args); err != nil {
+      err := json.Unmarshal([]byte(acc.arguments.String()), &args)
+      if err != nil {
         return nil, fmt.Errorf(
           "\n\t... in readStreamedReply:\n\t parsing streamed tool call arguments: %w (raw: %s)",
           err, acc.arguments.String(),
@@ -602,36 +458,9 @@ func readStreamedReply(
   return &final, nil
 }
 
-type toolCallAccumulator struct {
-  id        string
-  name      string
-  arguments strings.Builder
-}
-
-// CompleteOptions tunes one Complete call. Unlike the Ollama-backed
-// version this replaced, there's no per-call Model override:
-// picking a different model means calling a different Client
-// pointed at that model's own llama-server process (see
-// internal/llamacpp.Manager), not a field on this request.
-type CompleteOptions struct {
-  Temperature float64
-  NumPredict  int // cap on generated tokens — this is a completion, not an essay
-  Stop        []string
-}
-
-type infillRequest struct {
-  InputPrefix string   `json:"input_prefix"`
-  InputSuffix string   `json:"input_suffix"`
-  Prompt      string   `json:"prompt"` // required by /infill even when empty — no mid-prompt insertion here
-  NPredict    int      `json:"n_predict,omitempty"`
-  Temperature float64  `json:"temperature"`
-  Stop        []string `json:"stop,omitempty"`
-  Stream      bool     `json:"stream"`
-}
-
-type infillResponse struct {
-  Content string `json:"content"`
-}
+// infillSamplers is llama.vim's chain: top-k/top-p narrow, the
+// infill sampler favors ending cleanly at the suffix.
+var infillSamplers = []string{ "top_k", "top_p", "infill" }
 
 // Complete asks the loaded fill-in-the-middle-capable model to
 // continue prefix with suffix (the code already after the cursor)
@@ -645,21 +474,31 @@ func (c *Client) Complete(
   ctx context.Context, prefix, suffix string, opts CompleteOptions,
 ) (string, error) {
   if c.Ready != nil {
-    if err := c.Ready(ctx); err != nil {
+    err := c.Ready(ctx)
+    if err != nil {
       return "", fmt.Errorf("\n\t... in Complete:\n\t%w", err)
     }
   }
 
   defer c.requestBracket()()
 
-  body, err := json.Marshal(infillRequest{
+  fill := infillRequest{
     InputPrefix: prefix,
     InputSuffix: suffix,
+    InputExtra:  opts.Extra,
+    Prompt:      opts.Prompt,
     NPredict:    opts.NumPredict,
+    NIndent:     opts.Indent,
+    TMaxPredict: opts.MaxPredictMs,
     Temperature: opts.Temperature,
     Stop:        opts.Stop,
-    Stream:      false,
-  })
+    CachePrompt: true,
+  }
+  if opts.TopK > 0 {
+    fill.TopK, fill.TopP, fill.Samplers = opts.TopK, opts.TopP, infillSamplers
+  }
+
+  body, err := json.Marshal(fill)
   if err != nil {
     return "", fmt.Errorf("\n\t... in Complete:\n\t%w", err)
   }
@@ -703,7 +542,8 @@ func (c *Client) Complete(
   }
 
   var parsed infillResponse
-  if err := json.Unmarshal(respBody, &parsed); err != nil {
+  err = json.Unmarshal(respBody, &parsed)
+  if err != nil {
     return "", fmt.Errorf("\n\t... in Complete:\n\t%w", err)
   }
 
@@ -741,13 +581,6 @@ func (c *Client) Health(ctx context.Context) error {
   return nil
 }
 
-type propsResponse struct {
-  NCtx                      int `json:"n_ctx"`
-  DefaultGenerationSettings struct {
-    NCtx int `json:"n_ctx"`
-  } `json:"default_generation_settings"`
-}
-
 // ContextSize asks llama-server's /props for the per-slot context
 // window. Zero with a nil error means the server didn't say (a
 // remote OpenAI-compatible endpoint has no /props at all).
@@ -773,7 +606,8 @@ func (c *Client) ContextSize(ctx context.Context) (int, error) {
   }
 
   var p propsResponse
-  if err := json.NewDecoder(resp.Body).Decode(&p); err != nil {
+  err = json.NewDecoder(resp.Body).Decode(&p)
+  if err != nil {
     return 0, nil
   }
 
@@ -792,87 +626,6 @@ func (c *Client) ContextSize(ctx context.Context) (int, error) {
 // call's arguments travel as a JSON-encoded *string*, not a native
 // object, and every tool call carries an id that a following
 // role:"tool" message must echo back as tool_call_id.
-
-type owaiTool struct {
-  Type     string       `json:"type"` // "function"
-  Function ToolFunction `json:"function"`
-}
-
-type owaiToolCall struct {
-  ID       string           `json:"id"`
-  Type     string           `json:"type"` // "function"
-  Function owaiToolCallFunc `json:"function"`
-}
-
-type owaiToolCallFunc struct {
-  Name      string `json:"name"`
-  Arguments string `json:"arguments"` // JSON-encoded object
-}
-
-type owaiMessage struct {
-  Role             string         `json:"role"`
-  Content          string         `json:"content"`
-  ReasoningContent string         `json:"reasoning_content,omitempty"`
-  ToolCalls        []owaiToolCall `json:"tool_calls,omitempty"`
-  ToolCallID       string         `json:"tool_call_id,omitempty"`
-}
-
-type owaiStreamOptions struct {
-  IncludeUsage bool `json:"include_usage"`
-}
-
-type owaiChatRequest struct {
-  Model         string             `json:"model"`
-  Messages      []owaiMessage      `json:"messages"`
-  Tools         []owaiTool         `json:"tools,omitempty"`
-  Stream        bool               `json:"stream"`
-  StreamOptions *owaiStreamOptions `json:"stream_options,omitempty"`
-
-  // ReturnProgress is llama-server's: stream prompt_progress chunks.
-  ReturnProgress bool `json:"return_progress,omitempty"`
-}
-
-type owaiChoice struct {
-  Message owaiMessage `json:"message"`
-}
-
-type owaiError struct {
-  Message string `json:"message"`
-  Type    string `json:"type"`
-}
-
-type owaiChatResponse struct {
-  Choices []owaiChoice `json:"choices"`
-  Usage   *Usage       `json:"usage,omitempty"`
-  Error   *owaiError   `json:"error,omitempty"`
-}
-
-type owaiStreamToolCall struct {
-  Index    int              `json:"index"`
-  ID       string           `json:"id,omitempty"`
-  Function owaiToolCallFunc `json:"function"`
-}
-
-type owaiStreamDelta struct {
-  Content          string               `json:"content,omitempty"`
-  ReasoningContent string               `json:"reasoning_content,omitempty"`
-  ToolCalls        []owaiStreamToolCall `json:"tool_calls,omitempty"`
-}
-
-type owaiStreamChoice struct {
-  Delta owaiStreamDelta `json:"delta"`
-}
-
-type owaiStreamChunk struct {
-  Choices  []owaiStreamChoice `json:"choices"`
-  Usage    *Usage             `json:"usage,omitempty"`
-  Progress *promptProgress    `json:"prompt_progress,omitempty"`
-}
-
-type promptProgress struct {
-  Total     int `json:"total"`
-  Processed int `json:"processed"`
-}
 
 // toWireMessages translates outgoing history to the OpenAI shape —
 // each ToolCall's map[string]any Arguments becomes a JSON-encoded
@@ -928,7 +681,8 @@ func fromWireMessage(wm owaiMessage) (Message, error) {
   for i, tc := range wm.ToolCalls {
     var args map[string]any
     if tc.Function.Arguments != "" {
-      if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+      err := json.Unmarshal([]byte(tc.Function.Arguments), &args)
+      if err != nil {
         return Message{}, fmt.Errorf(
           "parsing tool call arguments for %q: %w",
           tc.Function.Name, err,
@@ -950,4 +704,16 @@ func fromWireMessage(wm owaiMessage) (Message, error) {
   }
 
   return m, nil
+}
+
+// endpoint joins an OpenAI-style path onto BaseURL, which may or may
+// not end in /v1 already ("https://api.anthropic.com/v1",
+// "https://openrouter.ai/api").
+func (c *Client) endpoint(path string) string {
+  base := strings.TrimSuffix(c.BaseURL, "/")
+  if strings.HasSuffix(base, "/v1") && strings.HasPrefix(path, "/v1/") {
+    return base + path[3:]
+  }
+
+  return base + path
 }

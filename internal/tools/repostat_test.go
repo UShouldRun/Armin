@@ -86,7 +86,8 @@ func TestFindFilesMatchesGlob(t *testing.T) {
 
 func TestFindFilesRequiresPattern(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
-  if _, err := FindFiles(context.Background(), cfg, FindFilesInput{}); err == nil {
+  _, err := FindFiles(context.Background(), cfg, FindFilesInput{})
+  if err == nil {
     t.Fatal("expected an error for an empty pattern")
   }
 }
@@ -112,7 +113,8 @@ func TestFileStatReportsSizeAndLines(t *testing.T) {
 func TestFileStatRejectsDirectory(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "sub/a.txt", "x")
-  if _, err := FileStat(context.Background(), cfg, FileStatInput{Path: "sub"}); err == nil {
+  _, err := FileStat(context.Background(), cfg, FileStatInput{Path: "sub"})
+  if err == nil {
     t.Fatal("expected an error for a directory")
   }
 }

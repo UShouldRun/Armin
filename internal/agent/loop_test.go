@@ -114,7 +114,8 @@ func newTestLoop(t *testing.T, chatHandler http.HandlerFunc) (*Loop, string) {
   t.Cleanup(server.Close)
 
   root := t.TempDir()
-  if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte("hello world"), 0o644); err != nil {
+  err := os.WriteFile(filepath.Join(root, "f.txt"), []byte("hello world"), 0o644)
+  if err != nil {
     t.Fatal(err)
   }
 
@@ -204,7 +205,8 @@ func TestTurnSurfacesToolErrorAsStructuredResult(t *testing.T) {
   })
 
   history := []llm.Message{{Role: "system", Content: "sys"}}
-  if _, err := loop.Turn(context.Background(), &history, Hooks{}); err != nil {
+  _, err := loop.Turn(context.Background(), &history, Hooks{})
+  if err != nil {
     t.Fatalf("Turn: %v", err)
   }
 
@@ -213,7 +215,8 @@ func TestTurnSurfacesToolErrorAsStructuredResult(t *testing.T) {
   }
 
   var result map[string]string
-  if err := json.Unmarshal([]byte(history[2].Content), &result); err != nil {
+  err = json.Unmarshal([]byte(history[2].Content), &result)
+  if err != nil {
     t.Fatalf("tool error result isn't valid JSON: %v", err)
   }
 
@@ -286,7 +289,8 @@ func TestTurnDispatchesWebSearchWithNilManager(t *testing.T) {
   })
 
   history := []llm.Message{{Role: "system", Content: "sys"}}
-  if _, err := loop.Turn(context.Background(), &history, Hooks{}); err != nil {
+  _, err := loop.Turn(context.Background(), &history, Hooks{})
+  if err != nil {
     t.Fatalf("Turn: %v", err)
   }
 
@@ -295,7 +299,8 @@ func TestTurnDispatchesWebSearchWithNilManager(t *testing.T) {
   }
 
   var result map[string]string
-  if err := json.Unmarshal([]byte(history[2].Content), &result); err != nil {
+  err = json.Unmarshal([]byte(history[2].Content), &result)
+  if err != nil {
     t.Fatalf("tool error result isn't valid JSON: %v", err)
   }
 
@@ -319,7 +324,8 @@ func TestTurnRejectsUnknownTool(t *testing.T) {
   // runs out the round limit — what matters is that execute()
   // doesn't panic on an unknown name but returns a structured error.
   loop.MaxRounds = 2
-  if _, err := loop.Turn(context.Background(), &history, Hooks{}); err != nil {
+  _, err := loop.Turn(context.Background(), &history, Hooks{})
+  if err != nil {
     t.Fatalf("Turn: %v", err)
   }
 
@@ -349,7 +355,8 @@ func TestTurnBlocksARepeatedFailedCall(t *testing.T) {
   })
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
-  if _, err := loop.Turn(context.Background(), &history, Hooks{}); err != nil {
+  _, err := loop.Turn(context.Background(), &history, Hooks{})
+  if err != nil {
     t.Fatalf("Turn: %v", err)
   }
 
@@ -365,7 +372,8 @@ func TestRequestAccessAsksThenGrants(t *testing.T) {
   os.WriteFile(filepath.Join(outside, "slides.pdf"), []byte("x"), 0o644)
   raw, _ := json.Marshal(map[string]string{ "dir": outside, "reason": "read slides" })
 
-  if out := loop.requestAccess(raw, Hooks{}); !strings.Contains(fmt.Sprint(out), "-add-dir") {
+  out := loop.requestAccess(raw, Hooks{})
+  if !strings.Contains(fmt.Sprint(out), "-add-dir") {
     t.Fatalf("with no Approve hook = %v", out)
   }
 
@@ -374,7 +382,8 @@ func TestRequestAccessAsksThenGrants(t *testing.T) {
     asked = preview
     return false, ""
   } }
-  if out := loop.requestAccess(raw, deny); !strings.Contains(fmt.Sprint(out), "declined") {
+  out = loop.requestAccess(raw, deny)
+  if !strings.Contains(fmt.Sprint(out), "declined") {
     t.Fatalf("declined = %v", out)
   }
 
@@ -382,17 +391,19 @@ func TestRequestAccessAsksThenGrants(t *testing.T) {
     t.Fatalf("question = %q", asked)
   }
 
-  if _, err := loop.Sandbox.ResolvePath(filepath.Join(outside, "slides.pdf")); err == nil {
+  _, err := loop.Sandbox.ResolvePath(filepath.Join(outside, "slides.pdf"))
+  if err == nil {
     t.Fatal("readable after a decline")
   }
 
   allow := Hooks{ Approve: func(string, string) (bool, string) { return true, "" } }
-  out, _ := loop.requestAccess(raw, allow).(map[string]any)
-  if out["granted"] == nil {
-    t.Fatalf("granted = %v", out)
+  granted, _ := loop.requestAccess(raw, allow).(map[string]any)
+  if granted["granted"] == nil {
+    t.Fatalf("granted = %v", granted)
   }
 
-  if _, err := loop.Sandbox.ResolvePath(filepath.Join(outside, "slides.pdf")); err != nil {
+  _, err = loop.Sandbox.ResolvePath(filepath.Join(outside, "slides.pdf"))
+  if err != nil {
     t.Fatalf("not readable after a grant: %v", err)
   }
 
@@ -432,7 +443,8 @@ func TestTurnAsksBeforeReadingOutside(t *testing.T) {
     } }
 
     history := []llm.Message{ { Role: "system", Content: "sys" } }
-    if _, err := loop.Turn(context.Background(), &history, hooks); err != nil {
+    _, err := loop.Turn(context.Background(), &history, hooks)
+    if err != nil {
       t.Fatalf("Turn: %v", err)
     }
 
@@ -462,7 +474,8 @@ func TestRunProgramNeedsApproval(t *testing.T) {
   loop, _ := newTestLoop(t, func(http.ResponseWriter, *http.Request) {})
   in := tools.RunProgramInput{ Binary: "go", Args: []string{ "version" } }
 
-  if out := fmt.Sprint(loop.runProgram(context.Background(), in, Hooks{})); !strings.Contains(out, "approval") {
+  out := fmt.Sprint(loop.runProgram(context.Background(), in, Hooks{}))
+  if !strings.Contains(out, "approval") {
     t.Fatalf("with nobody to ask = %s", out)
   }
 
@@ -471,7 +484,7 @@ func TestRunProgramNeedsApproval(t *testing.T) {
     asked = tool + ": " + preview
     return false, "not now"
   } }
-  out := fmt.Sprint(loop.runProgram(context.Background(), in, deny))
+  out = fmt.Sprint(loop.runProgram(context.Background(), in, deny))
   if !strings.Contains(out, "declined") || !strings.Contains(out, "not now") {
     t.Fatalf("declined = %s", out)
   }
@@ -556,11 +569,13 @@ func TestPrivilegedProgramsAlwaysAsk(t *testing.T) {
     t.Fatalf("asked %q / %q", tool, preview)
   }
 
-  if res, ok := out.(*tools.RunProgramOutput); !ok || res.ExitCode != 0 {
+  res, ok := out.(*tools.RunProgramOutput)
+  if !ok || res.ExitCode != 0 {
     t.Fatalf("rm = %+v", out)
   }
 
-  if _, err := os.Stat(filepath.Join(root, "f.txt")); !os.IsNotExist(err) {
+  _, err := os.Stat(filepath.Join(root, "f.txt"))
+  if !os.IsNotExist(err) {
     t.Fatal("f.txt still there after an approved rm")
   }
 
@@ -633,5 +648,78 @@ func TestTurnStopsIdenticalReruns(t *testing.T) {
   // ls, ls (same: blocked 1), ls (same: blocked 2, stop), summary.
   if calls != 4 {
     t.Fatalf("model called %d times, want 4", calls)
+  }
+}
+
+// TestRerunAfterOtherCallsIsNoted: the same run with the same output,
+// with another call in between (a rebuild, a read), runs and gets a
+// note; the turn goes on. Only back to back is it a loop.
+func TestRerunAfterOtherCallsIsNoted(t *testing.T) {
+  script := []string{ "ls", "date", "ls", "date", "ls" }
+  calls := 0
+  var results []string
+  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
+    var req struct {
+      Messages []llm.Message `json:"messages"`
+      Tools    []any         `json:"tools"`
+    }
+
+    json.NewDecoder(r.Body).Decode(&req)
+    last := req.Messages[len(req.Messages) - 1]
+    if last.Role == "tool" {
+      results = append(results, last.Content)
+    }
+
+    reply := llm.Message{ Role: "assistant", Content: "done" }
+    if calls < len(script) {
+      reply = llm.Message{ Role: "assistant", ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
+        Name: "run_command", Arguments: map[string]any{ "binary": script[calls] },
+      } } } }
+    }
+
+    calls++
+    writeChatResponse(t, w, reply)
+  })
+
+  history := []llm.Message{ { Role: "system", Content: "sys" } }
+  answer, err := loop.Turn(context.Background(), &history, Hooks{})
+  if err != nil || answer != "done" {
+    t.Fatalf("Turn = %q, %v", answer, err)
+  }
+
+  if calls != len(script) + 1 {
+    t.Fatalf("model called %d times, want %d: the turn was stopped", calls, len(script) + 1)
+  }
+
+  third := results[2]
+  if !strings.Contains(third, "same output") || strings.Contains(third, "\"error\"") {
+    t.Fatalf("third ls result = %s, want a note, not an error", third)
+  }
+}
+
+// TestScriptOf: only an interpreter's text script is shown, never a
+// data file (rm a.c) or a binary (mpirun ./fox, python3 blob).
+func TestScriptOf(t *testing.T) {
+  loop, root := newTestLoop(t, func(http.ResponseWriter, *http.Request) {})
+  os.WriteFile(filepath.Join(root, "gen.py"), []byte("print(1)\n"), 0o644)
+  os.WriteFile(filepath.Join(root, "a.c"), []byte("int x;\n"), 0o644)
+  os.WriteFile(filepath.Join(root, "fox"), []byte("\x7fELF\x00\x00"), 0o755)
+
+  cases := []struct {
+    in   tools.RunProgramInput
+    want string
+  }{
+    { tools.RunProgramInput{ Binary: "python3", Args: []string{ "gen.py" } }, "gen.py" },
+    { tools.RunProgramInput{ Binary: "rm", Args: []string{ "a.c" } }, "" },
+    { tools.RunProgramInput{ Binary: "mpirun", Args: []string{ "-np", "1", "./fox" } }, "" },
+    { tools.RunProgramInput{ Binary: "python3", Args: []string{ "fox" } }, "" },
+    { tools.RunProgramInput{ Binary: "bash", Args: []string{ "-c", "make && ./fox" } }, "" },
+  }
+
+  for _, c := range cases {
+    got := loop.scriptOf(c.in, root)
+    if filepath.Base(got) != c.want && !(got == "" && c.want == "") {
+      t.Errorf("%s %v → %q, want %q", c.in.Binary, c.in.Args, got, c.want)
+    }
   }
 }

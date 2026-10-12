@@ -4,12 +4,6 @@ package ui
 
 import "golang.org/x/sys/unix"
 
-// rawState is what restoreMode needs to put the terminal back
-// exactly how it was.
-type rawState struct {
-  termios unix.Termios
-}
-
 // enableRawMode puts fd into raw mode — no canonical line editing,
 // no echo, no signal generation from Ctrl-C/Ctrl-Z — and returns
 // the previous state to restore later. This is the same
@@ -35,9 +29,35 @@ func enableRawMode(fd int) (*rawState, error) {
   raw.Cc[unix.VMIN] = 1
   raw.Cc[unix.VTIME] = 0
 
-  if err := unix.IoctlSetTermios(fd, ioctlSetTermios, &raw); err != nil {
+  err = unix.IoctlSetTermios(fd, ioctlSetTermios, &raw)
+  if err != nil {
     return nil, err
   }
+  return &rawState{ termios: prev }, nil
+}
+
+// enableCbreak turns off line buffering and echo only: keys arrive
+// one at a time and aren't printed, while output keeps its newline
+// handling and Ctrl-C still interrupts — for typing beside a turn
+// that's printing.
+func enableCbreak(fd int) (*rawState, error) {
+  termios, err := unix.IoctlGetTermios(fd, ioctlGetTermios)
+  if err != nil {
+    return nil, err
+  }
+
+  prev := *termios
+  cb := *termios
+  cb.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON
+  cb.Iflag &^= unix.ICRNL
+  cb.Cc[unix.VMIN] = 1
+  cb.Cc[unix.VTIME] = 0
+
+  err = unix.IoctlSetTermios(fd, ioctlSetTermios, &cb)
+  if err != nil {
+    return nil, err
+  }
+
   return &rawState{ termios: prev }, nil
 }
 

@@ -37,7 +37,8 @@ func TestLineOffset(t *testing.T) {
         )
       }
       want := "line" + strconv.Itoa(c.line)
-      if got := sampleDoc[start:end]; got != want {
+      got := sampleDoc[start:end]
+      if got != want {
         t.Fatalf("text[start:end] = %q, want %q", got, want)
       }
     })

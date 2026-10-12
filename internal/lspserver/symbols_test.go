@@ -22,7 +22,8 @@ func TestWordAt(t *testing.T) {
 
   for _, c := range cases {
     t.Run(c.name, func(t *testing.T) {
-      if got := wordAt(c.line, c.character); got != c.want {
+      got := wordAt(c.line, c.character)
+      if got != c.want {
         t.Fatalf("wordAt(%q, %d) = %q, want %q", c.line, c.character, got, c.want)
       }
     })
@@ -30,10 +31,12 @@ func TestWordAt(t *testing.T) {
 }
 
 func TestSymbolKindFor(t *testing.T) {
-  if got := symbolKindFor("f"); got != 12 {
+  got := symbolKindFor("f")
+  if got != 12 {
     t.Fatalf("symbolKindFor(f) = %d, want 12 (Function)", got)
   }
-  if got := symbolKindFor("nonsense-kind"); got != 13 {
+  got = symbolKindFor("nonsense-kind")
+  if got != 13 {
     t.Fatalf("symbolKindFor(unknown) = %d, want 13 (Variable fallback)", got)
   }
 }
@@ -49,7 +52,8 @@ func TestPointRange(t *testing.T) {
 
   // ctags line numbers are 1-indexed; a (defensively handled) 0 or
   // negative input must not go negative in the 0-indexed LSP range.
-  if got := pointRange(0); got.Start.Line != 0 {
+  got := pointRange(0)
+  if got.Start.Line != 0 {
     t.Fatalf("pointRange(0) = %+v, want clamped to line 0", got)
   }
 }

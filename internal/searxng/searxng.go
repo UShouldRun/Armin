@@ -18,7 +18,6 @@ import (
   "os/exec"
   "path/filepath"
   "strings"
-  "sync"
   "time"
 
   "armin/internal/config"
@@ -41,22 +40,6 @@ const (
   maxSnippetChars = 200
 )
 
-// Result is one search hit, already trimmed down to what's worth
-// spending context on.
-type Result struct {
-  Title   string
-  URL     string
-  Snippet string
-}
-
-// Manager owns the container's lifecycle. Zero value is ready to
-// use; construct with New.
-type Manager struct {
-  mu          sync.Mutex
-  ready       bool
-  startedByUs bool
-}
-
 // New returns a Manager that hasn't touched Docker yet — nothing
 // starts until the first Search call.
 func New() *Manager {
@@ -69,7 +52,8 @@ func New() *Manager {
 func (m *Manager) Search(
   ctx context.Context, query string, count int, topic string,
 ) ([]Result, error) {
-  if err := m.ensureRunning(ctx); err != nil {
+  err := m.ensureRunning(ctx)
+  if err != nil {
     return nil, fmt.Errorf("\n\t... in Search:\n\t%w", err)
   }
 
@@ -102,7 +86,8 @@ func (m *Manager) Search(
   }
 
   var parsed searxResponse
-  if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+  err = json.NewDecoder(resp.Body).Decode(&parsed)
+  if err != nil {
     return nil, fmt.Errorf(
       "\n\t... in Search:\n\t decoding searxng response: %w", err,
     )
@@ -191,14 +176,16 @@ func (m *Manager) ensureRunning(ctx context.Context) error {
   switch {
   case running && changed:
     // The settings file is bind-mounted; a restart rereads it.
-    if err := runDocker(ctx, startTimeout, "restart", containerName); err != nil {
+    err := runDocker(ctx, startTimeout, "restart", containerName)
+    if err != nil {
       return err
     }
   case running:
     // Already up — not something we started, so Shutdown must
     // leave it alone.
   case exists:
-    if err := runDocker(ctx, startTimeout, "start", containerName); err != nil {
+    err := runDocker(ctx, startTimeout, "start", containerName)
+    if err != nil {
       return err
     }
 
@@ -217,7 +204,8 @@ func (m *Manager) ensureRunning(ctx context.Context) error {
     m.startedByUs = true
   }
 
-  if err := waitReady(ctx); err != nil {
+  err = waitReady(ctx)
+  if err != nil {
     return err
   }
 
@@ -237,7 +225,8 @@ func waitReady(ctx context.Context) error {
       ctx, http.MethodGet, baseURL + "/", nil,
     )
     if err == nil {
-      if resp, err := client.Do(req); err == nil {
+      resp, err := client.Do(req)
+      if err == nil {
         resp.Body.Close()
         if resp.StatusCode < 500 {
           return nil
@@ -268,7 +257,8 @@ func containerState(ctx context.Context) (exists, running bool, err error) {
   cmd.Stdout = &stdout
   cmd.Stderr = &stderr
 
-  if err := cmd.Run(); err != nil {
+  err = cmd.Run()
+  if err != nil {
     if strings.Contains(stderr.String(), "No such") {
       return false, false, nil
     }
@@ -290,7 +280,8 @@ func runDocker(ctx context.Context, timeout time.Duration, args ...string) error
   var stderr bytes.Buffer
   cmd.Stderr = &stderr
 
-  if err := cmd.Run(); err != nil {
+  err := cmd.Run()
+  if err != nil {
     if ctx.Err() == context.DeadlineExceeded {
       return fmt.Errorf(
         "\n\t... in runDocker:\n\t docker %s timed out after %s",
@@ -305,18 +296,6 @@ func runDocker(ctx context.Context, timeout time.Duration, args ...string) error
   }
 
   return nil
-}
-
-// searxResponse is the slice of SearXNG's ?format=json body we
-// actually use.
-type searxResponse struct {
-  Results []struct {
-    URL     string `json:"url"`
-    Title   string `json:"title"`
-    Content string `json:"content"`
-  } `json:"results"`
-  // Unresponsive is [engine, reason] pairs for engines that failed.
-  Unresponsive [][]string `json:"unresponsive_engines"`
 }
 
 // toResults keeps up to count relevant results: an engine that
@@ -465,7 +444,8 @@ func ensureSettings() (string, bool, error) {
   }
 
   searxDir := filepath.Join(dir, "searxng")
-  if err := os.MkdirAll(searxDir, 0o755); err != nil {
+  err = os.MkdirAll(searxDir, 0o755)
+  if err != nil {
     return "", false, fmt.Errorf("\n\t... in ensureSettings:\n\t%w", err)
   }
 
@@ -483,7 +463,8 @@ func ensureSettings() (string, bool, error) {
   secret := secretOf(string(old))
   if secret == "" {
     key := make([]byte, 32)
-    if _, err := rand.Read(key); err != nil {
+    _, err := rand.Read(key)
+    if err != nil {
       return "", false, fmt.Errorf(
         "\n\t... in ensureSettings:\n\t generating secret_key: %w", err,
       )
@@ -493,7 +474,8 @@ func ensureSettings() (string, bool, error) {
   }
 
   content := fmt.Sprintf(settingsTemplate, settingsVersion, secret)
-  if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+  err = os.WriteFile(path, []byte(content), 0o644)
+  if err != nil {
     return "", false, fmt.Errorf("\n\t... in ensureSettings:\n\t%w", err)
   }
 
@@ -520,7 +502,8 @@ func outdated(content, current string) bool {
 // doesn't invalidate SearXNG's tokens.
 func secretOf(content string) string {
   for _, line := range strings.Split(content, "\n") {
-    if v, ok := strings.CutPrefix(strings.TrimSpace(line), "secret_key:"); ok {
+    v, ok := strings.CutPrefix(strings.TrimSpace(line), "secret_key:")
+    if ok {
       return strings.Trim(strings.TrimSpace(v), `"`)
     }
   }

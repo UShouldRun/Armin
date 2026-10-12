@@ -25,7 +25,6 @@ import (
   "net/url"
   "os"
   "strings"
-  "sync"
   "time"
 )
 
@@ -60,38 +59,11 @@ var ErrNoCredentials = errors.New(
 
 // --- authentication ---
 
-// TokenSource hands out bearer tokens: a static one, or short-lived
-// ones from the key flow, refreshed before they expire.
-type TokenSource struct {
-  static string
-
-  creds    keyCredentials
-  key      *rsa.PrivateKey
-  tokenURL string
-  http     *http.Client
-
-  mu      sync.Mutex
-  token   string
-  expires time.Time
-}
-
-type keyCredentials struct {
-  Aud           string `json:"aud"`
-  Iss           string `json:"iss"`
-  Kid           string `json:"kid"`
-  Sub           string `json:"sub"`
-  PrivateKey    string `json:"privateKey"`
-  TokenEndpoint string `json:"tokenEndpoint"`
-}
-
-type keyFile struct {
-  Credentials *keyCredentials `json:"credentials"`
-}
-
 // readEnvOrFile returns the variable's value, or the content of the
 // file the _PATH variant names.
 func readEnvOrFile(valueEnv, pathEnv string) (string, error) {
-  if v := os.Getenv(valueEnv); v != "" {
+  v := os.Getenv(valueEnv)
+  if v != "" {
     return v, nil
   }
 
@@ -100,8 +72,10 @@ func readEnvOrFile(valueEnv, pathEnv string) (string, error) {
     return "", nil
   }
 
-  if rest, ok := strings.CutPrefix(path, "~/"); ok {
-    if home, err := os.UserHomeDir(); err == nil {
+  rest, ok := strings.CutPrefix(path, "~/")
+  if ok {
+    home, err := os.UserHomeDir()
+    if err == nil {
       path = home + "/" + rest
     }
   }
@@ -119,7 +93,8 @@ func readEnvOrFile(valueEnv, pathEnv string) (string, error) {
 // with STACKIT_SERVICE_ACCOUNT_KEY(_PATH), whose private key is
 // either inside the key file or in STACKIT_PRIVATE_KEY(_PATH).
 func EnvTokenSource() (*TokenSource, error) {
-  if t := os.Getenv("STACKIT_SERVICE_ACCOUNT_TOKEN"); t != "" {
+  t := os.Getenv("STACKIT_SERVICE_ACCOUNT_TOKEN")
+  if t != "" {
     return &TokenSource{ static: t }, nil
   }
 
@@ -135,7 +110,8 @@ func EnvTokenSource() (*TokenSource, error) {
   }
 
   var kf keyFile
-  if err := json.Unmarshal([]byte(raw), &kf); err != nil || kf.Credentials == nil {
+  err = json.Unmarshal([]byte(raw), &kf)
+  if err != nil || kf.Credentials == nil {
     return nil, fmt.Errorf(
       "\n\t... in EnvTokenSource:\n\t the service account key isn't a " +
         "STACKIT key file (no \"credentials\" object)",
@@ -188,8 +164,9 @@ func parseRSAKey(text string) (*rsa.PrivateKey, error) {
     return nil, fmt.Errorf("private key is not PEM")
   }
 
-  if k, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
-    rk, ok := k.(*rsa.PrivateKey)
+  pk, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+  if err == nil {
+    rk, ok := pk.(*rsa.PrivateKey)
     if !ok {
       return nil, fmt.Errorf("private key is not RSA")
     }
@@ -291,7 +268,8 @@ func (t *TokenSource) Token(ctx context.Context) (string, error) {
     ExpiresIn   int64  `json:"expires_in"`
   }
 
-  if err := json.Unmarshal(raw, &body); err != nil || body.AccessToken == "" {
+  err = json.Unmarshal(raw, &body)
+  if err != nil || body.AccessToken == "" {
     return "", fmt.Errorf("\n\t... in Token:\n\t no access_token in response")
   }
 
@@ -307,14 +285,6 @@ func (t *TokenSource) Token(ctx context.Context) (string, error) {
 
 // --- IaaS v2 servers ---
 
-// Client calls the IaaS v2 API for one project and region.
-type Client struct {
-  ProjectID, Region string
-  Auth              *TokenSource
-  HTTP              *http.Client
-  Endpoint          string // tests override; default DefaultIaaSEndpoint
-}
-
 // NewClient returns a client for project and region (e.g. "eu01").
 func NewClient(projectID, region string, auth *TokenSource) *Client {
   return &Client{
@@ -325,12 +295,6 @@ func NewClient(projectID, region string, auth *TokenSource) *Client {
   }
 }
 
-// Server is what GetServer reports.
-type Server struct {
-  ID, Status, PowerStatus string
-  PublicIP, PrivateIP     string
-}
-
 // Host is the address to reach the server at: a public IP, else
 // the first private one (over a VPN).
 func (s Server) Host() string {
@@ -339,16 +303,6 @@ func (s Server) Host() string {
   }
 
   return s.PrivateIP
-}
-
-type serverBody struct {
-  ID          string `json:"id"`
-  Status      string `json:"status"`
-  PowerStatus string `json:"powerStatus"`
-  Nics        []struct {
-    IPv4     string `json:"ipv4"`
-    PublicIP string `json:"publicIp"`
-  } `json:"nics"`
 }
 
 func (c *Client) serverURL(id, action string) string {
@@ -413,7 +367,8 @@ func (c *Client) do(
     return nil
   }
 
-  if err := json.Unmarshal(raw, out); err != nil {
+  err = json.Unmarshal(raw, out)
+  if err != nil {
     return fmt.Errorf("\n\t... in do:\n\t%w", err)
   }
 
@@ -445,7 +400,8 @@ func (c *Client) GetServer(ctx context.Context, id string) (Server, error) {
 // StartServer starts a stopped server, or re-allocates a
 // deallocated one. It returns before the server is running.
 func (c *Client) StartServer(ctx context.Context, id string) error {
-  if err := c.do(ctx, http.MethodPost, c.serverURL(id, "start"), nil); err != nil {
+  err := c.do(ctx, http.MethodPost, c.serverURL(id, "start"), nil)
+  if err != nil {
     return fmt.Errorf("\n\t... in StartServer:\n\t%w", err)
   }
 
@@ -455,7 +411,8 @@ func (c *Client) StartServer(ctx context.Context, id string) error {
 // DeallocateServer shuts the server down and releases it from its
 // hypervisor, so only the volume keeps billing.
 func (c *Client) DeallocateServer(ctx context.Context, id string) error {
-  if err := c.do(ctx, http.MethodPost, c.serverURL(id, "deallocate"), nil); err != nil {
+  err := c.do(ctx, http.MethodPost, c.serverURL(id, "deallocate"), nil)
+  if err != nil {
     return fmt.Errorf("\n\t... in DeallocateServer:\n\t%w", err)
   }
 
@@ -491,7 +448,8 @@ func (c *Client) WaitRunning(
       }
     case "INACTIVE", "DEALLOCATED":
       if !started {
-        if err := c.StartServer(ctx, id); err != nil {
+        err := c.StartServer(ctx, id)
+        if err != nil {
           return srv, started, fmt.Errorf("\n\t... in WaitRunning:\n\t%w", err)
         }
 

@@ -23,22 +23,27 @@ func TestModelSpecManaged(t *testing.T) {
 }
 
 func TestModelSpecIdleTimeout(t *testing.T) {
-  if got := (ModelSpec{}).idleTimeout(); got != DefaultIdleTimeout {
+  got := (ModelSpec{}).idleTimeout()
+  if got != DefaultIdleTimeout {
     t.Fatalf("zero IdleTimeout = %v, want DefaultIdleTimeout", got)
   }
-  if got := (ModelSpec{ IdleTimeout: 5 * time.Minute }).idleTimeout(); got != 5 * time.Minute {
+  got = (ModelSpec{ IdleTimeout: 5 * time.Minute }).idleTimeout()
+  if got != 5 * time.Minute {
     t.Fatalf("idleTimeout() = %v, want the override", got)
   }
-  if got := (ModelSpec{ IdleTimeout: -1 }).idleTimeout(); got >= 0 {
+  got = (ModelSpec{ IdleTimeout: -1 }).idleTimeout()
+  if got >= 0 {
     t.Fatalf("idleTimeout() = %v, want a negative sentinel preserved", got)
   }
 }
 
 func TestModelSpecURL(t *testing.T) {
-  if got := (ModelSpec{ URL: "http://elsewhere:9000" }).url(); got != "http://elsewhere:9000" {
+  got := (ModelSpec{ URL: "http://elsewhere:9000" }).url()
+  if got != "http://elsewhere:9000" {
     t.Fatalf("url() = %q, want the external URL unchanged", got)
   }
-  if got := (ModelSpec{ Binary: "llama-server", Port: 8081 }).url(); got != "http://127.0.0.1:8081" {
+  got = (ModelSpec{ Binary: "llama-server", Port: 8081 }).url()
+  if got != "http://127.0.0.1:8081" {
     t.Fatalf("url() = %q, want the local managed port", got)
   }
 }
@@ -69,7 +74,8 @@ func TestClientUnconfiguredModelErrors(t *testing.T) {
   m := New(nil)
   defer m.Shutdown(context.Background())
 
-  if _, err := m.Client(context.Background(), "nope"); err == nil {
+  _, err := m.Client(context.Background(), "nope")
+  if err == nil {
     t.Fatal("expected an error for an unconfigured model name")
   }
 }
@@ -126,7 +132,8 @@ func TestSwitchUpdatesAPIKeyOnTheSharedClient(t *testing.T) {
     t.Fatalf("Client.APIKey = %q, want empty for a spec with no APIKeyEnv", client.APIKey)
   }
 
-  if err := m.Switch(context.Background(), client, "claude"); err != nil {
+  err = m.Switch(context.Background(), client, "claude")
+  if err != nil {
     t.Fatalf("Switch: %v", err)
   }
   if client.APIKey != "sk-ant-test" {
@@ -276,7 +283,8 @@ func fakeLlamaServerBinary(t *testing.T) string {
     testBin,
   )
   path := filepath.Join(t.TempDir(), "fake-llama-server")
-  if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+  err = os.WriteFile(path, []byte(script), 0o755)
+  if err != nil {
     t.Fatal(err)
   }
   return path
@@ -311,7 +319,8 @@ func TestSpawnHealthPollAndShutdown(t *testing.T) {
   if err != nil {
     t.Fatalf("Client: %v", err)
   }
-  if err := client.Health(ctx); err != nil {
+  err = client.Health(ctx)
+  if err != nil {
     t.Fatalf("Health after spawn: %v", err)
   }
 
@@ -332,7 +341,8 @@ func TestSpawnHealthPollAndShutdown(t *testing.T) {
   procBefore := m.procs["fim"].cmd.Process.Pid
   m.mu.Unlock()
 
-  if _, err := m.Client(ctx, "fim"); err != nil {
+  _, err = m.Client(ctx, "fim")
+  if err != nil {
     t.Fatalf("second Client: %v", err)
   }
   m.mu.Lock()
@@ -342,10 +352,12 @@ func TestSpawnHealthPollAndShutdown(t *testing.T) {
     t.Fatal("a second Client call respawned the process instead of reusing it")
   }
 
-  if err := m.Shutdown(context.Background()); err != nil {
+  err = m.Shutdown(context.Background())
+  if err != nil {
     t.Fatalf("Shutdown: %v", err)
   }
-  if err := client.Health(context.Background()); err == nil {
+  err = client.Health(context.Background())
+  if err == nil {
     t.Fatal("expected Health to fail once Shutdown stopped the process")
   }
 }
@@ -373,7 +385,8 @@ func TestSpawnScrubsSecretEnvVars(t *testing.T) {
   ctx, cancel := context.WithTimeout(context.Background(), 15 * time.Second)
   defer cancel()
 
-  if _, err := m.Client(ctx, "fim"); err != nil {
+  _, err := m.Client(ctx, "fim")
+  if err != nil {
     t.Fatalf("Client: %v", err)
   }
 
@@ -417,7 +430,8 @@ func TestSwitchMutatesClientInPlace(t *testing.T) {
   }
   original := client
 
-  if err := m.Switch(ctx, client, "fim"); err != nil {
+  err = m.Switch(ctx, client, "fim")
+  if err != nil {
     t.Fatalf("Switch: %v", err)
   }
   if client != original {
@@ -448,17 +462,20 @@ func TestReadyRespawnsAStoppedModel(t *testing.T) {
 
   // What the idle reaper does after idle_timeout.
   m.stopModel(ctx, "chat")
-  if err := client.Health(ctx); err == nil {
+  err = client.Health(ctx)
+  if err == nil {
     t.Fatal("the model should be down after being stopped")
   }
 
   if client.Ready == nil {
     t.Fatal("managed clients must carry a Ready hook")
   }
-  if err := client.Ready(ctx); err != nil {
+  err = client.Ready(ctx)
+  if err != nil {
     t.Fatalf("Ready: %v", err)
   }
-  if err := client.Health(ctx); err != nil {
+  err = client.Health(ctx)
+  if err != nil {
     t.Fatalf("Ready didn't bring the model back: %v", err)
   }
 }
@@ -484,11 +501,13 @@ func TestSwitchFreesTheGPUFromThePreviousLocalModel(t *testing.T) {
   if err != nil {
     t.Fatalf("Client a: %v", err)
   }
-  if _, err := m.Client(ctx, "fim"); err != nil {
+  _, err = m.Client(ctx, "fim")
+  if err != nil {
     t.Fatalf("Client fim: %v", err)
   }
 
-  if err := m.Switch(ctx, chat, "b"); err != nil {
+  err = m.Switch(ctx, chat, "b")
+  if err != nil {
     t.Fatalf("Switch: %v", err)
   }
 
@@ -502,7 +521,8 @@ func TestSwitchFreesTheGPUFromThePreviousLocalModel(t *testing.T) {
   }
 
   // An external model isn't armin's to stop; switching to it leaves b alone.
-  if err := m.Switch(ctx, chat, "api"); err != nil {
+  err = m.Switch(ctx, chat, "api")
+  if err != nil {
     t.Fatalf("Switch to external: %v", err)
   }
   m.mu.Lock()
@@ -510,5 +530,102 @@ func TestSwitchFreesTheGPUFromThePreviousLocalModel(t *testing.T) {
   m.mu.Unlock()
   if !bUp {
     t.Fatal("switching to an external model stopped a local one")
+  }
+}
+
+// TestSwitchChatKeepsCompletionLocal: completion follows chat between
+// local models (one on the GPU at a time) and stays on the last
+// local one while chat uses a cloud model.
+func TestSwitchChatKeepsCompletionLocal(t *testing.T) {
+  if testing.Short() {
+    t.Skip("spawns real subprocesses")
+  }
+
+  bin := fakeLlamaServerBinary(t)
+  m := New(map[string]ModelSpec{
+    "a":     { Binary: bin, ModelPath: "a.gguf", Port: freePort(t) },
+    "b":     { Binary: bin, ModelPath: "b.gguf", Port: freePort(t) },
+    "cloud": { URL: "http://127.0.0.1:1" },
+  })
+  defer m.Shutdown(context.Background())
+
+  ctx, cancel := context.WithTimeout(context.Background(), 20 * time.Second)
+  defer cancel()
+
+  chat, err := m.Client(ctx, "a")
+  if err != nil {
+    t.Fatalf("Client a: %v", err)
+  }
+
+  completion, err := m.LazyClient("a")
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  up := func(name string) bool {
+    m.mu.Lock()
+    defer m.mu.Unlock()
+    _, ok := m.procs[name]
+
+    return ok
+  }
+
+  err = m.SwitchChat(ctx, chat, completion, "cloud")
+  if err != nil {
+    t.Fatalf("to cloud: %v", err)
+  }
+
+  if chat.Model != "cloud" || completion.Model != "a" || !up("a") {
+    t.Fatalf("chat %q, completion %q, a up %v; want completion kept on a", chat.Model, completion.Model, up("a"))
+  }
+
+  err = m.SwitchChat(ctx, chat, completion, "b")
+  if err != nil {
+    t.Fatalf("to b: %v", err)
+  }
+
+  if chat.Model != "b" || completion.Model != "b" || up("a") || !up("b") {
+    t.Fatalf("chat %q, completion %q, a up %v, b up %v; want both on b, a stopped",
+      chat.Model, completion.Model, up("a"), up("b"))
+  }
+
+  err = m.SwitchChat(ctx, chat, nil, "a")
+  if err != nil {
+    t.Fatalf("pinned: %v", err)
+  }
+
+  if completion.Model != "b" {
+    t.Fatalf("a pinned completion moved to %q", completion.Model)
+  }
+}
+
+// TestSwitchToHostedIDOnTheFly: "base:id" reuses a hosted model's
+// endpoint and key with another id, no config block needed.
+func TestSwitchToHostedIDOnTheFly(t *testing.T) {
+  m := New(map[string]ModelSpec{
+    "planner": { URL: "http://127.0.0.1:1/api/v1", ID: "qwen/qwen3.8-27b", Effort: "medium" },
+    "local":   { Binary: "llama-server", ModelPath: "a.gguf", Port: 1 },
+  })
+
+  if m.Has("local:x") || m.Has("nope:x") {
+    t.Fatal("only a hosted base can be reused")
+  }
+
+  if !m.Has("planner:nvidia/nemotron-3-ultra-550b-a55b:free") {
+    t.Fatal("planner:<id> not adopted")
+  }
+
+  chat := New(map[string]ModelSpec{}).newClientFor("x", "http://127.0.0.1:1")
+  err := m.Switch(context.Background(), chat, "planner:deepseek/deepseek-v4-pro-0813")
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  if chat.ID != "deepseek/deepseek-v4-pro-0813" || chat.Effort != "medium" || chat.BaseURL != "http://127.0.0.1:1/api/v1" {
+    t.Fatalf("client = %q %q %q", chat.ID, chat.Effort, chat.BaseURL)
+  }
+
+  if m.Label("planner:deepseek/deepseek-v4-pro-0813") != "deepseek/deepseek-v4-pro-0813" {
+    t.Fatalf("label = %q", m.Label("planner:deepseek/deepseek-v4-pro-0813"))
   }
 }

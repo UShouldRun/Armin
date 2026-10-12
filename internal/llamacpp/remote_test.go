@@ -77,7 +77,8 @@ http.server.HTTPServer(('127.0.0.1', $port), H).serve_forever()"
 
 func awsTestManager(t *testing.T, state string) (*Manager, *fakeEC2, string) {
   t.Helper()
-  if _, err := os.Stat("/usr/bin/python3"); err != nil {
+  _, err := os.Stat("/usr/bin/python3")
+  if err != nil {
     t.Skip("python3 needed for the fake ssh")
   }
 
@@ -124,7 +125,8 @@ func TestAWSModelStartsTunnelsAndStops(t *testing.T) {
 
   ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
   defer cancel()
-  if _, err := m.Client(ctx, "qwen"); err != nil {
+  _, err := m.Client(ctx, "qwen")
+  if err != nil {
     t.Fatalf("Client: %v", err)
   }
 
@@ -143,7 +145,8 @@ func TestAWSModelStartsTunnelsAndStops(t *testing.T) {
     }
   }
 
-  if env, _ := os.ReadFile(filepath.Join(dir, "env")); len(env) > 0 {
+  env, _ := os.ReadFile(filepath.Join(dir, "env"))
+  if len(env) > 0 {
     t.Errorf("AWS credentials leaked into ssh's environment: %s", env)
   }
 
@@ -162,7 +165,8 @@ func TestAWSInstanceAlreadyRunningIsLeftRunning(t *testing.T) {
 
   ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
   defer cancel()
-  if _, err := m.Client(ctx, "qwen"); err != nil {
+  _, err := m.Client(ctx, "qwen")
+  if err != nil {
     t.Fatalf("Client: %v", err)
   }
 
@@ -202,7 +206,8 @@ func TestShellQuote(t *testing.T) {
   }
 
   for in, want := range cases {
-    if got := shellQuote(in); got != want {
+    got := shellQuote(in)
+    if got != want {
       t.Errorf("shellQuote(%q) = %s, want %s", in, got, want)
     }
   }
@@ -267,7 +272,8 @@ func TestSTACKITModelStartsTunnelsAndDeallocates(t *testing.T) {
 
   ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
   defer cancel()
-  if _, err := m.Client(ctx, "qwen"); err != nil {
+  _, err := m.Client(ctx, "qwen")
+  if err != nil {
     t.Fatalf("Client: %v", err)
   }
 
@@ -276,7 +282,8 @@ func TestSTACKITModelStartsTunnelsAndDeallocates(t *testing.T) {
     t.Errorf("ssh args = %s", args)
   }
 
-  if env, _ := os.ReadFile(filepath.Join(dir, "env")); len(env) > 0 {
+  env, _ := os.ReadFile(filepath.Join(dir, "env"))
+  if len(env) > 0 {
     t.Errorf("credentials leaked: %s", env)
   }
 
@@ -302,7 +309,8 @@ func TestServerArgsLeanDefaults(t *testing.T) {
   }
 
   for _, c := range cases {
-    if got := strings.Join(serverArgs(c.spec), " "); got != c.want {
+    got := strings.Join(serverArgs(c.spec), " ")
+    if got != c.want {
       t.Errorf("serverArgs(%v, flags=%b)\n got  %q\n want %q", c.spec.Args, c.spec.Flags, got, c.want)
     }
   }
@@ -365,7 +373,8 @@ func TestScalewayModelPowersOnTunnelsAndPowersOff(t *testing.T) {
 
   ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
   defer cancel()
-  if _, err := m.Client(ctx, "qwen"); err != nil {
+  _, err := m.Client(ctx, "qwen")
+  if err != nil {
     t.Fatalf("Client: %v", err)
   }
 
@@ -374,7 +383,8 @@ func TestScalewayModelPowersOnTunnelsAndPowersOff(t *testing.T) {
     t.Errorf("ssh args = %s", args)
   }
 
-  if env, _ := os.ReadFile(filepath.Join(dir, "env")); len(env) > 0 {
+  env, _ := os.ReadFile(filepath.Join(dir, "env"))
+  if len(env) > 0 {
     t.Errorf("credentials leaked: %s", env)
   }
 
@@ -387,11 +397,13 @@ func TestScalewayModelPowersOnTunnelsAndPowersOff(t *testing.T) {
 }
 
 func TestContextFlagHelpers(t *testing.T) {
-  if n := contextOf([]string{ "--jinja", "-c", "98304" }); n != 98304 {
+  n := contextOf([]string{ "--jinja", "-c", "98304" })
+  if n != 98304 {
     t.Errorf("contextOf = %d", n)
   }
 
-  if n := contextOf([]string{ "--ctx-size=4096" }); n != 4096 {
+  n = contextOf([]string{ "--ctx-size=4096" })
+  if n != 4096 {
     t.Errorf("contextOf = %d", n)
   }
 
@@ -421,11 +433,13 @@ func TestStreamTierSwitchRestartsServerNotMachine(t *testing.T) {
 
   ctx, cancel := context.WithTimeout(context.Background(), 30 * time.Second)
   defer cancel()
-  if _, err := m.Client(ctx, "qwen"); err != nil {
+  _, err := m.Client(ctx, "qwen")
+  if err != nil {
     t.Fatalf("Client: %v", err)
   }
 
-  if n, err := w.Grow(ctx); err != nil || n != 196608 || !w.Streaming() {
+  n, err := w.Grow(ctx)
+  if err != nil || n != 196608 || !w.Streaming() {
     t.Fatalf("Grow = %d, %v (streaming=%v)", n, err, w.Streaming())
   }
 
@@ -442,7 +456,8 @@ func TestStreamTierSwitchRestartsServerNotMachine(t *testing.T) {
     t.Errorf("the resident window leaked into the stream tier:\n%s", args)
   }
 
-  if n, err := w.Shrink(ctx); err != nil || n != 98304 || w.Streaming() {
+  n, err = w.Shrink(ctx)
+  if err != nil || n != 98304 || w.Streaming() {
     t.Fatalf("Shrink = %d, %v", n, err)
   }
 

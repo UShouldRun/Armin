@@ -26,7 +26,8 @@ func serverReturning(t *testing.T, path string, handler http.HandlerFunc) *httpt
 func TestChatNonStreaming(t *testing.T) {
   server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
     var req owaiChatRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+    err := json.NewDecoder(r.Body).Decode(&req)
+    if err != nil {
       t.Fatal(err)
     }
 
@@ -55,7 +56,8 @@ func TestChatNonStreaming(t *testing.T) {
 func TestChatSendsToolCallArgumentsAsJSONString(t *testing.T) {
   server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
     var raw map[string]any
-    if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+    err := json.NewDecoder(r.Body).Decode(&raw)
+    if err != nil {
       t.Fatal(err)
     }
 
@@ -160,7 +162,8 @@ func TestChatSynthesizesToolCallIDWhenMissing(t *testing.T) {
 func TestChatStreamingAssemblesDeltasAndToolCallFragments(t *testing.T) {
   server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
     var req owaiChatRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+    err := json.NewDecoder(r.Body).Decode(&req)
+    if err != nil {
       t.Fatal(err)
     }
 
@@ -232,7 +235,8 @@ func TestChatNonOKStatus(t *testing.T) {
   })
 
   client := New(server.URL, "fake-model")
-  if _, err := client.Chat(context.Background(), nil, nil, nil); err == nil {
+  _, err := client.Chat(context.Background(), nil, nil, nil)
+  if err == nil {
     t.Fatal("expected an error for a non-200 response")
   }
 }
@@ -255,7 +259,8 @@ func TestComplete(t *testing.T) {
 
   server := serverReturning(t, "/infill", func(w http.ResponseWriter, r *http.Request) {
     var req infillRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+    err := json.NewDecoder(r.Body).Decode(&req)
+    if err != nil {
       t.Fatal(err)
     }
 
@@ -287,7 +292,8 @@ func TestCompleteNonOKStatus(t *testing.T) {
   })
 
   client := New(server.URL, "chat-model")
-  if _, err := client.Complete(context.Background(), "x", "", CompleteOptions{}); err == nil {
+  _, err := client.Complete(context.Background(), "x", "", CompleteOptions{})
+  if err == nil {
     t.Fatal("expected an error for a non-200 response")
   }
 }
@@ -297,7 +303,8 @@ func TestHealthOK(t *testing.T) {
     w.WriteHeader(http.StatusOK)
   })
   client := New(server.URL, "m")
-  if err := client.Health(context.Background()); err != nil {
+  err := client.Health(context.Background())
+  if err != nil {
     t.Fatalf("Health: %v", err)
   }
 }
@@ -308,7 +315,8 @@ func TestHealthNotReady(t *testing.T) {
     io.WriteString(w, `{"status":"loading model"}`)
   })
   client := New(server.URL, "m")
-  if err := client.Health(context.Background()); err == nil {
+  err := client.Health(context.Background())
+  if err == nil {
     t.Fatal("expected an error while the model is still loading")
   }
 }
@@ -325,7 +333,8 @@ func TestRequestStartEndBracketEveryCall(t *testing.T) {
   client.OnRequestStart = func() { starts++ }
   client.OnRequestEnd = func() { ends++ }
 
-  if _, err := client.Chat(context.Background(), nil, nil, nil); err != nil {
+  _, err := client.Chat(context.Background(), nil, nil, nil)
+  if err != nil {
     t.Fatal(err)
   }
 
@@ -360,7 +369,8 @@ func TestChatSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
 
   client := New(server.URL, "claude")
   client.APIKey = "sk-ant-test"
-  if _, err := client.Chat(context.Background(), nil, nil, nil); err != nil {
+  _, err := client.Chat(context.Background(), nil, nil, nil)
+  if err != nil {
     t.Fatalf("Chat: %v", err)
   }
 
@@ -379,7 +389,8 @@ func TestChatOmitsAuthorizationHeaderWhenNoAPIKey(t *testing.T) {
   })
 
   client := New(server.URL, "local")
-  if _, err := client.Chat(context.Background(), nil, nil, nil); err != nil {
+  _, err := client.Chat(context.Background(), nil, nil, nil)
+  if err != nil {
     t.Fatalf("Chat: %v", err)
   }
 
@@ -397,7 +408,8 @@ func TestCompleteSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
 
   client := New(server.URL, "m")
   client.APIKey = "sk-ant-test"
-  if _, err := client.Complete(context.Background(), "x", "", CompleteOptions{}); err != nil {
+  _, err := client.Complete(context.Background(), "x", "", CompleteOptions{})
+  if err != nil {
     t.Fatalf("Complete: %v", err)
   }
 
@@ -415,7 +427,8 @@ func TestHealthSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
 
   client := New(server.URL, "m")
   client.APIKey = "sk-ant-test"
-  if err := client.Health(context.Background()); err != nil {
+  err := client.Health(context.Background())
+  if err != nil {
     t.Fatalf("Health: %v", err)
   }
 
@@ -434,7 +447,8 @@ func TestNewDefaultsBaseURL(t *testing.T) {
 func TestChatStreamSeparatesReasoningAndReadsUsage(t *testing.T) {
   server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
     var req owaiChatRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+    err := json.NewDecoder(r.Body).Decode(&req)
+    if err != nil {
       t.Fatal(err)
     }
 
@@ -481,7 +495,8 @@ func TestChatStreamSeparatesReasoningAndReadsUsage(t *testing.T) {
 func TestChatSendsReasoningBack(t *testing.T) {
   server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
     var req owaiChatRequest
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+    err := json.NewDecoder(r.Body).Decode(&req)
+    if err != nil {
       t.Fatal(err)
     }
 
@@ -597,5 +612,34 @@ func TestChatStreamReportsPromptProgress(t *testing.T) {
   client.ChatStream(context.Background(), nil, nil, h)
   if asked[true] {
     t.Fatal("return_progress was sent to an authenticated API")
+  }
+}
+
+// TestChatSendsHostedIDAndEffort: a hosted model gets its own id and
+// reasoning effort, and a base URL ending in /v1 isn't doubled.
+func TestChatSendsHostedIDAndEffort(t *testing.T) {
+  var path string
+  var got map[string]any
+  server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    path = r.URL.Path
+    json.NewDecoder(r.Body).Decode(&got)
+    io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`)
+  }))
+  defer server.Close()
+
+  client := New(server.URL + "/api/v1", "qwen")
+  client.ID, client.Effort = "qwen/qwen3.8-27b", "low"
+  _, err := client.Chat(context.Background(), []Message{ { Role: "user", Content: "hi" } }, nil, nil)
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  if path != "/api/v1/chat/completions" {
+    t.Fatalf("path = %q", path)
+  }
+
+  effort, _ := got["reasoning"].(map[string]any)
+  if got["model"] != "qwen/qwen3.8-27b" || effort["effort"] != "low" {
+    t.Fatalf("request = %v", got)
   }
 }

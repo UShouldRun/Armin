@@ -24,25 +24,6 @@ var ErrInterrupted = errors.New("input interrupted")
 // character, short enough to feel responsive once they pause.
 const suggestDebounce = 300 * time.Millisecond
 
-// SuggestFunc computes a ghost-text continuation for the given
-// partial input, or "" for none. Called from a background goroutine
-// after a typing pause; ctx is canceled if the input changes again
-// before it returns, or the line is submitted/abandoned.
-type SuggestFunc func(ctx context.Context, partial string) string
-
-// lineState is the pure, terminal-independent line-editing state: a
-// buffer plus the ghost-text suggestion currently shown for it.
-// Kept separate from the raw terminal I/O below so it can be unit
-// tested without a real TTY.
-type lineState struct {
-  buf        []rune
-  suggestion []rune
-}
-
-type outcome struct {
-  submit, interrupted, eof, changed bool
-}
-
 // apply mutates the line state for one decoded key and reports what
 // happened. Typing over a shown suggestion, or backspacing, clears
 // it — a suggestion is only valid for the exact buffer it was
@@ -162,7 +143,66 @@ func ReadLineWithGhostText(
 
   defer restoreMode(fd, state)
 
-  return editLine(ctx, reader, prompt, suggest)
+  read := func() (key, error) { return decodeKey(reader) }
+
+  return editLine(ctx, read, prompt, suggest, "")
+}
+
+// ErrWoken is ReadLineWake's return when wake fired: the input area
+// was cleared, and the text typed so far comes back with it.
+var ErrWoken = errors.New("input woken")
+
+func NewKeyPump(reader *bufio.Reader) *KeyPump {
+  return &KeyPump{ reader: reader, keys: make(chan keyRead, 64) }
+}
+
+func (p *KeyPump) start() {
+  p.once.Do(func() {
+    go func() {
+      for {
+        k, err := decodeKey(p.reader)
+        p.keys <- keyRead{ k, err }
+        if err != nil {
+          return
+        }
+      }
+    }()
+  })
+}
+
+// ReadLineWake is ReadLineWithGhostText for a prompt that other
+// output may interrupt: when wake fires, it clears what it drew and
+// returns the typed text with ErrWoken, to be passed back as initial
+// once the output is done.
+func ReadLineWake(
+  ctx context.Context, pump *KeyPump, prompt, initial string,
+  wake <-chan struct{}, suggest SuggestFunc,
+) (string, error) {
+  if !isTTY(os.Stdin) || !isTTY(os.Stdout) {
+    return readLinePlain(pump.reader, prompt)
+  }
+
+  fd := int(os.Stdin.Fd())
+  state, err := enableRawMode(fd)
+  if err != nil {
+    return readLinePlain(pump.reader, prompt)
+  }
+
+  defer restoreMode(fd, state)
+
+  pump.start()
+  read := func() (key, error) {
+    select {
+    case r := <-pump.keys:
+      return r.k, r.err
+    case <-wake:
+      return key{}, ErrWoken
+    case <-ctx.Done():
+      return key{}, ctx.Err()
+    }
+  }
+
+  return editLine(ctx, read, prompt, suggest, initial)
 }
 
 func readLinePlain(reader *bufio.Reader, prompt string) (string, error) {
@@ -181,12 +221,13 @@ func readLinePlain(reader *bufio.Reader, prompt string) (string, error) {
 // suggestion request only applies its result if its generation is
 // still current when it completes.
 func editLine(
-  ctx context.Context, reader *bufio.Reader, prompt string,
-  suggest SuggestFunc,
+  ctx context.Context, read func() (key, error), prompt string,
+  suggest SuggestFunc, initial string,
 ) (string, error) {
   // Leading newlines go out once: redraw reprints the prompt on
   // every keystroke from the start of the line.
-  if trimmed := strings.TrimLeft(prompt, "\n"); trimmed != prompt {
+  trimmed := strings.TrimLeft(prompt, "\n")
+  if trimmed != prompt {
     fmt.Print(prompt[:len(prompt) - len(trimmed)])
     prompt = trimmed
   }
@@ -197,6 +238,8 @@ func editLine(
     gen   int
   )
 
+  state.buf = []rune(initial)
+
   var cancelPrev context.CancelFunc = func() {}
   defer func() { cancelPrev() }()
 
@@ -204,15 +247,31 @@ func editLine(
   // rows lining up under the text after the prompt. row is where the
   // cursor sits, counted from the prompt's row, so a redraw can go
   // back up to it.
-  width := TextWidth()
-  if width <= 0 {
-    width = 80
+  // The terminal's width is read on every redraw: a window manager
+  // can resize it while the line is open (i3 tiling a new window).
+  measure := func() (width, promptW, hang int) {
+    width = termCols()
+    if width <= 0 {
+      width = 80
+    }
+
+    width--
+    promptW = visibleWidth(prompt)
+    hang = promptW
+    if width - promptW < 20 {
+      hang = 0
+    }
+
+    return width, promptW, hang
   }
 
-  promptW := visibleWidth(prompt)
-  hang := promptW
-  if width - promptW < 20 {
-    hang = 0
+  // A prompt that leaves no room to type goes on its own line, and
+  // the typing on a short one below it: wrapped, it would throw the
+  // redraws off.
+  width, promptW, _ := measure()
+  if promptW > width - 20 {
+    fmt.Print(prompt + "\r\n")
+    prompt = Prompt()
   }
 
   row := 0
@@ -222,7 +281,8 @@ func editLine(
     text := append(append([]rune{}, state.buf...), state.suggestion...)
     mu.Unlock()
 
-    rows := layoutInput(text, width - promptW, width - hang)
+    width, promptW, hang := measure()
+    rows := layoutInput(text, max(1, width - promptW), max(1, width - hang))
 
     var b strings.Builder
     if row > 0 {
@@ -247,7 +307,8 @@ func editLine(
     }
 
     cr, cc := cursorAt(rows, typed)
-    if up := len(rows) - 1 - cr; up > 0 {
+    up := len(rows) - 1 - cr
+    if up > 0 {
       fmt.Fprintf(&b, "\x1b[%dA", up)
     }
 
@@ -318,7 +379,20 @@ func editLine(
   }
 
   for {
-    k, err := decodeKey(reader)
+    k, err := read()
+    if err == ErrWoken {
+      if row > 0 {
+        fmt.Printf("\x1b[%dA", row)
+      }
+
+      fmt.Print("\r\x1b[J")
+      mu.Lock()
+      line := state.text()
+      mu.Unlock()
+
+      return line, ErrWoken
+    }
+
     if err != nil {
       done()
       return "", err

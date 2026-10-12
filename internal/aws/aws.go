@@ -21,12 +21,6 @@ import (
   "time"
 )
 
-// Credentials are an access key pair, plus a session token for
-// temporary credentials.
-type Credentials struct {
-  AccessKeyID, SecretAccessKey, SessionToken string
-}
-
 // ErrNoCredentials means neither the environment nor .env had keys.
 var ErrNoCredentials = errors.New(
   "no AWS credentials: set AWS_ACCESS_KEY_ID and " +
@@ -181,14 +175,6 @@ func awsEscape(s string) string {
 // against.
 const ec2Version = "2016-11-15"
 
-// EC2 calls the EC2 Query API in one region.
-type EC2 struct {
-  Region   string
-  Creds    Credentials
-  HTTP     *http.Client
-  Endpoint string // tests override; default https://ec2.<region>.amazonaws.com
-}
-
 // NewEC2 returns a client for region.
 func NewEC2(region string, creds Credentials) *EC2 {
   return &EC2{
@@ -196,11 +182,6 @@ func NewEC2(region string, creds Credentials) *EC2 {
     Creds:  creds,
     HTTP:   &http.Client{ Timeout: 30 * time.Second },
   }
-}
-
-// Instance is what DescribeInstance reports.
-type Instance struct {
-  ID, State, PublicIP, PrivateIP, PublicDNS string
 }
 
 // Host is the address to reach the instance at: public IP, then
@@ -214,13 +195,6 @@ func (i Instance) Host() string {
   }
 
   return i.PrivateIP
-}
-
-type ec2Error struct {
-  Errors []struct {
-    Code    string `xml:"Code"`
-    Message string `xml:"Message"`
-  } `xml:"Errors>Error"`
 }
 
 func (e *EC2) call(
@@ -278,23 +252,12 @@ func (e *EC2) call(
     return nil
   }
 
-  if err := xml.Unmarshal(raw, out); err != nil {
+  err = xml.Unmarshal(raw, out)
+  if err != nil {
     return fmt.Errorf("\n\t... in call:\n\t %s: %w", action, err)
   }
 
   return nil
-}
-
-type describeResponse struct {
-  Reservations []struct {
-    Instances []struct {
-      ID        string `xml:"instanceId"`
-      State     string `xml:"instanceState>name"`
-      PublicIP  string `xml:"ipAddress"`
-      PrivateIP string `xml:"privateIpAddress"`
-      PublicDNS string `xml:"dnsName"`
-    } `xml:"instancesSet>item"`
-  } `xml:"reservationSet>item"`
 }
 
 // DescribeInstance reports one instance's state and addresses.
@@ -381,7 +344,8 @@ func (e *EC2) WaitRunning(
         return inst, started, nil
       }
     case "stopped":
-      if err := e.StartInstance(ctx, id); err != nil {
+      err := e.StartInstance(ctx, id)
+      if err != nil {
         return inst, started, fmt.Errorf("\n\t... in WaitRunning:\n\t%w", err)
       }
 

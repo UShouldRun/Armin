@@ -8,17 +8,6 @@ import (
   "armin/internal/sandbox"
 )
 
-// SymbolLocation is one ctags.Symbol, reshaped for the JSON contract
-// tool results use (exported fields, json tags) rather than handing
-// back internal/ctags' own type directly.
-type SymbolLocation struct {
-  Name  string `json:"name"`
-  Kind  string `json:"kind"`
-  File  string `json:"file"`
-  Line  int    `json:"line"`
-  Scope string `json:"scope,omitempty"`
-}
-
 func toSymbolLocation(s ctags.Symbol) SymbolLocation {
   return SymbolLocation{
     Name: s.Name, Kind: ctags.KindLabel(s.Kind), File: s.File,
@@ -47,15 +36,6 @@ func ctagsUnavailable(fn string) error {
 
 // --- find_definition ---
 
-type FindDefinitionInput struct {
-  Name     string `json:"name"`
-  FromFile string `json:"from_file,omitempty"` // ranks same-file/same-dir matches first
-}
-
-type FindDefinitionOutput struct {
-  Matches []SymbolLocation `json:"matches"`
-}
-
 // FindDefinition wraps the same ctags index the LSP server's real
 // textDocument/definition uses — a deterministic fact, not a model
 // guess, now exposed to the agent directly instead of only over LSP.
@@ -74,15 +54,6 @@ func FindDefinition(
 }
 
 // --- list_symbols ---
-
-type ListSymbolsInput struct {
-  Query string `json:"query,omitempty"` // substring, case-insensitive; empty lists everything (capped)
-}
-
-type ListSymbolsOutput struct {
-  Matches   []SymbolLocation `json:"matches"`
-  Truncated bool             `json:"truncated,omitempty"`
-}
 
 const maxListSymbolsResults = 200
 
@@ -106,14 +77,6 @@ func ListSymbols(
 }
 
 // --- outline_file ---
-
-type OutlineFileInput struct {
-  Path string `json:"path"`
-}
-
-type OutlineFileOutput struct {
-  Symbols []SymbolLocation `json:"symbols"`
-}
 
 // OutlineFile lists Path's known symbols via ctags without reading
 // its content — a cheaper first look at a big file than read_file's
@@ -140,16 +103,6 @@ func OutlineFile(
 }
 
 // --- find_references ---
-
-type FindReferencesInput struct {
-  Name string `json:"name"`
-  Path string `json:"path,omitempty"`
-}
-
-type FindReferencesOutput struct {
-  Matches   string `json:"matches"`
-  Truncated bool   `json:"truncated,omitempty"`
-}
 
 // FindReferences is search_code's word-boundary-matched sibling: it
 // finds where an identifier is USED, not where ctags says it's

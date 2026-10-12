@@ -20,16 +20,13 @@ import (
   "sort"
   "strconv"
   "strings"
-  "sync"
-  "sync/atomic"
   "syscall"
   "time"
 
   "armin/internal/agent"
+  "armin/internal/catalog"
   "armin/internal/convo"
-  "armin/internal/llamacpp"
   "armin/internal/llm"
-  "armin/internal/sandbox"
   "armin/internal/session"
   "armin/internal/tools"
 )
@@ -48,45 +45,6 @@ const (
   pingEvery = 5 * time.Second
 )
 
-// Config is what Serve needs from cmd/armin.
-type Config struct {
-  Addr         string
-  Loop         *agent.Loop
-  Client       *llm.Client
-  Models       *llamacpp.Manager
-  Sandbox      *sandbox.Config
-  SystemPrompt string
-  // AutoApprove applies file writes without asking.
-  AutoApprove bool
-
-  // Resumed, if set, is the session to continue (armin -resume).
-  Resumed *session.Saved
-  // Autosave writes the session after every turn, like the REPL.
-  Autosave bool
-  // ScratchBase is the project's scratch folder; the session's own
-  // scratchpad is a folder under it named by the session id.
-  ScratchBase string
-}
-
-// Server holds the one browser session.
-type Server struct {
-  cfg Config
-
-  mu        sync.Mutex // guards history and turns: one turn at a time
-  history   []llm.Message
-  tokens    int
-  meta      session.Meta
-  persisted int // messages of history already on disk
-
-  approvals sync.Map // id → chan decision
-  nextID    atomic.Uint64
-}
-
-type decision struct {
-  OK       bool   `json:"ok"`
-  Feedback string `json:"feedback"`
-}
-
 // New builds a server with a fresh session, oriented the same way
 // the REPL's is (project manifest folded into the system prompt).
 func New(ctx context.Context, cfg Config) *Server {
@@ -95,7 +53,8 @@ func New(ctx context.Context, cfg Config) *Server {
   }
 
   s := &Server{ cfg: cfg }
-  if r := cfg.Resumed; r != nil {
+  r := cfg.Resumed
+  if r != nil {
     s.history = r.History
     s.meta = r.Meta
     // Today's prompt replaces the saved one (memories and skills may
@@ -146,7 +105,8 @@ func (s *Server) save(ctx context.Context) {
   }
 
   s.meta.Model = s.cfg.Client.Model
-  if err := session.Append(&s.meta, s.history, &s.persisted); err != nil {
+  err := session.Append(&s.meta, s.history, &s.persisted)
+  if err != nil {
     fmt.Fprintf(os.Stderr, "armin: saving session: %s\n", err)
   }
 }
@@ -179,7 +139,8 @@ func Serve(ctx context.Context, cfg Config) error {
     return fmt.Errorf("\n\t... in Serve:\n\t %q: %w", cfg.Addr, err)
   }
 
-  if ip := net.ParseIP(host); host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+  ip := net.ParseIP(host)
+  if host != "localhost" && (ip == nil || !ip.IsLoopback()) {
     return fmt.Errorf(
       "\n\t... in Serve:\n\t refusing to listen on %q: the web UI runs "+
         "tools on this machine, so it only binds to localhost",
@@ -211,7 +172,8 @@ func Serve(ctx context.Context, cfg Config) error {
   }
 
   fmt.Fprintf(os.Stderr, "armin web UI: http://%s\n", cfg.Addr)
-  if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+  err = srv.Serve(ln)
+  if err != nil && !errors.Is(err, http.ErrServerClosed) {
     return fmt.Errorf("\n\t... in Serve:\n\t%w", err)
   }
 
@@ -258,7 +220,8 @@ func localOnly(next http.Handler) http.Handler {
 
 func isLocalHost(hostport string) bool {
   host := hostport
-  if h, _, err := net.SplitHostPort(hostport); err == nil {
+  h, _, err := net.SplitHostPort(hostport)
+  if err == nil {
     host = h
   }
 
@@ -278,25 +241,6 @@ func writeJSON(w http.ResponseWriter, v any) {
 }
 
 // --- info / files / raw ---
-
-// modelChoice is one entry of the page's model picker.
-type modelChoice struct {
-  Name  string `json:"name"`
-  Model string `json:"model"`
-}
-
-type infoBody struct {
-  Root      string        `json:"root"`
-  Model     string        `json:"model"`
-  Label     string        `json:"label"`
-  Models    []modelChoice `json:"models"`
-  Window    int      `json:"window"`
-  Tokens    int      `json:"tokens"`
-  Approx    int      `json:"approx"`
-  Tier      string   `json:"tier"`
-  Messages  int      `json:"messages"`
-  AutoApply bool     `json:"auto_apply"`
-}
 
 func (s *Server) info(w http.ResponseWriter, r *http.Request) {
   s.mu.Lock()
@@ -319,12 +263,25 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
   b.Label = s.label(b.Model)
   if s.cfg.Models != nil {
     for _, st := range s.cfg.Models.Names() {
-      b.Models = append(b.Models, modelChoice{ Name: st.Name, Model: st.Model })
+      choice := modelChoice{ Name: st.Name, Model: st.Model }
+      cost, ok := catalog.Price(st.Model)
+      if ok && !st.Managed {
+        choice.Cost = &cost
+      }
+
+      b.Models = append(b.Models, choice)
     }
 
     sort.Slice(b.Models, func(i, j int) bool {
       return b.Models[i].Name < b.Models[j].Name
     })
+
+    b.Hosted = s.cfg.Models.OpenRouter()
+    if b.Hosted != "" {
+      b.Suggested = catalog.Suggestions()
+      url, key := s.cfg.Models.Endpoint(b.Hosted)
+      b.Balance = catalog.CachedCredits(url, key)
+    }
   }
 
   writeJSON(w, b)
@@ -346,7 +303,8 @@ func (s *Server) files(w http.ResponseWriter, r *http.Request) {
       return nil
     }
 
-    if rel, err := filepath.Rel(root, path); err == nil {
+    rel, err := filepath.Rel(root, path)
+    if err == nil {
       out = append(out, filepath.ToSlash(rel))
     }
 
@@ -387,13 +345,6 @@ func (s *Server) raw(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- chat ---
-
-// sse writes one server-sent event and flushes it.
-type sse struct {
-  w  http.ResponseWriter
-  fl http.Flusher
-  mu sync.Mutex
-}
 
 func (e *sse) send(kind string, v any) {
   raw, _ := json.Marshal(v)
@@ -523,13 +474,6 @@ func inUse(addr string) string {
   return addr + " is in use by another program: pick another address (-web " + other + ")"
 }
 
-// historyEntry is one line of the conversation for the page to
-// redraw a resumed session.
-type historyEntry struct {
-  Role string `json:"role"` // user, assistant, tool
-  Text string `json:"text"`
-}
-
 // historyView is what the page shows of the history: what the user
 // and the model said, and the tools called. Tool results, notes
 // armin added and the system prompt stay out.
@@ -589,7 +533,8 @@ func (s *Server) approve(w http.ResponseWriter, r *http.Request) {
     decision
   }
 
-  if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+  err := json.NewDecoder(r.Body).Decode(&in)
+  if err != nil {
     http.Error(w, err.Error(), http.StatusBadRequest)
     return
   }
@@ -626,7 +571,8 @@ func (s *Server) command(w http.ResponseWriter, r *http.Request) {
     Name, Arg string
   }
 
-  if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+  err := json.NewDecoder(r.Body).Decode(&in)
+  if err != nil {
     http.Error(w, err.Error(), http.StatusBadRequest)
     return
   }
@@ -645,7 +591,8 @@ func (s *Server) command(w http.ResponseWriter, r *http.Request) {
 
   case "compact":
     before := convo.Analyze(s.history).ApproxTokens
-    if err := convo.Compact(r.Context(), s.cfg.Client, &s.history, 6, ""); err != nil {
+    err := convo.Compact(r.Context(), s.cfg.Client, &s.history, 6, "")
+    if err != nil {
       http.Error(w, err.Error(), http.StatusBadRequest)
       return
     }
@@ -664,17 +611,20 @@ func (s *Server) command(w http.ResponseWriter, r *http.Request) {
       return
     }
 
-    if err := s.cfg.Models.Switch(r.Context(), s.cfg.Client, in.Arg); err != nil {
+    err := s.cfg.Models.Switch(r.Context(), s.cfg.Client, in.Arg)
+    if err != nil {
       http.Error(w, err.Error(), http.StatusBadRequest)
       return
     }
 
     s.cfg.Loop.Window = nil
-    if win := s.cfg.Models.Window(in.Arg); win != nil {
+    win := s.cfg.Models.Window(in.Arg)
+    if win != nil {
       s.cfg.Loop.Window = win
     }
 
-    if n, err := s.cfg.Client.ContextSize(r.Context()); err == nil && n > 0 {
+    n, err := s.cfg.Client.ContextSize(r.Context())
+    if err == nil && n > 0 {
       s.cfg.Loop.ContextSize = n
     }
 

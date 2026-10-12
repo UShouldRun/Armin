@@ -11,7 +11,8 @@ import (
 
 func requireGo(t *testing.T) {
   t.Helper()
-  if _, err := exec.LookPath("go"); err != nil {
+  _, err := exec.LookPath("go")
+  if err != nil {
     t.Skip("go toolchain not available — skipping go-backed tool tests")
   }
 }
@@ -106,7 +107,8 @@ func TestBuildCheckFailingReportsTail(t *testing.T) {
 // --- lint_check ---
 
 func TestLintCheckUnavailableIsNotAnError(t *testing.T) {
-  if _, err := exec.LookPath("golangci-lint"); err == nil {
+  _, err := exec.LookPath("golangci-lint")
+  if err == nil {
     t.Skip("golangci-lint is installed — this test only covers the absent case")
   }
   cfg := newTestSandbox(t, sandbox.Options{})
@@ -130,16 +132,20 @@ func TestDetectCommandsPrecedence(t *testing.T) {
   cfg.Commands.Lint = []string{ "mylint", "--strict" }
 
   pc := DetectCommands(cfg)
-  if got := strings.Join(pc.Test.argv(nil), " "); got != "go test -race ./..." {
+  got := strings.Join(pc.Test.argv(nil), " ")
+  if got != "go test -race ./..." {
     t.Errorf("test = %q, want the project file's command", got)
   }
-  if got := strings.Join(pc.Build.argv(nil), " "); got != "make build" {
+  got = strings.Join(pc.Build.argv(nil), " ")
+  if got != "make build" {
     t.Errorf("build = %q, want the Makefile target", got)
   }
-  if got := strings.Join(pc.Lint.argv(nil), " "); got != "mylint --strict" {
+  got = strings.Join(pc.Lint.argv(nil), " ")
+  if got != "mylint --strict" {
     t.Errorf("lint = %q, want the user's config", got)
   }
-  if got := strings.Join(pc.Test.argv([]string{ "./x" }), " "); got != "go test -race ./... ./x" {
+  got = strings.Join(pc.Test.argv([]string{ "./x" }), " ")
+  if got != "go test -race ./... ./x" {
     t.Errorf("test with args = %q", got)
   }
 }
@@ -150,10 +156,12 @@ func TestDetectCommandsNode(t *testing.T) {
   writeFile(t, cfg.Root, "tsconfig.json", "{}")
 
   pc := DetectCommands(cfg)
-  if got := strings.Join(pc.Test.argv([]string{ "-t", "foo" }), " "); got != "npm run test -- -t foo" {
+  got := strings.Join(pc.Test.argv([]string{ "-t", "foo" }), " ")
+  if got != "npm run test -- -t foo" {
     t.Errorf("test = %q", got)
   }
-  if got := strings.Join(pc.Build.argv(nil), " "); got != "npx tsc --noEmit" {
+  got = strings.Join(pc.Build.argv(nil), " ")
+  if got != "npx tsc --noEmit" {
     t.Errorf("build = %q, want the tsconfig fallback", got)
   }
 }
@@ -166,5 +174,21 @@ func TestRunProjectWithNoCommandIsAHint(t *testing.T) {
   }
   if out.Available || out.Hint == "" {
     t.Fatalf("out = %+v, want available:false with a hint", out)
+  }
+}
+
+// TestMakefileWithoutBuildTarget: a Makefile whose default goal
+// builds (all:) gives build_check plain make.
+func TestMakefileWithoutBuildTarget(t *testing.T) {
+  cfg := newTestSandbox(t, sandbox.Options{})
+  writeFile(t, cfg.Root, "Makefile", "all: fox\n\nfox: src/fox.c\n\tmpicc -o fox src/fox.c\n\ntest: fox\n\t./run.sh\n")
+
+  pc := DetectCommands(cfg)
+  if strings.Join(pc.Build.Argv, " ") != "make" || pc.Build.Source != "Makefile" {
+    t.Fatalf("build = %+v", pc.Build)
+  }
+
+  if strings.Join(pc.Test.Argv, " ") != "make test" {
+    t.Fatalf("test = %+v", pc.Test)
   }
 }

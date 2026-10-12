@@ -11,27 +11,31 @@ import (
 // --- find_definition / list_symbols / outline_file: nil index ---
 
 func TestFindDefinitionNilIndexIsCleanError(t *testing.T) {
-  if _, err := FindDefinition(context.Background(), nil, FindDefinitionInput{Name: "Foo"}); err == nil {
+  _, err := FindDefinition(context.Background(), nil, FindDefinitionInput{Name: "Foo"})
+  if err == nil {
     t.Fatal("expected an error for a nil ctags index")
   }
 }
 
 func TestListSymbolsNilIndexIsCleanError(t *testing.T) {
-  if _, err := ListSymbols(context.Background(), nil, ListSymbolsInput{}); err == nil {
+  _, err := ListSymbols(context.Background(), nil, ListSymbolsInput{})
+  if err == nil {
     t.Fatal("expected an error for a nil ctags index")
   }
 }
 
 func TestOutlineFileNilIndexIsCleanError(t *testing.T) {
   in := OutlineFileInput{Path: "a.go"}
-  if _, err := OutlineFile(context.Background(), nil, in); err == nil {
+  _, err := OutlineFile(context.Background(), nil, in)
+  if err == nil {
     t.Fatal("expected an error for a nil ctags index")
   }
 }
 
 func TestFindDefinitionRequiresName(t *testing.T) {
   idx := ctags.New(t.TempDir(), "")
-  if _, err := FindDefinition(context.Background(), idx, FindDefinitionInput{}); err == nil {
+  _, err := FindDefinition(context.Background(), idx, FindDefinitionInput{})
+  if err == nil {
     t.Fatal("expected an error for an empty name")
   }
 }
@@ -55,7 +59,8 @@ func TestFindDefinitionEmptyIndexReturnsNoMatches(t *testing.T) {
 
 func TestOutlineFileRequiresPath(t *testing.T) {
   idx := ctags.New(t.TempDir(), "")
-  if _, err := OutlineFile(context.Background(), idx, OutlineFileInput{}); err == nil {
+  _, err := OutlineFile(context.Background(), idx, OutlineFileInput{})
+  if err == nil {
     t.Fatal("expected an error for an empty path")
   }
 }
@@ -78,7 +83,8 @@ func TestFindReferencesFindsWordBoundaryMatches(t *testing.T) {
 
 func TestFindReferencesRequiresName(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
-  if _, err := FindReferences(context.Background(), cfg, FindReferencesInput{}); err == nil {
+  _, err := FindReferences(context.Background(), cfg, FindReferencesInput{})
+  if err == nil {
     t.Fatal("expected an error for an empty name")
   }
 }

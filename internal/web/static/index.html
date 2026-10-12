@@ -13,6 +13,8 @@
     --line: #e3e3e6; --accent: #2a6df4; --code: #f2f2f5;
     --add: #e6f6ea; --addt: #146c2e; --del: #fdecec; --delt: #a4161a;
     --hl: #fff4c2;
+    --sk: #8a3ffc; --ss: #1f7a3a; --sc: #8e8e93; --sn: #b5561a;
+    --st: #0e7c86; --sf: #2a5bd7;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -21,10 +23,21 @@
       --line: #2c2c31; --accent: #6b9bff; --code: #242428;
       --add: #12301c; --addt: #7fd69a; --del: #3a1517; --delt: #f19ca0;
       --hl: #3d3610;
+      --sk: #c39bff; --ss: #8fd19e; --sc: #7c7c84; --sn: #f0a868;
+      --st: #6cd3dc; --sf: #8ab4ff;
     }
   }
 
   * { box-sizing: border-box; }
+  body.noviewer { grid-template-columns: 260px 1fr; }
+  body.noviewer section { display: none; }
+  .bar .close { border: 0; background: none; color: var(--dim); font-size: 16px; padding: 0 4px; }
+  .k { color: var(--sk); }
+  .s { color: var(--ss); }
+  .c { color: var(--sc); font-style: italic; }
+  .num { color: var(--sn); }
+  .t { color: var(--st); }
+  .f { color: var(--sf); }
   body {
     margin: 0; height: 100vh; display: grid;
     grid-template-columns: 260px 1fr 42%;
@@ -39,6 +52,8 @@
   }
 
   header b { font-size: 15px; }
+  header .credits { color: var(--dim); font-size: 12px; white-space: nowrap; }
+  header .credits.low { color: var(--delt); }
   header .root { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
   header select, header button, .bar button, .approve button {
     font: inherit; padding: 3px 9px; border: 1px solid var(--line);
@@ -99,6 +114,10 @@
   table.code td { padding: 0 8px; white-space: pre; vertical-align: top; }
   table.code td.n { color: var(--dim); text-align: right; user-select: none; border-right: 1px solid var(--line); width: 1%; }
   table.code tr.hl td { background: var(--hl); }
+  table.code tr.add td { background: var(--add); }
+  table.code tr.del td { background: var(--del); }
+  table.code tr.add td.n, table.code tr.del td.n { color: var(--text); }
+  .approve .view { font: 12px ui-monospace, monospace; color: var(--accent); cursor: pointer; margin: 4px 0; }
   .empty { color: var(--dim); padding: 24px; }
 
   .md pre { background: var(--code); padding: 10px; border-radius: 6px; overflow: auto; font-size: 12.5px; }
@@ -113,6 +132,7 @@
     body { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; }
     aside { max-height: 160px; }
     section { min-height: 300px; border-left: 0; border-top: 1px solid var(--line); }
+    body.noviewer { grid-template-columns: 1fr; }
   }
 
 </style>
@@ -127,8 +147,13 @@
 
   <select
     id    = "model"
-    title = "model"
+    title = "pick a model — hosted ones show their price; completion stays local"
   ></select>
+
+  <span
+    class = "credits"
+    id    = "credits"
+  ></span>
 
   <div
     class = "meter"
@@ -148,6 +173,11 @@
     id    = "clear"
     title = "start a new conversation"
   >clear</button>
+
+  <button
+    id    = "viewer"
+    title = "show or hide the file viewer"
+  >viewer</button>
 </header>
 
 <aside>
@@ -177,6 +207,12 @@
       id    = "askfile"
       title = "mention this file in your message"
     >ask about this file</button>
+
+    <button
+      id    = "closeviewer"
+      class = "close"
+      title = "hide the file viewer"
+    >×</button>
   </div>
   <div id = "preview"><div class = "empty">PDFs, Markdown and code preview here.</div></div>
 </section>
@@ -320,17 +356,41 @@ async function refreshInfo() {
   $("root").textContent = info.root;
   const sel = $("model");
   const models = info.models || [ { name: info.model, model: info.label } ];
-  const key    = models.map((m) => m.name).join(",");
+  const sugg   = (info.hosted && info.suggested) || [];
+  const key    = models.map((m) => m.name).join(",") + "|" + sugg.map((m) => m.id).join(",");
   if (sel.dataset.models !== key) {
-    sel.innerHTML = models.map((m) => {
-      const label = m.model && m.model !== m.name ? `${ m.name } — ${ m.model }` : m.name;
-      return `<option value = "${ esc(m.name) }">${ esc(label) }</option>`;
+    const option = (value, label) => `<option value = "${ esc(value) }">${ esc(label) }</option>`;
+    const mine   = models.map((m) => {
+      let label = m.model && m.model !== m.name ? `${ m.name } — ${ m.model }` : m.name;
+      label += m.cost ? ` · ${ costLabel(m.cost) }` : m.model && m.model.includes("/") ? " · hosted" : " · local, free";
+      return option(m.name, label);
     }).join("");
+    const known  = new Set(models.map((m) => m.name));
+    const hosted = sugg.filter((m) => !known.has(info.hosted + ":" + m.id))
+      .map((m) => option(info.hosted + ":" + m.id, `${ m.id } · ${ costLabel(m) }`)).join("");
+    sel.innerHTML = `<optgroup label = "configured">${ mine }</optgroup>`
+      + (hosted ? `<optgroup label = "suggested on OpenRouter (uses ${ esc(info.hosted) }'s key)">${ hosted }</optgroup>` : "");
     sel.dataset.models = key;
   }
   sel.value = info.model;
+
+  const credits = $("credits");
+  const b       = info.balance;
+  if (b) {
+    const left = b.credits - b.used;
+    credits.textContent = `OpenRouter $${ left.toFixed(2) } left · today $${ (b.today || 0).toFixed(2) }`;
+    credits.title       = b.key_limit ? `this key: $${ b.key_left.toFixed(2) } of its $${ b.key_limit.toFixed(2) } cap left` : "";
+    credits.classList.toggle("low", left < 1);
+  } else {
+    credits.textContent = "";
+  }
   showContext(info.tokens || info.approx, info.window, info.tier, !info.tokens);
 }
+
+// costLabel is a hosted model's price per 1M tokens in / out, and a
+// deep session (~1.2M in, 30k out, as armin runs one).
+const costLabel = (c) => !c.in && !c.out ? "free"
+  : `$${ c.in.toFixed(2) } / $${ c.out.toFixed(2) } per 1M · ~$${ c.session.toFixed(2) } a session`;
 
 // kTokens renders a token count compactly: 950, 8.4k, 96k.
 const kTokens = (n) => n < 1000 ? String(n) : n < 10000 ? (n / 1000).toFixed(1) + "k" : Math.round(n / 1000) + "k";
@@ -383,11 +443,223 @@ function renderFiles() {
   $("files").innerHTML = list.map((f) => `<div data-path = "${ esc(f) }" class = "${ f === current ? "on" : "" }" title = "${ esc(f) }">${ esc(f) }</div>`).join("");
 }
 
+// ---------- file viewer ----------
+
+// The viewer opens with a file and closes on × or "viewer"; the
+// choice is remembered per browser.
+function showViewer(on) {
+  document.body.classList.toggle("noviewer", !on);
+  try {
+    localStorage.setItem("armin.viewer", on ? "1" : "0");
+
+  } catch (e) {
+    // storage blocked: the toggle still works for this page
+  }
+}
+
+function viewerOpen() { return !document.body.classList.contains("noviewer"); }
+
+// ---------- syntax highlighting ----------
+
+// A small tokenizer per language family: comments, strings,
+// numbers, keywords, types and calls. Enough to read code by, with
+// no library behind it.
+const words = (s) => new Set(s.split(" "));
+
+const cLike = {
+  line:  "//",
+  block: [ "/*", "*/" ],
+  quote: "\"'`",
+};
+
+const langs = {
+  go: { ...cLike,
+    kw:    words("break case chan const continue default defer else fallthrough for func go goto if import interface map package range return select struct switch type var"),
+    lit:   words("true false nil iota"),
+    types: words("bool byte complex64 complex128 error float32 float64 int int8 int16 int32 int64 rune string uint uint8 uint16 uint32 uint64 uintptr any"),
+  },
+  js: { ...cLike,
+    kw:    words("async await break case catch class const continue debugger default delete do else export extends finally for from function if import in instanceof let new of return static super switch this throw try typeof var void while with yield interface type enum implements"),
+    lit:   words("true false null undefined NaN Infinity"),
+    types: words("string number boolean any unknown never object void"),
+  },
+  c: { ...cLike, quote: "\"'",
+    kw:    words("break case const continue default do else enum extern for goto if inline register restrict return sizeof static struct switch typedef union volatile while class namespace template typename public private protected virtual override constexpr noexcept using new delete auto #include #define #ifndef #ifdef #endif #if #else #pragma"),
+    lit:   words("true false NULL nullptr"),
+    types: words("void char short int long float double signed unsigned bool size_t u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 uint8_t uint16_t uint32_t uint64_t int8_t int16_t int32_t int64_t"),
+  },
+  rs: { ...cLike, quote: "\"",
+    kw:    words("as async await break const continue crate dyn else enum extern fn for if impl in let loop match mod move mut pub ref return self Self static struct super trait type unsafe use where while"),
+    lit:   words("true false None Some Ok Err"),
+    types: words("i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize f32 f64 bool char str String Vec Option Result Box"),
+  },
+  java: { ...cLike, quote: "\"'",
+    kw:    words("abstract break case catch class continue default do else enum extends final finally for if implements import instanceof interface new package private protected public return static super switch this throw throws try void while var record"),
+    lit:   words("true false null"),
+    types: words("int long short byte char boolean float double String Object"),
+  },
+  py: {
+    line:  "#",
+    quote: "\"'",
+    kw:    words("and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield match case"),
+    lit:   words("True False None self"),
+    types: words("int float str bytes bool list dict set tuple object"),
+  },
+  sh: {
+    line:  "#",
+    quote: "\"'`",
+    kw:    words("if then else elif fi for while until do done case esac in function return local export readonly set unset shift exit source alias"),
+    lit:   words("true false"),
+    types: words(""),
+  },
+  lua: {
+    line:  "--",
+    block: [ "--[[", "]]" ],
+    quote: "\"'",
+    kw:    words("and break do else elseif end for function goto if in local not or repeat return then until while"),
+    lit:   words("true false nil"),
+    types: words(""),
+  },
+  sql: {
+    line:  "--",
+    block: [ "/*", "*/" ],
+    quote: "'\"",
+    kw:    words("select from where insert into values update set delete create table index view drop alter add join left right inner outer on group by order having limit offset as and or not null is in exists distinct union all primary key foreign references default unique check begin commit rollback with returning case when then else end"),
+    lit:   words("true false"),
+    types: words("int integer bigint smallint text varchar char boolean date timestamp timestamptz numeric real serial uuid jsonb json bytea"),
+    fold:  true,
+  },
+  typ: { ...cLike, quote: "\"",
+    kw:    words("let set show import include if else for in while return context"),
+    lit:   words("true false none auto"),
+    types: words(""),
+  },
+  json: {
+    quote: "\"",
+    kw:    words(""),
+    lit:   words("true false null"),
+    types: words(""),
+  },
+};
+
+const byExt = {
+  go: "go", js: "js", mjs: "js", cjs: "js", jsx: "js", ts: "js", tsx: "js",
+  c: "c", h: "c", cc: "c", cpp: "c", cxx: "c", hpp: "c", hh: "c", inl: "c",
+  rs: "rs", java: "java", kt: "java", py: "py", sh: "sh", bash: "sh",
+  zsh: "sh", lua: "lua", sql: "sql", typ: "typ", json: "json",
+};
+
+// highlightMax: bigger files show plain, fast.
+const highlightMax = 300000;
+
+// highlight returns the text as HTML lines, spans closed and
+// reopened at each line break so a block comment or string spanning
+// lines stays colored in every table row.
+function highlight(text, ext) {
+  const lang = langs[byExt[ext]];
+  if (!lang || text.length > highlightMax) {
+    return text.split("\n").map(esc);
+  }
+
+  const out  = [];
+  let   line = "";
+  const put  = (cls, tok) => {
+    const parts = tok.split("\n");
+    parts.forEach((p, i) => {
+      if (i > 0) {
+        out.push(line);
+        line = "";
+      }
+
+      if (p !== "") {
+        line += cls ? `<span class = "${ cls }">${ esc(p) }</span>` : esc(p);
+      }
+    });
+  };
+
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const ch = text[i];
+
+    if (lang.block && text.startsWith(lang.block[0], i)) {
+      let end = text.indexOf(lang.block[1], i + lang.block[0].length);
+      end = end < 0 ? n : end + lang.block[1].length;
+      put("c", text.slice(i, end));
+      i = end;
+      continue;
+    }
+
+    if (lang.line && text.startsWith(lang.line, i)) {
+      let end = text.indexOf("\n", i);
+      end = end < 0 ? n : end;
+      put("c", text.slice(i, end));
+      i = end;
+      continue;
+    }
+
+    if (lang.quote && lang.quote.includes(ch)) {
+      const triple = ch.repeat(3);
+      const long   = byExt[ext] === "py" && text.startsWith(triple, i);
+      const close  = long ? triple : ch;
+      let   j      = i + close.length;
+      while (j < n && !text.startsWith(close, j)) {
+        if (text[j] === "\\" && ch !== "`") j++;
+        if (text[j] === "\n" && !long && ch !== "`") break;
+        j++;
+      }
+
+      j = Math.min(n, j + close.length);
+      put("s", text.slice(i, j));
+      i = j;
+      continue;
+    }
+
+    if (/[0-9]/.test(ch) && !/[\w]/.test(text[i - 1] || "")) {
+      const m = /^(0x[0-9a-fA-F_]+|0b[01_]+|[0-9][0-9_]*(\.[0-9_]+)?([eE][+-]?[0-9]+)?)/.exec(text.slice(i, i + 40));
+      put("num", m[0]);
+      i += m[0].length;
+      continue;
+    }
+
+    const directive = ch === "#" && /[A-Za-z]/.test(text[i + 1] || "");
+    if (/[A-Za-z_]/.test(ch) || directive) {
+      const m    = /^#?[A-Za-z_][\w]*/.exec(text.slice(i, i + 80));
+      const word = m[0];
+      const key  = lang.fold ? word.toLowerCase() : word;
+      let   cls  = "";
+      if (lang.kw.has(key)) {
+        cls = "k";
+      } else if (lang.lit.has(key)) {
+        cls = "num";
+      } else if (lang.types.has(key)) {
+        cls = "t";
+      } else if (/^\s*\(/.test(text.slice(i + word.length, i + word.length + 4))) {
+        cls = "f";
+      } else if (byExt[ext] === "go" && /^[A-Z]/.test(word) && text[i - 1] !== ".") {
+        cls = "t";
+      }
+
+      put(cls, word);
+      i += word.length;
+      continue;
+    }
+
+    put("", ch);
+    i++;
+  }
+
+  out.push(line);
+
+  return out;
+}
+
 // ---------- preview ----------
 
 const images = [ "png", "jpg", "jpeg", "gif", "webp", "svg" ];
 
 async function preview(path, line, keepScroll) {
+  showViewer(true);
   const full = files.includes(path) ? path : (files.find((f) => f.endsWith("/" + path)) || path);
   const top  = keepScroll ? $("preview").scrollTop : 0;
   current = full;
@@ -411,7 +683,7 @@ async function preview(path, line, keepScroll) {
       box.innerHTML = `<div class = "md">${ markdown(text) }</div>`;
       return;
     }
-    const rows = text.split("\n").map((l, n) => `<tr id = "L${ n + 1 }"${ line && n + 1 === +line ? " class = \"hl\"" : "" }><td class = "n">${ n + 1 }</td><td>${ esc(l) || " " }</td></tr>`);
+    const rows = highlight(text, ext).map((l, n) => `<tr id = "L${ n + 1 }"${ line && n + 1 === +line ? " class = \"hl\"" : "" }><td class = "n">${ n + 1 }</td><td>${ l || " " }</td></tr>`);
     box.innerHTML = `<table class = "code">${ rows.join("") }</table>`;
     if (line) {
       document.getElementById("L" + line)?.scrollIntoView({ block: "center" });
@@ -445,18 +717,93 @@ const approvalText = {
   request_access: { what: "wants to read outside the project:", yes: "Grant", done: "granted" },
 };
 
+// parseChange reads an edit's preview (see tools.Change.Preview):
+// "path @ line N" or "new file path (N lines)", then "- ", "+ " and
+// "  " context lines. Null for anything else (a command, a
+// directory), and for a capped preview, which the viewer can't place.
+function parseChange(preview) {
+  const lines  = preview.replace(/\n$/, "").split("\n");
+  const at     = /^(.+) @ line (\d+)$/.exec(lines[0]);
+  const fresh  = /^new file (.+) \(\d+ lines\)$/.exec(lines[0]);
+  if (!at && !fresh) return null;
+
+  const ch = {
+    path: (at || fresh)[1], start: at ? +at[2] : 1, created: !!fresh,
+    before: 0, gone: [], came: [],
+  };
+  for (const l of lines.slice(1)) {
+    if (l.startsWith("… (")) return null;
+    if (l.startsWith("- ")) ch.gone.push(l.slice(2));
+    else if (l.startsWith("+ ")) ch.came.push(l.slice(2));
+    else if (!ch.gone.length && !ch.came.length) ch.before++;
+  }
+
+  return ch;
+}
+
+// showChange shows a proposed edit in the file viewer: the whole
+// file, highlighted, the removed lines in red where they are and the
+// new ones in green right after, scrolled into view.
+async function showChange(ch) {
+  showViewer(true);
+  current = ch.path;
+  renderFiles();
+  $("ptitle").textContent = ch.path + " — proposed change";
+
+  const ext  = ch.path.split(".").pop().toLowerCase();
+  const box  = $("preview");
+  const row  = (cls, n, html) => `<tr${ cls ? ` class = "${ cls }"` : "" }><td class = "n">${ n }</td><td>${ html || " " }</td></tr>`;
+  const came = highlight(ch.came.join("\n"), ext);
+
+  if (ch.created) {
+    box.innerHTML = `<table class = "code">${ came.map((l, i) => row("add", i + 1, l)).join("") }</table>`;
+    return;
+  }
+
+  let text = "";
+  try {
+    text = await api("/api/raw?path=" + encodeURIComponent(ch.path));
+
+  } catch (e) {
+    box.innerHTML = `<div class = "empty err">${ esc(e.message) }</div>`;
+    return;
+  }
+
+  const file  = highlight(text, ext);
+  const first = ch.start - 1; // the first changed line, 0-based
+  const rows  = [];
+  for (let i = 0; i < first && i < file.length; i++) rows.push(row("", i + 1, file[i]));
+  for (let i = 0; i < ch.gone.length; i++) rows.push(row("del", first + i + 1, file[first + i]));
+  came.forEach((l, i) => rows.push(row("add", "+", l)));
+  for (let i = first + ch.gone.length; i < file.length; i++) rows.push(row("", i + 1, file[i]));
+
+  box.innerHTML = `<table class = "code">${ rows.join("") }</table>`;
+  box.querySelector("tr.del, tr.add")?.scrollIntoView({ block: "center" });
+}
+
 function approvalBox(ev) {
-  const lines = ev.preview.split("\n").map((l) => {
+  const change = parseChange(ev.preview);
+  const lines  = ev.preview.split("\n").map((l) => {
     if (l.startsWith("+ ")) return `<span class = "add">${ esc(l) }</span>`;
     if (l.startsWith("- ")) return `<span class = "del">${ esc(l) }</span>`;
     return esc(l);
   });
-  const ask = approvalText[ev.tool] || approvalText.edit;
+  const ask  = approvalText[ev.tool] || approvalText.edit;
+  const body = change
+    ? `<div class = "view">${ esc(ev.preview.split("\n")[0]) } — shown in the viewer (click to show again)</div>`
+    : `<pre>${ lines.join("\n") }</pre>`;
+  if (change) showChange(change);
+
   const box = add("approve", `<div><b>${ esc(ev.tool) }</b> ${ ask.what }</div>
-    <pre>${ lines.join("\n") }</pre>
+    ${ body }
     <button data-ok = "1">${ ask.yes }</button> <button data-ok = "0">Decline</button>
     <input placeholder = "or tell the model what to do instead">`);
   box.addEventListener("click", async (e) => {
+    if (change && e.target.classList.contains("view")) {
+      showChange(change);
+      return;
+    }
+
     if (!e.target.dataset.ok) return;
     const ok       = e.target.dataset.ok === "1";
     const feedback = box.querySelector("input").value;
@@ -574,7 +921,7 @@ async function send(text) {
 
     case "result":
       setPhase("waiting for the model", true);
-      add(data.startsWith("error:") ? "tool err" : "tool result", "⎿ " + esc(data));
+      add(data.startsWith("error:") ? "tool err" : "tool result", "└ " + esc(data));
       if (!data.startsWith("error:") && lastCall && changers.includes(lastCall.name)) {
         filesChanged(lastCall);
       }
@@ -698,6 +1045,18 @@ for (const name of [ "clear", "compact" ]) {
 // Files changed outside armin (an editor, a terminal) show up when
 // you come back to the tab.
 window.addEventListener("focus", () => { if (!busy) loadFiles(); });
+
+$("viewer").addEventListener("click", () => showViewer(!viewerOpen()));
+$("closeviewer").addEventListener("click", () => showViewer(false));
+
+try {
+  if (localStorage.getItem("armin.viewer") === "0") {
+    showViewer(false);
+  }
+
+} catch (e) {
+  // storage blocked: the viewer starts open
+}
 
 // A resumed session shows what was said before.
 async function loadHistory() {

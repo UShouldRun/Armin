@@ -1,0 +1,24 @@
+package input
+
+import (
+  "time"
+)
+
+// cliFlags holds every parsed flag — one struct instead of a
+// scattering of *string/*bool locals, so run() reads its config
+// from one place.
+type cliFlags struct {
+  root, model, completionModel, ctagsBin    string
+  webAddr, addDirs                          string
+  llamaURL, completionLlamaURL              string
+  timeout                                   time.Duration
+  maxOutput, maxRounds                      int
+  resume                                    string // "": no; "menu"; else a session id
+  dryRun, mcpMode, lspMode, noSave, noColor bool
+  autoApprove, newInstance                  bool
+}
+
+// resumeFlag is -resume: a bool flag that can also carry a value.
+// "-resume" alone means "show the menu"; "-resume=<id>" (or
+// "-resume <id>", see extractPositionalRoot) names a session.
+type resumeFlag string

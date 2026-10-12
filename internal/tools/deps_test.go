@@ -116,7 +116,8 @@ func TestListDependenciesNoManifest(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "a.txt", "nothing here")
 
-  if _, err := ListDependencies(context.Background(), cfg, ListDependenciesInput{}); err == nil {
+  _, err := ListDependencies(context.Background(), cfg, ListDependenciesInput{})
+  if err == nil {
     t.Fatal("expected an error when no manifest is present")
   }
 }

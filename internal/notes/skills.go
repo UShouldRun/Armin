@@ -15,20 +15,6 @@ const skillFile = "SKILL.md"
 // maxSkillFileBytes caps one file read out of a skill directory.
 const maxSkillFileBytes = 64 * 1024
 
-// Skill is a directory of instructions the model loads only when a
-// task calls for it: SKILL.md (frontmatter name + description, then
-// the instructions) plus any supporting files.
-type Skill struct {
-  Name, Description, Dir string
-  Project                bool
-}
-
-// Skills is every skill found at startup, by name.
-type Skills struct {
-  byName map[string]Skill
-  names  []string
-}
-
 // LoadSkills scans the user's skill directory, then the project's;
 // a project skill replaces a user skill of the same name.
 func LoadSkills(userDir, projectDir string) *Skills {

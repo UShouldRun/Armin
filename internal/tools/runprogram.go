@@ -3,28 +3,13 @@ package tools
 import (
   "context"
   "fmt"
+  "io"
+  "os"
   "path/filepath"
   "strings"
 
   "armin/internal/sandbox"
 )
-
-// RunProgramInput is the argument set for run_program.
-type RunProgramInput struct {
-  Binary string   `json:"binary"`
-  Args   []string `json:"args,omitempty"`
-  Dir    string   `json:"dir,omitempty"` // inside the project; default its root
-}
-
-// RunProgramOutput keeps the tail of the output, where compilers and
-// test runners put the errors and the verdict.
-type RunProgramOutput struct {
-  Command   string `json:"command"`
-  Dir       string `json:"dir,omitempty"`
-  ExitCode  int    `json:"exit_code"`
-  Output    string `json:"output"`
-  Truncated bool   `json:"truncated,omitempty"`
-}
 
 // PlanProgram checks a run_program call without running it, and
 // returns the working directory and the program to exec. The caller
@@ -48,8 +33,14 @@ func PlanProgram(
 
   // These write and run code, so paths stay in the project proper,
   // not in directories granted for reading. Relative ones are taken
-  // from dir, where the program runs.
-  for _, p := range PathArgs(in.Binary, in.Args) {
+  // from dir, where the program runs. A shell's argument is a script,
+  // not a path (shells are always asked, see sandbox.Privileged).
+  paths := PathArgs(in.Binary, in.Args)
+  if shell(in.Binary) {
+    paths = nil
+  }
+
+  for _, p := range append(paths, nonEmpty(in.Stdin, in.Stdout)...) {
     if !filepath.IsAbs(p) {
       p = filepath.Join(dir, p)
     }
@@ -81,9 +72,43 @@ func RunProgram(
     }, nil
   }
 
-  res, err := cfg.RunIn(ctx, dir, bin, in.Args)
+  var stdin io.Reader
+  if in.Stdin != "" {
+    f, err := os.Open(inDir(dir, in.Stdin))
+    if err != nil {
+      return nil, fmt.Errorf("\n\t... in RunProgram:\n\t stdin: %w", err)
+    }
+
+    defer f.Close()
+    stdin = f
+  }
+
+  var stdout *os.File
+  if in.Stdout != "" {
+    stdout, err = os.Create(inDir(dir, in.Stdout))
+    if err != nil {
+      return nil, fmt.Errorf("\n\t... in RunProgram:\n\t stdout: %w", err)
+    }
+
+    defer stdout.Close()
+  }
+
+  var res *sandbox.RunResult
+  if stdout != nil {
+    res, err = cfg.RunInWith(ctx, dir, bin, in.Args, stdin, stdout)
+  } else {
+    res, err = cfg.RunInWith(ctx, dir, bin, in.Args, stdin, nil)
+  }
+
   if err != nil {
     return nil, fmt.Errorf("\n\t... in RunProgram:\n\t%w", err)
+  }
+
+  if stdout != nil {
+    info, statErr := stdout.Stat()
+    if statErr == nil {
+      res.Stdout = fmt.Sprintf("(stdout written to %s, %d bytes)\n", in.Stdout, info.Size())
+    }
   }
 
   output := res.Stdout
@@ -97,7 +122,7 @@ func RunProgram(
 
   tail, truncated := sandbox.TruncateTail(output, cfg.MaxOutput)
   out := &RunProgramOutput{
-    Command:   strings.TrimSpace(sandbox.DescribeArgs(in.Binary, in.Args)),
+    Command:   Describe(in),
     ExitCode:  res.ExitCode,
     Output:    tail,
     Truncated: truncated,
@@ -108,4 +133,43 @@ func RunProgram(
   }
 
   return out, nil
+}
+
+// Describe is the run as a shell line: "mpirun -np 1 ./fox < in > out".
+func Describe(in RunProgramInput) string {
+  s := strings.TrimSpace(sandbox.DescribeArgs(in.Binary, in.Args))
+  if in.Stdin != "" {
+    s += " < " + in.Stdin
+  }
+
+  if in.Stdout != "" {
+    s += " > " + in.Stdout
+  }
+
+  return s
+}
+
+func shell(bin string) bool {
+  base := filepath.Base(bin)
+  return base == "bash" || base == "sh"
+}
+
+func nonEmpty(s ...string) []string {
+  var out []string
+  for _, v := range s {
+    if v != "" {
+      out = append(out, v)
+    }
+  }
+
+  return out
+}
+
+// inDir is p relative to dir, where the program runs.
+func inDir(dir, p string) string {
+  if filepath.IsAbs(p) {
+    return p
+  }
+
+  return filepath.Join(dir, p)
 }

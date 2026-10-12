@@ -33,7 +33,8 @@ func TestWriteFileCreatesWithParents(t *testing.T) {
     t.Fatalf("out = %+v", out)
   }
 
-  if got := readBack(t, cfg.Root, "a/b/c.txt"); got != "hi\n" {
+  got := readBack(t, cfg.Root, "a/b/c.txt")
+  if got != "hi\n" {
     t.Fatalf("content = %q", got)
   }
 }
@@ -43,12 +44,14 @@ func TestWriteFileRefusesUnreadExistingFile(t *testing.T) {
   writeFile(t, cfg.Root, "x.txt", "old")
   tr := NewFileTracker()
 
-  if _, err := WriteFile(cfg, tr, WriteFileInput{ Path: "x.txt", Content: "new" }); err == nil {
+  _, err := WriteFile(cfg, tr, WriteFileInput{ Path: "x.txt", Content: "new" })
+  if err == nil {
     t.Fatal("expected an error overwriting a file that was never read")
   }
 
   tr.Mark(filepath.Join(cfg.Root, "x.txt"))
-  if _, err := WriteFile(cfg, tr, WriteFileInput{ Path: "x.txt", Content: "new" }); err != nil {
+  _, err = WriteFile(cfg, tr, WriteFileInput{ Path: "x.txt", Content: "new" })
+  if err != nil {
     t.Fatalf("WriteFile after read: %v", err)
   }
 }
@@ -97,7 +100,8 @@ func TestEditFileExactUniqueReplace(t *testing.T) {
     t.Fatalf("EditFile delete: %v", err)
   }
 
-  if got := readBack(t, cfg.Root, "f.go"); got != "a := 9\na := 9\n" {
+  got := readBack(t, cfg.Root, "f.go")
+  if got != "a := 9\na := 9\n" {
     t.Fatalf("content = %q", got)
   }
 
@@ -123,7 +127,8 @@ func TestEditFileNotFoundPointsAtNearMiss(t *testing.T) {
 func TestWriteRefusesGitDirAndEscape(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   for _, p := range []string{ ".git/config", "../outside.txt", "." } {
-    if _, err := WriteFile(cfg, nil, WriteFileInput{ Path: p, Content: "x" }); err == nil {
+    _, err := WriteFile(cfg, nil, WriteFileInput{ Path: p, Content: "x" })
+    if err == nil {
       t.Errorf("WriteFile(%q) succeeded, want refusal", p)
     }
   }
@@ -136,7 +141,8 @@ func TestDryRunWritesNothing(t *testing.T) {
     t.Fatalf("out = %+v, err = %v", out, err)
   }
 
-  if _, err := os.Stat(filepath.Join(cfg.Root, "n.txt")); !os.IsNotExist(err) {
+  _, err = os.Stat(filepath.Join(cfg.Root, "n.txt"))
+  if !os.IsNotExist(err) {
     t.Fatal("dry run wrote the file")
   }
 }
@@ -150,7 +156,8 @@ func TestPreviewShowsChangedRegion(t *testing.T) {
   }
 
   want := "f.txt @ line 4\n  2\n  3\n- 4\n+ four\n  5\n  6\n"
-  if got := c.Preview(); got != want {
+  got := c.Preview()
+  if got != want {
     t.Fatalf("Preview =\n%s\nwant\n%s", got, want)
   }
 }

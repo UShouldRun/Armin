@@ -19,8 +19,8 @@ import (
   "net/url"
   "os"
   "path/filepath"
+  "sort"
   "strings"
-  "sync"
   "time"
 
   "armin/internal/agent"
@@ -28,6 +28,7 @@ import (
   "armin/internal/llamacpp"
   "armin/internal/llm"
   "armin/internal/sandbox"
+  "armin/internal/share"
 )
 
 // askTimeout bounds one hover or workspace/executeCommand round
@@ -44,9 +45,9 @@ const hoverContextLines = 6
 // philosophy as the sandbox's output truncation).
 const maxHoverChars = 1500
 
-// citationInstruction is appended to the question for armin.ask
+// citationInstruction ends the chat's system prompt (armin.ask
 // only — not hover, whose popup can't render the markup and is
-// already grounded by a ctags fact when possible. It asks the model
+// already grounded by a ctags fact when possible). It asks the model
 // to ground anything worth flagging (a risk, a doubt, a notable
 // behavior) in its exact location, using a convention the nvim
 // client renders as a jump-to-reference rather than raw brackets.
@@ -57,40 +58,6 @@ const citationInstruction = "\n\n" +
   "[[path/to/file.go:123]] (or [[path/to/file.go:120-135]] for a " +
   "range) right after the claim. Use this only for things actually " +
   "worth flagging, never for routine file mentions."
-
-// Server is a minimal, single-purpose LSP server: no diagnostics,
-// no go-to-definition beyond ctags — hover, one ask command, and
-// inline completion.
-type Server struct {
-  loop          *agent.Loop
-  sandbox       *sandbox.Config
-  system        string
-  completionLLM *llm.Client
-  models        *llamacpp.Manager
-  symbols       *ctags.Index
-
-  out   io.Writer
-  outMu sync.Mutex
-
-  docsMu sync.Mutex
-  docs   map[string]string // uri -> full text, via didOpen/didChange
-
-  hoverMu    sync.Mutex
-  hoverCache map[string]string
-
-  inflightMu sync.Mutex
-  inflight   map[string]inflightEntry // uri -> its running completion
-  nextGen    int64
-
-  warnOnce sync.Once
-
-  shutdownReceived bool
-}
-
-type inflightEntry struct {
-  gen    int64
-  cancel context.CancelFunc
-}
 
 // New builds a Server. loop and sb are the same agent/sandbox pair
 // the REPL uses — hover and ask questions get the same
@@ -124,10 +91,38 @@ func New(
     models:        models,
     symbols:       symbols,
     docs:          make(map[string]string),
+    edits:         make(map[string]docEdit),
     hoverCache:    make(map[string]string),
     inflight:      make(map[string]inflightEntry),
+    running:       make(map[string]context.CancelFunc),
+    origin:        "nvim",
   }
 }
+
+// NewProxy builds a Server for an nvim joining the project's armin
+// instance: definition and symbols answer here, from ctags; chat,
+// hover, completion and models go to the host.
+func NewProxy(sb *sandbox.Config, symbols *ctags.Index, host *share.Client) *Server {
+  return &Server{
+    sandbox:    sb,
+    symbols:    symbols,
+    docs:       make(map[string]string),
+    edits:      make(map[string]docEdit),
+    hoverCache: make(map[string]string),
+    inflight:   make(map[string]inflightEntry),
+    running:    make(map[string]context.CancelFunc),
+    remote:     host,
+    origin:     host.Origin,
+  }
+}
+
+// Follow makes completion follow chat between local models (nil:
+// completion_model pins it).
+func (s *Server) Follow(completion *llm.Client) { s.follower = completion }
+
+// Share makes this server's conversation and models the project's
+// instance (see share.Listen).
+func (s *Server) Share(hub *share.Hub) { s.hub = hub }
 
 // Serve reads Content-Length-framed JSON-RPC from in and writes
 // responses/notifications to out until in hits EOF or exit fires.
@@ -136,6 +131,10 @@ func (s *Server) Serve(
 ) error {
   s.out = out
   reader := bufio.NewReader(in)
+
+  if s.remote != nil {
+    go s.relay()
+  }
 
   for {
     raw, err := readMessage(reader)
@@ -147,7 +146,8 @@ func (s *Server) Serve(
     }
 
     var msg rpcMessage
-    if err := json.Unmarshal(raw, &msg); err != nil {
+    err = json.Unmarshal(raw, &msg)
+    if err != nil {
       continue // malformed frame — nothing sane to respond with
     }
 
@@ -177,13 +177,21 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
   case "initialized", "$/setTrace", "workspace/didChangeConfiguration":
     // notifications we accept and ignore
 
+  case "$/cancelRequest":
+    var p CancelParams
+    err := json.Unmarshal(msg.Params, &p)
+    if err == nil {
+      s.cancel(p.ID)
+    }
+
   case "shutdown":
     s.shutdownReceived = true
     s.respond(msg.ID, nil, nil)
 
   case "textDocument/didOpen":
     var p DidOpenParams
-    if err := json.Unmarshal(msg.Params, &p); err == nil {
+    err := json.Unmarshal(msg.Params, &p)
+    if err == nil {
       s.setDoc(p.TextDocument.URI, p.TextDocument.Text)
     }
 
@@ -197,13 +205,15 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
 
   case "textDocument/didClose":
     var p DidCloseParams
-    if err := json.Unmarshal(msg.Params, &p); err == nil {
+    err := json.Unmarshal(msg.Params, &p)
+    if err == nil {
       s.dropDoc(p.TextDocument.URI)
     }
 
   case "textDocument/hover":
     var p HoverParams
-    if err := json.Unmarshal(msg.Params, &p); err != nil {
+    err := json.Unmarshal(msg.Params, &p)
+    if err != nil {
       s.respondError(msg.ID, errInvalidRequest, err.Error())
       return
     }
@@ -211,7 +221,8 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
 
   case "workspace/executeCommand":
     var p ExecuteCommandParams
-    if err := json.Unmarshal(msg.Params, &p); err != nil {
+    err := json.Unmarshal(msg.Params, &p)
+    if err != nil {
       s.respondError(msg.ID, errInvalidRequest, err.Error())
       return
     }
@@ -219,7 +230,8 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
 
   case "textDocument/inlineCompletion":
     var p InlineCompletionParams
-    if err := json.Unmarshal(msg.Params, &p); err != nil {
+    err := json.Unmarshal(msg.Params, &p)
+    if err != nil {
       s.respondError(msg.ID, errInvalidRequest, err.Error())
       return
     }
@@ -227,7 +239,8 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
 
   case "textDocument/definition":
     var p DefinitionParams
-    if err := json.Unmarshal(msg.Params, &p); err != nil {
+    err := json.Unmarshal(msg.Params, &p)
+    if err != nil {
       s.respondError(msg.ID, errInvalidRequest, err.Error())
       return
     }
@@ -235,7 +248,8 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
 
   case "workspace/symbol":
     var p WorkspaceSymbolParams
-    if err := json.Unmarshal(msg.Params, &p); err != nil {
+    err := json.Unmarshal(msg.Params, &p)
+    if err != nil {
       s.respondError(msg.ID, errInvalidRequest, err.Error())
       return
     }
@@ -276,7 +290,8 @@ func (s *Server) hover(
   fact := s.symbolFact(ctx, word, p.TextDocument.URI)
 
   key := cacheKey(p.TextDocument.URI, p.Position.Line, snippet + "|" + word)
-  if cached, ok := s.cachedHover(key); ok {
+  cached, ok := s.cachedHover(key)
+  if ok {
     s.respond(id, hoverResult(cached), nil)
     return
   }
@@ -287,7 +302,7 @@ func (s *Server) hover(
     s.relPath(p.TextDocument.URI), p.Position.Line + 1, fact, snippet,
   )
 
-  answer, err := s.ask(ctx, question, agent.Hooks{})
+  answer, err := s.explain(ctx, question)
   if err != nil {
     s.respondAskError(id, err)
     return
@@ -304,9 +319,13 @@ func (s *Server) hover(
 // mangled) HTTP error body — anything else is passed through as-is.
 func (s *Server) respondAskError(id json.RawMessage, err error) {
   if errors.Is(err, llm.ErrToolsUnsupported) {
+    model := "this model"
+    if s.loop != nil {
+      model = s.loop.LLM.Model
+    }
+
     s.respondError(id, errInternal, fmt.Sprintf(
-      "%s doesn't support tool calling — switch models with :ArminModel",
-      s.loop.LLM.Model,
+      "%s doesn't support tool calling — switch models with :ArminModel", model,
     ))
     return
   }
@@ -321,6 +340,13 @@ func (s *Server) executeCommand(
     s.executeAsk(ctx, id, p)
   case "armin.model":
     s.executeModel(ctx, id, p)
+  case "armin.clear":
+    s.executeClear(ctx, id)
+  case "armin.history":
+    s.executeHistory(ctx, id)
+  case "armin.stop":
+    s.Stop()
+    s.respond(id, true, nil)
   default:
     s.respondError(
       id, errMethodNotFound,
@@ -341,7 +367,8 @@ func (s *Server) executeAsk(
   }
 
   var args AskArgs
-  if err := json.Unmarshal(p.Arguments[0], &args); err != nil {
+  err := json.Unmarshal(p.Arguments[0], &args)
+  if err != nil {
     s.respondError(id, errInvalidRequest, err.Error())
     return
   }
@@ -350,61 +377,229 @@ func (s *Server) executeAsk(
     return
   }
 
-  question := args.Question
+  file := ""
   if args.URI != "" {
-    question = fmt.Sprintf(
-      "Currently editing: %s\n\n%s", s.relPath(args.URI), args.Question,
-    )
+    file = s.relPath(args.URI)
   }
-  question += citationInstruction
 
-  answer, err := s.ask(ctx, question, s.askHooks(id))
-  if err != nil {
-    s.respondAskError(id, err)
+  // Joined: the host runs the turn; its events finish it here.
+  if s.remote != nil {
+    err = s.remote.Ask(args.Question, file)
+    if err != nil {
+      s.respondError(id, errInternal, err.Error())
+      return
+    }
+
+    s.respond(id, "", nil)
     return
   }
-  s.respond(id, answer, nil)
+
+  answer, err := s.chatTurn(ctx, args.Question, file, s.origin, id)
+  switch {
+  case errors.Is(err, share.ErrBusy):
+    s.respondError(id, errInvalidRequest, err.Error())
+  case errors.Is(err, context.Canceled) && ctx.Err() == nil:
+    s.respondError(id, errRequestCancelled, "stopped")
+  case err != nil:
+    s.respondAskError(id, err)
+  default:
+    s.respond(id, answer, nil)
+  }
 }
 
-// askHooks builds the per-request streaming callbacks armin.ask
-// passes into Turn. Each armin/askEvent echoes id, so a client
-// tracking more than one in-flight ask can route them (see
-// AskEventParams). Reasoning is announced once per stretch, not per
-// delta: the client shows "thinking", not the trace itself.
-func (s *Server) askHooks(id json.RawMessage) agent.Hooks {
+// chatTurn runs one question through the shared conversation, for
+// this nvim (id set) or a joined armin. Every frontend sees its
+// events.
+func (s *Server) chatTurn(
+  ctx context.Context, question, file, origin string, id json.RawMessage,
+) (string, error) {
+  if !s.chatMu.TryLock() {
+    return "", share.ErrBusy
+  }
+
+  defer s.chatMu.Unlock()
+  defer s.snapshot()
+
+  s.emit(share.Event{ Type: "user", Delta: question, Origin: origin })
+
+  content := share.Question(question, file)
+
+  // The system prompt only changes after armin.model, so the
+  // conversation's prefix stays byte-stable for the KV cache.
+  model  := s.loop.LLM.Model
+  system := agent.WithModelLine(
+    s.system + citationInstruction, model, s.models.Label(model),
+  )
+  if len(s.chat) == 0 {
+    s.chat = []llm.Message{ { Role: "system" } }
+  }
+
+  s.chat[0].Content = system
+  s.chat = append(s.chat, llm.Message{ Role: "user", Content: content })
+
+  turnCtx, cancel := context.WithCancel(ctx)
+  defer cancel()
+
+  s.runningMu.Lock()
+  s.chatCancel = cancel
+  if len(id) > 0 {
+    s.running[string(id)] = cancel
+  }
+
+  s.runningMu.Unlock()
+
+  defer func() {
+    s.runningMu.Lock()
+    s.chatCancel = nil
+    delete(s.running, string(id))
+    s.runningMu.Unlock()
+  }()
+
+  answer, err := s.loop.Turn(turnCtx, &s.chat, s.askHooks(id, origin))
+  switch {
+  case err == nil:
+    s.emit(share.Event{ Type: "done", Delta: answer, Origin: origin })
+  case turnCtx.Err() == context.Canceled && ctx.Err() == nil:
+    s.chat = dropDangling(s.chat)
+    err = context.Canceled
+    s.emit(share.Event{ Type: "error", Delta: "stopped", Origin: origin })
+  default:
+    s.chat = dropDangling(s.chat)
+    s.emit(share.Event{ Type: "error", Delta: firstLine(err), Origin: origin })
+  }
+
+  return answer, err
+}
+
+// Stop cancels the chat turn in flight, whoever asked.
+func (s *Server) Stop() {
+  if s.remote != nil {
+    s.remote.Stop()
+    return
+  }
+
+  s.runningMu.Lock()
+  cancel := s.chatCancel
+  s.runningMu.Unlock()
+
+  if cancel != nil {
+    cancel()
+  }
+}
+
+// executeClear answers "armin.clear": forget the conversation.
+func (s *Server) executeClear(ctx context.Context, id json.RawMessage) {
+  var err error
+  if s.remote != nil {
+    err = s.remote.Clear(ctx)
+  } else {
+    err = s.Clear(s.origin)
+  }
+
+  if err != nil {
+    s.respondError(id, errInvalidRequest, err.Error())
+    return
+  }
+
+  s.respond(id, true, nil)
+}
+
+func (s *Server) executeHistory(ctx context.Context, id json.RawMessage) {
+  if s.remote == nil {
+    s.respond(id, s.History(), nil)
+    return
+  }
+
+  lines, err := s.remote.Lines(ctx)
+  if err != nil {
+    s.respondError(id, errInternal, err.Error())
+    return
+  }
+
+  s.respond(id, lines, nil)
+}
+
+// Clear forgets the conversation, for whoever asked.
+func (s *Server) Clear(origin string) error {
+  if !s.chatMu.TryLock() {
+    return errors.New("still answering — stop it first")
+  }
+
+  s.chat = nil
+  s.chatMu.Unlock()
+  s.snapshot()
+  s.emit(share.Event{ Type: "cleared", Origin: origin })
+
+  return nil
+}
+
+// dropDangling cuts a stopped turn back to a history the model can
+// continue: an assistant message whose tool calls didn't all get
+// results goes, with the results it did get.
+func dropDangling(h []llm.Message) []llm.Message {
+  for i := len(h) - 1; i >= 0; i-- {
+    if h[i].Role == "tool" {
+      continue
+    }
+
+    if h[i].Role == "assistant" && len(h[i].ToolCalls) > len(h) - 1 - i {
+      return h[:i]
+    }
+
+    return h
+  }
+
+  return h
+}
+
+func (s *Server) cancel(id json.RawMessage) {
+  s.runningMu.Lock()
+  cancel := s.running[string(id)]
+  s.runningMu.Unlock()
+
+  if cancel != nil {
+    cancel()
+  }
+}
+
+// askHooks builds the streaming callbacks a chat turn passes into
+// Turn; every event goes to nvim and each attached TUI, tagged with
+// who asked. Reasoning is announced once per stretch, not per
+// delta: the frontends show "thinking", not the trace itself.
+func (s *Server) askHooks(id json.RawMessage, origin string) agent.Hooks {
   thinking := false
-  send := func(e AskEventParams) {
-    e.ID = id
-    s.notify("armin/askEvent", e)
+  send := func(e share.Event) {
+    e.ID, e.Origin = id, origin
+    s.emit(e)
   }
 
   return agent.Hooks{
     Token: func(delta string) {
       thinking = false
-      send(AskEventParams{ Type: "token", Delta: delta })
+      send(share.Event{ Type: "token", Delta: delta })
     },
     Reasoning: func(string) {
       if !thinking {
         thinking = true
-        send(AskEventParams{ Type: "reasoning" })
+        send(share.Event{ Type: "reasoning" })
       }
     },
     ToolCall: func(name string, args map[string]any) {
       thinking = false
-      send(AskEventParams{ Type: "tool_call", Name: name, Args: args })
+      send(share.Event{ Type: "tool_call", Name: name, Args: args })
     },
     ToolResult: func(name, result string) {
-      send(AskEventParams{
+      send(share.Event{
         Type:  "tool_result",
         Name:  name,
         Delta: agent.ResultLine(name, result),
       })
     },
     Notice: func(msg string) {
-      send(AskEventParams{ Type: "notice", Delta: msg })
+      send(share.Event{ Type: "notice", Delta: msg })
     },
     Usage: func(u llm.Usage) {
-      send(AskEventParams{
+      send(share.Event{
         Type:   "usage",
         Tokens: u.Total(),
         Window: s.loop.WindowSize(),
@@ -412,6 +607,41 @@ func (s *Server) askHooks(id json.RawMessage) agent.Hooks {
       })
     },
   }
+}
+
+// emit sends a chat event to this nvim and every joined armin.
+func (s *Server) emit(e share.Event) {
+  s.toNvim(e)
+  s.hub.Emit(e)
+}
+
+// toNvim notifies nvim of e. The plugin knows its own questions by
+// the origin "nvim", whatever the host calls them.
+func (s *Server) toNvim(e share.Event) {
+  switch e.Origin {
+  case s.origin:
+    e.Origin = "nvim"
+  case "nvim":
+    e.Origin = "another nvim"
+  }
+
+  s.notify("armin/askEvent", e)
+}
+
+// relay forwards the host's events to nvim; when the host goes away
+// it says so, since nothing here can answer without it.
+func (s *Server) relay() {
+  for e := range s.remote.Events {
+    s.toNvim(e)
+  }
+
+  s.notify("window/showMessage", map[string]any{
+    "type":    1,
+    "message": fmt.Sprintf(
+      "armin: instance %d went away — :ArminStop then :ArminLsp to start one here",
+      s.remote.Instance,
+    ),
+  })
 }
 
 // executeModel answers "armin.model": switch the chat model live
@@ -425,35 +655,81 @@ func (s *Server) executeModel(
 ) {
   var args ModelArgs
   if len(p.Arguments) > 0 {
-    if err := json.Unmarshal(p.Arguments[0], &args); err != nil {
+    err := json.Unmarshal(p.Arguments[0], &args)
+    if err != nil {
       s.respondError(id, errInvalidRequest, err.Error())
       return
     }
   }
 
-  if args.Name != "" {
-    if err := s.models.Switch(ctx, s.loop.LLM, args.Name); err != nil {
-      s.respondError(id, errInvalidRequest, err.Error())
-      return
-    }
-    s.respond(id, ModelInfo{ Current: args.Name }, nil)
+  var info share.ModelInfo
+  var err error
+  switch {
+  case s.remote != nil && args.Name != "":
+    info, err = s.remote.SwitchModel(ctx, args.Name)
+  case s.remote != nil:
+    info, err = s.remote.Models(ctx)
+  case args.Name != "":
+    info, err = s.SwitchModel(ctx, args.Name)
+  default:
+    info = s.Models()
+  }
+
+  if err != nil {
+    s.respondError(id, errInvalidRequest, err.Error())
     return
   }
 
-  info := ModelInfo{ Current: s.loop.LLM.Model }
+  s.respond(id, info, nil)
+}
+
+// SwitchModel moves chat (and completion, sharing its Client) to
+// name, and tells every frontend.
+func (s *Server) SwitchModel(ctx context.Context, name string) (share.ModelInfo, error) {
+  if !s.models.Has(name) {
+    return share.ModelInfo{}, fmt.Errorf("no model %q in config.conf", name)
+  }
+
+  err := s.models.SwitchChat(ctx, s.loop.LLM, s.follower, name)
+  if err != nil {
+    return share.ModelInfo{}, err
+  }
+
+  info := s.Models()
+  s.emit(share.Event{ Type: "model", Model: &info })
+
+  return info, nil
+}
+
+// Models is the current models plus every configured one, by name.
+func (s *Server) Models() share.ModelInfo {
+  info := share.ModelInfo{
+    Current: s.loop.LLM.Model, Completion: s.completionLLM.Model,
+  }
+  if s.hub != nil {
+    info.Instance = s.hub.Instance
+  }
+
   for _, status := range s.models.Names() {
-    info.Configured = append(info.Configured, ModelChoice{
+    info.Configured = append(info.Configured, share.ModelChoice{
       Name: status.Name, Model: status.Model,
       Managed: status.Managed, Running: status.Running,
     })
   }
-  s.respond(id, info, nil)
+
+  sort.Slice(info.Configured, func(i, j int) bool {
+    return info.Configured[i].Name < info.Configured[j].Name
+  })
+
+  hosted := s.models.OpenRouter()
+  url, key := s.models.Endpoint(hosted)
+  share.Suggest(&info, hosted, url, key)
+
+  return info
 }
 
-// ask runs one stateless turn through the same agent loop the REPL
-// uses: fresh history every call, full tool access. Hover passes no
-// hooks (its popup isn't incremental); armin.ask passes askHooks to
-// stream progress as armin/askEvent notifications.
+// ask runs one stateless turn for hover through the same agent loop
+// the REPL uses: fresh history every call, full tool access.
 func (s *Server) ask(
   ctx context.Context, question string, hooks agent.Hooks,
 ) (string, error) {
@@ -471,9 +747,25 @@ func (s *Server) ask(
   return s.loop.Turn(askCtx, &history, hooks)
 }
 
+// setDoc stores a document's new text and, when it replaces an
+// older one, the line of the first byte that changed.
 func (s *Server) setDoc(uri, text string) {
   s.docsMu.Lock()
   defer s.docsMu.Unlock()
+
+  old, ok := s.docs[uri]
+  if ok && old != text {
+    i, n := 0, min(len(old), len(text))
+    for i < n && old[i] == text[i] {
+      i++
+    }
+
+    s.editSeq++
+    s.edits[uri] = docEdit{
+      line: strings.Count(text[:i], "\n"), seq: s.editSeq,
+    }
+  }
+
   s.docs[uri] = text
 }
 
@@ -481,6 +773,7 @@ func (s *Server) dropDoc(uri string) {
   s.docsMu.Lock()
   defer s.docsMu.Unlock()
   delete(s.docs, uri)
+  delete(s.edits, uri)
 }
 
 func (s *Server) doc(uri string) string {
@@ -567,7 +860,8 @@ func (s *Server) respondError(id json.RawMessage, code int, message string) {
 func (s *Server) write(msg rpcResponse) {
   s.outMu.Lock()
   defer s.outMu.Unlock()
-  if err := writeMessage(s.out, msg); err != nil {
+  err := writeMessage(s.out, msg)
+  if err != nil {
     fmt.Fprintln(os.Stderr, "armin lsp: write failed:", err)
   }
 }
@@ -581,7 +875,62 @@ func (s *Server) notify(method string, params any) {
   s.outMu.Lock()
   defer s.outMu.Unlock()
   msg := rpcNotification{ JSONRPC: "2.0", Method: method, Params: params }
-  if err := writeMessage(s.out, msg); err != nil {
+  err := writeMessage(s.out, msg)
+  if err != nil {
     fmt.Fprintln(os.Stderr, "armin lsp: write failed:", err)
   }
 }
+
+// History is the conversation as displayed, as of the last turn.
+func (s *Server) History() []share.ChatLine {
+  lines := s.lines.Load()
+  if lines == nil {
+    return []share.ChatLine{}
+  }
+
+  return *lines
+}
+
+// snapshot refreshes History; the caller holds chatMu or is the
+// only one touching chat.
+func (s *Server) snapshot() {
+  lines := share.Lines(s.chat)
+  s.lines.Store(&lines)
+}
+
+// Ask runs a joined armin's question (see share.Host).
+func (s *Server) Ask(ctx context.Context, question, file, origin string) error {
+  _, err := s.chatTurn(ctx, question, file, origin, nil)
+  return err
+}
+
+// Complete runs a joined armin's inline completion.
+func (s *Server) Complete(ctx context.Context, f share.Fill) (string, error) {
+  return s.completionLLM.Complete(ctx, f.Prefix, f.Suffix, f.Opts)
+}
+
+// Explain answers a joined armin's hover question.
+func (s *Server) Explain(ctx context.Context, question string) (string, error) {
+  return s.ask(ctx, question, agent.Hooks{})
+}
+
+// explain is hover's question, here or at the host.
+func (s *Server) explain(ctx context.Context, question string) (string, error) {
+  if s.remote != nil {
+    return s.remote.Explain(ctx, question)
+  }
+
+  return s.ask(ctx, question, agent.Hooks{})
+}
+
+// complete is inline completion, here or at the host.
+func (s *Server) complete(ctx context.Context, f share.Fill) (string, error) {
+  if s.remote != nil {
+    return s.remote.Complete(ctx, f)
+  }
+
+  return s.Complete(ctx, f)
+}
+
+// The server is a share.Host when it is the project's instance.
+var _ share.Host = (*Server)(nil)

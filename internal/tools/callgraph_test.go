@@ -53,7 +53,8 @@ func TestFindCallersNoCallSites(t *testing.T) {
 
 func TestFindCallersRequiresName(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
-  if _, err := FindCallers(context.Background(), cfg, FindCallersInput{}); err == nil {
+  _, err := FindCallers(context.Background(), cfg, FindCallersInput{})
+  if err == nil {
     t.Fatal("expected an error for an empty name")
   }
 }
@@ -85,7 +86,8 @@ func TestImpactAnalysisTransitiveCallers(t *testing.T) {
 
 func TestImpactAnalysisRequiresName(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
-  if _, err := ImpactAnalysis(context.Background(), cfg, ImpactAnalysisInput{}); err == nil {
+  _, err := ImpactAnalysis(context.Background(), cfg, ImpactAnalysisInput{})
+  if err == nil {
     t.Fatal("expected an error for an empty name")
   }
 }
@@ -95,7 +97,8 @@ func TestImpactAnalysisRequiresName(t *testing.T) {
 func TestFindDeadCodeNilIndexIsCleanError(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeCallGraphFixture(t, cfg.Root)
-  if _, err := FindDeadCode(context.Background(), nil, cfg, FindDeadCodeInput{}); err == nil {
+  _, err := FindDeadCode(context.Background(), nil, cfg, FindDeadCodeInput{})
+  if err == nil {
     t.Fatal("expected an error for a nil ctags index")
   }
 }

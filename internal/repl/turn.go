@@ -5,11 +5,11 @@ import (
   "errors"
   "fmt"
   "strings"
-  "sync"
   "time"
 
   "armin/internal/agent"
   "armin/internal/llm"
+  "armin/internal/share"
   "armin/internal/ui"
 )
 
@@ -19,23 +19,6 @@ const (
   modeThinking
   modeAnswer
 )
-
-// turnView owns the terminal during one turn: the spinner, streamed
-// thinking (dim) and answer text, tool-call lines and approvals.
-type turnView struct {
-  mu    sync.Mutex // status fields: the spinner reads them every frame
-  phase string
-  since time.Time // when the phase began
-  last  time.Time // last sign of life from the model
-  watch bool      // the phase waits on the model
-  count int       // hidden-thinking chunks this phase
-
-  spinner      *ui.Spinner
-  wrap         *ui.Wrapper // prose at ui.TextWidth
-  mode         uint8
-  showThinking bool
-  streamed     bool
-}
 
 func (v *turnView) stopSpinner() {
   if v.spinner != nil {
@@ -82,12 +65,20 @@ func (v *turnView) status() string {
   }
 
   s += " · " + ui.Since(v.since)
-  if v.phase == phaseWaiting && time.Since(v.since) > 5 * time.Second {
+  stalled := v.watch && time.Since(v.last) > stallAfter
+  if stalled {
+    s += " · nothing from the model for " + ui.Since(v.last)
+  } else if v.phase == phaseWaiting && time.Since(v.since) > 5 * time.Second {
     s += " (it may be loading or busy)"
   }
 
-  if v.watch && time.Since(v.last) > stallAfter {
-    s += " · nothing from the model for " + ui.Since(v.last)
+  // A tip only where it fits: the spinner line must not wrap.
+  tip := tipAt(v.tips, v.tipBase, time.Since(v.start))
+  if tip != "" {
+    w := ui.TextWidth()
+    if w <= 0 || len([]rune(s)) + len([]rune(tip)) + 10 <= w {
+      s += " · tip: " + tip
+    }
   }
 
   return s
@@ -114,12 +105,19 @@ func (v *turnView) endLine() {
   }
 
   v.wrap.Reset()
+  v.markdown().Reset()
   v.mode = modeIdle
+  v.pending = 0
 }
 
 // flush prints the word the wrapper holds back, styled like the
 // stream it belongs to.
 func (v *turnView) flush() {
+  if v.mode == modeAnswer {
+    v.markdown().Flush()
+    return
+  }
+
   rest := v.wrap.Flush()
   if rest == "" {
     return
@@ -152,7 +150,8 @@ func (v *turnView) reasoning(delta string) {
     v.mode = modeThinking
   }
 
-  if out := v.wrap.Write(delta); out != "" {
+  out := v.wrap.Write(delta)
+  if out != "" {
     fmt.Print(ui.Dim(out))
   }
 }
@@ -176,17 +175,80 @@ func (v *turnView) token(delta string) {
 
   v.mode = modeAnswer
   v.streamed = true
-  fmt.Print(v.wrap.Write(delta))
+  v.answer(delta)
+}
+
+// maxBreak is the most newlines in a row an answer prints: one blank
+// line between paragraphs, however many the model sent.
+const maxBreak = 2
+
+// answer prints streamed answer text. Newlines it ends on are held
+// back: a tool call next drops them (the ● line already starts a
+// new line), more text gets at most one blank line before it.
+func (v *turnView) answer(delta string) {
+  body := strings.TrimLeft(delta, "\n")
+  v.pending += len(delta) - len(body)
+  if body == "" {
+    return
+  }
+
+  // A trailing run of whitespace holding a newline waits too; one
+  // without (a space between two words) prints as is.
+  trimmed := strings.TrimRight(body, " \t\n")
+  held := strings.Count(body[len(trimmed):], "\n")
+  if held > 0 {
+    body = trimmed
+  }
+
+  if body == "" {
+    v.pending += held
+    return
+  }
+
+  if v.pending > 0 {
+    v.markdown().Write(strings.Repeat("\n", min(v.pending, maxBreak)))
+  }
+
+  for strings.Contains(body, "\n\n\n") {
+    body = strings.ReplaceAll(body, "\n\n\n", "\n\n")
+  }
+
+  v.markdown().Write(body)
+  v.pending = held
+}
+
+// markdown is the answer's renderer, made on first use.
+func (v *turnView) markdown() *ui.Markdown {
+  if v.md == nil {
+    v.md = ui.NewMarkdown()
+  }
+
+  return v.md
+}
+
+// proposed are the tools whose call shows as a proposal block
+// (● Update, ● Create, ● Run) instead of a call line.
+var proposed = map[string]bool{
+  "edit_file": true, "write_file": true, "run_program": true,
 }
 
 func (v *turnView) toolCall(name string, args map[string]any) {
   v.stopSpinner()
   v.endLine()
   ui.ClearLine()
-  ui.ToolLine(agent.CallLine(name, args))
+
+  // Held until the proposal shows; printed only if none does (the
+  // call failed before it could be proposed).
+  v.held = ""
+  if proposed[name] {
+    v.held = agent.CallLine(name, args)
+  } else {
+    ui.ToolLine(agent.CallLine(name, args))
+  }
 
   what := name
-  if bin, _ := args["binary"].(string); bin != "" {
+  bin, _ := args["binary"].(string)
+  if bin != "" {
     what = bin
   }
 
@@ -195,9 +257,19 @@ func (v *turnView) toolCall(name string, args map[string]any) {
 }
 
 func (v *turnView) toolResult(name, result string) {
+  v.toolSummary(agent.ResultLine(name, result))
+}
+
+// toolSummary closes a tool call with its one-line result.
+func (v *turnView) toolSummary(line string) {
   v.stopSpinner()
   ui.ClearLine()
-  ui.ToolResultLine(agent.ResultLine(name, result))
+  if v.held != "" {
+    ui.ToolLine(v.held)
+    v.held = ""
+  }
+
+  ui.ToolResultLine(line)
   v.setPhase(phaseWaiting, true)
   v.startSpinner()
 }
@@ -205,6 +277,18 @@ func (v *turnView) toolResult(name, result string) {
 // turn runs one user message through the agent loop. Ctrl-C (see
 // Interrupt) cancels just this turn.
 func (r *REPL) turn(ctx context.Context, input string) error {
+  return r.turnAs(ctx, input, input, originTerminal)
+}
+
+// turnAs is turn for whoever asked: shown is the question as the
+// other frontends display it, input what goes in the history.
+func (r *REPL) turnAs(ctx context.Context, input, shown, origin string) error {
+  r.busy.Store(true)
+  defer r.busy.Store(false)
+  defer r.snapshot()
+
+  r.emit(share.Event{ Type: "user", Delta: shown, Origin: origin })
+
   r.lastSuggestions = nil
   r.History = append(
     r.History, llm.Message{ Role: "user", Content: input },
@@ -224,6 +308,9 @@ func (r *REPL) turn(ctx context.Context, input string) error {
   v := &turnView{
     showThinking: r.state & flagHideThinking == 0,
     wrap:         ui.NewWrapper(ui.TextWidth()),
+    tips:         replTips,
+    tipBase:      tipTurn.Add(1),
+    start:        time.Now(),
   }
 
   v.setPhase(phaseWaiting, true)
@@ -255,6 +342,19 @@ func (r *REPL) turn(ctx context.Context, input string) error {
   }
 
   {
+    // Every write and run is shown before it happens, asked about or
+    // not (auto-approve only skips the question).
+    hooks.Propose = func(p agent.Proposal) {
+      v.stopSpinner()
+      v.endLine()
+      ui.ClearLine()
+      v.held = "" // the proposal block is the call's header
+      r.showProposal(p)
+      r.proposal = &p
+      v.setPhase(phaseWaiting, false)
+      v.startSpinner()
+    }
+
     hooks.Approve = func(tool, preview string) (bool, string) {
       // Auto-approve covers file writes and runs; access outside the
       // project and privileged programs are always asked.
@@ -271,27 +371,64 @@ func (r *REPL) turn(ctx context.Context, input string) error {
     }
   }
 
-  answer, err := r.Loop.Turn(turnCtx, &r.History, hooks)
+  // The input bar: what's typed meanwhile goes to the model at its
+  // next step (hooks.Steer); questions pause it.
+  hooks.Steer = func() []string {
+    msgs := r.takeQueued()
+    if len(msgs) == 0 {
+      return nil
+    }
+
+    v.stopSpinner()
+    v.endLine()
+    for _, m := range msgs {
+      fmt.Println(ui.Prompt() + m)
+      r.emit(share.Event{ Type: "user", Delta: m, Origin: origin })
+    }
+
+    r.composer.Taken(len(msgs))
+    v.setPhase(phaseWaiting, true)
+    v.startSpinner()
+
+    return msgs
+  }
+
+  approve := hooks.Approve
+  hooks.Approve = func(tool, preview string) (bool, string) {
+    r.composer.Pause()
+    defer r.composer.Resume()
+
+    return approve(tool, preview)
+  }
+
+  r.composer = ui.StartComposer(r.pump, "type to add a message — the model reads it at its next step", r.enqueue)
+  answer, err := r.Loop.Turn(turnCtx, &r.History, r.shared(hooks, origin))
+  r.endComposer()
 
   v.stopSpinner()
   if errors.Is(err, context.Canceled) && ctx.Err() == nil {
     v.endLine()
     ui.Info("interrupted")
+    r.emit(share.Event{ Type: "error", Delta: "stopped", Origin: origin })
 
     return nil
   }
 
   if err != nil {
     v.endLine()
+    r.emit(share.Event{ Type: "error", Delta: err.Error(), Origin: origin })
+
     return err
   }
+
+  r.emit(share.Event{ Type: "done", Delta: answer, Origin: origin })
 
   if v.streamed {
     v.flush()
     fmt.Println()
   } else if answer != "" {
     v.endLine()
-    fmt.Println(ui.Wrap(answer, ui.TextWidth()))
+    fmt.Println(ui.RenderMarkdown(answer, ui.TextWidth()))
   }
 
   r.maybeShowSuggestions(ctx)
@@ -303,16 +440,22 @@ func (r *REPL) turn(ctx context.Context, input string) error {
 // later write this session; any other text declines and goes back to
 // the model as feedback.
 func (r *REPL) approve(tool, preview string) (bool, string) {
-  for _, line := range strings.Split(strings.TrimSuffix(preview, "\n"), "\n") {
-    switch {
-    case strings.HasPrefix(line, "+ "):
-      fmt.Println("  " + ui.Green(line))
-    case strings.HasPrefix(line, "- "):
-      fmt.Println("  " + ui.Red(line))
-    case strings.HasPrefix(line, "  "):
-      fmt.Println("  " + ui.Dim(line))
-    default:
-      fmt.Println("  " + ui.Bold(line))
+  // A write or run was just shown in full (showProposal); anything
+  // else (read access outside the project) shows its preview here.
+  shown := r.proposal
+  r.proposal = nil
+  if shown == nil {
+    for _, line := range strings.Split(strings.TrimSuffix(preview, "\n"), "\n") {
+      switch {
+      case strings.HasPrefix(line, "+ "):
+        fmt.Println("  " + ui.Green(line))
+      case strings.HasPrefix(line, "- "):
+        fmt.Println("  " + ui.Red(line))
+      case strings.HasPrefix(line, "  "):
+        fmt.Println("  " + ui.Dim(line))
+      default:
+        fmt.Println("  " + ui.Bold(line))
+      }
     }
   }
 
@@ -325,32 +468,71 @@ func (r *REPL) approve(tool, preview string) (bool, string) {
   }
 
   // What's always asked can't be approved for the whole session.
-  options := "[y]es / [n]o / [a]ll this session / or type feedback:"
-  if agent.AlwaysAsk(tool) {
-    options = "[y]es / [n]o / or type feedback:"
+  keys, legend := "y/n", "y yes · n no"
+  if !agent.AlwaysAsk(tool) {
+    keys, legend = keys + "/a", legend + " · a all this session"
   }
 
-  fmt.Printf("%s %s ", ui.Yellow(question), ui.Dim(options))
-  answer, err := r.reader.ReadString('\n')
-  if err != nil {
-    return false, ""
+  if shown != nil {
+    keys, legend = keys + "/v", legend + " · v view in nvim"
   }
 
-  answer = strings.TrimSpace(answer)
-  switch strings.ToLower(answer) {
-  case "y", "yes", "":
-    return true, ""
-  case "a", "all":
-    if agent.AlwaysAsk(tool) {
-      return true, "" // just this once
+  // The legend once, the question short: a long question wraps in a
+  // narrow terminal.
+  fmt.Println(ui.Dim("  " + legend + " · anything else is feedback to the model"))
+
+  for {
+    answer, err := r.ask(ui.Yellow(question) + ui.Dim(" [" + keys + "] "))
+    if err != nil {
+      return false, ""
     }
 
-    r.state |= flagAutoApprove
+    answer = strings.TrimSpace(answer)
+    switch strings.ToLower(answer) {
+    case "y", "yes", "":
+      return true, ""
+    case "a", "all":
+      if agent.AlwaysAsk(tool) {
+        return true, "" // just this once
+      }
 
-    return true, ""
-  case "n", "no":
-    return false, ""
+      r.state |= flagAutoApprove
+
+      return true, ""
+    case "n", "no":
+      return false, ""
+    case "v", "view":
+      if shown == nil {
+        return false, answer
+      }
+
+      err := r.view(*shown)
+      if err != nil {
+        ui.Error("can't open it: %s", err)
+      } else {
+        ui.Info("opened in a new window (read-only) — answer here when you're done")
+      }
+
+      continue
+    }
+
+    return false, answer
+  }
+}
+
+// ask reads one answer to a question. Once Run started, the key pump
+// owns stdin, so questions read through it too: reading the terminal
+// beside it would split the keys between the two.
+func (r *REPL) ask(prompt string) (string, error) {
+  if r.pump == nil {
+    fmt.Print(prompt)
+    return r.reader.ReadString('\n')
   }
 
-  return false, answer
+  answer, err := ui.ReadLineWake(r.runCtx, r.pump, prompt, "", nil, nil)
+  if errors.Is(err, ui.ErrInterrupted) {
+    return "n", nil // Ctrl-C at a question declines
+  }
+
+  return answer, err
 }

@@ -21,10 +21,12 @@ func writeConfig(t *testing.T, contents string) {
   if err != nil {
     t.Fatal(err)
   }
-  if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+  err = os.MkdirAll(filepath.Dir(path), 0o755)
+  if err != nil {
     t.Fatal(err)
   }
-  if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+  err = os.WriteFile(path, []byte(contents), 0o644)
+  if err != nil {
     t.Fatal(err)
   }
 }
@@ -141,7 +143,8 @@ func TestLoadRejectsUnknownModelKey(t *testing.T) {
   withConfigDir(t)
   writeConfig(t, "models.fim.not_a_real_field = value\n")
 
-  if _, err := Load(); err == nil {
+  _, err := Load()
+  if err == nil {
     t.Fatal("expected an error for an unknown models.<name>.<field> key")
   }
 }
@@ -150,7 +153,8 @@ func TestLoadRejectsBadModelPort(t *testing.T) {
   withConfigDir(t)
   writeConfig(t, "models.fim.port = not-a-number\n")
 
-  if _, err := Load(); err == nil {
+  _, err := Load()
+  if err == nil {
     t.Fatal("expected an error for an unparseable models.<name>.port")
   }
 }
@@ -159,7 +163,8 @@ func TestLoadRejectsUnknownKey(t *testing.T) {
   withConfigDir(t)
   writeConfig(t, "not_a_real_key = value\n")
 
-  if _, err := Load(); err == nil {
+  _, err := Load()
+  if err == nil {
     t.Fatal("expected an error for an unknown config key")
   }
 }
@@ -168,7 +173,8 @@ func TestLoadRejectsMalformedLine(t *testing.T) {
   withConfigDir(t)
   writeConfig(t, "this line has no equals sign\n")
 
-  if _, err := Load(); err == nil {
+  _, err := Load()
+  if err == nil {
     t.Fatal("expected an error for a line with no \"key = value\" shape")
   }
 }
@@ -177,7 +183,8 @@ func TestLoadRejectsBadTimeout(t *testing.T) {
   withConfigDir(t)
   writeConfig(t, "timeout = not-a-duration\n")
 
-  if _, err := Load(); err == nil {
+  _, err := Load()
+  if err == nil {
     t.Fatal("expected an error for an unparseable timeout")
   }
 }
@@ -186,7 +193,8 @@ func TestLoadRejectsBadMaxOutput(t *testing.T) {
   withConfigDir(t)
   writeConfig(t, "max_output = not-a-number\n")
 
-  if _, err := Load(); err == nil {
+  _, err := Load()
+  if err == nil {
     t.Fatal("expected an error for an unparseable max_output")
   }
 }
@@ -210,10 +218,12 @@ func TestLoadEnvSetsUnsetVars(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
-  if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+  err = os.MkdirAll(filepath.Dir(path), 0o755)
+  if err != nil {
     t.Fatal(err)
   }
-  if err := os.WriteFile(path, []byte("FOO_KEY=abc123\n# a comment\n\nBAR_KEY = spaced \n"), 0o600); err != nil {
+  err = os.WriteFile(path, []byte("FOO_KEY=abc123\n# a comment\n\nBAR_KEY = spaced \n"), 0o600)
+  if err != nil {
     t.Fatal(err)
   }
 
@@ -221,14 +231,17 @@ func TestLoadEnvSetsUnsetVars(t *testing.T) {
   os.Unsetenv("BAR_KEY")
   t.Cleanup(func() { os.Unsetenv("FOO_KEY"); os.Unsetenv("BAR_KEY") })
 
-  if err := LoadEnv(); err != nil {
+  err = LoadEnv()
+  if err != nil {
     t.Fatalf("LoadEnv: %v", err)
   }
 
-  if got := os.Getenv("FOO_KEY"); got != "abc123" {
+  got := os.Getenv("FOO_KEY")
+  if got != "abc123" {
     t.Fatalf("FOO_KEY = %q, want abc123", got)
   }
-  if got := os.Getenv("BAR_KEY"); got != "spaced" {
+  got = os.Getenv("BAR_KEY")
+  if got != "spaced" {
     t.Fatalf("BAR_KEY = %q, want \"spaced\" (trimmed)", got)
   }
 }
@@ -239,26 +252,31 @@ func TestLoadEnvDoesNotOverrideRealEnvironment(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
-  if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+  err = os.MkdirAll(filepath.Dir(path), 0o755)
+  if err != nil {
     t.Fatal(err)
   }
-  if err := os.WriteFile(path, []byte("PRESET_KEY=from-dotenv\n"), 0o600); err != nil {
+  err = os.WriteFile(path, []byte("PRESET_KEY=from-dotenv\n"), 0o600)
+  if err != nil {
     t.Fatal(err)
   }
 
   t.Setenv("PRESET_KEY", "from-real-env")
 
-  if err := LoadEnv(); err != nil {
+  err = LoadEnv()
+  if err != nil {
     t.Fatalf("LoadEnv: %v", err)
   }
-  if got := os.Getenv("PRESET_KEY"); got != "from-real-env" {
+  got := os.Getenv("PRESET_KEY")
+  if got != "from-real-env" {
     t.Fatalf("PRESET_KEY = %q, want the real environment to win over .env", got)
   }
 }
 
 func TestLoadEnvMissingFileIsNotError(t *testing.T) {
   withConfigDir(t)
-  if err := LoadEnv(); err != nil {
+  err := LoadEnv()
+  if err != nil {
     t.Fatalf("LoadEnv on a missing .env returned an error: %v", err)
   }
 }
@@ -269,14 +287,17 @@ func TestLoadEnvRejectsMalformedLine(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
-  if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+  err = os.MkdirAll(filepath.Dir(path), 0o755)
+  if err != nil {
     t.Fatal(err)
   }
-  if err := os.WriteFile(path, []byte("not a key value line\n"), 0o600); err != nil {
+  err = os.WriteFile(path, []byte("not a key value line\n"), 0o600)
+  if err != nil {
     t.Fatal(err)
   }
 
-  if err := LoadEnv(); err == nil {
+  err = LoadEnv()
+  if err == nil {
     t.Fatal("expected an error for a line with no \"KEY=value\" shape")
   }
 }
@@ -287,10 +308,12 @@ func TestLoadEnvRejectsLoosePermissions(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
-  if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+  err = os.MkdirAll(filepath.Dir(path), 0o755)
+  if err != nil {
     t.Fatal(err)
   }
-  if err := os.WriteFile(path, []byte("FOO_KEY=abc123\n"), 0o644); err != nil {
+  err = os.WriteFile(path, []byte("FOO_KEY=abc123\n"), 0o644)
+  if err != nil {
     t.Fatal(err)
   }
 
@@ -409,7 +432,8 @@ models.l40s.scaleway_zone   = fr-par-2
   if err != nil {
     t.Fatalf("Load: %v", err)
   }
-  if l := cfg.Models["l40s"]; l.ScalewayServer != "5f2e-server" || l.ScalewayZone != "fr-par-2" {
+  l := cfg.Models["l40s"]
+  if l.ScalewayServer != "5f2e-server" || l.ScalewayZone != "fr-par-2" {
     t.Fatalf("l40s = %+v", l)
   }
 }

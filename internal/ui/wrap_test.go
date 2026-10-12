@@ -8,7 +8,8 @@ import (
 func TestTextWidth(t *testing.T) {
   cases := map[int]int{ 60: 59, 90: 89, 120: 100, 200: 150, 300: 225 }
   for cols, want := range cases {
-    if got := textWidth(cols); got != want {
+    got := textWidth(cols)
+    if got != want {
       t.Errorf("textWidth(%d) = %d, want %d", cols, got, want)
     }
   }
@@ -95,17 +96,36 @@ func TestLayoutInputAndCursor(t *testing.T) {
     t.Fatalf("cursor at end = %d,%d", r, c)
   }
 
-  if r, c := cursorAt(rows, len(rows[0])); r != 1 || c != 0 {
+  r, c = cursorAt(rows, len(rows[0]))
+  if r != 1 || c != 0 {
     t.Fatalf("cursor at a row break = %d,%d", r, c)
   }
 
-  if got := layoutInput(nil, 10, 12); len(got) != 1 || len(got[0]) != 0 {
+  got := layoutInput(nil, 10, 12)
+  if len(got) != 1 || len(got[0]) != 0 {
     t.Fatalf("empty input = %q", got)
   }
 }
 
 func TestVisibleWidthSkipsStyles(t *testing.T) {
-  if n := visibleWidth("\x1b[1m\x1b[36m❯\x1b[0m "); n != 2 {
+  n := visibleWidth("\x1b[1m\x1b[36m❯\x1b[0m ")
+  if n != 2 {
     t.Fatalf("visibleWidth = %d", n)
+  }
+}
+
+func TestFitLine(t *testing.T) {
+  long := "waiting for the model · 20s (it may be loading or busy) · nothing from the model for 20s"
+  got := fitLine(long, 40)
+  if len([]rune(got)) != 40 || got[len(got) - len("…"):] != "…" {
+    t.Fatalf("fitLine = %q (%d runes)", got, len([]rune(got)))
+  }
+
+  if fitLine("short", 40) != "short" || fitLine(long, 0) != long {
+    t.Fatal("fitLine changed what already fits")
+  }
+
+  if fitLine("ç·ç·ç·", 4) != "ç·ç…" {
+    t.Fatalf("multi-byte: %q", fitLine("ç·ç·ç·", 4))
   }
 }

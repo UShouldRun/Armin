@@ -33,7 +33,8 @@ func TestDecodeKeyControlKeys(t *testing.T) {
     "\x04":      keyEOF,
   }
   for input, want := range cases {
-    if k := decode(t, input); k.control != want {
+    k := decode(t, input)
+    if k.control != want {
       t.Errorf("decodeKey(%q) = %+v, want control %v", input, k, want)
     }
   }
@@ -64,7 +65,8 @@ func TestDecodeKeyBareEscapeIsIgnored(t *testing.T) {
 
 func TestDecodeKeyEOF(t *testing.T) {
   r := bufio.NewReader(strings.NewReader(""))
-  if _, err := decodeKey(r); err == nil {
+  _, err := decodeKey(r)
+  if err == nil {
     t.Fatal("expected an error reading from an empty stream")
   }
 }

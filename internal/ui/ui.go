@@ -56,6 +56,11 @@ func Magenta(s string) string { return style(fgMagenta, s) }
 func Cyan(s string) string    { return style(fgCyan, s) }
 func Gray(s string) string    { return style(fgGray, s) }
 
+// Italic, Underline and Strike are for rendered markdown.
+func Italic(s string) string    { return style("\x1b[3m", s) }
+func Underline(s string) string { return style("\x1b[4m", s) }
+func Strike(s string) string    { return style("\x1b[9m", s) }
+
 // Prompt is the input-line marker, styled like modern CLI tools — a
 // bold colored chevron, not the classic "> ".
 func Prompt() string {
@@ -75,6 +80,17 @@ func Banner(root, model, baseURL string) {
     "  type " + Bold("/help") + Dim(" for commands, ") +
       Bold("/quit") + Dim(" to exit"),
   ))
+}
+
+// Instance names the armin instance a frontend shows, so a terminal
+// and nvim sharing one say so alike: "Armin local · instance 1".
+func Instance(model string, n int, note string) {
+  line := "Armin " + model
+  if n > 0 {
+    line += " · instance " + fmt.Sprint(n)
+  }
+
+  fmt.Printf("  %s %s\n", Bold(line), Dim(note))
 }
 
 // ClearLine wipes the current terminal line, so what prints next
@@ -97,11 +113,11 @@ func ToolLine(line string) {
 // call; errors in red.
 func ToolResultLine(summary string) {
   if strings.HasPrefix(summary, "error:") {
-    fmt.Println("  " + Red("⎿ " + summary))
+    fmt.Println("  " + Red("└ " + summary))
     return
   }
 
-  fmt.Println(Dim("  ⎿ " + summary))
+  fmt.Println(Dim("  └ " + summary))
 }
 
 // ToolCall renders a one-line, dim "doing X" announcement just

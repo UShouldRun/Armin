@@ -29,29 +29,14 @@ func clampCount(n, def, max int) int {
 }
 
 func firstLine(s string) string {
-  if i := strings.IndexByte(s, '\n'); i >= 0 {
+  i := strings.IndexByte(s, '\n')
+  if i >= 0 {
     return s[:i]
   }
   return s
 }
 
 // --- git_log ---
-
-type GitLogInput struct {
-  Path  string `json:"path,omitempty"`
-  Count int    `json:"count,omitempty"` // default 20, max 100
-}
-
-type GitCommit struct {
-  Hash    string `json:"hash"`
-  Author  string `json:"author"`
-  Date    string `json:"date"`
-  Subject string `json:"subject"`
-}
-
-type GitLogOutput struct {
-  Commits []GitCommit `json:"commits"`
-}
 
 const (
   defaultLogCount = 20
@@ -107,23 +92,6 @@ func GitLog(
 }
 
 // --- git_blame ---
-
-type GitBlameInput struct {
-  Path      string `json:"path"`
-  StartLine int    `json:"start_line,omitempty"` // 1-indexed; default 1
-  EndLine   int    `json:"end_line,omitempty"`   // default start_line+199
-}
-
-type BlameLine struct {
-  Line    int    `json:"line"`
-  Author  string `json:"author"`
-  Date    string `json:"date"`
-  Summary string `json:"summary"`
-}
-
-type GitBlameOutput struct {
-  Lines []BlameLine `json:"lines"`
-}
 
 const maxBlameLines = 200
 
@@ -204,17 +172,6 @@ func parseBlame(porcelain string, startLine int) []BlameLine {
 
 // --- git_diff ---
 
-type GitDiffInput struct {
-  Path string `json:"path,omitempty"`
-  From string `json:"from,omitempty"` // ref; default HEAD
-  To   string `json:"to,omitempty"`   // ref; default the working tree
-}
-
-type GitDiffOutput struct {
-  Diff      string `json:"diff"`
-  Truncated bool   `json:"truncated,omitempty"`
-}
-
 // GitDiff diffs From..To (default HEAD vs. the working tree) for
 // Path (default the whole repo).
 func GitDiff(
@@ -258,15 +215,6 @@ func GitDiff(
 
 // --- git_show ---
 
-type GitShowInput struct {
-  Hash string `json:"hash"`
-}
-
-type GitShowOutput struct {
-  Show      string `json:"show"`
-  Truncated bool   `json:"truncated,omitempty"`
-}
-
 // GitShow returns one commit's full diff and message by hash.
 func GitShow(
   ctx context.Context, cfg *sandbox.Config, in GitShowInput,
@@ -290,16 +238,6 @@ func GitShow(
 }
 
 // --- working_tree_diff ---
-
-type WorkingTreeDiffInput struct {
-  Path string `json:"path,omitempty"`
-}
-
-type WorkingTreeDiffOutput struct {
-  Diff      string   `json:"diff"`
-  Untracked []string `json:"untracked,omitempty"`
-  Truncated bool     `json:"truncated,omitempty"`
-}
 
 // WorkingTreeDiff is uncommitted changes only — distinct from
 // git_diff so "what did I just change" doesn't require the model to
@@ -334,7 +272,8 @@ func WorkingTreeDiff(
   }
 
   statusArgs := []string{ "status", "--porcelain", "--untracked-files=all" }
-  if statusRes, err := cfg.RunForce(ctx, "git", statusArgs); err == nil {
+  statusRes, err := cfg.RunForce(ctx, "git", statusArgs)
+  if err == nil {
     for _, line := range strings.Split(strings.TrimRight(statusRes.Stdout, "\n"), "\n") {
       if strings.HasPrefix(line, "?? ") {
         out.Untracked = append(out.Untracked, strings.TrimPrefix(line, "?? "))
@@ -345,17 +284,6 @@ func WorkingTreeDiff(
 }
 
 // --- grep_history ---
-
-type GrepHistoryInput struct {
-  Term  string `json:"term"`
-  Path  string `json:"path,omitempty"`
-  Count int    `json:"count,omitempty"` // commits to return, default 10, max 50
-}
-
-type GrepHistoryOutput struct {
-  Log       string `json:"log"`
-  Truncated bool   `json:"truncated,omitempty"`
-}
 
 const (
   defaultGrepHistoryCount = 10
@@ -401,19 +329,6 @@ func GrepHistory(
 }
 
 // --- code_owners ---
-
-type CodeOwnersInput struct {
-  Path string `json:"path,omitempty"`
-}
-
-type AuthorCount struct {
-  Author  string `json:"author"`
-  Commits int    `json:"commits"`
-}
-
-type CodeOwnersOutput struct {
-  Owners []AuthorCount `json:"owners"` // ranked by commit count, most first
-}
 
 // CodeOwners approximates "who owns this" from commit-count-per-
 // author on Path — a heuristic, not a real CODEOWNERS lookup: it
@@ -461,20 +376,6 @@ func CodeOwners(
 }
 
 // --- commit_stats ---
-
-type CommitStatsInput struct {
-  Path  string `json:"path,omitempty"`
-  Count int    `json:"count,omitempty"` // top-N files to return, default 10, max 50
-}
-
-type FileChangeCount struct {
-  File    string `json:"file"`
-  Commits int    `json:"commits"`
-}
-
-type CommitStatsOutput struct {
-  Hotspots []FileChangeCount `json:"hotspots"` // most-frequently-changed files, ranked
-}
 
 const (
   defaultHotspotCount = 10

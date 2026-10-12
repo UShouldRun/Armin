@@ -20,7 +20,8 @@ func TestCallLine(t *testing.T) {
     { "run_tests", map[string]any{}, "run_tests" },
   }
   for _, c := range cases {
-    if got := CallLine(c.name, c.args); got != c.want {
+    got := CallLine(c.name, c.args)
+    if got != c.want {
       t.Errorf("CallLine(%s)\n got  %q\n want %q", c.name, got, c.want)
     }
   }
@@ -42,7 +43,8 @@ func TestResultLine(t *testing.T) {
     { "read_file", `{"error":"\n\t... in ReadFile:\n\t opening \"x\": no such file"}`, `error: opening "x": no such file` },
   }
   for _, c := range cases {
-    if got := ResultLine(c.name, c.result); got != c.want {
+    got := ResultLine(c.name, c.result)
+    if got != c.want {
       t.Errorf("ResultLine(%s)\n got  %q\n want %q", c.name, got, c.want)
     }
   }

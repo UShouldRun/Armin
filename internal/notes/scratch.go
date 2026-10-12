@@ -13,21 +13,6 @@ import (
 // grow it without bound.
 const maxScratchBytes = 256 * 1024
 
-// Scratchpad is a per-project directory of working notes: plans,
-// findings, intermediate reasoning. The model writes there instead
-// of carrying everything in context, and keeps only "what's where".
-type Scratchpad struct {
-  Dir string
-}
-
-// ScratchFile is one entry of List.
-type ScratchFile struct {
-  Name     string    `json:"name"`
-  Bytes    int64     `json:"bytes"`
-  Lines    int       `json:"lines"`
-  Modified time.Time `json:"modified"`
-}
-
 func (p *Scratchpad) path(name string) (string, string, error) {
   safe, err := SafeName(name)
   if err != nil {
@@ -72,7 +57,8 @@ func (p *Scratchpad) Write(
     data += "\n"
   }
 
-  if err := writeAtomic(path, []byte(data)); err != nil {
+  err = writeAtomic(path, []byte(data))
+  if err != nil {
     return ScratchFile{}, fmt.Errorf("\n\t... in Write:\n\t%w", err)
   }
 
@@ -188,7 +174,8 @@ func (p *Scratchpad) Archive(
     }
 
     start = strings.Count(string(old), "\n") + 1
-    if err := writeAtomic(path, append(old, entry...)); err != nil {
+    err := writeAtomic(path, append(old, entry...))
+    if err != nil {
       return "", 0, 0, fmt.Errorf("\n\t... in Archive:\n\t%w", err)
     }
 

@@ -32,13 +32,6 @@ var ErrNoCredentials = errors.New(
     "~/.config/armin/.env)",
 )
 
-// Client calls the Instance API in one zone (e.g. fr-par-2).
-type Client struct {
-  Zone, SecretKey string
-  HTTP            *http.Client
-  Endpoint        string // tests override; default DefaultEndpoint
-}
-
 // EnvClient builds a client from SCW_SECRET_KEY.
 func EnvClient(zone string) (*Client, error) {
   key := os.Getenv("SCW_SECRET_KEY")
@@ -53,12 +46,6 @@ func EnvClient(zone string) (*Client, error) {
   }, nil
 }
 
-// Server is what GetServer reports.
-type Server struct {
-  ID, State           string
-  PublicIP, PrivateIP string
-}
-
 // Host is the address to reach the server at.
 func (s Server) Host() string {
   if s.PublicIP != "" {
@@ -66,20 +53,6 @@ func (s Server) Host() string {
   }
 
   return s.PrivateIP
-}
-
-type ipBody struct {
-  Address string `json:"address"`
-}
-
-type serverBody struct {
-  Server struct {
-    ID        string    `json:"id"`
-    State     string    `json:"state"`
-    PublicIP  *ipBody   `json:"public_ip"`
-    PublicIPs []*ipBody `json:"public_ips"`
-    PrivateIP *string   `json:"private_ip"`
-  } `json:"server"`
 }
 
 func (c *Client) serverURL(id, suffix string) string {
@@ -141,7 +114,8 @@ func (c *Client) do(
     return nil
   }
 
-  if err := json.Unmarshal(raw, out); err != nil {
+  err = json.Unmarshal(raw, out)
+  if err != nil {
     return fmt.Errorf("\n\t... in do:\n\t%w", err)
   }
 
@@ -151,7 +125,8 @@ func (c *Client) do(
 // GetServer reports one server's state and addresses.
 func (c *Client) GetServer(ctx context.Context, id string) (Server, error) {
   var b serverBody
-  if err := c.do(ctx, http.MethodGet, c.serverURL(id, ""), nil, &b); err != nil {
+  err := c.do(ctx, http.MethodGet, c.serverURL(id, ""), nil, &b)
+  if err != nil {
     return Server{}, fmt.Errorf("\n\t... in GetServer:\n\t%w", err)
   }
 
@@ -220,7 +195,8 @@ func (c *Client) WaitRunning(
       }
     case "stopped", "stopped in place":
       if !started {
-        if err := c.Action(ctx, id, "poweron"); err != nil {
+        err := c.Action(ctx, id, "poweron")
+        if err != nil {
           return srv, started, fmt.Errorf("\n\t... in WaitRunning:\n\t%w", err)
         }
 

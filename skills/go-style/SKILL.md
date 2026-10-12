@@ -42,6 +42,15 @@ never run gofmt or goimports on it.
   ```
 - Group same-typed fields on one line: `Old, New string`.
 
+## Files
+- Type declarations live apart from the code: the types of `loop.go`
+  go in `loop.type.go` next to it, with only the imports they need.
+  A build-constrained file keeps its suffix last:
+  `rawmode_linux.go` → `rawmode.type_linux.go`. Test-only helper
+  types stay in their `_test.go` file.
+- `main.go` holds `main` and `run` only; everything else lives in
+  packages.
+
 ## Errors
 - Wrap every returned error with the function name, as a chain:
 
@@ -50,6 +59,20 @@ never run gofmt or goimports on it.
   return fmt.Errorf("\n\t... in LoadConfig:\n\t reading %q: %w", path, err)
   ```
 - Guard clauses and early returns; keep the happy path unindented.
+- Never declare in an `if` header. The statement goes on its own line
+  above the `if`, which only tests:
+
+  ```go
+  err := json.Unmarshal(body, &parsed)
+  if err != nil {
+  ```
+
+  not `if err := json.Unmarshal(body, &parsed); err != nil {`. The
+  same goes for `else if`: open an `else` block, then declare and
+  test inside it. If hoisting would clash with a variable already in
+  scope, assign it with `=` when nothing reads the old value
+  afterwards; otherwise give it its own name (`statErr`). Never let
+  hoisting change what a later line reads.
 - Errors a model or user acts on say what to do next, not just what
   failed.
 

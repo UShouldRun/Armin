@@ -85,7 +85,8 @@ func TestWaitRunningPowersOnAndOff(t *testing.T) {
     t.Fatalf("started=%v host=%q", started, srv.Host())
   }
 
-  if err := c.PowerOff(ctx, "srv-1"); err != nil {
+  err = c.PowerOff(ctx, "srv-1")
+  if err != nil {
     t.Fatal(err)
   }
 
@@ -106,7 +107,8 @@ func TestErrorsAreReadable(t *testing.T) {
 
 func TestNoCredentials(t *testing.T) {
   t.Setenv("SCW_SECRET_KEY", "")
-  if _, err := EnvClient("fr-par-2"); err != ErrNoCredentials {
+  _, err := EnvClient("fr-par-2")
+  if err != ErrNoCredentials {
     t.Fatalf("err = %v", err)
   }
 }

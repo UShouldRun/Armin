@@ -14,9 +14,6 @@ import (
   "armin/internal/stackit"
 )
 
-// Provider names the cloud a remote model's machine lives in.
-type Provider uint8
-
 const (
   ProviderAWS      Provider = 1 << iota // EC2: start / stop
   ProviderSTACKIT                       // IaaS v2: start / deallocate
@@ -37,42 +34,6 @@ func (p Provider) String() string {
   return "machine"
 }
 
-// RemoteSpec locates the machine a model runs on and how to reach
-// it. Credentials come from the environment (aws.EnvCredentials,
-// stackit.EnvTokenSource), never from config.conf.
-type RemoteSpec struct {
-  Provider  Provider
-  MachineID string // EC2 instance, STACKIT or Scaleway server id
-  Region    string // AWS region, STACKIT region (eu01), Scaleway zone
-  ProjectID string // STACKIT only
-
-  SSHUser, SSHKey string
-  RemotePort      int
-
-  // StopOnDisconnect makes the remote side shut the machine down
-  // when the SSH session drops (armin killed, laptop asleep, network
-  // gone) — a dead man's switch, so a crash never leaves a GPU box
-  // billing. Only armed when armin itself started the machine.
-  StopOnDisconnect bool
-}
-
-// Machine is one cloud machine armin can start and stop.
-type Machine interface {
-  ID() string
-  // WaitRunning starts the machine if it's off and waits until it's
-  // reachable; started reports whether this call started it.
-  WaitRunning(
-    ctx context.Context, status func(string),
-  ) (host string, started bool, err error)
-  // Stop ends compute billing for the machine.
-  Stop(ctx context.Context) error
-}
-
-type ec2Machine struct {
-  ec2 *aws.EC2
-  id  string
-}
-
 func (e ec2Machine) ID() string { return e.id }
 
 func (e ec2Machine) WaitRunning(
@@ -84,11 +45,6 @@ func (e ec2Machine) WaitRunning(
 
 func (e ec2Machine) Stop(ctx context.Context) error {
   return e.ec2.StopInstance(ctx, e.id)
-}
-
-type stackitMachine struct {
-  client *stackit.Client
-  id     string
 }
 
 func (s stackitMachine) ID() string { return s.id }
@@ -103,11 +59,6 @@ func (s stackitMachine) WaitRunning(
 // Stop deallocates: a merely stopped STACKIT server keeps billing.
 func (s stackitMachine) Stop(ctx context.Context) error {
   return s.client.DeallocateServer(ctx, s.id)
-}
-
-type scalewayMachine struct {
-  client *scaleway.Client
-  id     string
 }
 
 func (s scalewayMachine) ID() string { return s.id }
@@ -294,8 +245,10 @@ func lastLines(s string, n int) string {
 }
 
 func expandHome(path string) string {
-  if rest, ok := strings.CutPrefix(path, "~/"); ok {
-    if home, err := os.UserHomeDir(); err == nil {
+  rest, ok := strings.CutPrefix(path, "~/")
+  if ok {
+    home, err := os.UserHomeDir()
+    if err == nil {
       return filepath.Join(home, rest)
     }
   }

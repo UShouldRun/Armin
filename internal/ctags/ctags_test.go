@@ -113,17 +113,20 @@ func TestContainsFold(t *testing.T) {
   }
 
   for _, c := range cases {
-    if got := containsFold(c.s, c.substr); got != c.want {
+    got := containsFold(c.s, c.substr)
+    if got != c.want {
       t.Errorf("containsFold(%q, %q) = %v, want %v", c.s, c.substr, got, c.want)
     }
   }
 }
 
 func TestKindLabel(t *testing.T) {
-  if got := KindLabel("f"); got != "function" {
+  got := KindLabel("f")
+  if got != "function" {
     t.Fatalf("KindLabel(f) = %q, want function", got)
   }
-  if got := KindLabel("z"); got != "z" {
+  got = KindLabel("z")
+  if got != "z" {
     t.Fatalf("KindLabel(z) = %q, want fallback z", got)
   }
 }
@@ -132,12 +135,15 @@ func TestKindLabel(t *testing.T) {
 // below, checking the same fallback location the LSP server does.
 func findCtags(t *testing.T) string {
   t.Helper()
-  if p, err := exec.LookPath("universal-ctags"); err == nil {
+  p, err := exec.LookPath("universal-ctags")
+  if err == nil {
     return p
   }
-  if home, err := os.UserHomeDir(); err == nil {
+  home, err := os.UserHomeDir()
+  if err == nil {
     p := filepath.Join(home, ".local", "bin", "universal-ctags")
-    if _, err := os.Stat(p); err == nil {
+    _, err := os.Stat(p)
+    if err == nil {
       return p
     }
   }
@@ -150,7 +156,8 @@ func TestIndexLookupAndSearch(t *testing.T) {
 
   dir := t.TempDir()
   src := "package widget\n\nfunc NewWidget() *Widget {\n\treturn &Widget{}\n}\n\ntype Widget struct {\n\tName string\n}\n"
-  if err := os.WriteFile(filepath.Join(dir, "widget.go"), []byte(src), 0o644); err != nil {
+  err := os.WriteFile(filepath.Join(dir, "widget.go"), []byte(src), 0o644)
+  if err != nil {
     t.Fatal(err)
   }
 
@@ -165,7 +172,8 @@ func TestIndexLookupAndSearch(t *testing.T) {
     t.Fatalf("Lookup(NewWidget) = %+v, want widget.go:3", matches[0])
   }
 
-  if got := idx.Lookup(ctx, "DoesNotExist", ""); len(got) != 0 {
+  got := idx.Lookup(ctx, "DoesNotExist", "")
+  if len(got) != 0 {
     t.Fatalf("Lookup(DoesNotExist) = %+v, want none", got)
   }
 
@@ -174,7 +182,8 @@ func TestIndexLookupAndSearch(t *testing.T) {
     t.Fatalf("Search(widget) = %+v, want at least 2 matches", found)
   }
 
-  if err := idx.LastError(); err != nil {
+  err = idx.LastError()
+  if err != nil {
     t.Fatalf("LastError() = %v, want nil after a successful scan", err)
   }
 }

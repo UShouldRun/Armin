@@ -179,6 +179,7 @@ scripts get a plain buffered read.
 | `-dry-run` | off | `run_command` describes what it would execute instead of running it |
 | `-mcp` | off | serve the tools over MCP stdio instead of starting the REPL |
 | `-lsp` | off | serve hover + an ask command over LSP stdio instead of starting the REPL |
+| `-new` | off | start a separate instance even when one runs in this project (by default a later armin joins the first one, terminal or nvim — see [docs/nvim.md](docs/nvim.md#one-armin-per-project)) |
 | `-resume [id]` | off | resume a session: alone, pick from a menu; with an id (or prefix), that one |
 | `-no-save` | off | don't persist the session to disk after each turn |
 | `-no-color` | off | disable ANSI styling |
@@ -519,6 +520,43 @@ models.claude.url         = https://api.anthropic.com/v1
 models.claude.api_key_env = ANTHROPIC_API_KEY
 ```
 
+A hosted model usually has its own name for the model: put it in
+`id` (armin's alias stays the config name), and for a reasoning
+model cap its thinking with `reasoning` (`none`, `minimal`, `low`,
+`medium`, `high`, `xhigh`, `max`) — Qwen3.8 thinks at `xhigh` by
+default, which costs time and tokens. A base URL may or may not end
+in `/v1`. For example, a big planning model on OpenRouter beside the
+local one:
+
+```
+models.planner.url         = https://openrouter.ai/api/v1
+models.planner.api_key_env = OPENROUTER_API_KEY
+models.planner.id          = qwen/qwen3.8-27b
+models.planner.reasoning   = medium
+```
+
+`/model planner` (or `:ArminModel planner`) first asks which
+OpenRouter model to use — its own id first, Enter keeps it, a number
+picks a suggestion, any `vendor/model` id works — and the same
+question comes up when armin starts on it (`model = planner`),
+before anything connects. Then it switches chat to it;
+inline completion stays on the local model, and `/model local`
+brings chat back. To try any other model the provider offers
+without a new block, name it after the base:
+`/model planner:deepseek/deepseek-v4-pro-0813` uses planner's URL,
+key and reasoning with that id.
+
+With an OpenRouter model configured, `/model` (and nvim's
+`:ArminModel` picker, and the web UI's model menu) also lists
+suggestions from OpenRouter's live catalog — each vendor's newest
+tool-capable model and its cheapest recent one, with free ones last
+— tagged with their price per 1M tokens and what a deep planning
+session costs (~1.2M input, 30k output tokens), and shows what's
+left on the account (through the same key) with a help line on how
+to switch. The catalog is cached a day in armin's data directory;
+the balance is asked at most once a minute. Run `/compact` or `/clear` before a switch to keep
+a long local conversation from being billed as input.
+
 `api_key_env` names an environment variable — populated from `.env`
 above if it isn't already set some other way — never the key itself.
 Keep it out of `config.conf`: that file is plain text people back up,
@@ -545,22 +583,60 @@ further than it has to:
 
 ## Editing files
 
-Before every `write_file` / `edit_file`, the REPL prints the change
-as a colored diff and asks:
+Before every `write_file` / `edit_file` / `run_program`, the REPL
+shows what's about to happen — a change with line numbers, a new
+file's first lines, a command with the script it runs — and asks:
 
 ```
-  → edit_file(path=internal/ui/ui.go, old_string=…, new_string=…)
-  internal/ui/ui.go @ line 98
-    const maxValue = 60
-  - parts := make([]string, 0)
-  + parts := make([]string, 0, len(args))
-apply edit_file? [y]es / [n]o / [a]ll this session / or type feedback:
+● Update(internal/ui/ui.go)
+  └ 1 addition, 1 removal
+      97    const maxValue = 60
+      98  - parts := make([]string, 0)
+      98  + parts := make([]string, 0, len(args))
+      99    for _, a := range args {
+apply edit_file? [y]es / [n]o / [a]ll this session / [v]iew in nvim / or type feedback:
 ```
 
-Typing anything other than y/n/a declines the change and sends what
-you typed to the model as feedback. `a` (or `-yes`, `auto_approve =
-true`, `/approve`) stops asking. Ctrl-C stops the current turn
-without leaving armin.
+`v` opens it read-only in nvim in a new terminal window — a change
+as a diff against the file on disk, a run as its script — and asks
+again when you come back. The window is config.conf's `terminal`
+(e.g. `terminal = ghostty -e`), a tmux window inside tmux,
+`$TERMINAL`, or the first of ghostty, kitty, wezterm, alacritty,
+foot, konsole, gnome-terminal and xterm installed.
+
+Typing anything other than y/n/a/v declines and sends what you
+typed to the model as feedback. `a` (or `-yes`, `auto_approve =
+true`, `/approve`) stops asking; changes and runs are still shown.
+Ctrl-C stops the current turn without leaving armin.
+
+## Running programs
+
+`run_program` runs a build, a test or a program the project built
+(`make`, `mpirun -np 4 ./fox`, `python3 gen.py`), with no shell:
+a binary and its arguments, asked about each time. It can feed a
+project file as the program's input (`stdin`) and save its output to
+one (`stdout`), so "run it on input6 and diff against output6" needs
+no shell. For real pipes the model uses `bash -c "..."` — shells,
+like `rm`/`cp`/`mv`/`scp`, are asked about every time, even after
+`a` (all this session).
+
+When the model re-runs the same command after changing something
+and gets the same output, the run still happens and the model is
+told the output didn't change; only the same call back to back (a
+loop) stops the turn.
+
+## Reading answers
+
+Answers are markdown, shown rendered: headings, **bold**, *italic*,
+`code`, bullet and numbered lists, quotes, fenced code blocks and
+tables. Each line shows raw while it streams and is redrawn rendered
+when it ends.
+
+While a turn runs, the bottom row is an input bar: type a message
+and press Enter, and the model reads it at its next step — or, if it
+was about to finish, keeps going to answer it. A question (an
+approval) pauses the bar; what's left unsent comes back in the next
+prompt.
 
 ## Thinking models
 
@@ -866,7 +942,11 @@ not have in a terminal:
 
 - **Files** on the left (filter as you type); click one to preview it
   on the right: PDFs in the browser's own viewer, Markdown rendered,
-  code with line numbers, images inline.
+  code with line numbers and syntax highlighting (Go, JS/TS, Python,
+  C/C++, Rust, Java, Lua, shell, SQL, Typst, JSON — a small built-in
+  highlighter, no library), images inline. The viewer opens with a
+  file and closes with `×` or the **viewer** button; the browser
+  remembers which.
 - **Answers** render as Markdown. A `file:line` in an answer is a
   link: click it and the preview opens that file at that line.
   Web-search answers carry their numbered Sources.
@@ -878,7 +958,9 @@ not have in a terminal:
   taken, tokens so far, a warning when the model has said nothing
   for 20 s, and "the connection may be lost" when armin's 5 s
   heartbeat stops. The REPL's spinner shows the same.
-- **Approvals**: file writes show their diff (Apply), `run_program`
+- **Approvals**: a file write opens in the viewer as the whole file
+  with the change in place (removed lines red, new ones green,
+  scrolled to it), with Apply in the chat; `run_program`
   the command (Run), reads outside the project the folder (Grant),
   each with Decline and a box to tell the model what to do instead
   (`-yes` skips writes and runs, never access).
@@ -988,8 +1070,12 @@ or fires until you run a command yourself. See
 
 ```
 install.sh                  builds, installs to PATH, checks dependencies, writes a starter config
-cmd/armin/main.go           entrypoint: flags, config, wiring
+cmd/armin/main.go           entrypoint: input → think → display
 internal/
+  input/       what armin is told: flags, config.conf, .env, resume picking, signals
+  think/       the mind: sandbox, models, agent loop, notes, system prompts
+  display/     how it's shown: REPL, -web, -lsp, -mcp, or joining the project's instance
+  share/       one armin per project: the socket, the Host interface, joining
   agent/       tool-calling round trip, approvals, context trimming/compaction
   llm/         llama-server HTTP client (chat + tool calling, streaming, infill completion)
   llamacpp/    spawns/health-polls/idle-reaps managed llama-server processes, hands out llm.Clients

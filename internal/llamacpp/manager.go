@@ -53,68 +53,6 @@ const (
   stopGraceTimeout   = 10 * time.Second
 )
 
-// ModelSpec configures one named model /model (or armin.model) can
-// switch to.
-type ModelSpec struct {
-  // URL, if set, marks this spec externally managed: armin only
-  // ever talks to it, never starts or stops the process behind it.
-  // Mutually exclusive with Binary/ModelPath.
-  URL string
-
-  // APIKeyEnv, if set, names an environment variable whose value is
-  // sent as this model's every request's "Authorization: Bearer
-  // <value>" header — see llm.Client.APIKey. Only meaningful
-  // alongside URL: a locally spawned llama-server needs no auth.
-  // Resolved via os.Getenv at request-client-construction time
-  // (Manager.apiKey), not stored as a value here — this Manager also
-  // strips every name configured this way from spawned llama-server
-  // processes' environment (see scrubbedEnviron), so one model's key
-  // never reaches an unrelated local process that inherits the
-  // environment by default otherwise.
-  APIKeyEnv string
-
-  // Binary is the llama-server executable to spawn (looked up on
-  // PATH if not absolute) — armin owns this process's lifecycle.
-  Binary string
-  // ModelPath is the .gguf file passed as llama-server's -m flag.
-  ModelPath string
-  // Port is the localhost port llama-server is told to listen on
-  // (--port) and the one this package talks to it over.
-  Port int
-  // Args is extra flags appended after -m/--port, verbatim (e.g.
-  // "--ctx-size", "8192", "--n-gpu-layers", "999").
-  Args []string
-  // IdleTimeout overrides DefaultIdleTimeout for this model; a
-  // negative value means "never idle-stop this one".
-  IdleTimeout time.Duration
-
-  // Flags opt out of serverArgs' memory-saving defaults.
-  Flags SpecFlags
-
-  // Stream, if set, is a second, larger context tier: a llama-server
-  // build with adaptive KV streaming, which keeps a resident pool and
-  // a ring buffer in VRAM and the rest of the KV cache in pinned RAM.
-  // agent.Loop moves between tiers through Window.
-  Stream *StreamSpec
-
-  // Remote, if set, runs Binary/ModelPath/Args on a cloud machine
-  // instead of locally: armin starts it, launches llama-server over
-  // SSH with a tunnel to Port, and stops it again when done (see
-  // remote.go).
-  Remote *RemoteSpec
-}
-
-// StreamSpec configures the streaming tier.
-type StreamSpec struct {
-  Binary   string   // the fork's llama-server; empty reuses Binary
-  Context  int      // window in this tier
-  ArenaMiB int      // --kv-stream-arena-mib: VRAM pool + ring buffer
-  Args     []string // extra flags for this tier only
-}
-
-// Tier is which context tier a model's process runs in.
-type Tier uint8
-
 const (
   TierResident Tier = 1 << iota // whole KV cache in VRAM: fastest
   TierStream                    // KV cache streamed from RAM: largest
@@ -185,9 +123,6 @@ func (s ModelSpec) inTier(t Tier) ModelSpec {
   return s
 }
 
-// SpecFlags are per-model switches, packed into one byte.
-type SpecFlags uint8
-
 const (
   // SpecVision keeps a multimodal projector (--mmproj) loadable.
   SpecVision SpecFlags = 1 << iota
@@ -214,33 +149,6 @@ func (s ModelSpec) url() string {
   return fmt.Sprintf("http://127.0.0.1:%d", s.Port)
 }
 
-// ModelStatus is one entry Names returns — enough for /model (and
-// armin.model) with no argument to show what's configured without
-// touching any process.
-type ModelStatus struct {
-  Name    string
-  Model   string // what actually serves it: the .gguf name, a machine, a URL
-  Managed bool
-  Running bool
-}
-
-// process tracks one spawned (armin-managed) llama-server — or, for
-// an AWS model, the SSH session running it.
-type process struct {
-  cmd      *exec.Cmd
-  done     chan struct{} // closed once cmd exits; nil if never started
-  out      *tailBuffer
-  remote   *remoteRun
-  lastUsed time.Time
-  refcount int
-}
-
-// remoteRun is the cloud side of a remote process.
-type remoteRun struct {
-  machine Machine
-  started bool // armin started the machine, so armin stops it
-}
-
 // exited reports whether the process has already died.
 func (p *process) exited() bool {
   if p.done == nil {
@@ -260,7 +168,8 @@ func startProcess(cmd *exec.Cmd) (*process, error) {
   out := &tailBuffer{ max: 4096 }
   cmd.Stdout, cmd.Stderr = out, out
   dieWithParent(cmd)
-  if err := cmd.Start(); err != nil {
+  err := cmd.Start()
+  if err != nil {
     return nil, err
   }
 
@@ -273,19 +182,12 @@ func startProcess(cmd *exec.Cmd) (*process, error) {
   return p, nil
 }
 
-// tailBuffer keeps the last max bytes written — enough of a child's
-// output to explain why it died, without holding all of it.
-type tailBuffer struct {
-  mu  sync.Mutex
-  buf []byte
-  max int
-}
-
 func (t *tailBuffer) Write(b []byte) (int, error) {
   t.mu.Lock()
   defer t.mu.Unlock()
   t.buf = append(t.buf, b...)
-  if over := len(t.buf) - t.max; over > 0 {
+  over := len(t.buf) - t.max
+  if over > 0 {
     t.buf = append(t.buf[:0], t.buf[over:]...)
   }
 
@@ -301,49 +203,6 @@ func (t *tailBuffer) String() string {
   defer t.mu.Unlock()
 
   return strings.TrimSpace(string(t.buf))
-}
-
-// Manager owns every configured ModelSpec and the armin-managed
-// processes currently running for them. Zero value is not usable —
-// construct with New.
-type Manager struct {
-  mu    sync.Mutex
-  specs map[string]ModelSpec
-  procs map[string]*process // only entries for currently-running managed specs
-
-  // scrubEnvNames is every APIKeyEnv name configured across all
-  // specs — computed once, at New, since specs never change after
-  // construction. Spawned processes never see these regardless of
-  // which model they belong to (see scrubbedEnviron): a local
-  // llama-server has no legitimate reason to read any of them.
-  scrubEnvNames map[string]bool
-
-  stopReap chan struct{}
-  reapDone chan struct{}
-  shutdown sync.Once
-
-  // tiers is each model's current tier; absent means resident.
-  tiers map[string]Tier
-
-  // owned is every EC2 instance armin started whose process has since
-  // died, so a respawn onto the still-running instance keeps the
-  // duty to stop it.
-  owned map[string]*remoteRun
-
-  // ReadTimeout is set on every Client this Manager hands out (see
-  // llm.Client.ReadTimeout). Set it before the first Client call.
-  ReadTimeout time.Duration
-
-  // OnStatus, if set, hears progress on slow starts (an EC2 boot
-  // takes minutes). Must not write to stdout in -lsp mode.
-  OnStatus func(string)
-
-  // KnownHostsFile is where SSH records remote host keys (keyed by
-  // machine id, since a stopped machine comes back on a new IP).
-  KnownHostsFile string
-
-  // SSHBinary and the endpoints are overridden by tests.
-  SSHBinary, EC2Endpoint, StackitEndpoint, ScalewayEndpoint string
 }
 
 // New builds a Manager around specs and starts its idle-reaping
@@ -418,6 +277,10 @@ func (m *Manager) Label(name string) string {
 // directory and .gguf), plus the machine for a cloud one; the URL for
 // an external endpoint.
 func (s ModelSpec) label() string {
+  if !s.managed() && s.ID != "" {
+    return s.ID
+  }
+
   if !s.managed() {
     return s.URL
   }
@@ -430,8 +293,59 @@ func (s ModelSpec) label() string {
   return file
 }
 
+// OpenRouter is the configured model served through OpenRouter, if
+// any: its endpoint and key reach every model OpenRouter offers.
+func (m *Manager) OpenRouter() string {
+  m.mu.Lock()
+  defer m.mu.Unlock()
+
+  best := ""
+  for name, spec := range m.specs {
+    hosted := strings.Contains(spec.URL, "openrouter.ai")
+    if hosted && !strings.Contains(name, ":") && (best == "" || name < best) {
+      best = name
+    }
+  }
+
+  return best
+}
+
+// Endpoint is name's URL and resolved API key, for asking its
+// provider about the account (see catalog.Credits).
+func (m *Manager) Endpoint(name string) (url, key string) {
+  m.mu.Lock()
+  url = m.specs[name].URL
+  m.mu.Unlock()
+
+  return url, m.apiKey(name)
+}
+
+// adopt makes "base:id" a model of its own: base's endpoint, key and
+// reasoning with another hosted id — "planner:deepseek/deepseek-v4-pro"
+// tries any model a provider like OpenRouter offers without a config
+// block per model. Only for a hosted (URL) base; a no-op otherwise.
+func (m *Manager) adopt(name string) {
+  base, id, ok := strings.Cut(name, ":")
+  if !ok || id == "" {
+    return
+  }
+
+  m.mu.Lock()
+  defer m.mu.Unlock()
+
+  _, known := m.specs[name]
+  spec, found := m.specs[base]
+  if known || !found || spec.URL == "" {
+    return
+  }
+
+  spec.ID = id
+  m.specs[name] = spec
+}
+
 // Has reports whether name is a configured model.
 func (m *Manager) Has(name string) bool {
+  m.adopt(name)
   m.mu.Lock()
   defer m.mu.Unlock()
   _, ok := m.specs[name]
@@ -465,7 +379,8 @@ func (m *Manager) Switch(ctx context.Context, client *llm.Client, name string) e
   // Two local models rarely fit one GPU together: free the one being
   // left before loading the next. Only that one — a separate
   // completion model may still be in use.
-  if old := client.Model; old != name && m.localManaged(old) && m.localManaged(name) {
+  old := client.Model
+  if old != name && m.localManaged(old) && m.localManaged(name) {
     m.stopModel(ctx, old)
   }
 
@@ -476,11 +391,73 @@ func (m *Manager) Switch(ctx context.Context, client *llm.Client, name string) e
 
   client.BaseURL = url
   client.Model = name
+  client.ID, client.Effort = m.id(name)
   client.APIKey = m.apiKey(name)
   client.OnRequestStart, client.OnRequestEnd = m.callbacks(name)
   client.Ready = m.ready(name)
 
   return nil
+}
+
+// SwitchChat moves chat to name. follower, when set, is inline
+// completion following chat — but only to a model on this machine:
+// a cloud or external one would bill each keystroke and rarely
+// serves /infill, so completion stays on the last local model. It
+// switches first, so the old local model is gone before the new one
+// loads (two rarely fit one GPU).
+func (m *Manager) SwitchChat(
+  ctx context.Context, chat, follower *llm.Client, name string,
+) error {
+  if follower != nil && follower.Model != name && m.localManaged(name) {
+    err := m.Switch(ctx, follower, name)
+    if err != nil {
+      return fmt.Errorf("\n\t... in SwitchChat:\n\t%w", err)
+    }
+  }
+
+  return m.Switch(ctx, chat, name)
+}
+
+// LazyClient is a Client for name that starts its server on first
+// use rather than now.
+func (m *Manager) LazyClient(name string) (*llm.Client, error) {
+  m.adopt(name)
+  m.mu.Lock()
+  spec, ok := m.specs[name]
+  m.mu.Unlock()
+  if !ok {
+    return nil, fmt.Errorf("unconfigured model %q", name)
+  }
+
+  return m.newClientFor(name, spec.url()), nil
+}
+
+// IsLocal reports whether name runs on this machine (see
+// localManaged).
+func (m *Manager) IsLocal(name string) bool { return m.localManaged(name) }
+
+// FirstLocal is a model on this machine for inline completion:
+// "local" when there is one, else the first by name; "" for none.
+func (m *Manager) FirstLocal() string {
+  m.mu.Lock()
+  defer m.mu.Unlock()
+
+  first := ""
+  for name, spec := range m.specs {
+    if !spec.managed() || spec.Remote != nil {
+      continue
+    }
+
+    if name == "local" {
+      return name
+    }
+
+    if first == "" || name < first {
+      first = name
+    }
+  }
+
+  return first
 }
 
 // localManaged reports whether name is a llama-server armin runs on
@@ -516,6 +493,7 @@ func (m *Manager) ready(name string) func(ctx context.Context) error {
 
 func (m *Manager) newClientFor(name, url string) *llm.Client {
   c := llm.New(url, name)
+  c.ID, c.Effort = m.id(name)
   c.ReadTimeout = m.ReadTimeout
   c.APIKey = m.apiKey(name)
   c.OnRequestStart, c.OnRequestEnd = m.callbacks(name)
@@ -538,6 +516,14 @@ func (m *Manager) apiKey(name string) string {
   return os.Getenv(envName)
 }
 
+// id is name's hosted-API model id and reasoning effort, if set.
+func (m *Manager) id(name string) (id, effort string) {
+  m.mu.Lock()
+  defer m.mu.Unlock()
+
+  return m.specs[name].ID, m.specs[name].Effort
+}
+
 func (m *Manager) callbacks(name string) (start, end func()) {
   return func() { m.touch(name, 1) }, func() { m.touch(name, -1) }
 }
@@ -545,6 +531,7 @@ func (m *Manager) callbacks(name string) (start, end func()) {
 // ensure resolves name to a URL, spawning and health-polling its
 // process first if it's a managed spec that isn't already running.
 func (m *Manager) ensure(ctx context.Context, name string) (string, error) {
+  m.adopt(name)
   m.mu.Lock()
   spec, ok := m.specs[name]
   if !ok {
@@ -557,7 +544,8 @@ func (m *Manager) ensure(ctx context.Context, name string) (string, error) {
     return spec.url(), nil
   }
 
-  if proc, running := m.procs[name]; running {
+  proc, running := m.procs[name]
+  if running {
     if !proc.exited() {
       proc.lastUsed = time.Now()
       m.mu.Unlock()
@@ -575,7 +563,8 @@ func (m *Manager) ensure(ctx context.Context, name string) (string, error) {
 
   m.mu.Unlock()
 
-  if err := m.spawn(ctx, name, spec); err != nil {
+  err := m.spawn(ctx, name, spec)
+  if err != nil {
     return "", err
   }
 
@@ -614,7 +603,8 @@ func (m *Manager) spawn(ctx context.Context, name string, spec ModelSpec) error 
   m.procs[name] = proc
   m.mu.Unlock()
 
-  if err := waitHealthy(ctx, spec.url(), proc, spawnHealthTimeout); err != nil {
+  err = waitHealthy(ctx, spec.url(), proc, spawnHealthTimeout)
+  if err != nil {
     m.mu.Lock()
     delete(m.procs, name)
     m.mu.Unlock()
@@ -731,7 +721,8 @@ func waitHealthy(
 
   client := llm.New(url, "")
   for {
-    if err := client.Health(ctx); err == nil {
+    err := client.Health(ctx)
+    if err == nil {
       return nil
     }
 
@@ -753,7 +744,8 @@ func waitHealthy(
 func (m *Manager) touch(name string, delta int) {
   m.mu.Lock()
   defer m.mu.Unlock()
-  if proc, ok := m.procs[name]; ok {
+  proc, ok := m.procs[name]
+  if ok {
     proc.refcount += delta
     proc.lastUsed = time.Now()
   }
@@ -907,19 +899,12 @@ func (m *Manager) SetTier(ctx context.Context, name string, t Tier) error {
     }
   }
 
-  if _, err := m.ensure(ctx, name); err != nil {
+  _, err := m.ensure(ctx, name)
+  if err != nil {
     return fmt.Errorf("\n\t... in SetTier:\n\t%w", err)
   }
 
   return nil
-}
-
-// Window is one model's pair of context tiers, as agent.Loop sees
-// them (it satisfies agent.WindowControl).
-type Window struct {
-  m              *Manager
-  name           string
-  resident, max  int
 }
 
 // Window returns name's tier control, or nil when the model has no
@@ -962,7 +947,8 @@ func (w *Window) Size() int {
 
 // Grow moves to the stream tier and returns its window.
 func (w *Window) Grow(ctx context.Context) (int, error) {
-  if err := w.m.SetTier(ctx, w.name, TierStream); err != nil {
+  err := w.m.SetTier(ctx, w.name, TierStream)
+  if err != nil {
     return 0, err
   }
 
@@ -971,7 +957,8 @@ func (w *Window) Grow(ctx context.Context) (int, error) {
 
 // Shrink moves back to the resident tier and returns its window.
 func (w *Window) Shrink(ctx context.Context) (int, error) {
-  if err := w.m.SetTier(ctx, w.name, TierResident); err != nil {
+  err := w.m.SetTier(ctx, w.name, TierResident)
+  if err != nil {
     return 0, err
   }
 

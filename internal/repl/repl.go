@@ -14,7 +14,6 @@ import (
   "path/filepath"
   "strconv"
   "strings"
-  "sync"
   "time"
 
   "armin/internal/agent"
@@ -35,13 +34,6 @@ const compactKeepLast = 6
 // — it's a nice-to-have, not worth making the user wait long for.
 const suggestTimeout = 20 * time.Second
 
-// flags packs REPL's boolean state into one byte instead of
-// separate bool fields — mostly a style choice here (see
-// internal/sandbox.RunFlags for a case where it also shrinks the
-// struct); it reads as one coherent state word and scales better as
-// more flags show up.
-type flags uint8
-
 const (
   flagAutosave flags = 1 << iota
   flagQuit
@@ -52,55 +44,6 @@ const (
   flagAll = flagAutosave | flagQuit | flagSuggest | flagGhostText |
     flagAutoApprove | flagHideThinking
 )
-
-// REPL owns the interactive session: history, the agent loop, and
-// the slash-command surface layered on top of it.
-type REPL struct {
-  Loop    *agent.Loop
-  LLM     *llm.Client
-  Models  *llamacpp.Manager
-  Sandbox *sandbox.Config
-
-  History   []llm.Message
-  Root      string
-  resumedAt *time.Time
-
-  // Meta is this session's id, title and timestamps on disk.
-  Meta session.Meta
-
-  // ScratchBase is the project's scratch directory; each session
-  // works in its own subdirectory of it (see BindScratch).
-  ScratchBase string
-
-  // persisted is how many leading messages of History are already
-  // written to the session log — see internal/session.Append.
-  // Mutating History in place (rather than only appending to it)
-  // must reset this to 0, or the next autosave silently skips
-  // messages that no longer match what's on disk.
-  persisted int
-
-  // lastSuggestions holds the follow-up questions shown after the
-  // most recent answer (see cmdSuggest / maybeShowSuggestions), so
-  // the next input can be a bare number picking one of them instead
-  // of typing it out. Cleared as soon as anything else is sent.
-  lastSuggestions []string
-
-  // reader is stdin, shared by the prompt and approval questions.
-  reader *bufio.Reader
-
-  // cancelTurn cancels the turn in flight, if any — see Interrupt.
-  turnMu     sync.Mutex
-  cancelTurn context.CancelFunc
-
-  // lastTokens is the server's count after the latest model call.
-  lastTokens int
-
-  // ContextFromServer re-reads the window from the server on a
-  // /model switch (no context_size in config).
-  ContextFromServer bool
-
-  state flags
-}
 
 // New builds a REPL. If resumed is non-nil, its history is used
 // as-is (skipping auto-context, since a resumed session already has
@@ -118,7 +61,14 @@ func New(
     Sandbox: sb,
     Root:    sb.Root,
     reader:  bufio.NewReader(os.Stdin),
+    system:  systemPrompt,
+    inbox:   make(chan func(), 16),
+    wake:    make(chan struct{}, 1),
   }
+
+  name := client.Model
+  r.current.Store(&name)
+  r.completing.Store(&name)
 
   if autosave {
     r.state |= flagAutosave
@@ -249,8 +199,17 @@ func (r *REPL) Interrupt() bool {
 // Run drives the interactive loop until /quit, EOF, or an input
 // error.
 func (r *REPL) Run(ctx context.Context) error {
+  r.runCtx = ctx
+  r.pump = ui.NewKeyPump(r.reader)
+  r.snapshot()
+
   ui.Banner(r.Root, r.modelName(), r.LLM.BaseURL)
-  if w := r.Loop.Window; w != nil {
+  if r.hub != nil {
+    ui.Instance(r.LLM.Model, r.hub.Instance, "— nvim's :ArminLsp and other armins here join it")
+  }
+
+  w := r.Loop.Window
+  if w != nil {
     ui.Info(
       "  context: %dk in VRAM, grows to %dk with KV streaming when a task needs it",
       w.Resident() / 1000, w.Max() / 1000,
@@ -267,10 +226,24 @@ func (r *REPL) Run(ctx context.Context) error {
     ui.Info("  session: new (%s)", ShortID(r.Meta.ID))
   }
 
+  partial := ""
   for r.state & flagQuit == 0 {
-    input, err := ui.ReadLineWithGhostText(
-      ctx, r.reader, "\n" + r.prompt(), r.suggestFunc(),
+    r.runInbox()
+
+    // What was typed during the last turn and never sent.
+    if r.draft != "" {
+      partial, r.draft = r.draft, ""
+    }
+
+    input, err := ui.ReadLineWake(
+      ctx, r.pump, "\n" + r.prompt(), partial, r.wake, r.suggestFunc(),
     )
+    partial = ""
+    if errors.Is(err, ui.ErrWoken) {
+      partial = input
+      continue // runInbox shows what woke it, then the line comes back
+    }
+
     if errors.Is(err, ui.ErrInterrupted) {
       fmt.Println()
       continue // Ctrl-C on a partial line: fresh prompt, don't quit
@@ -289,7 +262,8 @@ func (r *REPL) Run(ctx context.Context) error {
       continue
     }
 
-    if picked, ok := r.pickSuggestion(input); ok {
+    picked, ok := r.pickSuggestion(input)
+    if ok {
       input = picked
     } else {
       r.lastSuggestions = nil
@@ -300,13 +274,15 @@ func (r *REPL) Run(ctx context.Context) error {
       continue
     }
 
-    if cmd, ok := slashless(input); ok {
+    cmd, ok := slashless(input)
+    if ok {
       ui.Info("treating that as %s (commands start with /)", cmd)
       r.dispatch(ctx, cmd)
       continue
     }
 
-    if err := r.turn(ctx, input); err != nil {
+    err = r.turn(ctx, input)
+    if err != nil {
       if errors.Is(err, llm.ErrToolsUnsupported) {
         ui.Error(
           "%q doesn't support tool calling, so it can't drive"+
@@ -385,7 +361,7 @@ func (r *REPL) suggestContinuation(ctx context.Context, partial string) string {
     return ""
   }
 
-  out, err := r.LLM.Complete(ctx, partial, "", llm.CompleteOptions{
+  out, err := r.completer().Complete(ctx, partial, "", llm.CompleteOptions{
     Temperature: 0.3,
     NumPredict:  24,
     Stop:        []string{ "\n" },
@@ -488,7 +464,8 @@ func isUUID(id string) bool {
 
 // ShortID is the first block of a UUID: enough to resume by.
 func ShortID(id string) string {
-  if i := strings.IndexByte(id, '-'); i > 0 {
+  i := strings.IndexByte(id, '-')
+  if i > 0 {
     return id[:i]
   }
 
@@ -505,12 +482,14 @@ func slashless(input string) (string, bool) {
 
   dir = strings.TrimSpace(dir)
   if strings.HasPrefix(dir, "~/") {
-    if home, err := os.UserHomeDir(); err == nil {
+    home, err := os.UserHomeDir()
+    if err == nil {
       dir = filepath.Join(home, dir[2:])
     }
   }
 
-  if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+  info, err := os.Stat(dir)
+  if err != nil || !info.IsDir() {
     return "", false
   }
 

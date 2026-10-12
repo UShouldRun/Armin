@@ -11,16 +11,6 @@ import (
   "armin/internal/sandbox"
 )
 
-// ListDirectoryInput is the argument set for list_directory.
-type ListDirectoryInput struct {
-  Path  string `json:"path,omitempty"`  // default: project root
-  Depth int    `json:"depth,omitempty"` // default: 2
-}
-
-type ListDirectoryOutput struct {
-  Tree string `json:"tree"`
-}
-
 // skipDirs are noise directories we never descend into — keeps this
 // tool cheap and the output signal-dense, which matters a lot with a
 // small model's limited effective context.
@@ -67,7 +57,8 @@ func ListDirectory(
 
   var b strings.Builder
   b.WriteString(".\n")
-  if err := walk(&b, resolved, "", depth); err != nil {
+  err = walk(&b, resolved, "", depth)
+  if err != nil {
     return nil, fmt.Errorf("\n\t... in ListDirectory:\n\t%w", err)
   }
 
@@ -108,7 +99,8 @@ func walk(b *strings.Builder, dir, prefix string, depthLeft int) error {
 
     if e.IsDir() {
       next := filepath.Join(dir, e.Name())
-      if err := walk(b, next, nextPrefix, depthLeft - 1); err != nil {
+      err := walk(b, next, nextPrefix, depthLeft - 1)
+      if err != nil {
         return err
       }
     }

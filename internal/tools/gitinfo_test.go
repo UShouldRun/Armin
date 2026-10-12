@@ -11,7 +11,8 @@ import (
 
 func requireGit(t *testing.T) {
   t.Helper()
-  if _, err := exec.LookPath("git"); err != nil {
+  _, err := exec.LookPath("git")
+  if err != nil {
     t.Skip("git not available — skipping git-backed tool tests")
   }
 }
@@ -64,7 +65,8 @@ func TestGitLogNotARepo(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "a.txt", "x")
 
-  if _, err := GitLog(context.Background(), cfg, GitLogInput{}); err == nil {
+  _, err := GitLog(context.Background(), cfg, GitLogInput{})
+  if err == nil {
     t.Fatal("expected an error when the root isn't a git repo")
   }
 }
@@ -90,7 +92,8 @@ func TestGitBlameAttributesLines(t *testing.T) {
 
 func TestGitBlameRequiresPath(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
-  if _, err := GitBlame(context.Background(), cfg, GitBlameInput{}); err == nil {
+  _, err := GitBlame(context.Background(), cfg, GitBlameInput{})
+  if err == nil {
     t.Fatal("expected an error for an empty path")
   }
 }
@@ -150,7 +153,8 @@ func TestGitDiffAgainstHead(t *testing.T) {
 
 func TestGitShowRequiresHash(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
-  if _, err := GitShow(context.Background(), cfg, GitShowInput{}); err == nil {
+  _, err := GitShow(context.Background(), cfg, GitShowInput{})
+  if err == nil {
     t.Fatal("expected an error for an empty hash")
   }
 }
@@ -173,7 +177,8 @@ func TestGitShowReturnsCommit(t *testing.T) {
 
 func TestGrepHistoryRequiresTerm(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
-  if _, err := GrepHistory(context.Background(), cfg, GrepHistoryInput{}); err == nil {
+  _, err := GrepHistory(context.Background(), cfg, GrepHistoryInput{})
+  if err == nil {
     t.Fatal("expected an error for an empty term")
   }
 }

@@ -65,13 +65,15 @@ func TestLineStateInterrupt(t *testing.T) {
 
 func TestLineStateEOFOnlyWhenEmpty(t *testing.T) {
   var s lineState
-  if out := s.apply(ck(keyEOF)); !out.eof {
+  out := s.apply(ck(keyEOF))
+  if !out.eof {
     t.Fatalf("EOF on empty buffer: out = %+v, want eof=true", out)
   }
 
   var s2 lineState
   typeRunes(&s2, "x")
-  if out := s2.apply(ck(keyEOF)); out.eof {
+  out = s2.apply(ck(keyEOF))
+  if out.eof {
     t.Fatalf("EOF on non-empty buffer: out = %+v, want eof=false", out)
   }
 }
@@ -222,7 +224,8 @@ func TestReadLinePlainEOFWithNoTrailingNewline(t *testing.T) {
 
 func TestReadLinePlainTrueEOF(t *testing.T) {
   reader := bufio.NewReader(strings.NewReader(""))
-  if _, err := readLinePlain(reader, "> "); err == nil {
+  _, err := readLinePlain(reader, "> ")
+  if err == nil {
     t.Fatal("expected an error reading from an already-empty stream")
   }
 }
@@ -256,7 +259,8 @@ func TestKillLineAndWord(t *testing.T) {
     t.Fatalf("after Ctrl-U = %q", s.text())
   }
 
-  if out := s.apply(key{ control: keyKillWord }); out.changed {
+  out := s.apply(key{ control: keyKillWord })
+  if out.changed {
     t.Fatal("Ctrl-W on an empty line changed it")
   }
 }

@@ -5,22 +5,38 @@ import (
   "encoding/json"
   "fmt"
   "os"
+  "path"
+  "sort"
   "strings"
 
   "armin/internal/llm"
+  "armin/internal/share"
 )
 
 const (
-  // completionPrefixLines/completionSuffixLines bound how much of
-  // the file goes to the model — a completion needs to be fast, not
-  // exhaustively grounded, so this is deliberately narrow compared
-  // to what hover/ask are willing to read.
-  completionPrefixLines = 60
-  completionSuffixLines = 20
+  // The prefix window starts on a multiple of completionAlign lines,
+  // so it moves once every 16 lines instead of on every line: the
+  // prompt's start stays byte-stable and llama-server reuses its KV
+  // cache, processing only what changed near the cursor.
+  completionPrefixLines = 64
+  completionSuffixLines = 24
+  completionAlign       = 16
 
-  completionMaxTokens   = 96
-  completionMaxLines    = 20
-  completionTemperature = 0.2
+  // completionHeadLines of the file (package, imports, types) go in
+  // as extra context when they've scrolled out of the prefix window.
+  completionHeadLines = 32
+
+  // Up to completionOtherFiles other open files of the same kind
+  // contribute completionChunkLines around their last edit.
+  completionOtherFiles = 3
+  completionChunkLines = 32
+
+  completionMaxTokens    = 128
+  completionMaxLines     = 16
+  completionMaxPredictMs = 400
+  completionTemperature  = 0.2
+  completionTopK         = 40
+  completionTopP         = 0.95
 )
 
 // inlineCompletion answers textDocument/inlineCompletion. Unlike
@@ -30,34 +46,47 @@ const (
 func (s *Server) inlineCompletion(
   ctx context.Context, id json.RawMessage, p InlineCompletionParams,
 ) {
-  text := s.doc(p.TextDocument.URI)
+  uri  := p.TextDocument.URI
+  text := s.doc(uri)
   if text == "" {
     s.respond(id, []InlineCompletionItem{}, nil)
     return
   }
 
-  prefix, suffix, ok := splitAtPosition(
-    text, p.Position.Line, p.Position.Character,
-  )
+  w, ok := fimWindow(text, p.Position.Line, p.Position.Character)
   if !ok {
     s.respond(id, []InlineCompletionItem{}, nil)
     return
   }
-  prefix = lastLines(prefix, completionPrefixLines)
-  suffix = firstLines(suffix, completionSuffixLines)
 
-  compCtx, cancel, gen := s.startCompletion(p.TextDocument.URI, ctx)
+  extra := s.otherChunks(uri)
+  if w.head != "" {
+    extra = append(extra, llm.InfillChunk{
+      Filename: s.relPath(uri), Text: w.head,
+    })
+  }
+
+  compCtx, cancel, gen := s.startCompletion(uri, ctx)
   defer cancel()
 
-  raw, err := s.completionLLM.Complete(
-    compCtx, prefix, suffix, llm.CompleteOptions{
-      Temperature: completionTemperature,
-      NumPredict:  completionMaxTokens,
-      Stop:        []string{ "\n\n\n" },
+  raw, err := s.complete(compCtx, share.Fill{
+    Key:    uri,
+    Prefix: w.prefix,
+    Suffix: w.suffix,
+    Opts:   llm.CompleteOptions{
+      Prompt:       w.prompt,
+      Extra:        extra,
+      Indent:       w.indent,
+      Temperature:  completionTemperature,
+      TopK:         completionTopK,
+      TopP:         completionTopP,
+      NumPredict:   completionMaxTokens,
+      MaxPredictMs: completionMaxPredictMs,
+      Stop:         []string{ "\n\n\n" },
     },
-  )
+  })
 
-  s.endCompletion(p.TextDocument.URI, gen)
+  s.endCompletion(uri, gen)
 
   if err != nil {
     if compCtx.Err() != nil {
@@ -68,12 +97,15 @@ func (s *Server) inlineCompletion(
       )
       return
     }
+
     s.warnCompletionFailure(err)
-    s.respond(id, []InlineCompletionItem{}, nil)
+    s.respondError(id, errInternal, firstLine(err))
     return
   }
 
-  cleaned := cleanCompletion(raw, completionMaxLines)
+  cleaned := fitToLine(
+    cleanCompletion(raw, completionMaxLines), w.rest, w.next,
+  )
   if cleaned == "" {
     s.respond(id, []InlineCompletionItem{}, nil)
     return
@@ -81,6 +113,187 @@ func (s *Server) inlineCompletion(
 
   item := InlineCompletionItem{ InsertText: cleaned }
   s.respond(id, []InlineCompletionItem{ item }, nil)
+}
+
+// firstLine is err's innermost cause on one line: the wrapped
+// "... in X:" chain is noise in an editor notification.
+func firstLine(err error) string {
+  msg := strings.TrimSpace(err.Error())
+  i := strings.LastIndex(msg, "\n")
+  if i >= 0 {
+    msg = strings.TrimSpace(msg[i + 1:])
+  }
+
+  return msg
+}
+
+// fimWindow cuts the request around (line, character): prefix is
+// whole lines from an aligned start up to the cursor's line, prompt
+// is that line up to the cursor, suffix runs from the cursor to an
+// aligned end. Character is a byte offset, which is what the nvim
+// client sends (nvim_win_get_cursor). Slices only — no allocation.
+func fimWindow(text string, line, character int) (fim, bool) {
+  var w fim
+
+  lineStart, lineEnd, ok := lineOffset(text, line)
+  if !ok {
+    return w, false
+  }
+
+  character = min(max(character, 0), lineEnd - lineStart)
+  cut      := lineStart + character
+
+  from := max(line - completionPrefixLines, 0) /
+    completionAlign * completionAlign
+  prefixStart, _, _ := lineOffset(text, from)
+
+  to := (line + completionSuffixLines) /
+    completionAlign * completionAlign + completionAlign
+  _, suffixEnd, ok := lineOffset(text, to)
+  if !ok {
+    suffixEnd = len(text)
+  }
+
+  w.prefix = text[prefixStart:lineStart]
+  w.prompt = text[lineStart:cut]
+  w.suffix = text[cut:suffixEnd]
+  w.rest   = text[cut:lineEnd]
+
+  if from > 0 {
+    w.head = firstLines(text, min(completionHeadLines, from))
+  }
+
+  for w.indent < lineEnd - lineStart {
+    c := text[lineStart + w.indent]
+    if c != ' ' && c != '\t' {
+      break
+    }
+
+    w.indent++
+  }
+
+  for i := lineEnd + 1; i < suffixEnd; {
+    j := strings.IndexByte(text[i:suffixEnd], '\n')
+    if j < 0 {
+      j = suffixEnd - i
+    }
+
+    l := strings.TrimSpace(text[i:i + j])
+    if l != "" {
+      w.next = l
+      break
+    }
+
+    i += j + 1
+  }
+
+  return w, true
+}
+
+// fitToLine drops what would duplicate the code around the cursor.
+// With text after the cursor only the first line is kept, minus the
+// tail that already follows ("foo(|)" + "a)" → "a"); a completion
+// that just repeats the next line is no suggestion.
+func fitToLine(text, rest, next string) string {
+  if text == "" {
+    return ""
+  }
+
+  tail := strings.TrimSpace(rest)
+  if tail != "" {
+    i := strings.IndexByte(text, '\n')
+    if i >= 0 {
+      text = text[:i]
+    }
+
+    text = strings.TrimRight(text, " \t")
+    text = strings.TrimRight(strings.TrimSuffix(text, tail), " \t")
+    if strings.TrimSpace(text) == "" {
+      return ""
+    }
+
+    return text
+  }
+
+  first := text
+  i := strings.IndexByte(text, '\n')
+  if i >= 0 {
+    first = text[:i]
+  }
+
+  if next != "" && strings.TrimSpace(first) == next {
+    return ""
+  }
+
+  return text
+}
+
+// otherChunks is input_extra from the other open files of uri's
+// kind that were edited this session, most recent last (nearest the
+// prefix): completionChunkLines around each one's last edit. The
+// order only changes when those files are edited, so the chunks stay
+// cached while you work in this one.
+func (s *Server) otherChunks(uri string) []llm.InfillChunk {
+  ext := path.Ext(uri)
+
+  type pick struct {
+    uri, text string
+    line      int
+    seq       uint64
+  }
+
+  var picks [completionOtherFiles]pick
+  n := 0
+
+  s.docsMu.Lock()
+  for u, e := range s.edits {
+    if u == uri || path.Ext(u) != ext {
+      continue
+    }
+
+    p := pick{ uri: u, text: s.docs[u], line: e.line, seq: e.seq }
+    if n < len(picks) {
+      picks[n] = p
+      n++
+      continue
+    }
+
+    oldest := 0
+    for i := 1; i < n; i++ {
+      if picks[i].seq < picks[oldest].seq {
+        oldest = i
+      }
+    }
+
+    if p.seq > picks[oldest].seq {
+      picks[oldest] = p
+    }
+  }
+  s.docsMu.Unlock()
+
+  if n == 0 {
+    return nil
+  }
+
+  sort.Slice(picks[:n], func(i, j int) bool {
+    return picks[i].seq < picks[j].seq
+  })
+
+  out := make([]llm.InfillChunk, 0, n + 1)
+  for _, p := range picks[:n] {
+    from := max(p.line - completionChunkLines / 2, 0) / 8 * 8
+    start, _, ok := lineOffset(p.text, from)
+    if !ok {
+      continue
+    }
+
+    out = append(out, llm.InfillChunk{
+      Filename: s.relPath(p.uri),
+      Text:     firstLines(p.text[start:], completionChunkLines),
+    })
+  }
+
+  return out
 }
 
 // startCompletion cancels whatever completion was already running
@@ -94,7 +307,8 @@ func (s *Server) startCompletion(
   s.inflightMu.Lock()
   defer s.inflightMu.Unlock()
 
-  if prev, ok := s.inflight[uri]; ok {
+  prev, ok := s.inflight[uri]
+  if ok {
     prev.cancel()
   }
 
@@ -108,7 +322,8 @@ func (s *Server) startCompletion(
 func (s *Server) endCompletion(uri string, gen int64) {
   s.inflightMu.Lock()
   defer s.inflightMu.Unlock()
-  if cur, ok := s.inflight[uri]; ok && cur.gen == gen {
+  cur, ok := s.inflight[uri]
+  if ok && cur.gen == gen {
     delete(s.inflight, uri)
   }
 }
@@ -123,61 +338,9 @@ func (s *Server) warnCompletionFailure(err error) {
   })
 }
 
-// splitAtPosition cuts text into everything before and after a
-// position, via lineOffset + a slice — no per-line allocation,
-// unlike the strings.Split-then-Join round trip this replaced
-// (which also allocated a fresh joined string on top of the
-// split). Position.Character is treated as a byte offset into the
-// line, not a UTF-16 code unit count as the LSP spec technically
-// requires — fine for ASCII source, which is most code; a line with
-// multi-byte characters before the cursor can misplace the cut
-// point.
-func splitAtPosition(
-  text string, line, character int,
-) (prefix, suffix string, ok bool) {
-  start, end, ok := lineOffset(text, line)
-  if !ok {
-    return "", "", false
-  }
-
-  lineLen := end - start
-  if character < 0 {
-    character = 0
-  }
-  if character > lineLen {
-    character = lineLen
-  }
-
-  cut := start + character
-  return text[:cut], text[cut:], true
-}
-
-// lastLines returns the final n lines of s (or all of s, if it has
-// n or fewer) by scanning backward and slicing — zero per-line
-// allocations, versus strings.Split(s, "\n") materializing every
-// line in the whole document just to keep the last handful.
-func lastLines(s string, n int) string {
-  if n <= 0 {
-    return ""
-  }
-
-  count := 0
-  for i := len(s) - 1; i >= 0; i-- {
-    if s[i] != '\n' {
-      continue
-    }
-    count++
-    if count == n {
-      return s[i + 1:]
-    }
-  }
-  return s // fewer than n newlines total: the whole string qualifies
-}
-
-// firstLines is lastLines' mirror: scans forward and stops the
-// moment it's seen n newlines, so a small n on a huge document
-// doesn't even need to scan the whole thing (strings.Split always
-// would).
+// firstLines returns the first n lines of s: scans forward and
+// stops at the nth newline, so a small n on a huge document never
+// scans the whole thing.
 func firstLines(s string, n int) string {
   count := 0
   for i := 0; i < len(s); i++ {
@@ -193,28 +356,37 @@ func firstLines(s string, n int) string {
 }
 
 // cleanCompletion strips a markdown fence a chat-leaning model may
-// add despite instructions not to, trims trailing blank lines, and
-// caps length — enforced here, not left to the model's judgment,
-// same philosophy as the sandbox's output truncation.
+// add, trims trailing whitespace and caps the line count. Leading
+// whitespace is the completion's own: "x :=|" continues " foo()".
 func cleanCompletion(raw string, maxLines int) string {
-  text := strings.TrimSpace(raw)
-
-  if strings.HasPrefix(text, "```") {
-    text = strings.TrimPrefix(text, "```")
-    if idx := strings.Index(text, "\n"); idx >= 0 {
+  text := raw
+  t := strings.TrimSpace(raw)
+  if strings.HasPrefix(t, "```") {
+    text = t[3:]
+    idx := strings.Index(text, "\n")
+    if idx >= 0 {
       text = text[idx + 1:]
     }
+
     text = strings.TrimSuffix(strings.TrimRight(text, "\n \t"), "```")
   }
 
-  text = strings.TrimRight(text, "\n")
-  if text == "" {
+  text = strings.TrimRight(text, "\n \t")
+  if strings.TrimSpace(text) == "" {
     return ""
   }
 
-  lines := strings.Split(text, "\n")
-  if len(lines) > maxLines {
-    lines = lines[:maxLines]
+  n := 0
+  for i := 0; i < len(text); i++ {
+    if text[i] != '\n' {
+      continue
+    }
+
+    n++
+    if n == maxLines {
+      return text[:i]
+    }
   }
-  return strings.Join(lines, "\n")
+
+  return text
 }

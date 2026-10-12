@@ -103,7 +103,8 @@ func TestRawIsJailedAndNeverServesHTML(t *testing.T) {
   req.Host = "127.0.0.1"
   rec = httptest.NewRecorder()
   h.ServeHTTP(rec, req)
-  if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {
+  ct := rec.Header().Get("Content-Type")
+  if !strings.HasPrefix(ct, "text/plain") {
     t.Errorf("project HTML served as %q, want text/plain", ct)
   }
 }
@@ -169,7 +170,8 @@ func TestChatStreamsAndWaitsForApproval(t *testing.T) {
     t.Fatalf("events = %v", events)
   }
 
-  if got, _ := os.ReadFile(filepath.Join(root, "new.txt")); string(got) != "hi\n" {
+  got, _ := os.ReadFile(filepath.Join(root, "new.txt"))
+  if string(got) != "hi\n" {
     t.Fatalf("new.txt = %q (approval didn't apply the write)", got)
   }
 }

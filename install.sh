@@ -131,6 +131,23 @@ case ":$PATH:" in
     ;;
 esac
 
+# --- Neovim plugin ------------------------------------------------------
+# A symlink, not a copy: a copy goes stale on the next git pull while
+# the binary it talks to moves on.
+
+nvim_lua="${XDG_CONFIG_HOME:-$HOME/.config}/nvim/lua"
+if [ -d "$nvim_lua" ]; then
+  plugin="$(pwd)/editors/nvim/armin.lua"
+  if [ -L "$nvim_lua/armin.lua" ] || [ ! -e "$nvim_lua/armin.lua" ]; then
+    ln -sfn "$plugin" "$nvim_lua/armin.lua"
+    ok "nvim plugin linked: $nvim_lua/armin.lua"
+  else
+    mv -f "$nvim_lua/armin.lua" "$nvim_lua/armin.lua.bak"
+    ln -s "$plugin" "$nvim_lua/armin.lua"
+    warn "replaced an old copy of the nvim plugin with a link (kept armin.lua.bak)"
+  fi
+fi
+
 echo
 echo "checking dependencies:"
 

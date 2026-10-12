@@ -12,7 +12,8 @@ import (
 
 func requireCtags(t *testing.T) string {
   t.Helper()
-  if p, err := exec.LookPath("universal-ctags"); err == nil {
+  p, err := exec.LookPath("universal-ctags")
+  if err == nil {
     return p
   }
   t.Skip("universal-ctags not available — skipping real-index doc comment tests")
@@ -61,7 +62,8 @@ func TestCommentAboveNoneWhenBlankLineBreaksIt(t *testing.T) {
 
 func TestCommentAboveNoneAtFileStart(t *testing.T) {
   lines := []string{ "func Foo() {}" }
-  if got := commentAbove(lines, 1); got != "" {
+  got := commentAbove(lines, 1)
+  if got != "" {
     t.Fatalf("commentAbove = %q, want empty", got)
   }
 }
@@ -71,7 +73,8 @@ func TestCommentAboveNoneAtFileStart(t *testing.T) {
 func TestReadDocCommentNilIndexIsCleanError(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   in := ReadDocCommentInput{Name: "Foo"}
-  if _, err := ReadDocComment(context.Background(), nil, cfg, in); err == nil {
+  _, err := ReadDocComment(context.Background(), nil, cfg, in)
+  if err == nil {
     t.Fatal("expected an error for a nil ctags index")
   }
 }
@@ -79,7 +82,8 @@ func TestReadDocCommentNilIndexIsCleanError(t *testing.T) {
 func TestReadDocCommentRequiresName(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   idx := ctags.New(cfg.Root, "")
-  if _, err := ReadDocComment(context.Background(), idx, cfg, ReadDocCommentInput{}); err == nil {
+  _, err := ReadDocComment(context.Background(), idx, cfg, ReadDocCommentInput{})
+  if err == nil {
     t.Fatal("expected an error for an empty name")
   }
 }
@@ -110,7 +114,8 @@ func TestReadDocCommentUnknownSymbol(t *testing.T) {
 
   idx := ctags.New(cfg.Root, ctagsBin)
   in := ReadDocCommentInput{Name: "DefinitelyNotDefinedAnywhere"}
-  if _, err := ReadDocComment(context.Background(), idx, cfg, in); err == nil {
+  _, err := ReadDocComment(context.Background(), idx, cfg, in)
+  if err == nil {
     t.Fatal("expected an error for an undefined symbol")
   }
 }

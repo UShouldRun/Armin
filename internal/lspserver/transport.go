@@ -49,7 +49,8 @@ func readMessage(r *bufio.Reader) ([]byte, error) {
   }
 
   body := make([]byte, length)
-  if _, err := io.ReadFull(r, body); err != nil {
+  _, err := io.ReadFull(r, body)
+  if err != nil {
     return nil, fmt.Errorf("\n\t... in readMessage:\n\t%w", err)
   }
   return body, nil
@@ -62,10 +63,12 @@ func writeMessage(w io.Writer, v any) error {
   }
 
   header := fmt.Sprintf("Content-Length: %d\r\n\r\n", len(body))
-  if _, err := io.WriteString(w, header); err != nil {
+  _, err = io.WriteString(w, header)
+  if err != nil {
     return fmt.Errorf("\n\t... in writeMessage:\n\t%w", err)
   }
-  if _, err := w.Write(body); err != nil {
+  _, err = w.Write(body)
+  if err != nil {
     return fmt.Errorf("\n\t... in writeMessage:\n\t%w", err)
   }
   return nil

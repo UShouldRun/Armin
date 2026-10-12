@@ -24,7 +24,8 @@ func TestWithModelLine(t *testing.T) {
     t.Fatalf("replaced = %q", p)
   }
 
-  if got := WithModelLine("x", "chat", "chat"); !strings.HasSuffix(got, "model `chat`.") {
+  got := WithModelLine("x", "chat", "chat")
+  if !strings.HasSuffix(got, "model `chat`.") {
     t.Fatalf("label equal to name = %q", got)
   }
 }
@@ -66,7 +67,8 @@ func TestDecide(t *testing.T) {
   }
 
   for _, c := range cases {
-    if got := Decide(c.s); got != c.want {
+    got := Decide(c.s)
+    if got != c.want {
       t.Errorf("%s: Decide = %05b, want %05b", c.name, got, c.want)
     }
   }
@@ -160,7 +162,8 @@ func TestCompactsOldHistoryAfterSavingAndShrinksBack(t *testing.T) {
     case lastMsg.Content == saveNote:
       sawSaveNote = true
       for _, d := range req.Tools {
-        if n := d.Function.Name; n != "scratchpad_write" && n != "scratchpad_read" && n != "memory_save" {
+        n := d.Function.Name
+        if n != "scratchpad_write" && n != "scratchpad_read" && n != "memory_save" {
           t.Errorf("save turn offered %s", n)
         }
       }
@@ -195,7 +198,8 @@ func TestCompactsOldHistoryAfterSavingAndShrinksBack(t *testing.T) {
     t.Fatalf("saveNote=%v summarized=%v, want both", sawSaveNote, summarized)
   }
 
-  if plan, _, err := loop.Scratch.Read("plan", 0, 0); err != nil || !strings.Contains(plan, "step 3") {
+  plan, _, err := loop.Scratch.Read("plan", 0, 0)
+  if err != nil || !strings.Contains(plan, "step 3") {
     t.Fatalf("plan = %q, %v", plan, err)
   }
 
@@ -229,7 +233,8 @@ func TestTrimArchivesToScratchpadAndKeepsSkills(t *testing.T) {
   loop.elide(msgs, true)
 
   var stub map[string]any
-  if err := json.Unmarshal([]byte(msgs[1].Content), &stub); err != nil {
+  err := json.Unmarshal([]byte(msgs[1].Content), &stub)
+  if err != nil {
     t.Fatalf("not a stub: %q", msgs[1].Content)
   }
 

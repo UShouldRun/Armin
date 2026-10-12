@@ -18,11 +18,6 @@ import (
 // a real tokenizer, and we say so wherever this number is shown.
 const charsPerToken = 4
 
-// Stats summarizes a history slice for the /context command.
-type Stats struct {
-  Messages, ToolCalls, ToolResults, ApproxTokens int
-}
-
 // ApproxTokens is a rough token count for one message: content,
 // reasoning and tool-call arguments.
 func ApproxTokens(m llm.Message) int {
@@ -31,7 +26,8 @@ func ApproxTokens(m llm.Message) int {
     n += len(c.Function.Name)
     for k, v := range c.Function.Arguments {
       n += len(k)
-      if s, ok := v.(string); ok {
+      s, ok := v.(string)
+      if ok {
         n += len(s)
       } else {
         n += 8
@@ -128,7 +124,8 @@ func Compact(
   var note strings.Builder
   note.WriteString(summaryHeader)
   note.WriteString(strings.TrimSpace(reply.Content))
-  if req := lastUserIn(head); req != "" && lastUserIn(tail) == "" {
+  req := lastUserIn(head)
+  if req != "" && lastUserIn(tail) == "" {
     note.WriteString("\n\nThe user's current request, verbatim:\n")
     note.WriteString(req)
   }
@@ -250,7 +247,8 @@ func Title(ctx context.Context, client *llm.Client, history []llm.Message) strin
 
   reply, err := client.Chat(ctx, ask, nil, nil)
   if err == nil {
-    if t := cleanTitle(reply.Content); t != "" {
+    t := cleanTitle(reply.Content)
+    if t != "" {
       return t
     }
   }
@@ -260,7 +258,8 @@ func Title(ctx context.Context, client *llm.Client, history []llm.Message) strin
 
 func cleanTitle(s string) string {
   s = strings.TrimSpace(s)
-  if i := strings.IndexByte(s, '\n'); i >= 0 {
+  i := strings.IndexByte(s, '\n')
+  if i >= 0 {
     s = s[:i]
   }
 

@@ -1,67 +1,127 @@
 package lspserver
 
-import "testing"
+import (
+  "fmt"
+  "strings"
+  "testing"
 
-func TestSplitAtPosition(t *testing.T) {
-  text := "func main() {\n\tfmt.Println()\n}\n"
+  "armin/internal/sandbox"
+)
 
-  prefix, suffix, ok := splitAtPosition(text, 1, 5)
+func TestFimWindow(t *testing.T) {
+  text := "package main\n\nfunc main() {\n\tfmt.Println()\n}\n"
+
+  w, ok := fimWindow(text, 3, 5)
   if !ok {
-    t.Fatal("splitAtPosition returned ok=false")
+    t.Fatal("fimWindow returned ok = false")
   }
-  if prefix != "func main() {\n\tfmt." {
-    t.Fatalf("prefix = %q", prefix)
+
+  if w.prefix != "package main\n\nfunc main() {\n" {
+    t.Fatalf("prefix = %q", w.prefix)
   }
-  if suffix != "Println()\n}\n" {
-    t.Fatalf("suffix = %q", suffix)
+
+  if w.prompt != "\tfmt." || w.rest != "Println()" {
+    t.Fatalf("prompt / rest = %q / %q", w.prompt, w.rest)
   }
-  if prefix + suffix != text {
-    t.Fatalf("prefix+suffix lost or duplicated bytes:\n%q\n+\n%q\n!=\n%q", prefix, suffix, text)
+
+  if w.suffix != "Println()\n}\n" || w.next != "}" {
+    t.Fatalf("suffix / next = %q / %q", w.suffix, w.next)
+  }
+
+  if w.indent != 1 || w.head != "" {
+    t.Fatalf("indent / head = %d / %q", w.indent, w.head)
+  }
+
+  if w.prefix + w.prompt + w.suffix != text {
+    t.Fatal("prefix + prompt + suffix lost or duplicated bytes")
   }
 }
 
-func TestSplitAtPositionClampsCharacter(t *testing.T) {
-  text := "abc\ndef\n"
-
-  _, suffix, ok := splitAtPosition(text, 0, 999)
-  if !ok || suffix != "\ndef\n" {
-    t.Fatalf("character past end of line: suffix = %q, ok = %v", suffix, ok)
+// TestFimWindowPrefixIsAligned: moving down a line must not move the
+// prefix's start, or llama-server's prompt cache misses every time.
+func TestFimWindowPrefixIsAligned(t *testing.T) {
+  var b strings.Builder
+  for i := 0; i < 400; i++ {
+    fmt.Fprintf(&b, "line %d\n", i)
   }
 
-  prefix, _, ok := splitAtPosition(text, 0, -5)
-  if !ok || prefix != "" {
-    t.Fatalf("negative character: prefix = %q, ok = %v", prefix, ok)
+  text := b.String()
+
+  a, _ := fimWindow(text, 200, 0)
+  c, _ := fimWindow(text, 201, 0)
+  if !strings.HasPrefix(c.prefix, a.prefix) {
+    t.Fatal("prefix start moved between adjacent lines")
+  }
+
+  if !strings.HasPrefix(a.head, "line 0\n") {
+    t.Fatalf("head = %q, want the file's first lines", a.head)
+  }
+
+  _, ok := fimWindow(text, 9999, 0)
+  if ok {
+    t.Fatal("expected ok = false past the end of the document")
+  }
+
+  w, _ := fimWindow("abc", 0, 99)
+  if w.prompt != "abc" {
+    t.Fatalf("character past the line end: prompt = %q", w.prompt)
+  }
+
+  w, _ = fimWindow("abc", 0, -5)
+  if w.prompt != "" {
+    t.Fatalf("negative character: prompt = %q", w.prompt)
   }
 }
 
-func TestSplitAtPositionOutOfRangeLine(t *testing.T) {
-  if _, _, ok := splitAtPosition("only one line", 5, 0); ok {
-    t.Fatal("expected ok=false for a line past the end of the document")
+func TestFitToLine(t *testing.T) {
+  cases := []struct {
+    name, text, rest, next, want string
+  }{
+    { "no rest", "a, b)\n\tx()", "", "", "a, b)\n\tx()" },
+    { "drops duplicated tail", "a, b)", ")", "", "a, b" },
+    { "first line only with rest", "a)\nmore", ")", "", "a" },
+    { "only the tail", ")", ")", "", "" },
+    { "repeats next line", "\treturn nil", "", "return nil", "" },
+    { "keeps leading space", " foo()", "", "", " foo()" },
+  }
+
+  for _, c := range cases {
+    t.Run(c.name, func(t *testing.T) {
+      got := fitToLine(c.text, c.rest, c.next)
+      if got != c.want {
+        t.Fatalf("fitToLine(%q) = %q, want %q", c.text, got, c.want)
+      }
+    })
   }
 }
 
-func TestLastLines(t *testing.T) {
-  text := "1\n2\n3\n4\n5"
-  if got := lastLines(text, 2); got != "4\n5" {
-    t.Fatalf("lastLines(_, 2) = %q, want \"4\\n5\"", got)
+func TestOtherChunks(t *testing.T) {
+  s := New(nil, &sandbox.Config{ Root: "/p" }, "", nil, nil, nil)
+  s.setDoc("file:///p/a.go", "package a\n")
+  s.setDoc("file:///p/a.go", "package a\n\nfunc A() {}\n")
+  s.setDoc("file:///p/b.go", "package b\n")
+  s.setDoc("file:///p/c.md", "# c\n")
+  s.setDoc("file:///p/c.md", "# cc\n")
+
+  got := s.otherChunks("file:///p/b.go")
+  if len(got) != 1 || got[0].Filename != "a.go" {
+    t.Fatalf("otherChunks = %+v, want just the edited a.go", got)
   }
-  if got := lastLines(text, 100); got != text {
-    t.Fatalf("lastLines with n > line count should return the input unchanged, got %q", got)
-  }
-  if got := lastLines(text, 0); got != "" {
-    t.Fatalf("lastLines(_, 0) = %q, want \"\" (zero lines requested)", got)
-  }
-  if got := lastLines(text, 1); got != "5" {
-    t.Fatalf("lastLines(_, 1) = %q, want just the final line", got)
+
+  if !strings.Contains(got[0].Text, "func A()") {
+    t.Fatalf("chunk = %q", got[0].Text)
   }
 }
 
 func TestFirstLines(t *testing.T) {
   text := "1\n2\n3\n4\n5"
-  if got := firstLines(text, 2); got != "1\n2" {
+  got := firstLines(text, 2)
+  if got != "1\n2" {
     t.Fatalf("firstLines(_, 2) = %q, want \"1\\n2\"", got)
   }
-  if got := firstLines(text, 100); got != text {
+
+  got = firstLines(text, 100)
+  if got != text {
     t.Fatalf("firstLines with n > line count should return the input unchanged, got %q", got)
   }
 }
@@ -72,20 +132,22 @@ func TestCleanCompletion(t *testing.T) {
     raw  string
     want string
   }{
-    {"plain code", "return x + 1", "return x + 1"},
+    { "plain code", "return x + 1", "return x + 1" },
+    { "leading space kept", " x + 1\n", " x + 1" },
     {
       "fenced with language tag",
       "```go\nreturn x + 1\n```",
       "return x + 1",
     },
-    {"trailing blank lines trimmed", "return x\n\n\n", "return x"},
-    {"empty input", "", ""},
-    {"whitespace only", "   \n  ", ""},
+    { "trailing blank lines trimmed", "return x\n\n\n", "return x" },
+    { "empty input", "", "" },
+    { "whitespace only", "   \n  ", "" },
   }
 
   for _, c := range cases {
     t.Run(c.name, func(t *testing.T) {
-      if got := cleanCompletion(c.raw, 20); got != c.want {
+      got := cleanCompletion(c.raw, 20)
+      if got != c.want {
         t.Fatalf("cleanCompletion(%q) = %q, want %q", c.raw, got, c.want)
       }
     })
@@ -96,31 +158,24 @@ func TestCleanCompletionCapsLineCount(t *testing.T) {
   raw := "1\n2\n3\n4\n5\n6\n7\n8\n9\n10"
   got := cleanCompletion(raw, 3)
   if got != "1\n2\n3" {
-    t.Fatalf("cleanCompletion with maxLines=3 = %q, want \"1\\n2\\n3\"", got)
+    t.Fatalf("cleanCompletion with maxLines = 3 = %q, want \"1\\n2\\n3\"", got)
   }
 }
 
-// TestSplitAtPositionAllocationsStayBounded: the old implementation
-// strings.Split the whole document, sliced it, then strings.Join'd two
-// pieces back together — three full passes doing real allocation work
-// on every single inline-completion request, which fires on a debounce
-// timer while the user is still typing. The rewrite should cost O(1)
-// allocations (two string headers out) regardless of document size.
-func TestSplitAtPositionAllocationsStayBounded(t *testing.T) {
+// TestFimWindowAllocationsStayBounded: fimWindow runs on every
+// completion request while you type, so it only slices.
+func TestFimWindowAllocationsStayBounded(t *testing.T) {
   var b []byte
   for i := 0; i < 20000; i++ {
     b = append(b, []byte("some line of source code here\n")...)
   }
+
   big := string(b)
 
-  const allocLimit = 4
   allocs := testing.AllocsPerRun(20, func() {
-    splitAtPosition(big, 10000, 10)
+    fimWindow(big, 10000, 10)
   })
-  if allocs > allocLimit {
-    t.Fatalf(
-      "splitAtPosition on a 20000-line document allocated %.0f times, want <= %d",
-      allocs, allocLimit,
-    )
+  if allocs > 0 {
+    t.Fatalf("fimWindow allocated %.0f times, want 0", allocs)
   }
 }

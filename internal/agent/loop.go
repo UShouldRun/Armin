@@ -13,14 +13,10 @@ import (
   "path/filepath"
   "sort"
   "strings"
-  "sync"
 
   "armin/internal/convo"
-  "armin/internal/ctags"
   "armin/internal/llm"
-  "armin/internal/notes"
   "armin/internal/sandbox"
-  "armin/internal/searxng"
   "armin/internal/tools"
 )
 
@@ -28,92 +24,6 @@ import (
 // turn may take. Real edit-build-fix work needs dozens; the cap only
 // stops a model that's looping.
 const DefaultMaxRounds = 50
-
-// Loop wires an LLM client to the sandboxed tool implementations.
-type Loop struct {
-  LLM     *llm.Client
-  Sandbox *sandbox.Config
-
-  // WebSearch backs the web_search tool. Nil disables it gracefully
-  // — the tool is still advertised (see ToolDefinitions), but every
-  // call returns a clean "unavailable" error instead of a panic.
-  WebSearch *searxng.Manager
-
-  // Symbols backs the ctags-based tools; nil degrades the same way
-  // WebSearch does.
-  Symbols *ctags.Index
-
-  // Tracker remembers what the model has read, so write_file and
-  // edit_file never act on a file it hasn't seen (or that changed
-  // since).
-  Tracker *tools.FileTracker
-
-  // Memories, Skills and Scratch back the note tools; each one left
-  // nil drops its tools from the definitions.
-  Memories *notes.Memories
-  Skills   *notes.Skills
-  Scratch  *notes.Scratchpad
-
-  // MaxRounds overrides DefaultMaxRounds.
-  MaxRounds int
-
-  // ContextSize is the model's context window in tokens; zero
-  // disables automatic compaction. Ignored when Window is set.
-  ContextSize int
-
-  // Window, if set, is a model with a resident and a streaming
-  // context tier; manageContext moves between them (see Decide).
-  Window WindowControl
-
-  // KeepTurns is how many recent user turns keep their full tool
-  // results; older ones are reduced to a one-line stub (see
-  // elideTurn). Zero uses DefaultKeepTurns, negative disables.
-  KeepTurns int
-
-  // ReadOnly drops write_file/edit_file (-lsp has nobody to approve
-  // a write).
-  ReadOnly bool
-
-  defsOnce   sync.Once
-  defs       []llm.ToolDefinition
-  params     map[string]map[string]bool // tool → its parameter names
-  defsTokens int // rough size of defs, sent with every request
-}
-
-// Hooks are the per-call callbacks of Turn. They're parameters, not
-// Loop fields: lspserver runs concurrent turns against one Loop.
-// Every field may be nil.
-type Hooks struct {
-  // Token and Reasoning receive streamed content and thinking.
-  Token, Reasoning llm.OnToken
-
-  // ToolCall fires just before each tool call executes.
-  ToolCall func(name string, args map[string]any)
-
-  // ToolResult fires after it, with the result as sent to the model
-  // (JSON); ResultLine summarizes it for display.
-  ToolResult func(name, result string)
-
-  // Approve is asked before a file write, with a diff preview. A
-  // false return declines it; feedback, if any, goes to the model.
-  // Nil approves everything.
-  Approve func(tool, preview string) (ok bool, feedback string)
-
-  // Compacted fires after Turn rewrote history in place (compaction
-  // or elision), so the caller can resync anything mirroring it.
-  Compacted func(before, after int)
-
-  // Usage receives the server's token count after each model call.
-  Usage func(llm.Usage)
-
-  // Notice receives one-line status messages about context
-  // management (growing the window, saving notes, compacting).
-  Notice func(string)
-
-  // Progress receives the model's prompt-reading progress (tokens
-  // read of total) before each reply starts, where supported.
-  Progress func(done, total int)
-}
 
 // New returns a ready-to-use Loop.
 func New(client *llm.Client, sb *sandbox.Config) *Loop {
@@ -309,9 +219,12 @@ func ToolDefinitions() []llm.ToolDefinition {
         Name: "run_program",
         Description: "Build, compile, test or run code: make, cmake, gcc, " +
           "g++, clang, mpicc, mpirun, go, cargo, python3, node, npm... " +
-          "or a program the project built (\"./build/app\"). No shell: " +
-          "binary plus an args array. The user approves each run. " +
-          "Prefer run_tests / build_check when they fit.",
+          "or a program the project built (\"./build/app\"). Binary plus " +
+          "an args array, no shell: feed a file as input with stdin, " +
+          "save the output with stdout (then diff it). For pipes, use " +
+          "binary bash with args [\"-c\", \"...\"] — always asked. The " +
+          "user approves each run. Prefer run_tests / build_check when " +
+          "they fit.",
         Parameters: llm.ToolParameters{
           Type: "object",
           Properties: map[string]llm.ToolProperty{
@@ -327,6 +240,14 @@ func ToolDefinitions() []llm.ToolDefinition {
             "dir": {
               Type:        "string",
               Description: "Working directory inside the project (default: project root), e.g. \"build\"",
+            },
+            "stdin": {
+              Type:        "string",
+              Description: "Project file to feed as the program's input, like < file, e.g. \"tests/input/input6\"",
+            },
+            "stdout": {
+              Type:        "string",
+              Description: "Project file to write the program's output to, like > file, e.g. \"build/out6.txt\"",
             },
           },
           Required: []string{ "binary" },
@@ -964,8 +885,7 @@ const roundLimitNote = "You have reached the tool-call limit for " +
 const maxBlocked = 2
 
 const repeatNote = "[armin] You kept repeating a call that had " +
-  "already failed or that the user declined, so tools are off for " +
-  "the rest of this turn. Don't call any more tools. Tell the user " +
+  "already failed, so tools are off for the rest of this turn. Don't call any more tools. Tell the user " +
   "what you were trying to do, what failed, and — if they gave " +
   "feedback — how you'll follow it, then ask how to continue."
 
@@ -988,12 +908,19 @@ func (l *Loop) Turn(
   declined := map[string]bool{}  // directories the user refused this turn
   blocked := 0                   // repeats the guard refused this turn
   ran := map[string]string{}     // run tool call → its result, this turn
+  lastCall := ""                 // the call before this one
 
   defer func() { l.endTurn(history, turnStart, hooks) }()
 
   stopNote := roundLimitNote
 
   for round := 0; round < l.maxRounds(); round++ {
+    // Messages the user sent while the turn ran go in before the
+    // model's next step.
+    if round > 0 {
+      l.steer(history, hooks)
+    }
+
     if l.manageContext(ctx, history, last, hooks) {
       turnStart = 0 // indices moved; the end-of-turn pass rescans
       last = llm.Usage{}
@@ -1014,12 +941,20 @@ func (l *Loop) Turn(
     *history = append(*history, *reply)
 
     if len(reply.ToolCalls) == 0 {
-      return l.finish(history, sources, hooks), nil
+      answer := l.finish(history, sources, hooks)
+
+      // Done — unless the user said more meanwhile: then the turn
+      // goes on, and the model answers that too.
+      if l.steer(history, hooks) {
+        continue
+      }
+
+      return answer, nil
     }
 
     for _, call := range reply.ToolCalls {
-      if err := ctx.Err(); err != nil {
-        return "", fmt.Errorf("\n\t... in Turn:\n\t%w", err)
+      if ctx.Err() != nil {
+        return "", fmt.Errorf("\n\t... in Turn:\n\t%w", ctx.Err())
       }
 
       normalizeArgs(&call)
@@ -1029,7 +964,8 @@ func (l *Loop) Turn(
 
       key := callKey(call)
       var resultJSON []byte
-      if prev, ok := failed[key]; ok {
+      prev, ok := failed[key]
+      if ok {
         blocked++
         resultJSON, _ = json.Marshal(map[string]string{
           "error": "you already made this exact call this turn and it " +
@@ -1055,26 +991,42 @@ func (l *Loop) Turn(
         // A success in between may have changed what a failed call
         // depends on (read_file before an edit), so only a repeat
         // with nothing working in between is blocked.
-        if msg := errorOf(resultJSON); msg != "" {
+        raw := string(resultJSON) // compared across runs, before any note
+        msg := errorOf(resultJSON)
+        if msg != "" {
           failed[key] = msg
-        } else if prev, ok := ran[key]; ok && prev == string(resultJSON) && runTool(call.Function.Name) {
-          // The same run, the same output: running it again won't
-          // change anything.
-          blocked++
-          resultJSON, _ = json.Marshal(map[string]any{
-            "error": "this is the same call you already ran this turn, " +
-              "and it gave exactly the same result as before (below). " +
-              "Running it again won't change anything: do something " +
-              "else, or stop and tell the user.",
-            "result": json.RawMessage(resultJSON),
-          })
         } else {
+          prev, ok := ran[key]
+          same := ok && prev == string(resultJSON) && runTool(call.Function.Name)
+          switch {
+          case same && lastCall == key:
+            // Back to back, nothing in between: a loop.
+            blocked++
+            resultJSON, _ = json.Marshal(map[string]any{
+              "error": "you just ran this exact call and it gave exactly " +
+                "the same result (below); running it again won't change " +
+                "anything: do something else, or stop and tell the user.",
+              "result": json.RawMessage(resultJSON),
+            })
+          case same:
+            // Re-running after a rebuild or an edit is legitimate:
+            // pointed out, in case the change didn't take effect.
+            resultJSON, _ = json.Marshal(map[string]any{
+              "note": "same output as the last time you ran this, this " +
+                "turn: if you changed something in between, it didn't " +
+                "change this result",
+              "result": json.RawMessage(resultJSON),
+            })
+          }
+
           clear(failed)
         }
 
-        if runTool(call.Function.Name) && errorOf(resultJSON) == "" {
-          ran[key] = string(resultJSON)
+        if runTool(call.Function.Name) && msg == "" {
+          ran[key] = raw
         }
+
+        lastCall = key
       }
 
       if hooks.ToolResult != nil {
@@ -1167,9 +1119,11 @@ func normalizeArgs(call *llm.ToolCall) {
     return
   }
 
-  if _, ok := a["args"]; !ok {
+  _, ok := a["args"]
+  if !ok {
     for _, alias := range argAliases {
-      if v, ok := a[alias]; ok {
+      v, ok := a[alias]
+      if ok {
         a["args"] = v
         delete(a, alias)
         break
@@ -1177,12 +1131,14 @@ func normalizeArgs(call *llm.ToolCall) {
     }
   }
 
-  if s, ok := a["args"].(string); ok {
+  s, ok := a["args"].(string)
+  if ok {
     a["args"] = toAny(splitWords(s))
   }
 
   bin, _ := a["binary"].(string)
-  if words := splitWords(bin); len(words) > 1 {
+  words := splitWords(bin)
+  if len(words) > 1 {
     list, _ := a["args"].([]any)
     a["binary"] = words[0]
     a["args"] = append(toAny(words[1:]), list...)
@@ -1284,7 +1240,8 @@ func (l *Loop) finish(
 ) string {
   h := *history
   final := &h[len(h) - 1]
-  if add := sources.appendix(final.Content); add != "" {
+  add := sources.appendix(final.Content)
+  if add != "" {
     final.Content += add
     if hooks.Token != nil {
       hooks.Token(add)
@@ -1300,12 +1257,14 @@ func (l *Loop) executeTurn(
   ctx context.Context, call llm.ToolCall, hooks Hooks,
   sources *turnSources, declined map[string]bool,
 ) any {
-  if out := l.askAccess(call, hooks, declined); out != nil {
+  out := l.askAccess(call, hooks, declined)
+  if out != nil {
     return out
   }
 
-  out := l.execute(ctx, call, hooks)
-  if ws, ok := out.(*tools.WebSearchOutput); ok {
+  out = l.execute(ctx, call, hooks)
+  ws, ok := out.(*tools.WebSearchOutput)
+  if ok {
     sources.number(ws)
   }
 
@@ -1325,7 +1284,8 @@ func (l *Loop) askAccess(
 
   for _, p := range readPaths(call) {
     var outside *sandbox.OutsideError
-    if _, err := l.Sandbox.ResolvePath(p); !errors.As(err, &outside) {
+    _, err := l.Sandbox.ResolvePath(p)
+    if !errors.As(err, &outside) {
       continue
     }
 
@@ -1346,7 +1306,8 @@ func (l *Loop) askAccess(
       return declinedResult("read access to " + dir, feedback)
     }
 
-    if _, err := l.Sandbox.AddReadRoot(dir); err != nil {
+    _, err = l.Sandbox.AddReadRoot(dir)
+    if err != nil {
       return map[string]string{ "error": err.Error() }
     }
   }
@@ -1359,7 +1320,8 @@ func readPaths(call llm.ToolCall) []string {
   args := call.Function.Arguments
   switch toolIDs[call.Function.Name] {
   case toolReadFile, toolReadPDF, toolSearchCode, toolListDirectory:
-    if p, _ := args["path"].(string); p != "" {
+    p, _ := args["path"].(string)
+    if p != "" {
       return []string{ p }
     }
 
@@ -1401,11 +1363,13 @@ func (l *Loop) execute(
     }
   }
 
-  if msg := l.unknownParams(name, call.Function.Arguments); msg != "" {
+  msg := l.unknownParams(name, call.Function.Arguments)
+  if msg != "" {
     return map[string]string{ "error": msg }
   }
 
-  if out, ok := l.executeNote(id, raw); ok {
+  out, ok := l.executeNote(id, raw)
+  if ok {
     return out
   }
 
@@ -1416,7 +1380,8 @@ func (l *Loop) execute(
   switch id {
   case toolWriteFile:
     var in tools.WriteFileInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1429,7 +1394,8 @@ func (l *Loop) execute(
 
   case toolEditFile:
     var in tools.EditFileInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1442,7 +1408,8 @@ func (l *Loop) execute(
 
   case toolSearchCode:
     var in tools.SearchCodeInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1455,7 +1422,8 @@ func (l *Loop) execute(
 
   case toolReadFile:
     var in tools.ReadFileInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1464,7 +1432,8 @@ func (l *Loop) execute(
       return map[string]string{ "error": err.Error() }
     }
 
-    if resolved, err := l.Sandbox.ResolvePath(in.Path); err == nil {
+    resolved, err := l.Sandbox.ResolvePath(in.Path)
+    if err == nil {
       l.Tracker.Mark(resolved)
     }
 
@@ -1472,7 +1441,8 @@ func (l *Loop) execute(
 
   case toolListDirectory:
     var in tools.ListDirectoryInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1485,7 +1455,8 @@ func (l *Loop) execute(
 
   case toolRunCommand:
     var in tools.RunCommandInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1498,7 +1469,8 @@ func (l *Loop) execute(
 
   case toolWebSearch:
     var in tools.WebSearchInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1511,7 +1483,8 @@ func (l *Loop) execute(
 
   case toolCountLines:
     var in tools.CountLinesInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1524,7 +1497,8 @@ func (l *Loop) execute(
 
   case toolListLanguages:
     var in tools.ListLanguagesInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1537,7 +1511,8 @@ func (l *Loop) execute(
 
   case toolFindFiles:
     var in tools.FindFilesInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1550,7 +1525,8 @@ func (l *Loop) execute(
 
   case toolFileStat:
     var in tools.FileStatInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1563,7 +1539,8 @@ func (l *Loop) execute(
 
   case toolFindTodoFixme:
     var in tools.FindTodoFixmeInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1576,7 +1553,8 @@ func (l *Loop) execute(
 
   case toolEnvInfo:
     var in tools.EnvInfoInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1589,7 +1567,8 @@ func (l *Loop) execute(
 
   case toolProjectManifest:
     var in tools.ProjectManifestInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1602,7 +1581,8 @@ func (l *Loop) execute(
 
   case toolFindDefinition:
     var in tools.FindDefinitionInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1615,7 +1595,8 @@ func (l *Loop) execute(
 
   case toolListSymbols:
     var in tools.ListSymbolsInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1628,7 +1609,8 @@ func (l *Loop) execute(
 
   case toolOutlineFile:
     var in tools.OutlineFileInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1641,7 +1623,8 @@ func (l *Loop) execute(
 
   case toolFindReferences:
     var in tools.FindReferencesInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1654,7 +1637,8 @@ func (l *Loop) execute(
 
   case toolGitLog:
     var in tools.GitLogInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1667,7 +1651,8 @@ func (l *Loop) execute(
 
   case toolGitBlame:
     var in tools.GitBlameInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1680,7 +1665,8 @@ func (l *Loop) execute(
 
   case toolGitDiff:
     var in tools.GitDiffInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1693,7 +1679,8 @@ func (l *Loop) execute(
 
   case toolGitShow:
     var in tools.GitShowInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1706,7 +1693,8 @@ func (l *Loop) execute(
 
   case toolWorkingTreeDiff:
     var in tools.WorkingTreeDiffInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1719,7 +1707,8 @@ func (l *Loop) execute(
 
   case toolGrepHistory:
     var in tools.GrepHistoryInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1732,7 +1721,8 @@ func (l *Loop) execute(
 
   case toolCodeOwners:
     var in tools.CodeOwnersInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1745,7 +1735,8 @@ func (l *Loop) execute(
 
   case toolCommitStats:
     var in tools.CommitStatsInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1758,7 +1749,8 @@ func (l *Loop) execute(
 
   case toolRunTests:
     var in tools.RunTestsInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1771,7 +1763,8 @@ func (l *Loop) execute(
 
   case toolBuildCheck:
     var in tools.BuildCheckInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1784,7 +1777,8 @@ func (l *Loop) execute(
 
   case toolLintCheck:
     var in tools.LintCheckInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1797,7 +1791,8 @@ func (l *Loop) execute(
 
   case toolRunProgram:
     var in tools.RunProgramInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1805,7 +1800,8 @@ func (l *Loop) execute(
 
   case toolListDependencies:
     var in tools.ListDependenciesInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1818,7 +1814,8 @@ func (l *Loop) execute(
 
   case toolModuleGraph:
     var in tools.ModuleGraphInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1831,7 +1828,8 @@ func (l *Loop) execute(
 
   case toolReadDocComment:
     var in tools.ReadDocCommentInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1844,7 +1842,8 @@ func (l *Loop) execute(
 
   case toolFindCallers:
     var in tools.FindCallersInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1857,7 +1856,8 @@ func (l *Loop) execute(
 
   case toolFindDeadCode:
     var in tools.FindDeadCodeInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1870,7 +1870,8 @@ func (l *Loop) execute(
 
   case toolImpactAnalysis:
     var in tools.ImpactAnalysisInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1883,7 +1884,8 @@ func (l *Loop) execute(
 
   case toolReadPDF:
     var in tools.ReadPDFInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1896,7 +1898,8 @@ func (l *Loop) execute(
 
   case toolSemanticSearch:
     var in tools.SemanticSearchInput
-    if err := json.Unmarshal(raw, &in); err != nil {
+    err := json.Unmarshal(raw, &in)
+    if err != nil {
       return malformed(name, err)
     }
 
@@ -1920,7 +1923,8 @@ func (l *Loop) requestAccess(raw []byte, hooks Hooks) any {
     Dir, Reason string
   }
 
-  if err := json.Unmarshal(raw, &in); err != nil {
+  err := json.Unmarshal(raw, &in)
+  if err != nil {
     return malformed("request_access", err)
   }
 
@@ -1929,7 +1933,8 @@ func (l *Loop) requestAccess(raw []byte, hooks Hooks) any {
   case dir == "":
     return map[string]string{ "error": "dir is required" }
   case strings.HasPrefix(dir, "~/"):
-    if home, err := os.UserHomeDir(); err == nil {
+    home, err := os.UserHomeDir()
+    if err == nil {
       dir = filepath.Join(home, dir[2:])
     }
   case !filepath.IsAbs(dir):
@@ -1937,7 +1942,8 @@ func (l *Loop) requestAccess(raw []byte, hooks Hooks) any {
   }
 
   dir = filepath.Clean(dir)
-  if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+  info, err := os.Stat(dir)
+  if err != nil || !info.IsDir() {
     return map[string]string{ "error": dir + " is not a directory" }
   }
 
@@ -2013,7 +2019,7 @@ func (l *Loop) runProgram(
     }
   }
 
-  preview := "$ " + strings.TrimSpace(sandbox.DescribeArgs(in.Binary, in.Args))
+  preview := "$ " + tools.Describe(in)
   if dir != l.Sandbox.Root {
     preview += "\nin " + dir
   }
@@ -2021,7 +2027,16 @@ func (l *Loop) runProgram(
   tool := "run_program"
   if sandbox.Privileged(in.Binary) {
     tool = ApprovePrivileged
-    preview += "\n(privileged: deletes, moves, copies or sends files — always asked)"
+    preview += "\n(" + sandbox.PrivilegedWhy(in.Binary) + " — always asked)"
+  }
+
+  if hooks.Propose != nil {
+    hooks.Propose(Proposal{
+      Tool:    tool,
+      Command: tools.Describe(in),
+      Dir:     dir,
+      Script:  l.scriptOf(in, dir),
+    })
   }
 
   ok, feedback := hooks.Approve(tool, preview)
@@ -2042,7 +2057,8 @@ func (l *Loop) runProgram(
 // error and skip the rest.
 func declinedResult(what, feedback string) map[string]string {
   msg := "the user declined " + what + "."
-  if feedback = strings.TrimSpace(feedback); feedback != "" {
+  feedback = strings.TrimSpace(feedback)
+  if feedback != "" {
     msg += " The user said: \"" + feedback + "\". Do what they said " +
       "instead of retrying the same call; if it isn't clear, stop and ask them."
   } else {
@@ -2056,6 +2072,16 @@ func declinedResult(what, feedback string) map[string]string {
 func (l *Loop) applyChange(
   name string, change *tools.Change, hooks Hooks,
 ) any {
+  if hooks.Propose != nil {
+    start, gone, came, oldLines, newLines := change.Hunk()
+    hooks.Propose(Proposal{
+      Tool: name, Path: change.Path, Resolved: change.Resolved,
+      Old: change.Old, New: change.New, Created: change.Created,
+      Start: start, Gone: gone, Came: came,
+      OldLines: oldLines, NewLines: newLines,
+    })
+  }
+
   if hooks.Approve != nil {
     ok, feedback := hooks.Approve(name, change.Preview())
     if !ok {
@@ -2101,4 +2127,70 @@ func malformed(toolName string, err error) map[string]string {
       toolName, err,
     ),
   }
+}
+
+// interpreters run the script file they're given, so it's what's
+// about to run: the user should be able to read it.
+var interpreters = map[string]bool{
+  "python3": true, "python": true, "bash": true, "sh": true,
+  "node": true, "deno": true, "bun": true, "ruby": true, "perl": true,
+  "lua": true, "php": true, "Rscript": true, "julia": true,
+}
+
+// scriptOf is the script an interpreter runs (python3 tools/gen.py,
+// bash run.sh): its first non-flag argument, when that's a text file
+// in the project. Other programs' file arguments are data, not code
+// to show, and a binary is never a script.
+func (l *Loop) scriptOf(in tools.RunProgramInput, dir string) string {
+  if !interpreters[filepath.Base(in.Binary)] {
+    return ""
+  }
+
+  for _, a := range in.Args {
+    if a == "-c" || a == "-e" {
+      return "" // inline code, already in the command line
+    }
+
+    if strings.HasPrefix(a, "-") {
+      continue
+    }
+
+    p := a
+    if !filepath.IsAbs(p) {
+      p = filepath.Join(dir, p)
+    }
+
+    resolved, err := l.Sandbox.ResolvePath(p)
+    if err != nil {
+      return ""
+    }
+
+    info, err := os.Stat(resolved)
+    if err != nil || !info.Mode().IsRegular() || info.Size() > 1 << 20 {
+      return ""
+    }
+
+    if !tools.IsText(resolved) {
+      return ""
+    }
+
+    return resolved
+  }
+
+  return ""
+}
+
+// steer adds what the user typed while the turn ran (hooks.Steer)
+// as user messages; true when there was any.
+func (l *Loop) steer(history *[]llm.Message, hooks Hooks) bool {
+  if hooks.Steer == nil {
+    return false
+  }
+
+  msgs := hooks.Steer()
+  for _, m := range msgs {
+    *history = append(*history, llm.Message{ Role: "user", Content: m })
+  }
+
+  return len(msgs) > 0
 }

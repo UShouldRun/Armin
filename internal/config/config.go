@@ -16,90 +16,6 @@ import (
   "time"
 )
 
-// ModelSpecConfig configures one named model /model (or armin.model)
-// can switch to — see internal/llamacpp.ModelSpec, which this is
-// converted to. It's either external (URL set: armin only talks to
-// the process there, never starts or stops it) or armin-managed
-// (Binary/ModelPath/Port set: armin spawns a llama-server itself and
-// reaps it when idle). Setting both isn't rejected here — this
-// package does no cross-field validation, matching the rest of its
-// minimalism — URL simply wins, same as
-// internal/llamacpp.ModelSpec.managed() decides it.
-//
-// APIKeyEnv names an environment variable (see LoadEnv/EnvPath
-// below) rather than holding a key value directly — config.conf is
-// plain text people back up and share, so this package never reads
-// or stores an actual secret, only the name of where to find one at
-// request time. cmd/armin/main.go resolves it via os.Getenv once,
-// when building internal/llamacpp.ModelSpec.APIKey.
-type ModelSpecConfig struct {
-  URL       string
-  APIKeyEnv string
-
-  Binary    string
-  ModelPath string
-  Port      int
-  Args      []string
-
-  IdleTimeout time.Duration
-
-  // Remote machine (see llamacpp.RemoteSpec): an EC2 instance or a
-  // STACKIT server runs Binary/ModelPath; Port is then the local end
-  // of the tunnel.
-  AWSInstance, AWSRegion                       string
-  StackitServer, StackitProject, StackitRegion string
-  ScalewayServer, ScalewayZone                 string
-  SSHUser, SSHKey                              string
-  RemotePort                                   int
-  KeepOnDisconnect                             bool // stop_on_disconnect = false
-  Vision                                       bool // keep the --mmproj projector
-  NoLean                                       bool // lean = false
-
-  // Streaming tier (see llamacpp.StreamSpec).
-  StreamBinary   string
-  StreamContext  int
-  StreamArenaMiB int
-  StreamArgs     []string
-}
-
-// Config holds every value a config file may override. Zero values
-// mean "not set" — callers apply their own defaults on top.
-type Config struct {
-  Model           string // a name, resolved against Models (or LlamaURL, for the zero-config path)
-  CompletionModel string // same, but for -lsp inline completion, not chat
-  CtagsBinary     string // used only by -lsp definition/symbol/hover
-
-  // LlamaURL/CompletionLlamaURL back the zero-config path: point
-  // armin at an already-running llama-server without writing a
-  // Models entry at all. Ignored for a name that does have a
-  // matching Models entry.
-  LlamaURL           string
-  CompletionLlamaURL string
-
-  // Models holds every "models.<name>.<field>" entry, keyed by
-  // name — the fuller alternative to LlamaURL/CompletionLlamaURL,
-  // needed for anything armin should spawn/manage itself, or for
-  // naming more than the two built-in chat/completion slots.
-  Models map[string]ModelSpecConfig
-
-  Root         string
-  Timeout      time.Duration
-  MaxOutput    int
-  ExtraAllowed []string // appended to sandbox.DefaultAllowlist()
-  ExtraExec    []string // appended to sandbox.DefaultExecAllowlist()
-
-  // Agent behavior. Zero means "use the default".
-  MaxToolRounds int
-  ContextSize   int // tokens; overrides what llama-server reports
-  KeepTurns     int // turns that keep full tool results; -1 never trims
-  ReadTimeout   time.Duration
-  BuildTimeout  time.Duration
-  AutoApprove   bool
-
-  // Project commands as argv, overriding detection.
-  TestCmd, BuildCmd, LintCmd []string
-}
-
 // Dir returns the armin config directory, honoring XDG_CONFIG_HOME —
 // the same directory config.conf lives in, exported so other
 // packages (e.g. internal/searxng, for its generated settings.yml)
@@ -172,7 +88,8 @@ func LoadEnv() error {
     return fmt.Errorf("\n\t... in LoadEnv:\n\t%w", err)
   }
 
-  if perm := info.Mode().Perm(); perm & 0o077 != 0 {
+  perm := info.Mode().Perm()
+  if perm & 0o077 != 0 {
     return fmt.Errorf(
       "\n\t... in LoadEnv:\n\t %s is readable by group/other (mode %#o) "+
         "— it may hold API keys; fix this before armin will read it: "+
@@ -209,18 +126,21 @@ func LoadEnv() error {
     key = strings.TrimSpace(key)
     value = strings.TrimSpace(value)
 
-    if _, alreadySet := os.LookupEnv(key); alreadySet {
+    _, alreadySet := os.LookupEnv(key)
+    if alreadySet {
       continue
     }
 
-    if err := os.Setenv(key, value); err != nil {
+    err := os.Setenv(key, value)
+    if err != nil {
       return fmt.Errorf(
         "\n\t... in LoadEnv:\n\t setting %s: %w", key, err,
       )
     }
   }
 
-  if err := scanner.Err(); err != nil {
+  err = scanner.Err()
+  if err != nil {
     return fmt.Errorf("\n\t... in LoadEnv:\n\t%w", err)
   }
 
@@ -268,14 +188,16 @@ func Load() (Config, error) {
     key = strings.TrimSpace(key)
     value = strings.TrimSpace(value)
 
-    if err := apply(&cfg, key, value); err != nil {
+    err := apply(&cfg, key, value)
+    if err != nil {
       return Config{}, fmt.Errorf(
         "\n\t... in Load:\n\t %s:%d: %w", path, lineNo, err,
       )
     }
   }
 
-  if err := scanner.Err(); err != nil {
+  err = scanner.Err()
+  if err != nil {
     return Config{}, fmt.Errorf("\n\t... in Load:\n\t%w", err)
   }
 
@@ -283,13 +205,16 @@ func Load() (Config, error) {
 }
 
 func apply(cfg *Config, key, value string) error {
-  if name, field, ok := cutModelKey(key); ok {
+  name, field, ok := cutModelKey(key)
+  if ok {
     return applyModel(cfg, name, field, value)
   }
 
   switch key {
   case "model":
     cfg.Model = value
+  case "terminal":
+    cfg.Terminal = value
   case "completion_model":
     cfg.CompletionModel = value
   case "ctags_bin":
@@ -403,6 +328,10 @@ func applyModel(cfg *Config, name, field, value string) error {
     spec.ModelPath = value
   case "api_key_env":
     spec.APIKeyEnv = value
+  case "id":
+    spec.ID = value
+  case "reasoning":
+    spec.Reasoning = value
   case "aws_instance":
     spec.AWSInstance = value
   case "aws_region":

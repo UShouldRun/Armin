@@ -59,7 +59,8 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
   m := newMeta()
   m.Title = "Fix off-by-one in Mean"
 
-  if err := Save(m, sampleHistory()); err != nil {
+  err := Save(m, sampleHistory())
+  if err != nil {
     t.Fatalf("Save: %v", err)
   }
 
@@ -91,13 +92,16 @@ func TestLoadByUniquePrefixAndAmbiguity(t *testing.T) {
     t.Fatalf("Load(aaaa1) = %v, %v", got, err)
   }
 
-  if _, err := Load("aaaa"); err == nil || !strings.Contains(err.Error(), "matches 2 sessions") {
+  _, err = Load("aaaa")
+  if err == nil || !strings.Contains(err.Error(), "matches 2 sessions") {
     t.Fatalf("ambiguous prefix err = %v", err)
   }
-  if _, err := Load("zzzz"); err == nil || !strings.Contains(err.Error(), "no session") {
+  _, err = Load("zzzz")
+  if err == nil || !strings.Contains(err.Error(), "no session") {
     t.Fatalf("missing err = %v", err)
   }
-  if _, err := Load("../etc/passwd"); err == nil {
+  _, err = Load("../etc/passwd")
+  if err == nil {
     t.Fatal("a path-like id was accepted")
   }
 }
@@ -154,7 +158,8 @@ func TestAppendFirstCallDoesFullSave(t *testing.T) {
   m := newMeta()
   persisted := 0
 
-  if err := Append(m, sampleHistory(), &persisted); err != nil {
+  err := Append(m, sampleHistory(), &persisted)
+  if err != nil {
     t.Fatalf("Append: %v", err)
   }
   if persisted != 3 || lineCount(t, m.ID) != 4 {
@@ -170,14 +175,16 @@ func TestAppendOnlyWritesNewMessages(t *testing.T) {
   Append(m, h, &persisted)
 
   h = append(h, llm.Message{ Role: "user", Content: "next" })
-  if err := Append(m, h, &persisted); err != nil {
+  err := Append(m, h, &persisted)
+  if err != nil {
     t.Fatalf("Append: %v", err)
   }
   if persisted != 4 || lineCount(t, m.ID) != 5 {
     t.Fatalf("persisted = %d, lines = %d", persisted, lineCount(t, m.ID))
   }
 
-  if err := Append(m, h, &persisted); err != nil || lineCount(t, m.ID) != 5 {
+  err = Append(m, h, &persisted)
+  if err != nil || lineCount(t, m.ID) != 5 {
     t.Fatal("an Append with nothing new wrote something")
   }
 }
@@ -191,7 +198,8 @@ func TestAppendCostIsIndependentOfHistorySize(t *testing.T) {
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
   persisted := 0
-  if err := Append(m, history, &persisted); err != nil {
+  err := Append(m, history, &persisted)
+  if err != nil {
     t.Fatalf("seed Append: %v", err)
   }
 
@@ -199,7 +207,8 @@ func TestAppendCostIsIndependentOfHistorySize(t *testing.T) {
   for i := 0; i < seedMessages; i++ {
     history = append(history, llm.Message{ Role: "user", Content: "filler message" })
   }
-  if err := Append(m, history, &persisted); err != nil {
+  err = Append(m, history, &persisted)
+  if err != nil {
     t.Fatalf("bulk Append: %v", err)
   }
 
@@ -210,7 +219,8 @@ func TestAppendCostIsIndependentOfHistorySize(t *testing.T) {
   // one new message instead of later runs becoming no-ops.
   allocs := testing.AllocsPerRun(20, func() {
     p := persisted
-    if err := Append(m, history, &p); err != nil {
+    err := Append(m, history, &p)
+    if err != nil {
       t.Fatalf("timed Append: %v", err)
     }
   })
@@ -254,10 +264,12 @@ func TestDelete(t *testing.T) {
   if err != nil || got.ID != m.ID || got.Title != "to delete" {
     t.Fatalf("Delete = %+v, %v", got, err)
   }
-  if _, err := Load(m.ID); err == nil {
+  _, err = Load(m.ID)
+  if err == nil {
     t.Fatal("the session is still loadable after Delete")
   }
-  if _, err := Delete(m.ID); err == nil {
+  _, err = Delete(m.ID)
+  if err == nil {
     t.Fatal("deleting twice should fail")
   }
 }

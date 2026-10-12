@@ -42,9 +42,6 @@ func SafeName(name string) (string, error) {
   return out, nil
 }
 
-// header is a file's "---" frontmatter block: "key: value" lines.
-type header map[string]string
-
 // parseFile splits a Markdown file into frontmatter and body. A
 // file without frontmatter is all body.
 func parseFile(raw string) (header, string) {
@@ -115,7 +112,8 @@ func oneLine(s string) string {
 
 // writeAtomic writes data via temp file + rename.
 func writeAtomic(path string, data []byte) error {
-  if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+  err := os.MkdirAll(filepath.Dir(path), 0o700)
+  if err != nil {
     return err
   }
 
@@ -127,7 +125,8 @@ func writeAtomic(path string, data []byte) error {
   defer os.Remove(tmp.Name())
 
   _, err = tmp.Write(data)
-  if cerr := tmp.Close(); err == nil {
+  cerr := tmp.Close()
+  if err == nil {
     err = cerr
   }
 

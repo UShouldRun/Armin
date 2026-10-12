@@ -11,36 +11,6 @@ import (
   "armin/internal/sandbox"
 )
 
-// RunCommandInput is the argument set for run_command. Args is always
-// an array — never a single shell string — and the command execs
-// directly (exec.Command(binary, args...)), never through sh -c. That
-// closes the injection surface: there is no shell to interpret
-// ; | & $() etc., they're just literal argv entries.
-type RunCommandInput struct {
-  Binary string   `json:"binary"`
-  Args   []string `json:"args,omitempty"`
-}
-
-// Stdout/Stderr keep separate declarations, not grouped onto one line
-// — Go's grouped-field syntax shares a single tag string across the
-// whole group, and these two need distinct json tags.
-type RunCommandOutput struct {
-  Stdout    string `json:"stdout"`
-  Stderr    string `json:"stderr"`
-  ExitCode  int    `json:"exit_code"`
-  Truncated bool   `json:"truncated,omitempty"`
-  DryRun    bool   `json:"dry_run,omitempty"`
-}
-
-// RunCommandError is a structured error a small model can act on: it
-// names what went wrong and, for allowlist failures, what IS
-// allowed, so the model can self-correct next turn instead of
-// retrying blind.
-type RunCommandError struct {
-  Error   string   `json:"error"`
-  Allowed []string `json:"allowed,omitempty"`
-}
-
 // RunCommand execs binary with args under the sandbox's allowlist,
 // path jail (cwd is pinned to the project root by cfg.Run), timeout,
 // and output truncation. When cfg.DryRun is set, nothing actually
@@ -52,9 +22,19 @@ func RunCommand(
     return nil, &RunCommandError{ Error: "binary is required" }
   }
 
-  if err := cfg.CheckBinary(in.Binary); err != nil {
+  err := cfg.CheckBinary(in.Binary)
+  if err != nil {
     // A program run_program has: say so, rather than listing what
     // run_command allows.
+    if in.Binary == "bash" || in.Binary == "sh" {
+      return nil, &RunCommandError{
+        Error: "run_command has no shell: for pipes and redirects call " +
+          "run_program with binary " + in.Binary + " and the same args " +
+          "(the user approves it), or use run_program's stdin/stdout " +
+          "for a plain < file / > file",
+      }
+    }
+
     if cfg.ExecAllowlist[in.Binary] {
       return nil, &RunCommandError{
         Error: in.Binary + " isn't read-only, so run_command can't run it: " +
@@ -75,7 +55,8 @@ func RunCommand(
 
   // Path arguments are jailed like every other tool's paths.
   for _, p := range PathArgs(in.Binary, in.Args) {
-    if _, err := cfg.ResolvePath(p); err != nil {
+    _, err := cfg.ResolvePath(p)
+    if err != nil {
       return nil, &RunCommandError{ Error: err.Error() }
     }
   }
@@ -200,7 +181,8 @@ func PathArgs(binary string, args []string) []string {
 
 func expandHome(p string) string {
   if p == "~" || strings.HasPrefix(p, "~/") {
-    if home, err := os.UserHomeDir(); err == nil {
+    home, err := os.UserHomeDir()
+    if err == nil {
       return filepath.Join(home, p[1:])
     }
   }

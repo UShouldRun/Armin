@@ -41,7 +41,8 @@ func TestSignMatchesAWSTestSuite(t *testing.T) {
 
     want := "AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20150830/us-east-1/service/aws4_request, " +
       "SignedHeaders=host;x-amz-date, Signature=" + c.signature
-    if got := req.Header.Get("Authorization"); got != want {
+    got := req.Header.Get("Authorization")
+    if got != want {
       t.Errorf("%s:\n got  %s\n want %s", c.name, got, want)
     }
   }
@@ -117,7 +118,8 @@ func TestWaitRunningStartsStoppedInstance(t *testing.T) {
     t.Fatalf("status = %v", seen)
   }
 
-  if err := ec2.StopInstance(ctx, "i-1"); err != nil {
+  err = ec2.StopInstance(ctx, "i-1")
+  if err != nil {
     t.Fatal(err)
   }
 

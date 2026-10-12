@@ -155,7 +155,8 @@ func (l *Loop) ElideOld(history []llm.Message) {
     return
   }
 
-  if from := keptFrom(history, keep); from > 0 {
+  from := keptFrom(history, keep)
+  if from > 0 {
     l.elide(history[:from], true)
   }
 }
@@ -326,8 +327,10 @@ func (l *Loop) manageContext(
   before := convo.Analyze(h).ApproxTokens
 
   // Trim first: it's free, and it may be all that's needed.
-  if keep := l.keepTurns(); keep > 0 {
-    if saved := l.elide(h[:keptFrom(h, keep)], true); saved > 0 {
+  keep := l.keepTurns()
+  if keep > 0 {
+    saved := l.elide(h[:keptFrom(h, keep)], true)
+    if saved > 0 {
       where := "dropped"
       if l.Scratch != nil {
         where = "archived to the scratchpad"
@@ -351,7 +354,8 @@ func (l *Loop) manageContext(
         "window to %dk with KV streaming (one reload + re-prefill)",
       after / 1000, l.window() / 1000, l.Window.Max() / 1000,
     )
-    if _, err := l.Window.Grow(ctx); err != nil {
+    _, err := l.Window.Grow(ctx)
+    if err != nil {
       notice(hooks, "couldn't grow the window (%s); compacting instead", err)
       act |= ActSave | ActCompact
     }
@@ -369,7 +373,8 @@ func (l *Loop) manageContext(
         "context is down to ~%dk — back to the fast %dk window",
         after / 1000, l.Window.Resident() / 1000,
       )
-      if _, err := l.Window.Shrink(ctx); err != nil {
+      _, err := l.Window.Shrink(ctx)
+      if err != nil {
         notice(hooks, "couldn't shrink the window: %s", err)
       }
     }
@@ -459,7 +464,8 @@ func (l *Loop) compact(ctx context.Context, history *[]llm.Message) {
 
   extra := ""
   if l.Scratch != nil {
-    if s := l.Scratch.Summary(); s != "" {
+    s := l.Scratch.Summary()
+    if s != "" {
       extra = "Scratchpad files (scratchpad_read to open):\n" + s
     }
   }

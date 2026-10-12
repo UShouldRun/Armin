@@ -7,19 +7,6 @@ import (
   "armin/internal/sandbox"
 )
 
-// SearchCodeInput is the structured argument set for search_code — a
-// pattern and structured filters, never a free-form shell string.
-type SearchCodeInput struct {
-  Pattern  string `json:"pattern"`
-  Path     string `json:"path,omitempty"`      // default: project root
-  FileType string `json:"file_type,omitempty"` // e.g. "go" — passed to rg -t
-}
-
-type SearchCodeOutput struct {
-  Matches   string `json:"matches"`
-  Truncated bool   `json:"truncated,omitempty"`
-}
-
 // SearchCode wraps ripgrep with a small, fixed set of flags: line
 // numbers and a couple lines of context, never a dump of full files.
 // This always actually runs — it's a fixed, trusted, read-only

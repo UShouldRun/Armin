@@ -24,7 +24,6 @@ import (
   "path/filepath"
   "strconv"
   "strings"
-  "sync"
   "time"
 )
 
@@ -48,27 +47,6 @@ var excludeDirs = []string{
 // projects that a short TTL keeps results fresh without re-scanning
 // on every keystroke-driven request.
 const staleAfter = 5 * time.Second
-
-// Symbol is one definition site, as reported by ctags.
-type Symbol struct {
-  Name string
-  Kind string // single-letter ctags kind, language-dependent
-  File string // relative to the index's root
-  Line int
-  // Scope is e.g. "struct:agent.Loop" or "package:agent"; "" if none.
-  Scope string
-}
-
-// Index is a lazily-built, TTL-cached, name -> definitions map for
-// one project root. Safe for concurrent use.
-type Index struct {
-  root, binary string
-
-  mu      sync.Mutex
-  byName  map[string][]Symbol
-  builtAt time.Time
-  lastErr error
-}
 
 // New returns an Index for root. Nothing runs until the first
 // Lookup or Search call — building the index has a real cost, so it
@@ -244,7 +222,8 @@ func parseLine(line string) (Symbol, bool) {
     }
     switch key {
     case "line":
-      if n, err := strconv.Atoi(value); err == nil {
+      n, err := strconv.Atoi(value)
+      if err == nil {
         sym.Line = n
       }
     case "struct", "class", "interface", "package", "namespace":
@@ -254,7 +233,8 @@ func parseLine(line string) (Symbol, bool) {
 
   if sym.Line == 0 {
     trimmed := strings.TrimSuffix(cols[2], `;"`)
-    if n, err := strconv.Atoi(trimmed); err == nil {
+    n, err := strconv.Atoi(trimmed)
+    if err == nil {
       sym.Line = n
     }
   }
@@ -314,7 +294,8 @@ var kindLabels = map[string]string{
 // falling back to the raw letter if it's not in the (necessarily
 // incomplete, language-specific) map above.
 func KindLabel(kind string) string {
-  if label, ok := kindLabels[kind]; ok {
+  label, ok := kindLabels[kind]
+  if ok {
     return label
   }
   return kind

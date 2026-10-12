@@ -45,7 +45,8 @@ func TestEditNeedsReadThenAsksApproval(t *testing.T) {
   }
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
-  if _, err := loop.Turn(context.Background(), &history, hooks); err != nil {
+  _, err := loop.Turn(context.Background(), &history, hooks)
+  if err != nil {
     t.Fatalf("Turn: %v", err)
   }
 
@@ -89,7 +90,8 @@ func TestDeclinedEditCarriesFeedback(t *testing.T) {
     t.Fatalf("result = %s, want the user's feedback", history[2].Content)
   }
 
-  if _, err := os.Stat(filepath.Join(root, "new.txt")); !os.IsNotExist(err) {
+  _, err := os.Stat(filepath.Join(root, "new.txt"))
+  if !os.IsNotExist(err) {
     t.Fatal("a declined write reached disk")
   }
 }
@@ -111,14 +113,16 @@ func TestNoteToolsOnlyWhenConfigured(t *testing.T) {
   loop2, _ := newTestLoop(t, func(http.ResponseWriter, *http.Request) {})
   loop2.Memories = &notes.Memories{ ProjectDir: t.TempDir(), UserDir: t.TempDir() }
   loop2.Scratch = &notes.Scratchpad{ Dir: t.TempDir() }
-  if got := len(loop2.Definitions()); got != base + 6 {
+  got := len(loop2.Definitions())
+  if got != base + 6 {
     t.Fatalf("definitions = %d, want %d (+3 memory, +3 scratchpad)", got, base + 6)
   }
 
   out := loop2.execute(context.Background(), call("1", "scratchpad_write", map[string]any{
     "name": "plan", "content": "step 1",
   }), Hooks{})
-  if f, ok := out.(notes.ScratchFile); !ok || f.Name != "plan" {
+  f, ok := out.(notes.ScratchFile)
+  if !ok || f.Name != "plan" {
     t.Fatalf("scratchpad_write = %#v", out)
   }
 }
@@ -171,7 +175,8 @@ func TestTrimUnderPressureKeepsRecentTurns(t *testing.T) {
   }
 
   var stub map[string]any
-  if err := json.Unmarshal([]byte(history[3].Content), &stub); err != nil {
+  err := json.Unmarshal([]byte(history[3].Content), &stub)
+  if err != nil {
     t.Fatalf("old result isn't a JSON stub: %q", history[3].Content)
   }
 
@@ -179,7 +184,8 @@ func TestTrimUnderPressureKeepsRecentTurns(t *testing.T) {
     t.Fatalf("stub = %v, want it to name the call", stub)
   }
 
-  if c := history[2].ToolCalls[1].Function.Arguments["content"].(string); len(c) > 100 {
+  c := history[2].ToolCalls[1].Function.Arguments["content"].(string)
+  if len(c) > 100 {
     t.Fatal("old write_file content wasn't shrunk")
   }
 
@@ -220,7 +226,8 @@ func TestAutoCompactBeforeOverflow(t *testing.T) {
 
   compacted := false
   hooks := Hooks{ Compacted: func(int, int) { compacted = true } }
-  if _, err := loop.Turn(context.Background(), &history, hooks); err != nil {
+  _, err := loop.Turn(context.Background(), &history, hooks)
+  if err != nil {
     t.Fatalf("Turn: %v", err)
   }
 

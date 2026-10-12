@@ -70,7 +70,8 @@ func verifyJWT(t *testing.T, jwt string, pub *rsa.PublicKey) map[string]any {
 
   sig, _ := base64.RawURLEncoding.DecodeString(parts[2])
   sum := sha512.Sum512([]byte(parts[0] + "." + parts[1]))
-  if err := rsa.VerifyPKCS1v15(pub, crypto.SHA512, sum[:], sig); err != nil {
+  err := rsa.VerifyPKCS1v15(pub, crypto.SHA512, sum[:], sig)
+  if err != nil {
     t.Errorf("signature doesn't verify: %v", err)
   }
 
@@ -98,7 +99,8 @@ func TestKeyFlowSignsVerifiableJWTAndCachesToken(t *testing.T) {
       t.Errorf("claims = %v", claims)
     }
 
-    if exp, iat := claims["exp"].(float64), claims["iat"].(float64); exp - iat != 600 {
+    exp, iat := claims["exp"].(float64), claims["iat"].(float64)
+    if exp - iat != 600 {
       t.Errorf("exp - iat = %v, want 600", exp - iat)
     }
 
@@ -132,7 +134,8 @@ func TestStaticTokenWins(t *testing.T) {
     t.Fatal(err)
   }
 
-  if tok, _ := ts.Token(context.Background()); tok != "static-tok" {
+  tok, _ := ts.Token(context.Background())
+  if tok != "static-tok" {
     t.Fatalf("Token = %q", tok)
   }
 }
@@ -142,7 +145,8 @@ func TestNoCredentials(t *testing.T) {
     t.Setenv(k, "")
   }
 
-  if _, err := EnvTokenSource(); err != ErrNoCredentials {
+  _, err := EnvTokenSource()
+  if err != ErrNoCredentials {
     t.Fatalf("err = %v", err)
   }
 }
@@ -210,7 +214,8 @@ func TestWaitRunningStartsDeallocatedServer(t *testing.T) {
     t.Fatalf("started=%v host=%q", started, srv.Host())
   }
 
-  if err := c.DeallocateServer(ctx, "s-1"); err != nil {
+  err = c.DeallocateServer(ctx, "s-1")
+  if err != nil {
     t.Fatal(err)
   }
 

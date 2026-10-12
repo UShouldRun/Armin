@@ -181,7 +181,8 @@ func (l *Loop) executeMemory(id ToolID, raw []byte) any {
     Scope       string `json:"scope"`
   }
 
-  if err := json.Unmarshal(raw, &in); err != nil {
+  err := json.Unmarshal(raw, &in)
+  if err != nil {
     return malformed("memory tool", err)
   }
 
@@ -231,7 +232,8 @@ func (l *Loop) executeScratch(id ToolID, raw []byte) any {
     EndLine   int    `json:"end_line"`
   }
 
-  if err := json.Unmarshal(raw, &in); err != nil {
+  err := json.Unmarshal(raw, &in)
+  if err != nil {
     return malformed("scratchpad tool", err)
   }
 
@@ -268,7 +270,8 @@ func (l *Loop) executeSkill(raw []byte) any {
     File string `json:"file"`
   }
 
-  if err := json.Unmarshal(raw, &in); err != nil {
+  err := json.Unmarshal(raw, &in)
+  if err != nil {
     return malformed("use_skill", err)
   }
 

@@ -22,7 +22,8 @@ func TestSafeName(t *testing.T) {
     }
   }
 
-  if _, err := SafeName("///"); err == nil {
+  _, err := SafeName("///")
+  if err == nil {
     t.Error("SafeName(\"///\") should fail")
   }
 }
@@ -33,15 +34,18 @@ func TestMemoriesRoundTripAndScopes(t *testing.T) {
     UserDir:    filepath.Join(t.TempDir(), "u"),
   }
 
-  if _, err := m.Save("style", "", "x", ScopeUser); err == nil {
+  _, err := m.Save("style", "", "x", ScopeUser)
+  if err == nil {
     t.Fatal("expected a missing description to be rejected")
   }
 
-  if _, err := m.Save("Style", "2-space\nindent", "use 2 spaces", ScopeUser); err != nil {
+  _, err = m.Save("Style", "2-space\nindent", "use 2 spaces", ScopeUser)
+  if err != nil {
     t.Fatal(err)
   }
 
-  if _, err := m.Save("db", "mysql 8", "not postgres", ScopeProject); err != nil {
+  _, err = m.Save("db", "mysql 8", "not postgres", ScopeProject)
+  if err != nil {
     t.Fatal(err)
   }
 
@@ -60,7 +64,8 @@ func TestMemoriesRoundTripAndScopes(t *testing.T) {
   }
 
   // Re-saving in the other scope moves it rather than duplicating.
-  if _, err := m.Save("style", "moved", "y", ScopeProject); err != nil {
+  _, err = m.Save("style", "moved", "y", ScopeProject)
+  if err != nil {
     t.Fatal(err)
   }
 
@@ -69,11 +74,13 @@ func TestMemoriesRoundTripAndScopes(t *testing.T) {
     t.Fatalf("List = %+v, want 2 entries after the move", list)
   }
 
-  if _, err := m.Delete("db"); err != nil {
+  _, err = m.Delete("db")
+  if err != nil {
     t.Fatal(err)
   }
 
-  if _, _, err := m.Read("db"); err == nil {
+  _, _, err = m.Read("db")
+  if err == nil {
     t.Fatal("db still readable after Delete")
   }
 }
@@ -107,11 +114,13 @@ func TestSkillsLoadOverrideAndJail(t *testing.T) {
     t.Fatalf("Instructions = %q", body)
   }
 
-  if files := sk.Files(); len(files) != 1 || files[0] != "checklist.md" {
+  files := sk.Files()
+  if len(files) != 1 || files[0] != "checklist.md" {
     t.Fatalf("Files = %v", files)
   }
 
-  if _, _, err := sk.ReadFile("../secret.txt"); err == nil {
+  _, _, err := sk.ReadFile("../secret.txt")
+  if err == nil {
     t.Fatal("ReadFile escaped the skill directory")
   }
 }
@@ -119,7 +128,8 @@ func TestSkillsLoadOverrideAndJail(t *testing.T) {
 func TestScratchpadWriteAppendRead(t *testing.T) {
   p := &Scratchpad{ Dir: t.TempDir() }
 
-  if _, err := p.Write("plan", "1. read\n", false); err != nil {
+  _, err := p.Write("plan", "1. read\n", false)
+  if err != nil {
     t.Fatal(err)
   }
 
@@ -141,7 +151,8 @@ func TestScratchpadWriteAppendRead(t *testing.T) {
     t.Fatalf("Summary = %q", p.Summary())
   }
 
-  if n, _ := p.Clear(); n != 1 {
+  n, _ := p.Clear()
+  if n != 1 {
     t.Fatalf("Clear removed %d, want 1", n)
   }
 }

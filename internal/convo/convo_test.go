@@ -73,7 +73,8 @@ func fakeChatServer(t *testing.T, reply string) *httptest.Server {
         { "message": map[string]string{ "role": "assistant", "content": reply } },
       },
     }
-    if err := json.NewEncoder(w).Encode(resp); err != nil {
+    err := json.NewEncoder(w).Encode(resp)
+    if err != nil {
       t.Fatal(err)
     }
   }))
@@ -95,7 +96,8 @@ func TestCompactPreservesSystemAndTail(t *testing.T) {
   }
   const keepLast = 2
 
-  if err := Compact(context.Background(), client, &history, keepLast, ""); err != nil {
+  err := Compact(context.Background(), client, &history, keepLast, "")
+  if err != nil {
     t.Fatalf("Compact: %v", err)
   }
 
@@ -131,7 +133,8 @@ func TestCompactNeverSplitsToolCallFromResult(t *testing.T) {
   }
 
   // keepLast 3 would start the tail at the second tool result.
-  if err := Compact(context.Background(), client, &history, 3, "scratch: plan"); err != nil {
+  err := Compact(context.Background(), client, &history, 3, "scratch: plan")
+  if err != nil {
     t.Fatalf("Compact: %v", err)
   }
 
@@ -206,7 +209,8 @@ func TestStripListMarker(t *testing.T) {
     "":                       "",
   }
   for input, want := range cases {
-    if got := stripListMarker(input); got != want {
+    got := stripListMarker(input)
+    if got != want {
       t.Errorf("stripListMarker(%q) = %q, want %q", input, got, want)
     }
   }
@@ -221,13 +225,14 @@ func TestTitleUsesModelReplyOrFallsBack(t *testing.T) {
     { Role: "user", Content: "the test fails, find the bug please and fix it now" },
   }
 
-  if got := Title(context.Background(), client, history); got != "Fix off-by-one in Mean" {
+  got := Title(context.Background(), client, history)
+  if got != "Fix off-by-one in Mean" {
     t.Fatalf("Title = %q", got)
   }
 
   empty := fakeChatServer(t, "")
   defer empty.Close()
-  got := Title(context.Background(), llm.New(empty.URL, "fake"), history)
+  got = Title(context.Background(), llm.New(empty.URL, "fake"), history)
   if got != "the test fails, find the bug" {
     t.Fatalf("fallback = %q", got)
   }

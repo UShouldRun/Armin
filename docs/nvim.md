@@ -43,59 +43,84 @@ than failing.
 | Command | Does |
 |---|---|
 | `:ArminLsp` | attach armin to the current buffer. Root is the nearest ancestor with `.git`, `go.mod`, `package.json`, `pyproject.toml`, or `Cargo.toml`, falling back to cwd. |
-| `:ArminAsk [question]` | open (or focus) a persistent chat window and ask armin something about the project. With no argument, leaves the cursor on an editable prompt line; with one, sends it immediately. Tool calls and the answer stream in live as they happen — `<Esc>` closes, `<C-f>` mentions a file, `<CR>` on a highlighted `file:line` reference opens/updates a preview split on the right, jumped to that line. |
-| `:ArminModel [name]` | show or switch the chat model used by `:ArminAsk`/hover. With no argument, opens a floating picker of every `models.<name>` entry from `config.conf` (state-annotated: external / running / stopped) — `j`/`k` or arrows to move, `<CR>` to pick, `<Esc>`/`q` to cancel. |
-| `:ArminComplete` | toggle live ghost-text completion for the current buffer — fires automatically on a short pause after you type, once turned on. |
-| `:ArminSuggest` | request one completion at the cursor right now, regardless of whether `:ArminComplete` is on. |
-| `:ArminStop` | detach, turn off completion everywhere it was on, and kill the armin process. |
+| `:ArminAsk [question]` | open (or focus) the chat window, sending `question` right away if given. |
+| `:ArminClear` | start the conversation over (same as `/clear` in the chat). |
+| `:ArminCancel` | stop the answer in flight (same as `<C-c>` in the chat). |
+| `:ArminModel [name]` | with no name, a picker of every `models.<name>` in `config.conf` (current one marked `●`, with its llama-server state); with one, switch to it. `<Tab>` completes names. |
+| `:ArminComplete` | toggle ghost-text completion for the current buffer. |
+| `:ArminSuggest` | request one completion at the cursor right now. |
+| `:ArminStop` | detach, turn off completion everywhere, and stop the armin process (and the models it started). |
 
-`:ArminModel` switches the *chat* model — the one `:ArminAsk` and
-hover use, which requires tool-calling support. It's a different
-thing from `-completion-model` (inline completion): plain
-completion/FIM base models don't support tools at all. Switching to
-one here doesn't fail silently: `:ArminAsk`/hover show a clean
-one-line notification naming the model and pointing back at
-`:ArminModel`, instead of llama-server's raw HTTP error.
+`:ArminModel` switches the chat model, the one `:ArminAsk` and hover
+use. Without a `completion_model` of its own, inline completion
+follows it between local models, so the GPU holds one model at a
+time. Switching chat to a cloud model leaves completion on the last
+local one: ghost text never bills per keystroke, and hosted APIs
+rarely serve `/infill`. Switching back to a local model brings
+completion along again.
 
 ## Using the chat window
 
-`:ArminAsk` opens one persistent chat window per Neovim instance —
-run it again later (from the same or a different buffer) and it
-refocuses the existing window instead of opening a second one,
-retargeting it at whichever buffer you called it from. Submitted
-questions stay in the buffer as scrollback; a fresh prompt line is
-always ready below the last answer, so you can keep asking follow-ups
-without reopening anything.
+`:ArminAsk` works like the terminal chat. It's one conversation per
+armin process, and every question builds on the previous ones.
+`<Esc>` (or `q`) only hides the window. Run `:ArminAsk` again and
+everything is still there, until `/clear`. The conversation lives in
+the armin process, so even a buffer you wiped comes back with its
+history.
 
-While armin is working, `→ tool_name(args)` lines appear live as it
-searches/reads, and the answer's tokens stream in below them as they
-arrive — the same transparency the terminal REPL gives you, just in
-a floating window instead of stdout. Only one question can be in
-flight at a time; submitting another while armin is still answering
-just warns instead of queuing or interleaving.
+At the `❯` prompt:
 
-The status lines say what armin is doing in plain words, including
-the newer tools: `◐ Thinking…` while a thinking model reasons (the
-trace itself goes to the scratchpad's `thinking` file, not the
-window), `◐ Loading skill "go-style"…`, `◐ Noting in scratchpad
-"plan"…`, `◐ Recalling "db"…`. When armin manages the context window
-mid-answer — trimming old tool results into the scratchpad archive,
-growing to the KV-streaming tier, compacting — it shows a
-`⚙ context: …` line, the same notices the REPL prints.
+| Key / command | Does |
+|---|---|
+| `<CR>` | send the question |
+| `<C-c>`, `/stop` | stop the answer, whoever asked |
+| `<C-f>` | insert an `@path` file mention |
+| `/clear` | start the conversation over |
+| `/model [name]` | list or switch models |
+| `/tips` | list every tip |
+| `/help` | list these |
+| `<CR>` (normal mode) on a `[[file:line]]` | open that spot in a split |
+
+While armin works, a status line says what it's doing: `◐ Thinking…`,
+`◐ Reading lines.go…`, then `✓ … — 34 lines` once a tool returns. A
+tip about the commands rotates beside the status line. The window's
+bottom border shows how full the context window is.
+
+`setup({ layout = "right" })` docks the chat as a split on the right,
+like a terminal pane, instead of a centered float.
+
+### One armin per project
+
+The first armin started in a project is its *instance*: it loads the
+model and keeps the conversation. Every armin started there later
+joins it over a per-project socket instead of loading models of its
+own, in either order:
+
+- **Terminal first, then `:ArminLsp`.** nvim's armin joins the
+  terminal's instance. Completion, hover, `:ArminAsk` and
+  `:ArminModel` all go to it, so one llama-server serves both.
+  Questions from nvim run in the terminal's conversation, show there
+  (`nvim:2 asked:`), and any approval they need is asked in the
+  terminal.
+- **`:ArminLsp` first, then `armin`.** The terminal joins nvim's
+  instance and shares the `:ArminAsk` chat. That chat is read-only,
+  like `:ArminAsk`.
+
+Both sides say which instance they are: the terminal's banner and
+the chat window's title read `Armin local · instance 1`. The same
+number means the same conversation. Questions from one side stream
+into the other, even while you're typing; the half-typed line comes
+back afterwards. `armin -new` starts a separate instance that loads
+its own model. If the instance quits, a joined nvim says so; run
+`:ArminStop` and `:ArminLsp` to start one there.
 
 In `-lsp` mode armin has the same memories, skills and scratchpad
-as the REPL (their indexes are in its prompt), but no write tools:
-the editor has nobody to approve a change.
+as the REPL, but no write tools.
 
-When armin flags something worth your attention — a risk, a doubt
-about correctness, a notable behavior — it grounds that specific
-claim in a `file:line` (or `file:start-end`) reference, rendered as
-an underlined citation in the chat buffer (routine file mentions
-don't get this treatment, only things actually worth flagging). Put
-the cursor on one and press `<CR>`: a vertical split opens on the
-right showing that file, jumped to the cited line with a brief
-highlight flash — press `<CR>` on another reference later and the
-same split updates in place rather than piling up new ones.
+When armin flags something worth your attention (a risk, a doubt, a
+surprising behavior), it cites a `[[file:line]]` (or
+`[[file:start-end]]`). Citations are underlined, and `<CR>` on one
+opens or updates a preview split jumped to that line.
 
 ## Using hover, definition, and workspace symbols
 
@@ -118,42 +143,55 @@ they're a ctags index lookup, no model involved.
 
 ## Using inline completion
 
-`:ArminComplete` shows a dim inline suggestion as you type (like
-fish/zsh autosuggestions), computed by a separate, ideally
-fill-in-the-middle-tuned model — see `-completion-model` in the main
-README, since a general chat model gives noticeably worse
-completions here. Accept it with a keymap you add yourself:
+`:ArminComplete` shows a dim inline suggestion as you type. With
+`setup({ tab_accept = true })`:
 
-```lua
-vim.keymap.set("i", "<S-Tab>", function()
-  if require("armin").has_suggestion() then
-    require("armin").accept()
-  end
-end, { silent = true })
-```
+| Key (insert mode) | Does |
+|---|---|
+| `<S-Tab>` | accept the whole suggestion |
+| `<C-Right>` | accept the next word |
+| `<C-Down>` | accept the first line |
 
-Not an expr-mapping on purpose: `accept()` edits the buffer directly
-(`nvim_buf_set_text`), and Neovim textlocks against buffer edits from
-inside an expr-mapping's evaluation (`E565`). Shift-Tab has no
-default insert-mode behavior, so there's nothing to fall back to when
-no suggestion is showing.
+Or map `require("armin").accept`, `.accept_word` and `.accept_line`
+yourself. They aren't expr-mappings, because they edit the buffer and
+textlock forbids that in an expr (E565).
 
-Or pass `require("armin").setup({ tab_accept = true })` to have
-`setup()` install that same mapping (`<S-Tab>`, chosen so it doesn't
-collide with a real completion plugin's `<Tab>`) for you.
+What keeps it fast:
 
-## Optional keymaps
+- **Typing through.** While what you type matches the suggestion,
+  it keeps showing what's left with no new request. An answer that
+  arrives after you typed a few more matching characters still
+  shows.
+- **Short waits.** A request goes out after a 120 ms pause
+  (`setup({ debounce = ms })`). A newer request cancels the older
+  one inside armin and in llama-server.
+- **Short answers.** armin sends llama-server's `/infill` the cursor
+  line's indentation (`n_indent`) and a time budget, so generation
+  stops at the end of the block instead of running to 128 tokens.
+  The old request took 1.1–2.3 s on the 9B model; this one takes
+  ~0.26 s through nvim.
+- **Context.** Up to 64 lines above the cursor and 24 below, plus the
+  file's first 32 lines when they're out of view. Also included: the
+  last-edited spot in up to three other open files of the same kind.
+  The window moves in 16-line steps, so the prompt's start stays the
+  same while you work.
 
-Nothing else is bound for you. If you want one, add it yourself,
-e.g.:
+llama-server reuses its prompt cache when only the end of the prompt
+changed. That doesn't work for every model:
 
-```lua
-vim.keymap.set("n", "<leader>aa", "<cmd>ArminAsk<CR>", { desc = "Ask armin" })
-```
+- Qwen3.5 and Qwen3.6 are hybrid (recurrent) models and reprocess the
+  whole prompt on every request, about 0.5 s for ~1100 tokens on an
+  RTX 4060.
+- Sliding-window models like Mellum need `--swa-full` in their args
+  to reuse the cache. With it, a follow-up request processed 175
+  tokens instead of 873.
+
+A completion error (a model without fill-in-the-middle tokens, say)
+is shown once, as a notification.
 
 ## How it stays "minimal"
 
-- One Lua file, stdlib-only (`vim.lsp`, `vim.fs`, `vim.notify`,
+- One Lua file, built-ins only (`vim.lsp`, `vim.fs`, `vim.notify`,
   `vim.api`, Neovim's built-in prompt-buffer) — no dependency on
   nvim-lspconfig, telescope, plenary, or any UI plugin.
   `:ArminModel`'s picker and file-mention (`<C-f>` in `:ArminAsk`)
@@ -174,6 +212,8 @@ vim.keymap.set("n", "<leader>aa", "<cmd>ArminAsk<CR>", { desc = "Ask armin" })
   deterministic approach any compiled-index language server uses.
 - Completion is debounced and self-cancels on every keystroke, so
   typing quickly never queues up stale requests.
+- `install.sh` links `~/.config/nvim/lua/armin.lua` to this repo's
+  copy, so the plugin and the binary never drift apart.
 - Every path argument the model can act on is still jailed to the
   project root by the same sandbox the REPL uses — see the main
   [README](../README.md#safety-model).

@@ -5,20 +5,10 @@ import (
   "os"
   "path/filepath"
   "strings"
-  "sync"
   "time"
 
   "armin/internal/sandbox"
 )
-
-// FileTracker remembers which files the model has read this session
-// and their mtime at that point, so a write can't clobber a file
-// the model never looked at, and an edit can't apply on top of a
-// file that changed under it. Safe for concurrent use.
-type FileTracker struct {
-  mu   sync.Mutex
-  seen map[string]time.Time
-}
 
 func NewFileTracker() *FileTracker {
   return &FileTracker{ seen: make(map[string]time.Time) }
@@ -79,27 +69,6 @@ func (t *FileTracker) check(resolved, path string) error {
   return nil
 }
 
-// Change is a planned write: computed, previewable, and only
-// touching disk on Apply. Splitting the two lets the REPL show a
-// diff and ask before anything is written.
-type Change struct {
-  Path, Resolved string
-  Old, New       string
-  Replacements   int
-  mode           os.FileMode
-  Created        bool
-}
-
-// ChangeOutput is what the model sees after a write.
-type ChangeOutput struct {
-  Path         string `json:"path"`
-  Replacements int    `json:"replacements,omitempty"`
-  LinesAdded   int    `json:"lines_added"`
-  LinesRemoved int    `json:"lines_removed"`
-  Created      bool   `json:"created,omitempty"`
-  DryRun       bool   `json:"dry_run,omitempty"`
-}
-
 // resolveWritable jails path and refuses anything inside .git.
 func resolveWritable(
   cfg *sandbox.Config, path string,
@@ -137,11 +106,6 @@ func resolveWritable(
 
 // --- write_file ---
 
-type WriteFileInput struct {
-  Path    string `json:"path"`
-  Content string `json:"content"`
-}
-
 // PlanWrite prepares creating or overwriting a whole file.
 func PlanWrite(
   cfg *sandbox.Config, tracker *FileTracker, in WriteFileInput,
@@ -172,7 +136,8 @@ func PlanWrite(
     )
   }
 
-  if err := tracker.check(resolved, in.Path); err != nil {
+  err = tracker.check(resolved, in.Path)
+  if err != nil {
     return nil, fmt.Errorf("\n\t... in PlanWrite:\n\t%w", err)
   }
 
@@ -187,13 +152,6 @@ func PlanWrite(
 }
 
 // --- edit_file ---
-
-type EditFileInput struct {
-  Path       string `json:"path"`
-  OldString  string `json:"old_string"`
-  NewString  string `json:"new_string"`
-  ReplaceAll bool   `json:"replace_all,omitempty"`
-}
 
 // PlanEdit prepares an exact-string replacement. old_string must
 // match exactly once unless replace_all is set — an ambiguous match
@@ -224,7 +182,8 @@ func PlanEdit(
     return nil, fmt.Errorf("\n\t... in PlanEdit:\n\t%w", err)
   }
 
-  if err := tracker.check(resolved, in.Path); err != nil {
+  err = tracker.check(resolved, in.Path)
+  if err != nil {
     return nil, fmt.Errorf("\n\t... in PlanEdit:\n\t%w", err)
   }
 
@@ -320,7 +279,8 @@ func (c *Change) Apply(
   }
 
   dir := filepath.Dir(c.Resolved)
-  if err := os.MkdirAll(dir, 0o755); err != nil {
+  err := os.MkdirAll(dir, 0o755)
+  if err != nil {
     return nil, fmt.Errorf("\n\t... in Apply:\n\t%w", err)
   }
 
@@ -336,7 +296,8 @@ func (c *Change) Apply(
     err = tmp.Chmod(c.mode)
   }
 
-  if cerr := tmp.Close(); err == nil {
+  cerr := tmp.Close()
+  if err == nil {
     err = cerr
   }
 
@@ -379,6 +340,16 @@ func EditFile(
 }
 
 // --- diff preview ---
+
+// Hunk is the changed region: where it starts (0-based line), the
+// lines it removes and the ones it adds, plus the old and new file
+// as lines for context around it.
+func (c *Change) Hunk() (start int, gone, came, oldLines, newLines []string) {
+  oldLines, newLines = splitLines(c.Old), splitLines(c.New)
+  start, gone, came = trimCommon(oldLines, newLines)
+
+  return start, gone, came, oldLines, newLines
+}
 
 // maxPreviewLines caps the preview shown before approval.
 const maxPreviewLines = 80
@@ -463,7 +434,8 @@ func (c *Change) Preview() string {
     emit("  ", l)
   }
 
-  if total := len(gone) + len(came); shown == maxPreviewLines {
+  total := len(gone) + len(came)
+  if shown == maxPreviewLines {
     fmt.Fprintf(&b, "… (%d changed lines, preview capped)\n", total)
   }
 

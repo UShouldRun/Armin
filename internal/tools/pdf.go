@@ -10,22 +10,6 @@ import (
   "armin/internal/sandbox"
 )
 
-// ReadPDFInput is the argument set for read_pdf.
-type ReadPDFInput struct {
-  Path      string `json:"path"`
-  FirstPage int    `json:"first_page,omitempty"` // 1-indexed, default 1
-  LastPage  int    `json:"last_page,omitempty"`  // default first + 9
-}
-
-type ReadPDFOutput struct {
-  Text       string `json:"text"`
-  FirstPage  int    `json:"first_page"`
-  LastPage   int    `json:"last_page"`
-  TotalPages int    `json:"total_pages"`
-  Truncated  bool   `json:"truncated,omitempty"`
-  Next       string `json:"next,omitempty"` // how to continue
-}
-
 const (
   // pdfPagesPerCall is the default page window.
   pdfPagesPerCall = 10
@@ -41,7 +25,8 @@ const (
 func ReadPDF(
   ctx context.Context, cfg *sandbox.Config, in ReadPDFInput,
 ) (*ReadPDFOutput, error) {
-  if _, err := exec.LookPath("pdftotext"); err != nil {
+  _, err := exec.LookPath("pdftotext")
+  if err != nil {
     return nil, fmt.Errorf(
       "\n\t... in ReadPDF:\n\t pdftotext isn't installed — the user can " +
         "install poppler-utils (e.g. sudo apt install poppler-utils)",
@@ -113,7 +98,8 @@ func ReadPDF(
 
 // pdfPages asks pdfinfo for the page count; 0 if unknown.
 func pdfPages(ctx context.Context, cfg *sandbox.Config, path string) int {
-  if _, err := exec.LookPath("pdfinfo"); err != nil {
+  _, err := exec.LookPath("pdfinfo")
+  if err != nil {
     return 0
   }
 
@@ -123,7 +109,8 @@ func pdfPages(ctx context.Context, cfg *sandbox.Config, path string) int {
   }
 
   for _, line := range strings.Split(res.Stdout, "\n") {
-    if v, ok := strings.CutPrefix(line, "Pages:"); ok {
+    v, ok := strings.CutPrefix(line, "Pages:")
+    if ok {
       n, _ := strconv.Atoi(strings.TrimSpace(v))
       return n
     }

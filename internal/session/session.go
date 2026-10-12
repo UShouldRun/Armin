@@ -33,25 +33,6 @@ import (
   "armin/internal/llm"
 )
 
-// Meta is a session's first line.
-type Meta struct {
-  ID        string    `json:"id"`
-  Root      string    `json:"root"`
-  Model     string    `json:"model"`
-  Title     string    `json:"title,omitempty"`
-  CreatedAt time.Time `json:"created_at"`
-  UpdatedAt time.Time `json:"updated_at"`
-
-  // Messages is counted by List and Load; it isn't stored.
-  Messages int `json:"-"`
-}
-
-// Saved is what Load reconstructs from a session file.
-type Saved struct {
-  Meta
-  History []llm.Message
-}
-
 // NewID returns a random RFC 4122 v4 UUID.
 func NewID() string {
   var b [16]byte
@@ -139,7 +120,8 @@ func Save(m *Meta, history []llm.Message) error {
     return fmt.Errorf("\n\t... in Save:\n\t%w", err)
   }
 
-  if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+  err = os.MkdirAll(filepath.Dir(path), 0o755)
+  if err != nil {
     return fmt.Errorf("\n\t... in Save:\n\t%w", err)
   }
 
@@ -150,7 +132,8 @@ func Save(m *Meta, history []llm.Message) error {
 
   defer f.Close()
 
-  if err := writeAll(f, m, history); err != nil {
+  err = writeAll(f, m, history)
+  if err != nil {
     return fmt.Errorf("\n\t... in Save:\n\t%w", err)
   }
 
@@ -166,12 +149,14 @@ func writeAll(w io.Writer, m *Meta, history []llm.Message) error {
   m.UpdatedAt = now
 
   enc := json.NewEncoder(w)
-  if err := enc.Encode(m); err != nil {
+  err := enc.Encode(m)
+  if err != nil {
     return err
   }
 
   for _, msg := range history {
-    if err := enc.Encode(msg); err != nil {
+    err := enc.Encode(msg)
+    if err != nil {
       return err
     }
   }
@@ -190,7 +175,8 @@ func writeAll(w io.Writer, m *Meta, history []llm.Message) error {
 // than only appending should Save and reset *persisted themselves.
 func Append(m *Meta, history []llm.Message, persisted *int) error {
   if *persisted == 0 {
-    if err := Save(m, history); err != nil {
+    err := Save(m, history)
+    if err != nil {
       return err
     }
 
@@ -217,7 +203,8 @@ func Append(m *Meta, history []llm.Message, persisted *int) error {
 
   enc := json.NewEncoder(f)
   for _, msg := range history[*persisted:] {
-    if err := enc.Encode(msg); err != nil {
+    err := enc.Encode(msg)
+    if err != nil {
       return fmt.Errorf("\n\t... in Append:\n\t%w", err)
     }
   }
@@ -257,7 +244,8 @@ func Load(id string) (*Saved, error) {
   var history []llm.Message
   for scanner.Scan() {
     var msg llm.Message
-    if err := json.Unmarshal(scanner.Bytes(), &msg); err != nil {
+    err := json.Unmarshal(scanner.Bytes(), &msg)
+    if err != nil {
       return nil, fmt.Errorf(
         "\n\t... in Load:\n\t parsing message %d: %w", len(history), err,
       )
@@ -266,7 +254,8 @@ func Load(id string) (*Saved, error) {
     history = append(history, msg)
   }
 
-  if err := scanner.Err(); err != nil {
+  err = scanner.Err()
+  if err != nil {
     return nil, fmt.Errorf("\n\t... in Load:\n\t%w", err)
   }
 
@@ -277,8 +266,10 @@ func Load(id string) (*Saved, error) {
 
 // resolve finds the file for an id or a unique id prefix.
 func resolve(id string) (string, error) {
-  if path, err := pathFor(id); err == nil {
-    if _, err := os.Stat(path); err == nil {
+  path, err := pathFor(id)
+  if err == nil {
+    _, err := os.Stat(path)
+    if err == nil {
       return path, nil
     }
   }
@@ -309,7 +300,8 @@ func resolve(id string) (string, error) {
 // its id is its file name.
 func parseMeta(line []byte, path string) (Meta, error) {
   var m Meta
-  if err := json.Unmarshal(line, &m); err != nil {
+  err := json.Unmarshal(line, &m)
+  if err != nil {
     return Meta{}, err
   }
 
@@ -348,7 +340,8 @@ func List() ([]Meta, error) {
       continue
     }
 
-    if m, ok := readMeta(filepath.Join(dir, e.Name())); ok {
+    m, ok := readMeta(filepath.Join(dir, e.Name()))
+    if ok {
       out = append(out, m)
     }
   }
@@ -421,7 +414,8 @@ func Delete(id string) (Meta, error) {
     m = Meta{ ID: strings.TrimSuffix(filepath.Base(path), ".jsonl") }
   }
 
-  if err := os.Remove(path); err != nil {
+  err = os.Remove(path)
+  if err != nil {
     return Meta{}, fmt.Errorf("\n\t... in Delete:\n\t%w", err)
   }
 

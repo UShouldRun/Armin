@@ -12,15 +12,6 @@ import (
   "armin/internal/sandbox"
 )
 
-// Command is one project command. Args a caller passes replace
-// DefaultArgs (e.g. "./..." for go test); Sep goes between Argv and
-// caller args when there are any ("npm run test -- -t foo").
-type Command struct {
-  Argv, DefaultArgs []string
-  Sep               string
-  Source            string // where it came from, for the model
-}
-
 func (c Command) set() bool { return len(c.Argv) > 0 }
 
 func (c Command) argv(args []string) []string {
@@ -35,11 +26,6 @@ func (c Command) argv(args []string) []string {
   }
 
   return out
-}
-
-// ProjectCommands is the resolved test/build/lint trio for a root.
-type ProjectCommands struct {
-  Test, Build, Lint Command
 }
 
 // projectConfFile lets a repo pin its own commands. It runs repo-
@@ -82,6 +68,9 @@ func DetectCommands(cfg *sandbox.Config) ProjectCommands {
       *s.dst = Command{ Argv: project[s.name], Source: projectConfFile }
     case makeTargets[s.name]:
       *s.dst = Command{ Argv: []string{ "make", s.name }, Source: "Makefile" }
+    case s.name == "build" && makeTargets[makefileFound]:
+      // No "build" target: the default goal (usually all) builds.
+      *s.dst = Command{ Argv: []string{ "make" }, Source: "Makefile" }
     default:
       *s.dst = lang[s.name]
     }
@@ -119,15 +108,28 @@ func readCommandsConf(path string) map[string][]string {
   return out
 }
 
+// makefileFound marks, in makefileTargets' answer, that there is a
+// Makefile at all.
+const makefileFound = "\x00makefile"
+
 func makefileTargets(root string) map[string]bool {
   out := map[string]bool{}
 
-  f, err := os.Open(filepath.Join(root, "Makefile"))
+  var f *os.File
+  var err error
+  for _, name := range []string{ "GNUmakefile", "makefile", "Makefile" } {
+    f, err = os.Open(filepath.Join(root, name))
+    if err == nil {
+      break
+    }
+  }
+
   if err != nil {
     return out
   }
 
   defer f.Close()
+  out[makefileFound] = true
 
   scanner := bufio.NewScanner(f)
   for scanner.Scan() {
@@ -259,32 +261,6 @@ func nodeCommands(root string) map[string]Command {
 
   return out
 }
-
-// ProjectRunOutput is the shared result of run_tests/build_check/
-// lint_check.
-type ProjectRunOutput struct {
-  Command   string `json:"command,omitempty"`
-  Source    string `json:"source,omitempty"`
-  Summary   string `json:"summary,omitempty"`
-  Output    string `json:"output,omitempty"`
-  Hint      string `json:"hint,omitempty"`
-  Available bool   `json:"available"`
-  Passed    bool   `json:"passed"`
-  Truncated bool   `json:"truncated,omitempty"`
-}
-
-// ProjectRunInput is the argument set all three tools share.
-// Package is the old Go-only argument, kept as a one-arg alias.
-type ProjectRunInput struct {
-  Args    []string `json:"args,omitempty"`
-  Package string   `json:"package,omitempty"`
-}
-
-type (
-  RunTestsInput   = ProjectRunInput
-  BuildCheckInput = ProjectRunInput
-  LintCheckInput  = ProjectRunInput
-)
 
 func runProject(
   ctx context.Context, cfg *sandbox.Config,

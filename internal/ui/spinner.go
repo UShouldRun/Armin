@@ -2,7 +2,6 @@ package ui
 
 import (
   "fmt"
-  "sync"
   "time"
 )
 
@@ -10,16 +9,6 @@ import (
 // line width, reads fine on any terminal that does UTF-8 (which is
 // to say: any terminal worth targeting in 2026).
 var frames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-
-// Spinner is a single-line "thinking" indicator, live while we're
-// waiting on the model's first token or a slow tool call. It's a
-// no-op when Enabled is false (non-TTY, NO_COLOR, piped output) so
-// scripted use of armin never has to deal with stray control chars.
-type Spinner struct {
-  label func() string
-  stop  chan struct{}
-  done  sync.WaitGroup
-}
 
 // NewSpinner starts a spinner immediately with the given label and
 // the time since it started.
@@ -57,7 +46,8 @@ func (s *Spinner) run() {
       return
     case <-ticker.C:
       frame := Cyan(frames[i % len(frames)])
-      fmt.Printf("\r\x1b[K%s %s", frame, Dim(s.label()))
+      label := fitLine(s.label(), termCols() - 3) // frame, space, a spare column
+      fmt.Printf("\r\x1b[K%s %s", frame, Dim(label))
       i++
     }
   }
@@ -79,4 +69,29 @@ func Since(t time.Time) string {
 func (s *Spinner) Stop() {
   close(s.stop)
   s.done.Wait()
+}
+
+// Fit cuts s to width columns, ending in "…" when it had to; for
+// lines that must stay on one row.
+func Fit(s string, width int) string { return fitLine(s, width) }
+
+// fitLine cuts s to width columns, ending in "…" when it had to.
+// The spinner redraws with \r, which only returns to the start of
+// the row it's on: a status that wrapped would leave its first row
+// behind on every frame. width <= 0 (no terminal) leaves s alone.
+func fitLine(s string, width int) string {
+  if width <= 0 {
+    return s
+  }
+
+  r := []rune(s)
+  if len(r) <= width {
+    return s
+  }
+
+  if width == 1 {
+    return "…"
+  }
+
+  return string(r[:width - 1]) + "…"
 }

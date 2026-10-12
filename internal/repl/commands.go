@@ -14,15 +14,9 @@ import (
   "armin/internal/convo"
   "armin/internal/llm"
   "armin/internal/session"
+  "armin/internal/share"
   "armin/internal/ui"
 )
-
-type command struct {
-  names   []string // first entry is canonical, rest are aliases
-  usage   string
-  summary string
-  run     func(r *REPL, ctx context.Context, args []string)
-}
 
 // commandList is a function, not a package var, on purpose: cmdHelp
 // below needs the full list, and a package var literal holding
@@ -35,6 +29,11 @@ func commandList() []command {
       names:   []string{ "help", "?" },
       summary: "list commands",
       run:     cmdHelp,
+    },
+    {
+      names:   []string{ "tips" },
+      summary: "list tips about armin's commands",
+      run:     cmdTips,
     },
     {
       names:   []string{ "quit", "exit", "q" },
@@ -178,6 +177,7 @@ func buildCommandIndex() map[string]*command {
 // or prints a hint if there isn't one — never silently drops a
 // typo.
 func (r *REPL) dispatch(ctx context.Context, input string) {
+  defer r.snapshot() // /clear, /compact, /resume rewrite History
   fields := strings.Fields(input)
   name := strings.ToLower(strings.TrimPrefix(fields[0], "/"))
   args := fields[1:]
@@ -189,7 +189,8 @@ func (r *REPL) dispatch(ctx context.Context, input string) {
   }
 
   if r.Loop.Skills != nil {
-    if _, ok := r.Loop.Skills.Get(name); ok {
+    _, ok := r.Loop.Skills.Get(name)
+    if ok {
       cmdSkill(r, ctx, append([]string{ name }, args...))
       return
     }
@@ -238,6 +239,7 @@ func cmdClear(r *REPL, _ context.Context, _ []string) {
   r.lastTokens = 0
   resyncSession(r)
   ui.Info("conversation cleared")
+  r.emit(share.Event{ Type: "cleared", Origin: originTerminal })
 }
 
 // resyncSession does an immediate full session rewrite and resets
@@ -253,7 +255,8 @@ func resyncSession(r *REPL) {
     return
   }
 
-  if err := session.Save(&r.Meta, r.History); err != nil {
+  err := session.Save(&r.Meta, r.History)
+  if err != nil {
     ui.Error("failed to resync session: %s", err)
     return
   }
@@ -268,7 +271,24 @@ func cmdModel(r *REPL, ctx context.Context, args []string) {
   }
 
   name := args[0]
-  if err := r.Models.Switch(ctx, r.LLM, name); err != nil {
+
+  // A bare OpenRouter model asks which model to reach through it.
+  info := r.Host().Models()
+  if name == info.Hosted && r.pump != nil {
+    name = ChooseHosted(info, name, r.ask)
+    if name == "" {
+      return
+    }
+  }
+
+  r.switchModel(ctx, name)
+}
+
+// switchModel switches chat (and completion, between local models)
+// to name, for this terminal or for a frontend that joined it.
+func (r *REPL) switchModel(ctx context.Context, name string) {
+  err := r.Models.SwitchChat(ctx, r.LLM, r.Follower, name)
+  if err != nil {
     ui.Error("switching to %q: %s", name, err)
     return
   }
@@ -284,44 +304,27 @@ func cmdModel(r *REPL, ctx context.Context, args []string) {
 
   // A nil *llamacpp.Window must become a nil interface, not a typed nil.
   r.Loop.Window = nil
-  if w := r.Models.Window(name); w != nil {
+  w := r.Models.Window(name)
+  if w != nil {
     r.Loop.Window = w
   }
 
   agent.SetModelLine(r.History, name, r.Models.Label(name))
   r.lastTokens = 0
+  r.current.Store(&name)
+  completing := r.completer().Model
+  r.completing.Store(&completing)
   ui.Info("switched to %s", r.modelName())
+  if completing != name {
+    ui.Info("completion stays on %s, on this machine", completing)
+  }
+
+  info := r.Host().Models()
+  r.emit(share.Event{ Type: "model", Model: &info })
 }
 
 func printCurrentModel(r *REPL) {
-  fmt.Printf("current model: %s\n", ui.Bold(r.modelName()))
-
-  fmt.Println(ui.Dim("configured:"))
-  statuses := r.Models.Names()
-  sort.Slice(statuses, func(i, j int) bool { return statuses[i].Name < statuses[j].Name })
-  width := 0
-  for _, s := range statuses {
-    width = max(width, len(s.Name))
-  }
-
-  for _, s := range statuses {
-    marker := "  "
-    if s.Name == r.LLM.Model {
-      marker = ui.Green("→ ")
-    }
-
-    state := ""
-    switch {
-    case !s.Managed:
-      state = ui.Dim(" (external)")
-    case s.Running:
-      state = ui.Dim(" (running)")
-    default:
-      state = ui.Dim(" (stopped, spawns on use)")
-    }
-
-    fmt.Printf("%s%-*s  %s%s\n", marker, width, s.Name, ui.Dim(s.Model), state)
-  }
+  printModelInfo(r.Host().Models())
 }
 
 func cmdContext(r *REPL, _ context.Context, _ []string) {
@@ -339,7 +342,8 @@ func cmdContext(r *REPL, _ context.Context, _ []string) {
     fmt.Printf("  last request:   %d tokens (server count)\n", r.lastTokens)
   }
 
-  if w := r.Loop.Window; w != nil {
+  w := r.Loop.Window
+  if w != nil {
     tier := fmt.Sprintf(
       "resident %dk (fast, all in VRAM); can grow to %dk",
       w.Resident() / 1000, w.Max() / 1000,
@@ -393,7 +397,8 @@ func cmdCompact(r *REPL, ctx context.Context, args []string) {
   spinner := ui.NewSpinner("compacting")
   extra := ""
   if r.Loop.Scratch != nil {
-    if list := r.Loop.Scratch.Summary(); list != "" {
+    list := r.Loop.Scratch.Summary()
+    if list != "" {
       extra = "Scratchpad files (scratchpad_read to open):\n" + list
     }
   }
@@ -454,7 +459,8 @@ func cmdHistory(r *REPL, _ context.Context, _ []string) {
 }
 
 func cmdSave(r *REPL, _ context.Context, _ []string) {
-  if err := session.Save(&r.Meta, r.History); err != nil {
+  err := session.Save(&r.Meta, r.History)
+  if err != nil {
     ui.Error("%s", err)
     return
   }
@@ -570,7 +576,8 @@ func cmdRemember(r *REPL, ctx context.Context, args []string) {
   prompt := "Save this to memory with memory_save (pick the scope: " +
     "user for my preferences, project for this codebase): " +
     strings.Join(args, " ")
-  if err := r.turn(ctx, prompt); err != nil {
+  err := r.turn(ctx, prompt)
+  if err != nil {
     ui.Error("%s", err)
   }
 
@@ -632,12 +639,14 @@ func cmdSkill(r *REPL, ctx context.Context, args []string) {
     "Use the %q skill for this task: %s\n\n<skill name=%q>\n%s\n</skill>",
     sk.Name, task, sk.Name, strings.TrimSpace(body),
   )
-  if files := sk.Files(); len(files) > 0 {
+  files := sk.Files()
+  if len(files) > 0 {
     prompt += "\nSupporting files (use_skill with file): " +
       strings.Join(files, ", ")
   }
 
-  if err := r.turn(ctx, prompt); err != nil {
+  err = r.turn(ctx, prompt)
+  if err != nil {
     ui.Error("%s", err)
   }
 
@@ -800,10 +809,9 @@ func (r *REPL) deleteSession(id string) {
     "(%s, %s, %d msgs) and its scratchpad? [y/N]",
     ShortID(saved.ID), filepath.Base(saved.Root), saved.Messages,
   )
-  fmt.Printf("%s %s %s ", ui.Yellow("delete"), titleOr(saved.Title), ui.Dim(detail))
-
-  answer, _ := r.reader.ReadString('\n')
-  if a := strings.ToLower(strings.TrimSpace(answer)); a != "y" && a != "yes" {
+  answer, _ := r.ask(fmt.Sprintf("%s %s %s ", ui.Yellow("delete"), titleOr(saved.Title), ui.Dim(detail)))
+  a := strings.ToLower(strings.TrimSpace(answer))
+  if a != "y" && a != "yes" {
     ui.Info("kept")
     return
   }
@@ -816,8 +824,10 @@ func (r *REPL) deleteSession(id string) {
 
   scratch := "no scratchpad"
   if isUUID(m.ID) {
-    if dir, err := session.ProjectDataDir("scratch", m.Root); err == nil {
-      if err := os.RemoveAll(filepath.Join(dir, m.ID)); err == nil {
+    dir, err := session.ProjectDataDir("scratch", m.Root)
+    if err == nil {
+      err := os.RemoveAll(filepath.Join(dir, m.ID))
+      if err == nil {
         scratch = "its scratchpad"
       }
     }
@@ -887,7 +897,8 @@ func cmdAddDir(r *REPL, _ context.Context, args []string) {
     return
   }
 
-  if err := r.AddDir(strings.Join(args, " ")); err != nil {
+  err := r.AddDir(strings.Join(args, " "))
+  if err != nil {
     ui.Error("%s", err)
   }
 }
@@ -900,7 +911,8 @@ const maxListedFiles = 40
 // has somewhere to go. Writes stay inside the project.
 func (r *REPL) AddDir(dir string) error {
   if strings.HasPrefix(dir, "~/") {
-    if home, err := os.UserHomeDir(); err == nil {
+    home, err := os.UserHomeDir()
+    if err == nil {
       dir = filepath.Join(home, dir[2:])
     }
   } else if !filepath.IsAbs(dir) {

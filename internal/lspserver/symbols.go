@@ -162,7 +162,8 @@ var symbolKinds = map[string]int{
 }
 
 func symbolKindFor(kind string) int {
-  if k, ok := symbolKinds[kind]; ok {
+  k, ok := symbolKinds[kind]
+  if ok {
     return k
   }
   return 13 // Variable

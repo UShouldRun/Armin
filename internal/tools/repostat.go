@@ -13,24 +13,12 @@ import (
   "sort"
   "strings"
   "time"
+  "unicode/utf8"
 
   "armin/internal/sandbox"
 )
 
 // --- count_lines / list_languages ---
-
-// dirCount is one directory or extension's aggregate — files and
-// lines seen under it.
-type dirCount struct{ files, lines int }
-
-// repoStats is one full-tree walk's result, shared by CountLines and
-// ListLanguages so two tools that are often asked together don't
-// each pay for their own walk of a potentially large repo.
-type repoStats struct {
-  totalFiles, totalLines int
-  byTopDir               map[string]dirCount
-  byExt                  map[string]dirCount
-}
 
 func walkStats(cfg *sandbox.Config, path string) (*repoStats, error) {
   resolved, err := cfg.ResolvePath(path)
@@ -128,7 +116,8 @@ func countFileLines(path string) (int, bool) {
   if isBinary(head[:n]) {
     return 0, false
   }
-  if _, err := f.Seek(0, io.SeekStart); err != nil {
+  _, err = f.Seek(0, io.SeekStart)
+  if err != nil {
     return 0, false
   }
 
@@ -139,22 +128,6 @@ func countFileLines(path string) (int, bool) {
     lines++
   }
   return lines, true
-}
-
-type CountLinesInput struct {
-  Path string `json:"path,omitempty"` // default: project root
-}
-
-type DirLineCount struct {
-  Dir   string `json:"dir"`
-  Files int    `json:"files"`
-  Lines int    `json:"lines"`
-}
-
-type CountLinesOutput struct {
-  TotalFiles int            `json:"total_files"`
-  TotalLines int            `json:"total_lines"`
-  ByTopDir   []DirLineCount `json:"by_top_dir,omitempty"`
 }
 
 // CountLines walks Path and sums line counts across every
@@ -188,20 +161,6 @@ func CountLines(
   return out, nil
 }
 
-type ListLanguagesInput struct {
-  Path string `json:"path,omitempty"`
-}
-
-type LanguageCount struct {
-  Extension string `json:"extension"`
-  Files     int    `json:"files"`
-  Lines     int    `json:"lines"`
-}
-
-type ListLanguagesOutput struct {
-  Languages []LanguageCount `json:"languages"` // ranked by lines, most first
-}
-
 // ListLanguages breaks Path down by file extension — the same walk
 // CountLines does, grouped differently.
 func ListLanguages(
@@ -231,16 +190,6 @@ func ListLanguages(
 }
 
 // --- find_files ---
-
-type FindFilesInput struct {
-  Pattern string `json:"pattern"` // filepath.Match glob against the base name, e.g. "*.go"
-  Path    string `json:"path,omitempty"`
-}
-
-type FindFilesOutput struct {
-  Files     []string `json:"files"`
-  Truncated bool     `json:"truncated,omitempty"`
-}
 
 const maxFindFilesResults = 200
 
@@ -297,17 +246,6 @@ func FindFiles(
 
 // --- file_stat ---
 
-type FileStatInput struct {
-  Path string `json:"path"`
-}
-
-type FileStatOutput struct {
-  SizeBytes int64  `json:"size_bytes"`
-  Lines     int    `json:"lines,omitempty"` // 0 for binary files
-  ModTime   string `json:"mod_time"`        // RFC3339
-  IsBinary  bool   `json:"is_binary,omitempty"`
-}
-
 // FileStat reports one file's size, line count, and mtime without
 // returning its content — cheaper than read_file for deciding what
 // range is worth actually reading.
@@ -344,15 +282,6 @@ func FileStat(
 
 // --- find_todo_fixme ---
 
-type FindTodoFixmeInput struct {
-  Path string `json:"path,omitempty"`
-}
-
-type FindTodoFixmeOutput struct {
-  Matches   string `json:"matches"`
-  Truncated bool   `json:"truncated,omitempty"`
-}
-
 // FindTodoFixme is a fixed search_code preset for TODO/FIXME/XXX
 // markers — common enough to deserve one call instead of the model
 // re-writing the same regex every time.
@@ -370,17 +299,6 @@ func FindTodoFixme(
 
 // --- env_info ---
 
-type EnvInfoInput struct{}
-
-type EnvInfoOutput struct {
-  GoVersion string `json:"go_version,omitempty"`
-  OS        string `json:"os"`
-  Arch      string `json:"arch"`
-  HasGit    bool   `json:"has_git"`
-  HasRg     bool   `json:"has_ripgrep"`
-  HasDocker bool   `json:"has_docker"`
-}
-
 // EnvInfo reports the toolchain armin can actually see — Go
 // version, OS/arch, and whether git/ripgrep/docker are on PATH —
 // without leaking PATH's contents itself.
@@ -389,7 +307,8 @@ func EnvInfo(
 ) (*EnvInfoOutput, error) {
   out := &EnvInfoOutput{ OS: runtime.GOOS, Arch: runtime.GOARCH }
 
-  if res, err := cfg.RunForce(ctx, "go", []string{ "version" }); err == nil && res.ExitCode == 0 {
+  res, err := cfg.RunForce(ctx, "go", []string{ "version" })
+  if err == nil && res.ExitCode == 0 {
     out.GoVersion = strings.TrimSpace(res.Stdout)
   }
   out.HasGit = onPath("git")
@@ -404,12 +323,6 @@ func onPath(bin string) bool {
 }
 
 // --- project_manifest ---
-
-type ProjectManifestInput struct{}
-
-type ProjectManifestOutput struct {
-  Note string `json:"note"` // directory tree + the first manifest/README found
-}
 
 // manifestFiles is checked in order for a first-pass project
 // manifest/readme; the first one found is included, the rest
@@ -449,4 +362,27 @@ func ProjectManifest(
   }
 
   return &ProjectManifestOutput{ Note: b.String() }, nil
+}
+
+// IsText reports whether the file at path reads as text: no NUL in
+// its first 8 KB, and valid UTF-8 there. For deciding what's safe to
+// print in a terminal.
+func IsText(path string) bool {
+  f, err := os.Open(path)
+  if err != nil {
+    return false
+  }
+
+  defer f.Close()
+
+  buf := make([]byte, 8192)
+  n, _ := io.ReadFull(f, buf)
+  head := buf[:n]
+
+  // A cut at the end of the buffer can split one UTF-8 rune.
+  for i := 0; i < 3 && len(head) > 0 && !utf8.Valid(head); i++ {
+    head = head[:len(head) - 1]
+  }
+
+  return !isBinary(buf[:n]) && utf8.Valid(head)
 }

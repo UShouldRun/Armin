@@ -7,59 +7,13 @@ import (
   "bytes"
   "context"
   "fmt"
+  "io"
   "os"
   "os/exec"
   "path/filepath"
   "strings"
   "time"
 )
-
-// Config is the set of safety rules a Sandbox enforces. Construct one
-// per project root and pass it to every tool.
-type Config struct {
-  // Root is the absolute, symlink-resolved project root. No path
-  // argument may resolve outside of it.
-  Root string
-
-  // Allowlist is the set of binaries run_command is permitted to
-  // exec. Extend this deliberately; never let the model extend it.
-  Allowlist map[string]bool
-
-  // Timeout bounds every subprocess call.
-  Timeout time.Duration
-
-  // MaxOutput is the byte cap applied to stdout/stderr before it's
-  // handed back to the model.
-  MaxOutput int
-
-  // DryRun, when set, makes Run describe the command it would have
-  // executed instead of executing it. Wired up by run_command so you
-  // can trust the loop before letting it actually touch a subprocess.
-  DryRun bool
-
-  // Commands overrides the detected test/build/lint commands (see
-  // tools.DetectCommands). Like Allowlist, only the user sets these.
-  Commands Commands
-
-  // BuildTimeout bounds run_tests/build_check/lint_check, which
-  // legitimately run far longer than an inspection command.
-  BuildTimeout time.Duration
-
-  // ReadRoots are extra directories the user granted read access to
-  // (/add-dir): read tools may resolve paths under them; writes stay
-  // jailed to Root (see InRoot).
-  ReadRoots []string
-
-  // ExecAllowlist is what run_program may start: compilers, build
-  // tools, test runners. Unlike Allowlist these write files and run
-  // project code, so every run is approved by the user.
-  ExecAllowlist map[string]bool
-
-  // Env, if set, is the environment every command gets — armin's
-  // own minus API keys and cloud credentials, which a Makefile or a
-  // test has no business seeing.
-  Env func() []string
-}
 
 // AddReadRoot grants read access to dir (resolved, symlinks
 // followed) and returns the resolved path.
@@ -98,12 +52,6 @@ func (c *Config) InRoot(resolved string) bool {
   return within(c.Root, resolved)
 }
 
-// Commands holds user-configured project commands as argv; nil
-// means "detect it".
-type Commands struct {
-  Test, Build, Lint []string
-}
-
 // DefaultAllowlist is a conservative starting set: read-only
 // inspection tools. No write-capable commands (rm, mv, redirection)
 // belong here.
@@ -140,6 +88,7 @@ func DefaultExecAllowlist() map[string]bool {
     "typst", "pdflatex", "latexmk",
     "valgrind", "gdb", "time",
     "rm", "cp", "mv", "scp", "rsync",
+    "bash", "sh",
   } {
     out[b] = true
   }
@@ -152,6 +101,17 @@ func DefaultExecAllowlist() map[string]bool {
 // approved everything else for the session.
 var privileged = map[string]bool{
   "rm": true, "cp": true, "mv": true, "scp": true, "rsync": true,
+  "bash": true, "sh": true,
+}
+
+// PrivilegedWhy is why bin is always asked about.
+func PrivilegedWhy(bin string) string {
+  switch filepath.Base(bin) {
+  case "bash", "sh":
+    return "a shell can run anything"
+  }
+
+  return "deletes, moves, copies or sends files"
 }
 
 // Privileged reports whether bin is always asked about.
@@ -211,21 +171,6 @@ func (c *Config) RunIn(
   }
 
   return &RunResult{ Stdout: stdout, Stderr: stderr, ExitCode: exitCode }, nil
-}
-
-// Options configures New. Zero-value Options is a workable default:
-// empty root resolves to ".", zero Timeout/MaxOutput fall back to
-// sane defaults so callers that only care about the path jail don't
-// have to spell everything out.
-type Options struct {
-  Timeout      time.Duration
-  BuildTimeout time.Duration
-  MaxOutput    int
-  Allowlist    map[string]bool
-  DryRun       bool
-
-  ExecAllowlist map[string]bool
-  Commands     Commands
 }
 
 // New resolves root to an absolute, symlink-resolved path and returns
@@ -322,15 +267,6 @@ func (c *Config) ResolvePath(path string) (string, error) {
   )
 }
 
-// OutsideError is a path outside the project and every granted
-// directory. Callers that can ask the user (the agent loop) look for
-// it with errors.As and offer to grant Dir.
-type OutsideError struct {
-  Path     string // as given
-  Resolved string // absolute, symlinks resolved
-  Root     string
-}
-
 func (e *OutsideError) Error() string {
   return fmt.Sprintf(
     "path %q is outside the project %q and not readable yet: call "+
@@ -342,7 +278,8 @@ func (e *OutsideError) Error() string {
 // Dir is the directory to grant for the path: itself if it is one,
 // else its parent.
 func (e *OutsideError) Dir() string {
-  if info, err := os.Stat(e.Resolved); err == nil && info.IsDir() {
+  info, err := os.Stat(e.Resolved)
+  if err == nil && info.IsDir() {
     return e.Resolved
   }
 
@@ -395,15 +332,6 @@ func (c *Config) CheckBinary(bin string) error {
   return nil
 }
 
-// RunFlags packs RunResult's boolean outcomes into one byte instead
-// of separate bool fields. Field order matters for struct size in Go
-// (fields are laid out in declaration order, then padded): a lone int
-// sandwiched between two bools forces padding on both sides. With
-// ExitCode moved before a single trailing flags byte, RunResult drops
-// from 56 to 48 bytes — real, since one gets allocated per subprocess
-// call, not just tidiness.
-type RunFlags uint8
-
 const (
   RunTruncated RunFlags = 1 << iota
   RunDryRun
@@ -412,13 +340,6 @@ const (
 
 func (f RunFlags) Truncated() bool { return f & RunTruncated != 0 }
 func (f RunFlags) DryRun() bool    { return f & RunDryRun != 0 }
-
-// RunResult is the outcome of a sandboxed subprocess call.
-type RunResult struct {
-  Stdout, Stderr string
-  ExitCode       int
-  Flags          RunFlags
-}
 
 // Run execs binary with args directly — never through a shell — under
 // the configured timeout, and truncates output to MaxOutput bytes.
@@ -519,10 +440,33 @@ func (c *Config) runWith(
   return c.runAt(ctx, callerName, timeout, c.Root, binary, args)
 }
 
+// RunInWith is RunIn with the program's input read from stdin and,
+// when stdout is set, its output written there instead of returned.
+func (c *Config) RunInWith(
+  ctx context.Context, dir, binary string, args []string,
+  stdin io.Reader, stdout io.Writer,
+) (*RunResult, error) {
+  out, errOut, exitCode, err := c.runIO(
+    ctx, "RunInWith", c.BuildTimeout, dir, binary, args, stdin, stdout,
+  )
+  if err != nil {
+    return nil, err
+  }
+
+  return &RunResult{ Stdout: out, Stderr: errOut, ExitCode: exitCode }, nil
+}
+
 func (c *Config) runAt(
   ctx context.Context, callerName string, timeout time.Duration,
   dir, binary string, args []string,
 ) (stdout, stderr string, exitCode int, err error) {
+  return c.runIO(ctx, callerName, timeout, dir, binary, args, nil, nil)
+}
+
+func (c *Config) runIO(
+  ctx context.Context, callerName string, timeout time.Duration,
+  dir, binary string, args []string, stdin io.Reader, stdout io.Writer,
+) (outText, errText string, exitCode int, err error) {
   ctx, cancel := context.WithTimeout(ctx, timeout)
   defer cancel()
 
@@ -536,7 +480,12 @@ func (c *Config) runAt(
   }
 
   var outBuf, errBuf bytes.Buffer
+  cmd.Stdin = stdin
   cmd.Stdout = &outBuf
+  if stdout != nil {
+    cmd.Stdout = stdout
+  }
+
   cmd.Stderr = &errBuf
 
   runErr := cmd.Run()
@@ -576,7 +525,8 @@ func TruncateTail(s string, max int) (string, bool) {
   }
 
   cut := len(s) - max
-  if i := strings.IndexByte(s[cut:], '\n'); i >= 0 && i < 200 {
+  i := strings.IndexByte(s[cut:], '\n')
+  if i >= 0 && i < 200 {
     cut += i + 1
   }
 

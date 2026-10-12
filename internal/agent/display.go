@@ -26,7 +26,8 @@ func CallLine(name string, args map[string]any) string {
   switch toolIDs[name] {
   case toolRunCommand:
     parts := []string{ str("binary") }
-    if list, ok := args["args"].([]any); ok {
+    list, ok := args["args"].([]any)
+    if ok {
       for _, a := range list {
         parts = append(parts, shellWord(fmt.Sprint(a)))
       }
@@ -36,14 +37,16 @@ func CallLine(name string, args map[string]any) string {
 
   case toolRunProgram:
     parts := []string{ str("binary") }
-    if list, ok := args["args"].([]any); ok {
+    list, ok := args["args"].([]any)
+    if ok {
       for _, a := range list {
         parts = append(parts, shellWord(fmt.Sprint(a)))
       }
     }
 
     line := name + "  " + strings.Join(parts, " ")
-    if d := str("dir"); d != "" && d != "." {
+    d := str("dir")
+    if d != "" && d != "." {
       line += "  (in " + d + ")"
     }
 
@@ -51,7 +54,8 @@ func CallLine(name string, args map[string]any) string {
 
   case toolReadFile:
     loc := str("path")
-    if s, e := num("start_line"), num("end_line"); s > 0 || e > 0 {
+    s, e := num("start_line"), num("end_line")
+    if s > 0 || e > 0 {
       loc += fmt.Sprintf(":%d-%d", max(s, 1), e)
     }
 
@@ -59,7 +63,8 @@ func CallLine(name string, args map[string]any) string {
 
   case toolReadPDF:
     line := name + "  " + str("path")
-    if f, l := num("first_page"), num("last_page"); f > 0 || l > 0 {
+    f, l := num("first_page"), num("last_page")
+    if f > 0 || l > 0 {
       line += fmt.Sprintf(" · pages %d-%d", max(f, 1), l)
     }
 
@@ -67,11 +72,13 @@ func CallLine(name string, args map[string]any) string {
 
   case toolSearchCode:
     line := name + "  " + quote(str("pattern"))
-    if p := str("path"); p != "" {
+    p := str("path")
+    if p != "" {
       line += " in " + p
     }
 
-    if t := str("file_type"); t != "" {
+    t := str("file_type")
+    if t != "" {
       line += " (" + t + ")"
     }
 
@@ -79,7 +86,8 @@ func CallLine(name string, args map[string]any) string {
 
   case toolWebSearch:
     line := name + "  " + quote(str("query"))
-    if t := str("topic"); t != "" && t != "general" {
+    t := str("topic")
+    if t != "" && t != "general" {
       line += " · " + t
     }
 
@@ -93,7 +101,8 @@ func CallLine(name string, args map[string]any) string {
       "%s  %s (−%d +%d lines)",
       name, str("path"), lines(args["old_string"]), lines(args["new_string"]),
     )
-    if all, _ := args["replace_all"].(bool); all {
+    all, _ := args["replace_all"].(bool)
+    if all {
       line += " everywhere"
     }
 
@@ -104,7 +113,8 @@ func CallLine(name string, args map[string]any) string {
 
   case toolScratchpadWrite:
     verb := "write"
-    if a, _ := args["append"].(bool); a {
+    a, _ := args["append"].(bool)
+    if a {
       verb = "append"
     }
 
@@ -122,7 +132,8 @@ func CallLine(name string, args map[string]any) string {
   parts := make([]string, 0, len(keys))
   for _, k := range keys {
     v := args[k]
-    if s, ok := v.(string); ok {
+    s, ok := v.(string)
+    if ok {
       v = oneLine(s)
     }
 
@@ -136,19 +147,23 @@ func CallLine(name string, args map[string]any) string {
 // came back, not the whole of it.
 func ResultLine(name, result string) string {
   var r map[string]any
-  if err := json.Unmarshal([]byte(result), &r); err != nil {
+  err := json.Unmarshal([]byte(result), &r)
+  if err != nil {
     return sizeOf(result)
   }
 
-  if msg, ok := r["error"].(string); ok && msg != "" {
+  msg, ok := r["error"].(string)
+  if ok && msg != "" {
     return "error: " + lastErrorLine(msg)
   }
 
-  if ref, ok := r["archived"].(string); ok {
+  ref, ok := r["archived"].(string)
+  if ok {
     return "archived: " + ref
   }
 
-  if dir, ok := r["granted"].(string); ok {
+  dir, ok := r["granted"].(string)
+  if ok {
     return "read access granted: " + dir
   }
 
@@ -173,7 +188,8 @@ func ResultLine(name, result string) string {
 
   case toolReadFile:
     shown := strings.Count(str("content"), "\n") + 1
-    if total := num("total_lines"); total > shown {
+    total := num("total_lines")
+    if total > shown {
       return fmt.Sprintf("%d of %d lines", shown, total)
     }
 
@@ -181,7 +197,8 @@ func ResultLine(name, result string) string {
 
   case toolReadPDF:
     line := fmt.Sprintf("pages %d-%d", num("first_page"), num("last_page"))
-    if total := num("total_pages"); total > 0 {
+    total := num("total_pages")
+    if total > 0 {
       line += fmt.Sprintf(" of %d", total)
     }
 
@@ -212,7 +229,8 @@ func ResultLine(name, result string) string {
     }
 
     if num("exit_code") != 0 {
-      if last := lastLine(out); last != "" {
+      last := lastLine(out)
+      if last != "" {
         line += " · " + last
       }
     }
@@ -220,18 +238,21 @@ func ResultLine(name, result string) string {
     return line
 
   case toolRunTests, toolBuildCheck, toolLintCheck:
-    if avail, ok := r["available"].(bool); ok && !avail {
+    avail, ok := r["available"].(bool)
+    if ok && !avail {
       return "unavailable: " + str("hint")
     }
 
     verdict := "passed"
-    if passed, _ := r["passed"].(bool); !passed {
+    passed, _ := r["passed"].(bool)
+    if !passed {
       verdict = "failed"
     }
 
     line := str("command") + " · " + verdict
     if verdict == "failed" {
-      if first := firstLine(str("summary")); first != "" {
+      first := firstLine(str("summary"))
+      if first != "" {
         line += " · " + first
       }
     }
@@ -239,11 +260,13 @@ func ResultLine(name, result string) string {
     return line
 
   case toolWriteFile, toolEditFile:
-    if dry, _ := r["dry_run"].(bool); dry {
+    dry, _ := r["dry_run"].(bool)
+    if dry {
       return "dry run, nothing written"
     }
 
-    if created, _ := r["created"].(bool); created {
+    created, _ := r["created"].(bool)
+    if created {
       return fmt.Sprintf("created, %d lines", num("lines_added"))
     }
 
@@ -290,7 +313,8 @@ func lines(v any) int {
 
 func lastLine(s string) string {
   s = strings.TrimSpace(s)
-  if i := strings.LastIndexByte(s, '\n'); i >= 0 {
+  i := strings.LastIndexByte(s, '\n')
+  if i >= 0 {
     return strings.TrimSpace(s[i + 1:])
   }
 
@@ -299,7 +323,8 @@ func lastLine(s string) string {
 
 func firstLine(s string) string {
   s = strings.TrimSpace(s)
-  if i := strings.IndexByte(s, '\n'); i >= 0 {
+  i := strings.IndexByte(s, '\n')
+  if i >= 0 {
     return s[:i]
   }
 

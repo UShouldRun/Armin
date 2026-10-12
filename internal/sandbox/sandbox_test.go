@@ -79,7 +79,8 @@ func TestNewResolvesRootToAbsolute(t *testing.T) {
 
 func TestResolvePathWithinRoot(t *testing.T) {
   cfg := newTestConfig(t, Options{})
-  if err := os.WriteFile(filepath.Join(cfg.Root, "f.txt"), []byte("x"), 0o644); err != nil {
+  err := os.WriteFile(filepath.Join(cfg.Root, "f.txt"), []byte("x"), 0o644)
+  if err != nil {
     t.Fatal(err)
   }
 
@@ -106,14 +107,16 @@ func TestResolvePathEmptyMeansRoot(t *testing.T) {
 
 func TestResolvePathRejectsDotDotEscape(t *testing.T) {
   cfg := newTestConfig(t, Options{})
-  if _, err := cfg.ResolvePath("../../etc/passwd"); err == nil {
+  _, err := cfg.ResolvePath("../../etc/passwd")
+  if err == nil {
     t.Fatal("ResolvePath allowed a ../ escape out of the project root")
   }
 }
 
 func TestResolvePathRejectsAbsoluteEscape(t *testing.T) {
   cfg := newTestConfig(t, Options{})
-  if _, err := cfg.ResolvePath("/etc/passwd"); err == nil {
+  _, err := cfg.ResolvePath("/etc/passwd")
+  if err == nil {
     t.Fatal("ResolvePath allowed an absolute path outside the project root")
   }
 }
@@ -121,10 +124,12 @@ func TestResolvePathRejectsAbsoluteEscape(t *testing.T) {
 func TestResolvePathAllowsAbsolutePathInsideRoot(t *testing.T) {
   cfg := newTestConfig(t, Options{})
   abs := filepath.Join(cfg.Root, "sub", "f.txt")
-  if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+  err := os.MkdirAll(filepath.Dir(abs), 0o755)
+  if err != nil {
     t.Fatal(err)
   }
-  if err := os.WriteFile(abs, []byte("x"), 0o644); err != nil {
+  err = os.WriteFile(abs, []byte("x"), 0o644)
+  if err != nil {
     t.Fatal(err)
   }
 
@@ -142,16 +147,19 @@ func TestResolvePathRejectsSymlinkEscape(t *testing.T) {
 
   outside := t.TempDir()
   secret := filepath.Join(outside, "secret.txt")
-  if err := os.WriteFile(secret, []byte("nope"), 0o644); err != nil {
+  err := os.WriteFile(secret, []byte("nope"), 0o644)
+  if err != nil {
     t.Fatal(err)
   }
 
   link := filepath.Join(cfg.Root, "escape")
-  if err := os.Symlink(outside, link); err != nil {
+  err = os.Symlink(outside, link)
+  if err != nil {
     t.Skipf("symlinks unsupported in this environment: %v", err)
   }
 
-  if _, err := cfg.ResolvePath("escape/secret.txt"); err == nil {
+  _, err = cfg.ResolvePath("escape/secret.txt")
+  if err == nil {
     t.Fatal("ResolvePath followed a symlink out of the project root without rejecting it")
   }
 }
@@ -175,14 +183,16 @@ func TestResolvePathHandlesNonexistentPath(t *testing.T) {
 
 func TestCheckBinaryAllowsListed(t *testing.T) {
   cfg := newTestConfig(t, Options{Allowlist: map[string]bool{"git": true}})
-  if err := cfg.CheckBinary("git"); err != nil {
+  err := cfg.CheckBinary("git")
+  if err != nil {
     t.Fatalf("CheckBinary(git): %v", err)
   }
 }
 
 func TestCheckBinaryRejectsUnlisted(t *testing.T) {
   cfg := newTestConfig(t, Options{Allowlist: map[string]bool{"git": true}})
-  if err := cfg.CheckBinary("rm"); err == nil {
+  err := cfg.CheckBinary("rm")
+  if err == nil {
     t.Fatal("CheckBinary allowed a binary not in the allowlist")
   }
 }
@@ -190,7 +200,8 @@ func TestCheckBinaryRejectsUnlisted(t *testing.T) {
 func TestCheckBinaryRejectsPathQualified(t *testing.T) {
   cfg := newTestConfig(t, Options{Allowlist: map[string]bool{"git": true}})
   for _, bad := range []string{"/usr/bin/git", "./git", "../git", "sub/git"} {
-    if err := cfg.CheckBinary(bad); err == nil {
+    err := cfg.CheckBinary(bad)
+    if err == nil {
       t.Errorf("CheckBinary(%q) should reject a path-qualified binary name", bad)
     }
   }
@@ -293,7 +304,8 @@ func TestRunForceTruncatesLongOutput(t *testing.T) {
 }
 
 func TestDescribeArgs(t *testing.T) {
-  if got := DescribeArgs("git", []string{"log", "-3"}); got != "git log -3" {
+  got := DescribeArgs("git", []string{"log", "-3"})
+  if got != "git log -3" {
     t.Fatalf("DescribeArgs = %q", got)
   }
 }

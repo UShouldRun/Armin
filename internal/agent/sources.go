@@ -14,18 +14,6 @@ import (
 const citeNote = "Cite each claim taken from a result inline as [id]. " +
   "End your answer with a Sources list: - [title](url) per id cited."
 
-type source struct {
-  title, url string
-}
-
-// turnSources numbers web results across one turn, so two searches
-// never hand out the same [n]. Turn owns one; nil disables numbering
-// (the save-before-compact exchange, MCP).
-type turnSources struct {
-  list  []source
-  byURL map[string]int
-}
-
 func (ts *turnSources) number(out *tools.WebSearchOutput) {
   if ts == nil || out == nil {
     return

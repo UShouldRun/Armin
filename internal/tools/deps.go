@@ -12,18 +12,6 @@ import (
   "armin/internal/sandbox"
 )
 
-type Dependency struct {
-  Name    string `json:"name"`
-  Version string `json:"version,omitempty"`
-}
-
-type ListDependenciesInput struct{}
-
-type ListDependenciesOutput struct {
-  Manifest     string       `json:"manifest"` // which file this came from
-  Dependencies []Dependency `json:"dependencies"`
-}
-
 // manifestParsers is checked in order; the first manifest file
 // found at the project root wins. Each parser is a minimal,
 // single-purpose reader, not a general-purpose format library.
@@ -101,7 +89,8 @@ func parsePackageJSON(data []byte) ([]Dependency, error) {
     Dependencies    map[string]string `json:"dependencies"`
     DevDependencies map[string]string `json:"devDependencies"`
   }
-  if err := json.Unmarshal(data, &pkg); err != nil {
+  err := json.Unmarshal(data, &pkg)
+  if err != nil {
     return nil, err
   }
 
@@ -140,7 +129,8 @@ func parseRequirementsTxt(data []byte) ([]Dependency, error) {
 
 func cutAny(s string, seps []string) (before, after string, found bool) {
   for _, sep := range seps {
-    if i := strings.Index(s, sep); i >= 0 {
+    i := strings.Index(s, sep)
+    if i >= 0 {
       return s[:i], s[i:], true
     }
   }
@@ -192,13 +182,6 @@ func parsePyprojectToml(data []byte) ([]Dependency, error) {
 
 // --- module_graph ---
 
-type ModuleGraphInput struct{}
-
-type ModuleGraphOutput struct {
-  Module  string              `json:"module"`  // this project's own module path, from go.mod
-  Imports map[string][]string `json:"imports"` // package path -> internal packages it imports
-}
-
 // ModuleGraph shows which of this module's own packages import
 // which, via `go list -json` (the stdlib go tool — no
 // golang.org/x/tools/go/packages dependency), filtered down to just
@@ -245,7 +228,8 @@ func readModulePath(cfg *sandbox.Config) (string, error) {
   }
   for _, line := range strings.Split(string(data), "\n") {
     line = strings.TrimSpace(line)
-    if after, ok := strings.CutPrefix(line, "module "); ok {
+    after, ok := strings.CutPrefix(line, "module ")
+    if ok {
       return strings.TrimSpace(after), nil
     }
   }
@@ -266,7 +250,8 @@ func parseModuleGraph(output, modPath string) (map[string][]string, error) {
       ImportPath string   `json:"ImportPath"`
       Imports    []string `json:"Imports"`
     }
-    if err := dec.Decode(&pkg); err != nil {
+    err := dec.Decode(&pkg)
+    if err != nil {
       return nil, err
     }
     if !strings.HasPrefix(pkg.ImportPath, modPath) {
