@@ -62,3 +62,32 @@ func TestWrapKeepsHangingIndent(t *testing.T) {
     }
   }
 }
+
+func TestTableWrapsCellsToFit(t *testing.T) {
+  Enabled = false
+  defer func() { Enabled = true }()
+
+  rows := renderTable([]string{
+    "| name | what it does |",
+    "|---|--:|",
+    "| x | a long description that cannot fit in a narrow terminal at all |",
+    "| averyveryverylongidentifier | short |",
+  }, 40)
+
+  for _, r := range rows {
+    if n := len([]rune(r)); n > 40 {
+      t.Fatalf("row %d wide: %q", n, r)
+    }
+
+    if strings.Contains(r, "…") {
+      t.Fatalf("row cut: %q", r)
+    }
+  }
+
+  got := strings.Join(rows, "\n")
+  for _, want := range []string{ "┌", "├", "└", "narrow", "short │" } {
+    if !strings.Contains(got, want) {
+      t.Fatalf("missing %q in:\n%s", want, got)
+    }
+  }
+}
