@@ -9,12 +9,15 @@
 # config.conf.
 #
 # Usage: ./install.sh [--prefix DIR] [--no-config] [--no-skills]
-#                     [--update-skills]
+#                     [--update-skills] [--install-deps | --no-deps]
 #
 #   --prefix DIR      install the binary here (default: ~/.local/bin)
 #   --no-config       skip writing a starter config.conf
 #   --no-skills       skip installing the bundled skills
 #   --update-skills   overwrite installed copies of the bundled skills
+#   --install-deps    install missing commands without asking
+#   --no-deps         only report missing commands, never offer to
+#                     install them
 
 set -eu
 
@@ -22,6 +25,7 @@ prefix="${HOME}/.local/bin"
 write_config=1
 install_skills=1
 update_skills=0
+deps=ask
 
 usage() {
   echo "Usage: ./install.sh [--prefix DIR] [--no-config] [--no-skills] [--update-skills]"
@@ -30,6 +34,8 @@ usage() {
   echo "  --no-config       skip writing a starter config.conf"
   echo "  --no-skills       skip installing the bundled skills"
   echo "  --update-skills   overwrite installed copies of the bundled skills"
+  echo "  --install-deps    install missing commands without asking"
+  echo "  --no-deps         only report missing commands, never offer to install them"
 }
 
 while [ $# -gt 0 ]; do
@@ -53,6 +59,14 @@ while [ $# -gt 0 ]; do
       ;;
     --update-skills)
       update_skills=1
+      shift
+      ;;
+    --install-deps)
+      deps=yes
+      shift
+      ;;
+    --no-deps)
+      deps=no
       shift
       ;;
     -h|--help)
@@ -120,13 +134,156 @@ esac
 echo
 echo "checking dependencies:"
 
-# --- Required: ripgrep ------------------------------------------------
+# --- Commands armin runs -----------------------------------------------
+# Each group lists commands and what armin can't do without them.
+# Missing ones are offered for install, one question per group, with
+# the exact command shown; declining just reports what's lost.
 
-if command -v rg >/dev/null 2>&1; then
-  ok "ripgrep found ($(command -v rg))"
-else
-  warn "ripgrep (rg) not found — search_code won't work until it's installed"
-  echo "      https://github.com/BurntSushi/ripgrep#installation"
+pm=""
+for c in apt-get dnf pacman brew; do
+  if command -v "$c" >/dev/null 2>&1; then
+    pm="$c"
+    break
+  fi
+done
+
+sudo="sudo "
+if [ "$(id -u)" = 0 ] || [ "$pm" = brew ]; then
+  sudo=""
+fi
+
+case "$pm" in
+  apt-get) install_cmd="${sudo}apt-get update -qq && ${sudo}apt-get install -y" ;;
+  dnf)     install_cmd="${sudo}dnf install -y" ;;
+  pacman)  install_cmd="${sudo}pacman -S --needed --noconfirm" ;;
+  brew)    install_cmd="brew install" ;;
+  *)       install_cmd="" ;;
+esac
+
+# pkg BIN prints the package that provides BIN under $pm.
+pkg() {
+  case "$pm:$1" in
+    *:rg)                          echo ripgrep ;;
+    apt-get:pdf*|dnf:pdf*)         echo poppler-utils ;;
+    *:pdf*)                        echo poppler ;;
+    apt-get:g++)                   echo g++ ;;
+    dnf:g++)                       echo gcc-c++ ;;
+    *:g++)                         echo gcc ;;
+    apt-get:scp)                   echo openssh-client ;;
+    dnf:scp)                       echo openssh-clients ;;
+    *:scp)                         echo openssh ;;
+    apt-get:mpi*)                  echo "openmpi-bin libopenmpi-dev" ;;
+    *:mpi*)                        echo openmpi ;;
+    apt-get:which)                 echo debianutils ;;
+    *:find)                        echo findutils ;;
+    *:diff)                        echo diffutils ;;
+    *:cat|*:ls|*:head|*:tail|*:wc|*:sort|*:uniq|*:cut|*:tr|*:stat|*:du|*:df|*:nl|*:realpath|*:sha256sum|*:md5sum)
+                                   echo coreutils ;;
+    *)                             echo "$1" ;;
+  esac
+}
+
+# group TITLE "BIN,BIN=what armin loses" ...
+group() {
+  title="$1"
+  shift
+  missing=""
+  pkgs=""
+  lost=""
+  for entry in "$@"; do
+    gone=""
+    for b in $(echo "${entry%%=*}" | tr ',' ' '); do
+      command -v "$b" >/dev/null 2>&1 || gone="$gone $b"
+    done
+
+    [ -n "$gone" ] || continue
+    missing="$missing$gone"
+    lost="$lost
+        -$gone: ${entry#*=}"
+    for b in $gone; do
+      p=$(pkg "$b")
+      case " $pkgs " in
+        *" $p "*) ;;
+        *) pkgs="$pkgs $p" ;;
+      esac
+    done
+  done
+
+  if [ -z "$missing" ]; then
+    ok "$title: all found"
+    return
+  fi
+
+  warn "$title: missing$missing"
+  offer "$title" "$pkgs" "$lost"
+}
+
+# offer TITLE PACKAGES LOST asks (or, with --install-deps, doesn't)
+# and installs; otherwise says what armin will lack.
+offer() {
+  if [ -z "$install_cmd" ]; then
+    echo "      no apt, dnf, pacman or brew found: install$2 yourself"
+  elif [ "$deps" != no ]; then
+    answer=n
+    if [ "$deps" = yes ]; then
+      answer=y
+    elif [ -t 0 ]; then
+      printf '      install them now with: %s%s ? [y/N] ' "$install_cmd" "$2"
+      read -r answer || answer=n
+    fi
+
+    case "$answer" in
+      y|Y|yes)
+        if sh -c "$install_cmd$2"; then
+          ok "$1: installed$2"
+          return
+        fi
+
+        warn "$1: installing failed"
+        ;;
+    esac
+  fi
+
+  echo "      without them, armin can't do:$3"
+}
+
+group "armin's own tools" \
+  "rg=search_code (finding code in the project)" \
+  "git=git history, diffs, blame and working-tree tools" \
+  "pdftotext,pdfinfo=read_pdf (reading PDFs)" \
+  "tree=directory trees through run_command" \
+  "file=telling file types apart through run_command" \
+  "grep,find,sed,diff,which=run_command's search and inspection commands" \
+  "cat,ls,head,tail,wc,sort,uniq,cut,tr,stat,du,df,nl,realpath,sha256sum,md5sum=run_command's basic commands"
+
+group "C and C++ builds (run_program)" \
+  "make=make builds, and build_check / run_tests for Makefile projects" \
+  "gcc,g++=compiling C and C++" \
+  "cmake=CMake projects" \
+  "gdb,valgrind=debugging and memory checks"
+
+group "copying files to other machines (run_program, always asked)" \
+  "rsync=rsync transfers" \
+  "scp=scp transfers"
+
+group "MPI (run_program)" \
+  "mpicc,mpirun=compiling and running MPI programs"
+
+# Toolchains run_program can use: reported, never installed here —
+# which ones you want is your call.
+found=""
+absent=""
+for b in go cargo rustc python3 pytest node npm java javac mvn gradle dotnet deno bun zig typst pdflatex; do
+  if command -v "$b" >/dev/null 2>&1; then
+    found="$found $b"
+  else
+    absent="$absent $b"
+  fi
+done
+
+ok "other toolchains run_program can use:${found:- none}"
+if [ -n "$absent" ]; then
+  echo "      not installed (run_program can't use them until you install them):$absent"
 fi
 
 # --- Required (running somewhere): llama-server ------------------------

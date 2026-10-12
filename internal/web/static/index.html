@@ -74,6 +74,11 @@
   .approve .add { background: var(--add); color: var(--addt); display: block; }
   .approve .del { background: var(--del); color: var(--delt); display: block; }
   .approve input { width: 60%; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
+  #status { padding: 4px 20px; color: var(--dim); font: 12px ui-monospace, monospace; border-top: 1px solid var(--line); }
+  #status::before { content: "●"; color: var(--accent); margin-right: 8px; animation: pulse 1.2s ease-in-out infinite; }
+  #status.stall::before, #status.stall { color: #d4a017; }
+  #status.lost::before, #status.lost { color: var(--delt); }
+  @keyframes pulse { 50% { opacity: .25; } }
   form { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--panel); }
   textarea {
     flex: 1; resize: none; height: 64px; padding: 8px; font: inherit;
@@ -155,6 +160,7 @@
 
 <main>
   <div id = "log"><div class = "empty">Ask about the project. Click a file on the left to preview it; click a <code>file:line</code> in an answer to jump there.</div></div>
+  <div id = "status" hidden></div>
   <form id = "form">
     <textarea
       id          = "input"
@@ -460,6 +466,48 @@ function approvalBox(ev) {
   });
 }
 
+// ---------- status ----------
+
+// What the turn is doing, for the status bar: the phase, since when,
+// the last sign of life from the model and from armin itself.
+const stallAfter = 20000; // ms of model silence before it says so
+const lostAfter  = 15000; // ms without armin's 5 s heartbeat
+
+const st = { phase: "", since: 0, last: 0, heard: 0, watch: false, count: 0 };
+
+function since(t) {
+  const s = Math.round((Date.now() - t) / 1000);
+  return s < 60 ? `${ s }s` : `${ Math.floor(s / 60) }m${ String(s % 60).padStart(2, "0") }s`;
+}
+
+function setPhase(phase, watch) {
+  const now = Date.now();
+  Object.assign(st, { phase, since: now, last: now, heard: now, watch, count: 0 });
+  renderStatus();
+}
+
+function renderStatus() {
+  const bar = $("status");
+  const now = Date.now();
+  let text  = st.phase;
+  if (st.count) text += ` · ${ st.count } tokens`;
+  text += " · " + since(st.since);
+  if (st.phase === "waiting for the model" && now - st.since > 5000) text += " (it may be loading or busy)";
+
+  let cls = "";
+  if (st.watch && now - st.last > stallAfter) {
+    text += " · nothing from the model for " + since(st.last);
+    cls   = "stall";
+  }
+  if (now - st.heard > lostAfter) {
+    text = `no word from armin for ${ since(st.heard) } · the connection may be lost (is armin still running?)`;
+    cls  = "lost";
+  }
+
+  bar.textContent = text;
+  bar.className   = cls;
+}
+
 async function send(text) {
   busy = true;
   $("send").disabled = true;
@@ -467,6 +515,10 @@ async function send(text) {
 
   let answer = "", thoughts = "", think = null, msg = null, pending = false;
   let lastCall = null;
+
+  setPhase("waiting for the model", true);
+  $("status").hidden = false;
+  const ticker = setInterval(renderStatus, 500);
   const paint = () => {
     pending = false;
     if (msg) msg.innerHTML = markdown(answer);
@@ -477,8 +529,19 @@ async function send(text) {
     if (!pending) { pending = true; requestAnimationFrame(paint); }
   };
   const handle = (kind, data) => {
+    st.heard = Date.now();
     switch (kind) {
+    case "ping":
+      break;
+    case "progress":
+      if (!st.phase.startsWith("reading the prompt")) setPhase("", true);
+      st.phase = `reading the prompt ${ kTokens(data.done) }/${ kTokens(data.total) }`;
+      st.last  = Date.now();
+      break;
     case "reasoning":
+      if (st.phase !== "thinking") setPhase("thinking", true);
+      st.count++;
+      st.last = Date.now();
       if (!think) {
         think = document.createElement("details");
         think.className = "think";
@@ -490,6 +553,9 @@ async function send(text) {
       schedule();
       break;
     case "token":
+      if (st.phase !== "writing") setPhase("writing", true);
+      st.count++;
+      st.last = Date.now();
       if (!msg) msg = add("msg md", "");
       answer += data;
       schedule();
@@ -502,10 +568,12 @@ async function send(text) {
       add("tool", `<span class = "dot">●</span> <b>${ esc(name) }</b>  ${ esc(rest) }`);
       msg = null; answer = ""; think = null; thoughts = "";
       lastCall = data;
+      setPhase("running " + (data.args?.binary || data.name), false);
       break;
     }
 
     case "result":
+      setPhase("waiting for the model", true);
       add(data.startsWith("error:") ? "tool err" : "tool result", "⎿ " + esc(data));
       if (!data.startsWith("error:") && lastCall && changers.includes(lastCall.name)) {
         filesChanged(lastCall);
@@ -520,6 +588,7 @@ async function send(text) {
       showContext(data.tokens, data.window, data.tier, false);
       break;
     case "approve":
+      setPhase("waiting for your approval", false);
       approvalBox(data);
       break;
     case "error":
@@ -562,6 +631,8 @@ async function send(text) {
     add("msg err", esc(e.message));
 
   } finally {
+    clearInterval(ticker);
+    $("status").hidden = true;
     busy = false;
     $("send").disabled = false;
     refreshInfo();

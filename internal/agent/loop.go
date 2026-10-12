@@ -109,6 +109,10 @@ type Hooks struct {
   // Notice receives one-line status messages about context
   // management (growing the window, saving notes, compacting).
   Notice func(string)
+
+  // Progress receives the model's prompt-reading progress (tokens
+  // read of total) before each reply starts, where supported.
+  Progress func(done, total int)
 }
 
 // New returns a ready-to-use Loop.
@@ -974,7 +978,7 @@ func (l *Loop) Turn(
 ) (string, error) {
   defs := l.Definitions()
   stream := llm.StreamHandlers{
-    Token: hooks.Token, Reasoning: hooks.Reasoning,
+    Token: hooks.Token, Reasoning: hooks.Reasoning, Progress: hooks.Progress,
   }
 
   turnStart := len(*history)

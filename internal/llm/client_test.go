@@ -4,6 +4,7 @@ import (
   "context"
   "encoding/json"
   "errors"
+  "fmt"
   "io"
   "net/http"
   "net/http/httptest"
@@ -18,6 +19,7 @@ func serverReturning(t *testing.T, path string, handler http.HandlerFunc) *httpt
   mux.HandleFunc(path, handler)
   server := httptest.NewServer(mux)
   t.Cleanup(server.Close)
+
   return server
 }
 
@@ -27,9 +29,11 @@ func TestChatNonStreaming(t *testing.T) {
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
       t.Fatal(err)
     }
+
     if req.Stream {
       t.Error("expected Stream=false when onToken is nil")
     }
+
     json.NewEncoder(w).Encode(owaiChatResponse{
       Choices: []owaiChoice{
         { Message: owaiMessage{ Role: "assistant", Content: "hi there" } },
@@ -42,6 +46,7 @@ func TestChatNonStreaming(t *testing.T) {
   if err != nil {
     t.Fatalf("Chat: %v", err)
   }
+
   if msg.Content != "hi there" {
     t.Fatalf("Content = %q, want %q", msg.Content, "hi there")
   }
@@ -53,6 +58,7 @@ func TestChatSendsToolCallArgumentsAsJSONString(t *testing.T) {
     if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
       t.Fatal(err)
     }
+
     msgs := raw["messages"].([]any)
     assistantMsg := msgs[0].(map[string]any)
     toolCalls := assistantMsg["tool_calls"].([]any)
@@ -61,9 +67,11 @@ func TestChatSendsToolCallArgumentsAsJSONString(t *testing.T) {
     if !ok {
       t.Fatalf("arguments = %v (%T), want a JSON-encoded string", fn["arguments"], fn["arguments"])
     }
+
     if !strings.Contains(args, `"query"`) {
       t.Fatalf("arguments = %q, want it to contain the query key", args)
     }
+
     json.NewEncoder(w).Encode(owaiChatResponse{
       Choices: []owaiChoice{{ Message: owaiMessage{ Role: "assistant", Content: "ok" } }},
     })
@@ -107,13 +115,16 @@ func TestChatParsesToolCallIDAndArguments(t *testing.T) {
   if err != nil {
     t.Fatalf("Chat: %v", err)
   }
+
   if len(msg.ToolCalls) != 1 {
     t.Fatalf("ToolCalls = %+v, want 1", msg.ToolCalls)
   }
+
   call := msg.ToolCalls[0]
   if call.ID != "call_abc" {
     t.Fatalf("ID = %q, want %q", call.ID, "call_abc")
   }
+
   if call.Function.Arguments["query"] != "foo" {
     t.Fatalf("Arguments = %+v", call.Function.Arguments)
   }
@@ -140,6 +151,7 @@ func TestChatSynthesizesToolCallIDWhenMissing(t *testing.T) {
   if err != nil {
     t.Fatalf("Chat: %v", err)
   }
+
   if msg.ToolCalls[0].ID == "" {
     t.Fatal("expected a synthesized non-empty ID when the server didn't supply one")
   }
@@ -151,6 +163,7 @@ func TestChatStreamingAssemblesDeltasAndToolCallFragments(t *testing.T) {
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
       t.Fatal(err)
     }
+
     if !req.Stream {
       t.Error("expected Stream=true when onToken is non-nil")
     }
@@ -193,16 +206,20 @@ func TestChatStreamingAssemblesDeltasAndToolCallFragments(t *testing.T) {
   if streamed.String() != "Hello" {
     t.Fatalf("streamed deltas = %q, want \"Hello\"", streamed.String())
   }
+
   if msg.Content != "Hello" {
     t.Fatalf("final Content = %q, want \"Hello\"", msg.Content)
   }
+
   if len(msg.ToolCalls) != 1 {
     t.Fatalf("ToolCalls = %+v, want 1 assembled from two fragments", msg.ToolCalls)
   }
+
   call := msg.ToolCalls[0]
   if call.ID != "call_1" || call.Function.Name != "search_code" {
     t.Fatalf("call = %+v", call)
   }
+
   if call.Function.Arguments["query"] != "foo" {
     t.Fatalf("Arguments = %+v, want the two fragments joined into {\"query\":\"foo\"}", call.Function.Arguments)
   }
@@ -241,6 +258,7 @@ func TestComplete(t *testing.T) {
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
       t.Fatal(err)
     }
+
     gotPrefix, gotSuffix = req.InputPrefix, req.InputSuffix
     json.NewEncoder(w).Encode(infillResponse{Content: "return 42"})
   })
@@ -252,9 +270,11 @@ func TestComplete(t *testing.T) {
   if err != nil {
     t.Fatalf("Complete: %v", err)
   }
+
   if out != "return 42" {
     t.Fatalf("Complete result = %q", out)
   }
+
   if gotPrefix != "func f() {" || gotSuffix != "}" {
     t.Fatalf("sent prefix/suffix = %q / %q", gotPrefix, gotSuffix)
   }
@@ -308,6 +328,7 @@ func TestRequestStartEndBracketEveryCall(t *testing.T) {
   if _, err := client.Chat(context.Background(), nil, nil, nil); err != nil {
     t.Fatal(err)
   }
+
   if starts != 1 || ends != 1 {
     t.Fatalf("starts=%d ends=%d, want 1 and 1", starts, ends)
   }
@@ -342,6 +363,7 @@ func TestChatSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
   if _, err := client.Chat(context.Background(), nil, nil, nil); err != nil {
     t.Fatalf("Chat: %v", err)
   }
+
   if gotAuth != "Bearer sk-ant-test" {
     t.Fatalf("Authorization header = %q, want %q", gotAuth, "Bearer sk-ant-test")
   }
@@ -360,6 +382,7 @@ func TestChatOmitsAuthorizationHeaderWhenNoAPIKey(t *testing.T) {
   if _, err := client.Chat(context.Background(), nil, nil, nil); err != nil {
     t.Fatalf("Chat: %v", err)
   }
+
   if sawHeader {
     t.Fatal("no Authorization header should be sent when APIKey is unset (e.g. a local llama-server)")
   }
@@ -377,6 +400,7 @@ func TestCompleteSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
   if _, err := client.Complete(context.Background(), "x", "", CompleteOptions{}); err != nil {
     t.Fatalf("Complete: %v", err)
   }
+
   if gotAuth != "Bearer sk-ant-test" {
     t.Fatalf("Authorization header = %q, want %q", gotAuth, "Bearer sk-ant-test")
   }
@@ -394,6 +418,7 @@ func TestHealthSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
   if err := client.Health(context.Background()); err != nil {
     t.Fatalf("Health: %v", err)
   }
+
   if gotAuth != "Bearer sk-ant-test" {
     t.Fatalf("Authorization header = %q, want %q", gotAuth, "Bearer sk-ant-test")
   }
@@ -412,13 +437,16 @@ func TestChatStreamSeparatesReasoningAndReadsUsage(t *testing.T) {
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
       t.Fatal(err)
     }
+
     if req.StreamOptions == nil || !req.StreamOptions.IncludeUsage {
       t.Error("expected stream_options.include_usage on a streamed request")
     }
+
     write := func(chunk owaiStreamChunk) {
       b, _ := json.Marshal(chunk)
       io.WriteString(w, "data: " + string(b) + "\n\n")
     }
+
     write(owaiStreamChunk{ Choices: []owaiStreamChoice{ { Delta: owaiStreamDelta{ ReasoningContent: "hmm " } } } })
     write(owaiStreamChunk{ Choices: []owaiStreamChoice{ { Delta: owaiStreamDelta{ ReasoningContent: "ok" } } } })
     write(owaiStreamChunk{ Choices: []owaiStreamChoice{ { Delta: owaiStreamDelta{ Content: "answer" } } } })
@@ -436,12 +464,15 @@ func TestChatStreamSeparatesReasoningAndReadsUsage(t *testing.T) {
   if err != nil {
     t.Fatalf("ChatStream: %v", err)
   }
+
   if tokens.String() != "answer" || msg.Content != "answer" {
     t.Fatalf("content = %q / %q, want \"answer\"", tokens.String(), msg.Content)
   }
+
   if thoughts.String() != "hmm ok" || msg.Reasoning != "hmm ok" {
     t.Fatalf("reasoning = %q / %q, want \"hmm ok\"", thoughts.String(), msg.Reasoning)
   }
+
   if msg.Usage.Total() != 120 {
     t.Fatalf("Usage = %+v, want 100+20", msg.Usage)
   }
@@ -453,9 +484,11 @@ func TestChatSendsReasoningBack(t *testing.T) {
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
       t.Fatal(err)
     }
+
     if req.Messages[0].ReasoningContent != "plan" {
       t.Errorf("reasoning_content = %q, want \"plan\"", req.Messages[0].ReasoningContent)
     }
+
     json.NewEncoder(w).Encode(owaiChatResponse{
       Choices: []owaiChoice{ { Message: owaiMessage{ Role: "assistant", Content: "ok" } } },
       Usage:   &Usage{ PromptTokens: 7 },
@@ -469,6 +502,7 @@ func TestChatSendsReasoningBack(t *testing.T) {
   if err != nil {
     t.Fatalf("Chat: %v", err)
   }
+
   if msg.Usage.PromptTokens != 7 {
     t.Fatalf("Usage = %+v, want prompt_tokens 7", msg.Usage)
   }
@@ -502,6 +536,7 @@ func TestChatReadTimeoutResetsWhileStreaming(t *testing.T) {
       flusher.Flush()
       time.Sleep(30 * time.Millisecond)
     }
+
     io.WriteString(w, "data: [DONE]\n\n")
   })
 
@@ -512,6 +547,7 @@ func TestChatReadTimeoutResetsWhileStreaming(t *testing.T) {
   if err != nil {
     t.Fatalf("Chat: %v (total time exceeds ReadTimeout, but it never went idle)", err)
   }
+
   if msg.Content != "xxxxxx" {
     t.Fatalf("Content = %q", msg.Content)
   }
@@ -524,5 +560,42 @@ func TestContextSizeFromProps(t *testing.T) {
   n, err := New(server.URL, "m").ContextSize(context.Background())
   if err != nil || n != 65536 {
     t.Fatalf("ContextSize = %d, %v; want 65536", n, err)
+  }
+}
+
+func TestChatStreamReportsPromptProgress(t *testing.T) {
+  asked := map[bool]bool{}
+  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+    var req owaiChatRequest
+    json.NewDecoder(r.Body).Decode(&req)
+    asked[r.Header.Get("Authorization") != ""] = req.ReturnProgress
+
+    io.WriteString(w, `data: {"choices":[{"delta":{}}],"prompt_progress":{"total":4096,"processed":2048}}` + "\n\n")
+    io.WriteString(w, `data: {"choices":[{"delta":{}}],"prompt_progress":{"total":4096,"processed":4096}}` + "\n\n")
+    io.WriteString(w, `data: {"choices":[{"delta":{"content":"hi"}}]}` + "\n\n")
+    io.WriteString(w, "data: [DONE]\n\n")
+  })
+
+  var seen []string
+  h := StreamHandlers{
+    Token:    func(string) {},
+    Progress: func(done, total int) { seen = append(seen, fmt.Sprintf("%d/%d", done, total)) },
+  }
+
+  client := New(server.URL, "fake-model")
+  msg, err := client.ChatStream(context.Background(), nil, nil, h)
+  if err != nil || msg.Content != "hi" {
+    t.Fatalf("ChatStream = %+v, %v", msg, err)
+  }
+
+  if strings.Join(seen, " ") != "2048/4096 4096/4096" || !asked[false] {
+    t.Fatalf("progress = %v, asked for it = %v", seen, asked[false])
+  }
+
+  // A hosted API (with a key) isn't sent llama-server's field.
+  client.APIKey = "k"
+  client.ChatStream(context.Background(), nil, nil, h)
+  if asked[true] {
+    t.Fatal("return_progress was sent to an authenticated API")
   }
 }

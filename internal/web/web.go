@@ -44,6 +44,8 @@ const (
   maxListed = 20000
   // approvalWait is how long a write waits for a click.
   approvalWait = 10 * time.Minute
+  // pingEvery is the heartbeat while a turn runs.
+  pingEvery = 5 * time.Second
 )
 
 // Config is what Serve needs from cmd/armin.
@@ -445,6 +447,9 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
       ev.send("result", agent.ResultLine(name, result))
     },
     Notice: func(msg string) { ev.send("notice", msg) },
+    Progress: func(done, total int) {
+      ev.send("progress", map[string]int{ "done": done, "total": total })
+    },
     Usage: func(u llm.Usage) {
       s.tokens = u.Total()
       ev.send("usage", map[string]any{
@@ -467,7 +472,24 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
     return s.ask(r.Context(), ev, tool, preview)
   }
 
+  // A heartbeat while the turn runs: the page can then tell "armin
+  // is working, the model is slow" from "the connection is gone".
+  beat := make(chan struct{})
+  go func() {
+    t := time.NewTicker(pingEvery)
+    defer t.Stop()
+    for {
+      select {
+      case <-beat:
+        return
+      case <-t.C:
+        ev.send("ping", time.Now().Unix())
+      }
+    }
+  }()
+
   answer, err := s.cfg.Loop.Turn(r.Context(), &s.history, hooks)
+  close(beat)
   if err != nil {
     ev.send("error", err.Error())
   } else {

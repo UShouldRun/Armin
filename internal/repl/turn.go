@@ -5,6 +5,8 @@ import (
   "errors"
   "fmt"
   "strings"
+  "sync"
+  "time"
 
   "armin/internal/agent"
   "armin/internal/llm"
@@ -21,6 +23,13 @@ const (
 // turnView owns the terminal during one turn: the spinner, streamed
 // thinking (dim) and answer text, tool-call lines and approvals.
 type turnView struct {
+  mu    sync.Mutex // status fields: the spinner reads them every frame
+  phase string
+  since time.Time // when the phase began
+  last  time.Time // last sign of life from the model
+  watch bool      // the phase waits on the model
+  count int       // hidden-thinking chunks this phase
+
   spinner      *ui.Spinner
   wrap         *ui.Wrapper // prose at ui.TextWidth
   mode         uint8
@@ -37,8 +46,63 @@ func (v *turnView) stopSpinner() {
 
 func (v *turnView) startSpinner() {
   if v.spinner == nil {
-    v.spinner = ui.NewSpinner("thinking")
+    v.spinner = ui.NewStatus(v.status)
   }
+}
+
+const (
+  phaseWaiting  = "waiting for the model"
+  phaseReading  = "reading the prompt"
+  phaseThinking = "thinking"
+
+  // stallAfter is how long the model may stay silent before the
+  // status says so.
+  stallAfter = 20 * time.Second
+)
+
+// setPhase starts a phase; watch marks phases where silence means
+// the model, not a tool, is slow.
+func (v *turnView) setPhase(phase string, watch bool) {
+  v.mu.Lock()
+  defer v.mu.Unlock()
+
+  now := time.Now()
+  v.phase, v.since, v.last, v.watch, v.count = phase, now, now, watch, 0
+}
+
+// status is the spinner's text: what's happening, for how long, and
+// whether the model has gone quiet.
+func (v *turnView) status() string {
+  v.mu.Lock()
+  defer v.mu.Unlock()
+
+  s := v.phase
+  if v.count > 0 {
+    s += fmt.Sprintf(" · %d tokens", v.count)
+  }
+
+  s += " · " + ui.Since(v.since)
+  if v.phase == phaseWaiting && time.Since(v.since) > 5 * time.Second {
+    s += " (it may be loading or busy)"
+  }
+
+  if v.watch && time.Since(v.last) > stallAfter {
+    s += " · nothing from the model for " + ui.Since(v.last)
+  }
+
+  return s
+}
+
+func (v *turnView) progress(done, total int) {
+  v.mu.Lock()
+  defer v.mu.Unlock()
+
+  if !strings.HasPrefix(v.phase, phaseReading) {
+    v.since = time.Now()
+  }
+
+  v.phase = fmt.Sprintf("%s %s/%s", phaseReading, kTokens(done), kTokens(total))
+  v.last = time.Now()
 }
 
 // endLine closes whatever was streaming, so the next thing printed
@@ -70,7 +134,16 @@ func (v *turnView) flush() {
 
 func (v *turnView) reasoning(delta string) {
   if !v.showThinking {
-    return // the spinner keeps saying "thinking"
+    v.mu.Lock()
+    if v.phase != phaseThinking {
+      v.phase, v.since, v.count = phaseThinking, time.Now(), 0
+    }
+
+    v.count++
+    v.last = time.Now()
+    v.mu.Unlock()
+
+    return
   }
 
   v.stopSpinner()
@@ -111,6 +184,13 @@ func (v *turnView) toolCall(name string, args map[string]any) {
   v.endLine()
   ui.ClearLine()
   ui.ToolLine(agent.CallLine(name, args))
+
+  what := name
+  if bin, _ := args["binary"].(string); bin != "" {
+    what = bin
+  }
+
+  v.setPhase("running " + what, false)
   v.startSpinner()
 }
 
@@ -118,6 +198,7 @@ func (v *turnView) toolResult(name, result string) {
   v.stopSpinner()
   ui.ClearLine()
   ui.ToolResultLine(agent.ResultLine(name, result))
+  v.setPhase(phaseWaiting, true)
   v.startSpinner()
 }
 
@@ -145,6 +226,7 @@ func (r *REPL) turn(ctx context.Context, input string) error {
     wrap:         ui.NewWrapper(ui.TextWidth()),
   }
 
+  v.setPhase(phaseWaiting, true)
   v.startSpinner()
 
   hooks := agent.Hooks{
@@ -152,6 +234,7 @@ func (r *REPL) turn(ctx context.Context, input string) error {
     Reasoning:  v.reasoning,
     ToolCall:   v.toolCall,
     ToolResult: v.toolResult,
+    Progress:   v.progress,
     Usage:      func(u llm.Usage) { r.lastTokens = u.Total() },
     Notice: func(msg string) {
       v.stopSpinner()

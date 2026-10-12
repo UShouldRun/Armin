@@ -175,6 +175,7 @@ func New(baseURL, model string) *Client {
   if baseURL == "" {
     baseURL = "http://localhost:8080"
   }
+
   return &Client{
     BaseURL: baseURL,
     Model:   model,
@@ -191,6 +192,11 @@ type OnToken func(delta string)
 // nil; with both nil the request isn't streamed at all.
 type StreamHandlers struct {
   Token, Reasoning OnToken
+
+  // Progress, if set, gets llama-server's prompt-processing
+  // progress (tokens read of total) before the first token: on a
+  // long context that's the silent stretch that looks like a hang.
+  Progress func(done, total int)
 }
 
 func (h StreamHandlers) streaming() bool {
@@ -209,6 +215,7 @@ func (c *Client) requestBracket() func() {
   if c.OnRequestStart != nil {
     c.OnRequestStart()
   }
+
   return func() {
     if c.OnRequestEnd != nil {
       c.OnRequestEnd()
@@ -242,6 +249,7 @@ func (c *Client) ChatStream(
       return nil, fmt.Errorf("\n\t... in ChatStream:\n\t%w", err)
     }
   }
+
   defer c.requestBracket()()
 
   wireTools := make([]owaiTool, 0, len(tools))
@@ -257,8 +265,12 @@ func (c *Client) ChatStream(
     Tools:    wireTools,
     Stream:   h.streaming(),
   }
+
   if reqBody.Stream {
     reqBody.StreamOptions = &owaiStreamOptions{ IncludeUsage: true }
+    // Only for llama-server (no API key): a hosted API may reject a
+    // field it doesn't know.
+    reqBody.ReturnProgress = h.Progress != nil && c.APIKey == ""
   }
 
   body, err := json.Marshal(reqBody)
@@ -280,6 +292,7 @@ func (c *Client) ChatStream(
       "\n\t... in ChatStream:\n\t building request: %w", err,
     )
   }
+
   req.Header.Set("Content-Type", "application/json")
   c.setAuthHeader(req)
 
@@ -290,6 +303,7 @@ func (c *Client) ChatStream(
       c.BaseURL, idle.explain(err),
     )
   }
+
   defer drainClose(resp.Body)
   idle.touch()
 
@@ -301,6 +315,7 @@ func (c *Client) ChatStream(
         ErrToolsUnsupported, c.Model,
       )
     }
+
     return nil, fmt.Errorf(
       "\n\t... in ChatStream:\n\t llama-server returned %d: %s",
       resp.StatusCode, string(respBody),
@@ -314,11 +329,13 @@ func (c *Client) ChatStream(
   } else {
     msg, err = readWholeReply(r)
   }
+
   if err != nil {
     return nil, fmt.Errorf(
       "\n\t... in ChatStream:\n\t%w", idle.explain(err),
     )
   }
+
   return msg, nil
 }
 
@@ -353,6 +370,7 @@ func (c *Client) watchIdle(
     close(w.expired)
     cancel()
   })
+
   return ctx, w
 }
 
@@ -383,6 +401,7 @@ func (ir idleReader) Read(p []byte) (int, error) {
   if n > 0 {
     ir.w.touch()
   }
+
   return n, err
 }
 
@@ -395,6 +414,7 @@ func looksLikeToolsUnsupported(body []byte) bool {
   if !strings.Contains(s, "tool") {
     return false
   }
+
   return strings.Contains(s, "not support") ||
     strings.Contains(s, "unsupported") ||
     strings.Contains(s, "not callable") ||
@@ -417,12 +437,14 @@ func readWholeReply(r io.Reader) (*Message, error) {
       err, string(body),
     )
   }
+
   if parsed.Error != nil {
     return nil, fmt.Errorf(
       "\n\t... in readWholeReply:\n\t llama-server error: %s",
       parsed.Error.Message,
     )
   }
+
   if len(parsed.Choices) == 0 {
     return nil, fmt.Errorf(
       "\n\t... in readWholeReply:\n\t no choices in llama-server response (body: %s)",
@@ -434,9 +456,11 @@ func readWholeReply(r io.Reader) (*Message, error) {
   if err != nil {
     return nil, fmt.Errorf("\n\t... in readWholeReply:\n\t%w", err)
   }
+
   if parsed.Usage != nil {
     msg.Usage = *parsed.Usage
   }
+
   return &msg, nil
 }
 
@@ -469,10 +493,12 @@ func readStreamedReply(
     if !ok {
       continue // blank line, "event:" field, or SSE comment — none used here
     }
+
     data = bytes.TrimSpace(data)
     if len(data) == 0 {
       continue
     }
+
     if bytes.Equal(data, sseDone) {
       break
     }
@@ -484,9 +510,15 @@ func readStreamedReply(
         err, data,
       )
     }
+
     if chunk.Usage != nil {
       usage = *chunk.Usage
     }
+
+    if p := chunk.Progress; p != nil && h.Progress != nil {
+      h.Progress(p.Processed, p.Total)
+    }
+
     if len(chunk.Choices) == 0 {
       continue
     }
@@ -498,6 +530,7 @@ func readStreamedReply(
         h.Reasoning(delta.ReasoningContent)
       }
     }
+
     if delta.Content != "" {
       content.WriteString(delta.Content)
       if h.Token != nil {
@@ -512,12 +545,15 @@ func readStreamedReply(
         calls[tc.Index] = acc
         order = append(order, tc.Index)
       }
+
       if tc.ID != "" {
         acc.id = tc.ID
       }
+
       if tc.Function.Name != "" {
         acc.name = tc.Function.Name
       }
+
       acc.arguments.WriteString(tc.Function.Arguments)
     }
   }
@@ -554,6 +590,7 @@ func readStreamedReply(
     if id == "" {
       id = fmt.Sprintf("call_%d", idx)
     }
+
     final.ToolCalls = append(final.ToolCalls, ToolCall{
       ID: id,
       Function: ToolCallFunction{
@@ -612,6 +649,7 @@ func (c *Client) Complete(
       return "", fmt.Errorf("\n\t... in Complete:\n\t%w", err)
     }
   }
+
   defer c.requestBracket()()
 
   body, err := json.Marshal(infillRequest{
@@ -636,6 +674,7 @@ func (c *Client) Complete(
   if err != nil {
     return "", fmt.Errorf("\n\t... in Complete:\n\t%w", err)
   }
+
   req.Header.Set("Content-Type", "application/json")
   c.setAuthHeader(req)
 
@@ -646,6 +685,7 @@ func (c *Client) Complete(
       c.BaseURL, idle.explain(err),
     )
   }
+
   defer resp.Body.Close()
 
   respBody, err := io.ReadAll(idleReader{ r: resp.Body, w: idle })
@@ -654,6 +694,7 @@ func (c *Client) Complete(
       "\n\t... in Complete:\n\t%w", idle.explain(err),
     )
   }
+
   if resp.StatusCode != http.StatusOK {
     return "", fmt.Errorf(
       "\n\t... in Complete:\n\t llama-server returned %d: %s",
@@ -665,6 +706,7 @@ func (c *Client) Complete(
   if err := json.Unmarshal(respBody, &parsed); err != nil {
     return "", fmt.Errorf("\n\t... in Complete:\n\t%w", err)
   }
+
   return parsed.Content, nil
 }
 
@@ -678,12 +720,14 @@ func (c *Client) Health(ctx context.Context) error {
   if err != nil {
     return fmt.Errorf("\n\t... in Health:\n\t%w", err)
   }
+
   c.setAuthHeader(req)
 
   resp, err := c.HTTP.Do(req)
   if err != nil {
     return fmt.Errorf("\n\t... in Health:\n\t%w", err)
   }
+
   defer resp.Body.Close()
 
   if resp.StatusCode != http.StatusOK {
@@ -693,6 +737,7 @@ func (c *Client) Health(ctx context.Context) error {
       resp.StatusCode, string(body),
     )
   }
+
   return nil
 }
 
@@ -713,12 +758,14 @@ func (c *Client) ContextSize(ctx context.Context) (int, error) {
   if err != nil {
     return 0, fmt.Errorf("\n\t... in ContextSize:\n\t%w", err)
   }
+
   c.setAuthHeader(req)
 
   resp, err := c.HTTP.Do(req)
   if err != nil {
     return 0, fmt.Errorf("\n\t... in ContextSize:\n\t%w", err)
   }
+
   defer resp.Body.Close()
 
   if resp.StatusCode != http.StatusOK {
@@ -729,9 +776,11 @@ func (c *Client) ContextSize(ctx context.Context) (int, error) {
   if err := json.NewDecoder(resp.Body).Decode(&p); err != nil {
     return 0, nil
   }
+
   if p.DefaultGenerationSettings.NCtx > 0 {
     return p.DefaultGenerationSettings.NCtx, nil
   }
+
   return p.NCtx, nil
 }
 
@@ -778,6 +827,9 @@ type owaiChatRequest struct {
   Tools         []owaiTool         `json:"tools,omitempty"`
   Stream        bool               `json:"stream"`
   StreamOptions *owaiStreamOptions `json:"stream_options,omitempty"`
+
+  // ReturnProgress is llama-server's: stream prompt_progress chunks.
+  ReturnProgress bool `json:"return_progress,omitempty"`
 }
 
 type owaiChoice struct {
@@ -812,8 +864,14 @@ type owaiStreamChoice struct {
 }
 
 type owaiStreamChunk struct {
-  Choices []owaiStreamChoice `json:"choices"`
-  Usage   *Usage             `json:"usage,omitempty"`
+  Choices  []owaiStreamChoice `json:"choices"`
+  Usage    *Usage             `json:"usage,omitempty"`
+  Progress *promptProgress    `json:"prompt_progress,omitempty"`
+}
+
+type promptProgress struct {
+  Total     int `json:"total"`
+  Processed int `json:"processed"`
 }
 
 // toWireMessages translates outgoing history to the OpenAI shape —
@@ -829,11 +887,13 @@ func toWireMessages(msgs []Message) []owaiMessage {
       ReasoningContent: m.Reasoning,
       ToolCallID:       m.ToolCallID,
     }
+
     for _, tc := range m.ToolCalls {
       args, err := json.Marshal(tc.Function.Arguments)
       if err != nil {
         args = []byte("{}")
       }
+
       wm.ToolCalls = append(wm.ToolCalls, owaiToolCall{
         ID: tc.ID, Type: "function",
         Function: owaiToolCallFunc{
@@ -841,8 +901,10 @@ func toWireMessages(msgs []Message) []owaiMessage {
         },
       })
     }
+
     out[i] = wm
   }
+
   return out
 }
 
@@ -856,6 +918,7 @@ func fromWireMessage(wm owaiMessage) (Message, error) {
   if role == "" {
     role = "assistant"
   }
+
   m := Message{
     Role:      role,
     Content:   wm.Content,
@@ -872,10 +935,12 @@ func fromWireMessage(wm owaiMessage) (Message, error) {
         )
       }
     }
+
     id := tc.ID
     if id == "" {
       id = fmt.Sprintf("call_%d", i)
     }
+
     m.ToolCalls = append(m.ToolCalls, ToolCall{
       ID: id,
       Function: ToolCallFunction{
@@ -883,5 +948,6 @@ func fromWireMessage(wm owaiMessage) (Message, error) {
       },
     })
   }
+
   return m, nil
 }

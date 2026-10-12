@@ -67,15 +67,26 @@ since you may have edited it — `--update-skills` replaces them,
 `--no-skills` skips them. Safe to re-run
 any time, e.g. after `git pull`, to rebuild and reinstall.
 
+It also checks every command armin runs, in groups: armin's own
+tools (`rg`, `git`, `pdftotext`/`pdfinfo`, `tree`, `file`, the
+coreutils `run_command` allows), C and C++ builds (`make`, `gcc`,
+`g++`, `cmake`, `gdb`, `valgrind`), file transfer (`rsync`, `scp`)
+and MPI (`mpicc`, `mpirun`). For a group with something missing it
+shows the exact install command for your package manager (apt, dnf,
+pacman or brew) and asks first; if you say no, it lists what armin
+can't do without each one. `--install-deps` installs without
+asking, `--no-deps` only reports. Other toolchains `run_program` can
+use (Go, Rust, Python, Node, Java, …) are reported, never installed.
+
 Prefer to do it by hand instead?
 
 ```sh
 go build -o armin ./cmd/armin
 ```
 
-`install.sh` does nothing beyond that build, a copy onto `PATH`, and
-the dependency checks above — there's no hidden step you'd be
-skipping by not using it.
+`install.sh` does nothing beyond that build, a copy onto `PATH`, the
+dependency checks above and, only when you say yes, installing what's
+missing — there's no hidden step you'd be skipping by not using it.
 
 ## Quickstart
 
@@ -861,6 +872,12 @@ not have in a terminal:
   Web-search answers carry their numbered Sources.
 - **Thinking** streams into a collapsed "thinking" block; tool calls
   and `context:` notices appear as they happen.
+- **Status bar** while a turn runs: the phase (waiting for the
+  model, reading the prompt with its progress, thinking, writing,
+  running a command, waiting for your approval), how long it's
+  taken, tokens so far, a warning when the model has said nothing
+  for 20 s, and "the connection may be lost" when armin's 5 s
+  heartbeat stops. The REPL's spinner shows the same.
 - **Approvals**: file writes show their diff (Apply), `run_program`
   the command (Run), reads outside the project the folder (Grant),
   each with Decline and a box to tell the model what to do instead

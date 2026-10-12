@@ -16,13 +16,21 @@ var frames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "�
 // no-op when Enabled is false (non-TTY, NO_COLOR, piped output) so
 // scripted use of armin never has to deal with stray control chars.
 type Spinner struct {
-  label string
+  label func() string
   stop  chan struct{}
   done  sync.WaitGroup
 }
 
-// NewSpinner starts a spinner immediately with the given label.
+// NewSpinner starts a spinner immediately with the given label and
+// the time since it started.
 func NewSpinner(label string) *Spinner {
+  start := time.Now()
+  return NewStatus(func() string { return label + " · " + Since(start) })
+}
+
+// NewStatus starts a spinner whose text is asked for on every frame,
+// so it can show a live status (phase, elapsed time, counts).
+func NewStatus(label func() string) *Spinner {
   s := &Spinner{ label: label, stop: make(chan struct{}) }
   if !Enabled {
     return s
@@ -30,6 +38,7 @@ func NewSpinner(label string) *Spinner {
 
   s.done.Add(1)
   go s.run()
+
   return s
 }
 
@@ -44,13 +53,24 @@ func (s *Spinner) run() {
     select {
     case <-s.stop:
       fmt.Print("\r\x1b[K")
+
       return
     case <-ticker.C:
       frame := Cyan(frames[i % len(frames)])
-      fmt.Printf("\r%s %s", frame, Dim(s.label))
+      fmt.Printf("\r\x1b[K%s %s", frame, Dim(s.label()))
       i++
     }
   }
+}
+
+// Since is the time since t, short: "8s", "2m05s".
+func Since(t time.Time) string {
+  d := time.Since(t).Round(time.Second)
+  if d < time.Minute {
+    return fmt.Sprintf("%ds", int(d.Seconds()))
+  }
+
+  return fmt.Sprintf("%dm%02ds", int(d.Minutes()), int(d.Seconds()) % 60)
 }
 
 // Stop clears the spinner line. Safe to call once; calling it more
