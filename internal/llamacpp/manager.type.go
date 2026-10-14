@@ -149,6 +149,10 @@ type Manager struct {
   // takes minutes). Must not write to stdout in -lsp mode.
   OnStatus func(string)
 
+  // Warning, when set, says why local models will be slow (see
+  // GPUWarning), for every frontend to show.
+  Warning string
+
   // KnownHostsFile is where SSH records remote host keys (keyed by
   // machine id, since a stopped machine comes back on a new IP).
   KnownHostsFile string

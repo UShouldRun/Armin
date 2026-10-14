@@ -66,6 +66,10 @@ func (a *Attached) Run(ctx context.Context) error {
   c := a.client
   ui.Banner(a.root(), c.Model.Current, "shared")
   ui.Instance(c.Model.Current, c.Instance, "— joined, shared with nvim and the other armins here (armin -new for a separate one)")
+  if c.Model.Warning != "" {
+    ui.Warn("%s", c.Model.Warning)
+  }
+
   if len(c.History) > 0 {
     printHistory(c.History)
   }

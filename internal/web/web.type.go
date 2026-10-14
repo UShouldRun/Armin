@@ -71,6 +71,9 @@ type infoBody struct {
   Messages  int      `json:"messages"`
   AutoApply bool     `json:"auto_apply"`
 
+  // Warning says why local models will be slow (llamacpp.GPUWarning).
+  Warning string `json:"warning,omitempty"`
+
   // Hosted is the OpenRouter model Suggested ones reuse, as
   // "<Hosted>:<id>"; Balance is what the account has left.
   Hosted    string               `json:"hosted,omitempty"`

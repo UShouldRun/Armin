@@ -276,6 +276,7 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
       return b.Models[i].Name < b.Models[j].Name
     })
 
+    b.Warning = s.cfg.Models.Warning
     b.Hosted = s.cfg.Models.OpenRouter()
     if b.Hosted != "" {
       b.Suggested = catalog.Suggestions()

@@ -150,6 +150,12 @@ func Error(format string, args ...any) {
   fmt.Fprintln(os.Stderr, Red("error: ") + fmt.Sprintf(format, args...))
 }
 
+// Warn prints something the user should act on, on stderr: -lsp
+// speaks its protocol on stdout.
+func Warn(format string, args ...any) {
+  fmt.Fprintln(os.Stderr, Yellow("warning: ") + fmt.Sprintf(format, args...))
+}
+
 // Info prints a dim, low-priority status line — session save
 // confirmations, auto-context notices, that kind of thing.
 func Info(format string, args ...any) {

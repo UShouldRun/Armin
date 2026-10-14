@@ -57,6 +57,7 @@ type ModelInfo struct {
   Current    string        `json:"current"`
   Completion string        `json:"completion,omitempty"` // serves inline completion
   Instance   int           `json:"instance,omitempty"`
+  Warning    string        `json:"warning,omitempty"` // why local models are slow (llamacpp.GPUWarning)
   Configured []ModelChoice `json:"configured,omitempty"`
 
   // Hosted is the configured OpenRouter model whose endpoint the

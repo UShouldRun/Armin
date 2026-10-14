@@ -107,6 +107,14 @@ func (m *Mind) wake(ctx context.Context, opts *input.Options) error {
     fmt.Fprintln(os.Stderr, ui.Dim("  " + s))
   }
 
+  // Before the chat model loads: on the CPU that takes minutes.
+  if m.Models.FirstLocal() != "" {
+    m.Models.Warning = llamacpp.GPUWarning()
+    if m.Models.Warning != "" {
+      ui.Warn("%s", m.Models.Warning)
+    }
+  }
+
   data, err := session.DataDir()
   if err == nil {
     os.MkdirAll(data, 0o700)

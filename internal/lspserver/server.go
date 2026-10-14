@@ -174,7 +174,10 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
   case "initialize":
     s.respond(msg.ID, initializeResult(), nil)
 
-  case "initialized", "$/setTrace", "workspace/didChangeConfiguration":
+  case "initialized":
+    s.warnGPU()
+
+  case "$/setTrace", "workspace/didChangeConfiguration":
     // notifications we accept and ignore
 
   case "$/cancelRequest":
@@ -628,6 +631,27 @@ func (s *Server) toNvim(e share.Event) {
   s.notify("armin/askEvent", e)
 }
 
+// warnGPU shows, once nvim is ready for messages, why local models
+// will be slow — this instance's warning, or the host's.
+func (s *Server) warnGPU() {
+  warning := ""
+  switch {
+  case s.remote != nil:
+    warning = s.remote.Model.Warning
+  case s.models != nil:
+    warning = s.models.Warning
+  }
+
+  if warning == "" {
+    return
+  }
+
+  s.notify("window/showMessage", map[string]any{
+    "type":    2,
+    "message": "armin: " + warning,
+  })
+}
+
 // relay forwards the host's events to nvim; when the host goes away
 // it says so, since nothing here can answer without it.
 func (s *Server) relay() {
@@ -705,6 +729,7 @@ func (s *Server) SwitchModel(ctx context.Context, name string) (share.ModelInfo,
 func (s *Server) Models() share.ModelInfo {
   info := share.ModelInfo{
     Current: s.loop.LLM.Model, Completion: s.completionLLM.Model,
+    Warning: s.models.Warning,
   }
   if s.hub != nil {
     info.Instance = s.hub.Instance

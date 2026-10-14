@@ -184,7 +184,9 @@ func (h host) Models() share.ModelInfo {
   r := h.r
 
   current := *r.current.Load()
-  info := share.ModelInfo{ Current: current, Completion: *r.completing.Load() }
+  info := share.ModelInfo{
+    Current: current, Completion: *r.completing.Load(), Warning: r.Models.Warning,
+  }
   if r.hub != nil {
     info.Instance = r.hub.Instance
   }
