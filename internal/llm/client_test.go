@@ -643,3 +643,48 @@ func TestChatSendsHostedIDAndEffort(t *testing.T) {
     t.Fatalf("request = %v", got)
   }
 }
+
+func TestChatFallsBackOnceOnForbidden(t *testing.T) {
+  regional := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+    w.WriteHeader(http.StatusForbidden)
+    io.WriteString(w, `{"error":{"message":"Regional routing requires a Business or Enterprise plan.","code":403}}`)
+  })
+
+  global := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+    json.NewEncoder(w).Encode(owaiChatResponse{
+      Choices: []owaiChoice{
+        { Message: owaiMessage{ Role: "assistant", Content: "hi there" } },
+      },
+    })
+  })
+
+  var moved [2]string
+  client := New(regional.URL, "fake-model")
+  client.Fallback = global.URL
+  client.OnFallback = func(from, to string) { moved = [2]string{ from, to } }
+
+  msg, err := client.Chat(context.Background(), []Message{{Role: "user", Content: "hey"}}, nil, nil)
+  if err != nil {
+    t.Fatalf("Chat: %v", err)
+  }
+
+  if msg.Content != "hi there" || client.BaseURL != global.URL || client.Fallback != "" {
+    t.Fatalf("Content = %q, BaseURL = %q, Fallback = %q", msg.Content, client.BaseURL, client.Fallback)
+  }
+
+  if moved != [2]string{ regional.URL, global.URL } {
+    t.Fatalf("OnFallback heard %v", moved)
+  }
+}
+
+func TestChatForbiddenWithoutFallbackFails(t *testing.T) {
+  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+    w.WriteHeader(http.StatusForbidden)
+  })
+
+  client := New(server.URL, "fake-model")
+  _, err := client.Chat(context.Background(), nil, nil, nil)
+  if err == nil {
+    t.Fatal("expected an error for a 403 with no fallback")
+  }
+}

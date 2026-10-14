@@ -33,6 +33,7 @@ import (
   "time"
 
   "armin/internal/aws"
+  "armin/internal/catalog"
   "armin/internal/llm"
   "armin/internal/scaleway"
   "armin/internal/stackit"
@@ -128,6 +129,10 @@ const (
   SpecVision SpecFlags = 1 << iota
   // SpecNoLean drops every default in leanDefaults.
   SpecNoLean
+  // SpecRegional marks a URL armin moved onto OpenRouter's in-region
+  // host (catalog.Regional): one that falls back to the global host
+  // when the region refuses, unlike a regional URL configured as such.
+  SpecRegional
   SpecAll = SpecVision | SpecNoLean
 )
 
@@ -395,6 +400,7 @@ func (m *Manager) Switch(ctx context.Context, client *llm.Client, name string) e
   client.APIKey = m.apiKey(name)
   client.OnRequestStart, client.OnRequestEnd = m.callbacks(name)
   client.Ready = m.ready(name)
+  client.Fallback, client.OnFallback = m.globalFor(name, url), m.fallback
 
   return nil
 }
@@ -498,8 +504,37 @@ func (m *Manager) newClientFor(name, url string) *llm.Client {
   c.APIKey = m.apiKey(name)
   c.OnRequestStart, c.OnRequestEnd = m.callbacks(name)
   c.Ready = m.ready(name)
+  c.Fallback, c.OnFallback = m.globalFor(name, url), m.fallback
 
   return c
+}
+
+// globalFor is where name's url falls back to when its region
+// refuses: only for a URL armin made regional itself.
+func (m *Manager) globalFor(name, url string) string {
+  m.mu.Lock()
+  regional := m.specs[name].Flags & SpecRegional != 0
+  m.mu.Unlock()
+  if !regional {
+    return ""
+  }
+
+  return catalog.Global(url)
+}
+
+// fallback moves every model on from — an in-region host that
+// refused — to to, the global one, so later Clients start there.
+func (m *Manager) fallback(from, to string) {
+  m.mu.Lock()
+  for name, spec := range m.specs {
+    if spec.URL == from {
+      spec.URL = to
+      m.specs[name] = spec
+    }
+  }
+  m.mu.Unlock()
+
+  m.status("%s refused (in-region routing needs a Business plan) — using %s", from, to)
 }
 
 // apiKey resolves name's configured APIKeyEnv against the real

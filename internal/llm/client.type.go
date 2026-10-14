@@ -125,6 +125,13 @@ type Client struct {
   // api_key_env config entry, never a literal key in config.conf.
   APIKey string
 
+  // Fallback, if set, is the base URL a chat request moves to, once,
+  // when BaseURL refuses it with 403 — OpenRouter's in-region host
+  // without a Business plan. OnFallback hears the move, so the next
+  // Client for the model starts on Fallback.
+  Fallback   string
+  OnFallback func(from, to string)
+
   // OnRequestStart/OnRequestEnd, if set, bracket every Chat/Complete
   // HTTP round trip (started before the request, ended via defer
   // once it returns). internal/llamacpp's Manager wires these to

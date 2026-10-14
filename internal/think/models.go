@@ -6,6 +6,7 @@ import (
   "os"
   "time"
 
+  "armin/internal/catalog"
   "armin/internal/config"
   "armin/internal/input"
   "armin/internal/llamacpp"
@@ -76,9 +77,13 @@ func buildModelSpecs(opts *input.Options) map[string]llamacpp.ModelSpec {
   specs := make(map[string]llamacpp.ModelSpec, len(fileCfg.Models) + 2)
   for name, c := range fileCfg.Models {
     spec := llamacpp.ModelSpec{
-      URL: c.URL, APIKeyEnv: c.APIKeyEnv, ID: c.ID, Effort: c.Reasoning,
+      URL: catalog.Regional(c.URL), APIKeyEnv: c.APIKeyEnv, ID: c.ID, Effort: c.Reasoning,
       Binary: c.Binary, ModelPath: c.ModelPath,
       Port: c.Port, Args: c.Args, IdleTimeout: c.IdleTimeout,
+    }
+
+    if spec.URL != c.URL {
+      spec.Flags |= llamacpp.SpecRegional
     }
 
     if c.Vision {

@@ -144,6 +144,7 @@ func (c *Client) ChatStream(
     )
   }
 
+  parent := ctx
   ctx, idle := c.watchIdle(ctx)
   defer idle.stop()
 
@@ -170,6 +171,16 @@ func (c *Client) ChatStream(
 
   defer drainClose(resp.Body)
   idle.touch()
+
+  if resp.StatusCode == http.StatusForbidden && c.Fallback != "" {
+    from := c.BaseURL
+    c.BaseURL, c.Fallback = c.Fallback, ""
+    if c.OnFallback != nil {
+      c.OnFallback(from, c.BaseURL)
+    }
+
+    return c.ChatStream(parent, messages, tools, h)
+  }
 
   if resp.StatusCode != http.StatusOK {
     respBody, _ := io.ReadAll(resp.Body)

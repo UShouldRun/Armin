@@ -535,6 +535,16 @@ models.planner.id          = qwen/qwen3.8-27b
 models.planner.reasoning   = medium
 ```
 
+When the machine's time zone is in a region OpenRouter routes
+in-region (the EU or the US), an `openrouter.ai` URL is sent to that
+region's host instead — `eu.openrouter.ai` or `us.openrouter.ai` —
+so prompts and completions are decrypted and served only there.
+In-region routing needs OpenRouter's Business plan: without it the
+region refuses (403), and armin says so and moves to the global host
+for the rest of the session. A URL written as `eu.openrouter.ai` (or
+`us.`) in the config never falls back — it stays in the region or
+fails.
+
 `/model planner` (or `:ArminModel planner`) first asks which
 OpenRouter model to use — its own id first, Enter keeps it, a number
 picks a suggestion, any `vendor/model` id works — and the same
