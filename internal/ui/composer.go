@@ -1,3 +1,6 @@
+// The composer: an input bar under a running turn, so the user can
+// type the model's next instruction while it works (agent Hooks.Steer).
+
 package ui
 
 import (

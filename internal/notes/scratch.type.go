@@ -1,3 +1,5 @@
+// The types of scratch.go.
+
 package notes
 
 import (

@@ -1,3 +1,5 @@
+// The types of cloud.go.
+
 package cloud
 
 import (

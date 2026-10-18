@@ -1,5 +1,7 @@
 //go:build unix
 
+// The terminal's width, from the TIOCGWINSZ ioctl.
+
 package ui
 
 import (

@@ -1,3 +1,7 @@
+// The scratchpad: working notes outside the project (plans, findings,
+// archived tool results), one folder per session, read back by line
+// range.
+
 package notes
 
 import (

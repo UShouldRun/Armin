@@ -1,3 +1,5 @@
+// The types of convo.go.
+
 package convo
 
 // Stats summarizes a history slice for the /context command.

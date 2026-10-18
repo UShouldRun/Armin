@@ -1,3 +1,8 @@
+// The line editor: ReadLineWithGhostText edits a line with a dimmed
+// suggestion to accept with Tab, folds large pastes into a label, and
+// keeps reading keys through one pump (NewKeyPump) shared with the
+// composer.
+
 package ui
 
 import (

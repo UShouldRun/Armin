@@ -1,3 +1,5 @@
+// The types of keys.go.
+
 package ui
 
 // key is one decoded input event from a raw-mode terminal: either a

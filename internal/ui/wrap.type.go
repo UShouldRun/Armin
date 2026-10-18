@@ -1,3 +1,5 @@
+// The types of wrap.go.
+
 package ui
 
 // Wrapper word-wraps streamed markdown as it arrives. It holds back

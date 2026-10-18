@@ -1,3 +1,5 @@
+// The types of composer.go.
+
 package ui
 
 import "sync"

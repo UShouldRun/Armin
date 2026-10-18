@@ -1,3 +1,5 @@
+// The types of lineinput.go.
+
 package ui
 
 import (

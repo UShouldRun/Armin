@@ -1,3 +1,5 @@
+// The types of stackit.go.
+
 package cloud
 
 import (

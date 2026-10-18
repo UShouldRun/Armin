@@ -1,3 +1,5 @@
+// The types of searxng.go.
+
 package searxng
 
 import (

@@ -1,3 +1,5 @@
+// The types of config.go.
+
 package config
 
 import (

@@ -1,5 +1,8 @@
 //go:build unix
 
+// Raw mode: keys arrive one at a time, unechoed, while armin edits
+// the line itself.
+
 package ui
 
 import "golang.org/x/sys/unix"

@@ -1,3 +1,5 @@
+// The spinner and its status line (what's running, for how long).
+
 package ui
 
 import (

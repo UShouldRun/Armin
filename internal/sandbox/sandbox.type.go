@@ -1,3 +1,5 @@
+// The types of sandbox.go.
+
 package sandbox
 
 import (

@@ -120,12 +120,16 @@ func Save(m *Meta, history []llm.Message) error {
     return fmt.Errorf("\n\t... in Save:\n\t%w", err)
   }
 
-  err = os.MkdirAll(filepath.Dir(path), 0o755)
+  // Sessions hold the user's code and whatever they pasted: readable
+  // by them alone. Chmod also tightens a folder made before this.
+  dir := filepath.Dir(path)
+  err = os.MkdirAll(dir, 0o700)
   if err != nil {
     return fmt.Errorf("\n\t... in Save:\n\t%w", err)
   }
 
-  f, err := os.Create(path)
+  os.Chmod(dir, 0o700)
+  f, err := os.OpenFile(path, os.O_RDWR | os.O_CREATE | os.O_TRUNC, 0o600)
   if err != nil {
     return fmt.Errorf("\n\t... in Save:\n\t%w", err)
   }
@@ -194,7 +198,7 @@ func Append(m *Meta, history []llm.Message, persisted *int) error {
     return fmt.Errorf("\n\t... in Append:\n\t%w", err)
   }
 
-  f, err := os.OpenFile(path, os.O_APPEND | os.O_WRONLY, 0o644)
+  f, err := os.OpenFile(path, os.O_APPEND | os.O_WRONLY, 0o600)
   if err != nil {
     return fmt.Errorf("\n\t... in Append:\n\t%w", err)
   }

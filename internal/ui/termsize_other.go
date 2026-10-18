@@ -1,5 +1,7 @@
 //go:build !unix
 
+// The terminal's width elsewhere: a fixed default.
+
 package ui
 
 import (

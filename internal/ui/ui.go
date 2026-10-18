@@ -4,6 +4,19 @@
 // fast, colored-but-not-noisy feel of tools like uv: a styled
 // prompt, dim status lines, a spinner while the model thinks,
 // nothing heavier.
+//
+//   ui.go          colors and styles, the prompt, the tool line
+//   wrap.go        word wrapping to the terminal's width
+//   markdown.go    Markdown rendered for the terminal, streamed or
+//                  whole (tables kept whole, code blocks highlighted)
+//   spinner.go     the spinner and the status line beside it
+//   lineinput.go   the line editor: ghost-text suggestions, pastes
+//                  folded into labels, the key pump
+//   keys.go        decoding keys and bracketed pastes from raw input
+//   composer.go    the input bar under a running turn
+//   trace.go       error messages with their trace folded away
+//   rawmode*.go,   the terminal in raw mode, and its size
+//   termsize_*.go
 package ui
 
 import (

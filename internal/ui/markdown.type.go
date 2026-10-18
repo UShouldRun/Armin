@@ -1,3 +1,5 @@
+// The types of markdown.go.
+
 package ui
 
 // Markdown prints a streamed markdown answer: each line shows raw

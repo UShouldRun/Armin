@@ -1,3 +1,5 @@
+// The types of ctags.go.
+
 package ctags
 
 import (

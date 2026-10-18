@@ -1,3 +1,5 @@
+// The types of scaleway.go.
+
 package cloud
 
 import (

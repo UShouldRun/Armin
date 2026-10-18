@@ -1,3 +1,5 @@
+// The types of spinner.go.
+
 package ui
 
 import (

@@ -1,3 +1,6 @@
+// Markdown for the terminal: Markdown renders a streamed answer as it
+// arrives, line by line; RenderMarkdown renders a whole one.
+
 package ui
 
 import (

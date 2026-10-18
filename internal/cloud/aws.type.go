@@ -1,3 +1,5 @@
+// The types of aws.go.
+
 package cloud
 
 import (

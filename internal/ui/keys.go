@@ -1,3 +1,5 @@
+// Raw input to keys: escape sequences, and bracketed pastes taken whole.
+
 package ui
 
 import (

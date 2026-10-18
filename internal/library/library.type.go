@@ -1,3 +1,5 @@
+// The types of library.go.
+
 package library
 
 import (

@@ -1,3 +1,5 @@
+// The types of memory.go.
+
 package notes
 
 // Scope says which memory directory an entry lives in.

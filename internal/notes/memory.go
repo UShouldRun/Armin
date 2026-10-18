@@ -1,3 +1,7 @@
+// Memories: durable facts the model saves (memory_save) and reads
+// back, one Markdown file each, per project or for every project;
+// Index is the list the system prompt carries.
+
 package notes
 
 import (

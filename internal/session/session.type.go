@@ -1,3 +1,5 @@
+// The types of session.go.
+
 package session
 
 import (

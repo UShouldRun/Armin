@@ -1,3 +1,7 @@
+// Skills: instruction folders (SKILL.md plus supporting files) loaded
+// from the user's and the project's skills folders; use_skill reads
+// one, and /<name> runs it.
+
 package notes
 
 import (

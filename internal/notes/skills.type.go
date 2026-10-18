@@ -1,3 +1,5 @@
+// The types of skills.go.
+
 package notes
 
 // Skill is a directory of instructions the model loads only when a

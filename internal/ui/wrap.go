@@ -1,3 +1,6 @@
+// Word wrapping: Wrapper breaks streamed text at the terminal's width
+// without splitting words or escape sequences.
+
 package ui
 
 import (
