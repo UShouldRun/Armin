@@ -168,7 +168,7 @@ func TestToolsCallDisallowedBinaryIsError(t *testing.T) {
 
 func TestToolsCallUnknownTool(t *testing.T) {
   s := newTestServer(t)
-  resp := call(t, s, 1, "tools/call", callToolParams{Name: "delete_everything"})
+  resp := call(t, s, 1, "tools/call", callToolParams{ Name: "delete_everything" })
 
   var result callToolResult
   remarshal(t, resp.Result, &result)

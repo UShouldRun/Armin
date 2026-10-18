@@ -29,7 +29,7 @@ func TestSemanticSearchRanksByTermFrequency(t *testing.T) {
   writeFile(t, cfg.Root, "b.go", "package b\n// mentions sandbox once\n")
   writeFile(t, cfg.Root, "c.go", "package c\n// unrelated content entirely\n")
 
-  out, err := SemanticSearch(context.Background(), cfg, SemanticSearchInput{Query: "sandbox"})
+  out, err := SemanticSearch(context.Background(), cfg, SemanticSearchInput{ Query: "sandbox" })
   if err != nil {
     t.Fatalf("SemanticSearch: %v", err)
   }
@@ -53,7 +53,7 @@ func TestSemanticSearchNoMatches(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "a.go", "package a\n")
 
-  out, err := SemanticSearch(context.Background(), cfg, SemanticSearchInput{Query: "definitelynotpresent"})
+  out, err := SemanticSearch(context.Background(), cfg, SemanticSearchInput{ Query: "definitelynotpresent" })
   if err != nil {
     t.Fatalf("SemanticSearch: %v", err)
   }

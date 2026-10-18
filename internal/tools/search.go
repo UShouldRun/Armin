@@ -46,7 +46,7 @@ func SearchCode(
   // rg exits 1 when there are simply no matches — that's not an error
   // worth surfacing as a tool failure, just an empty result.
   if res.ExitCode == 1 && res.Stdout == "" {
-    return &SearchCodeOutput{Matches: "(no matches)"}, nil
+    return &SearchCodeOutput{ Matches: "(no matches)" }, nil
   }
   if res.ExitCode > 1 {
     return nil, fmt.Errorf(

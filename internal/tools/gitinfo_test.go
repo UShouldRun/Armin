@@ -78,7 +78,7 @@ func TestGitBlameAttributesLines(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   initGitRepo(t, cfg)
 
-  out, err := GitBlame(context.Background(), cfg, GitBlameInput{Path: "a.txt"})
+  out, err := GitBlame(context.Background(), cfg, GitBlameInput{ Path: "a.txt" })
   if err != nil {
     t.Fatalf("GitBlame: %v", err)
   }
@@ -164,7 +164,7 @@ func TestGitShowReturnsCommit(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   initGitRepo(t, cfg)
 
-  out, err := GitShow(context.Background(), cfg, GitShowInput{Hash: "HEAD"})
+  out, err := GitShow(context.Background(), cfg, GitShowInput{ Hash: "HEAD" })
   if err != nil {
     t.Fatalf("GitShow: %v", err)
   }
@@ -188,7 +188,7 @@ func TestGrepHistoryFindsIntroducedText(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   initGitRepo(t, cfg)
 
-  out, err := GrepHistory(context.Background(), cfg, GrepHistoryInput{Term: "hello"})
+  out, err := GrepHistory(context.Background(), cfg, GrepHistoryInput{ Term: "hello" })
   if err != nil {
     t.Fatalf("GrepHistory: %v", err)
   }

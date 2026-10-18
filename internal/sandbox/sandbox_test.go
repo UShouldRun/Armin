@@ -40,7 +40,7 @@ func TestNewHonorsExplicitOptions(t *testing.T) {
   cfg, err := New(root, Options{
     Timeout:   5 * time.Second,
     MaxOutput: 100,
-    Allowlist: map[string]bool{"echo": true},
+    Allowlist: map[string]bool{ "echo": true },
     DryRun:    true,
   })
   if err != nil {
@@ -182,7 +182,7 @@ func TestResolvePathHandlesNonexistentPath(t *testing.T) {
 // --- CheckBinary ---
 
 func TestCheckBinaryAllowsListed(t *testing.T) {
-  cfg := newTestConfig(t, Options{Allowlist: map[string]bool{"git": true}})
+  cfg := newTestConfig(t, Options{ Allowlist: map[string]bool{ "git": true } })
   err := cfg.CheckBinary("git")
   if err != nil {
     t.Fatalf("CheckBinary(git): %v", err)
@@ -190,7 +190,7 @@ func TestCheckBinaryAllowsListed(t *testing.T) {
 }
 
 func TestCheckBinaryRejectsUnlisted(t *testing.T) {
-  cfg := newTestConfig(t, Options{Allowlist: map[string]bool{"git": true}})
+  cfg := newTestConfig(t, Options{ Allowlist: map[string]bool{ "git": true } })
   err := cfg.CheckBinary("rm")
   if err == nil {
     t.Fatal("CheckBinary allowed a binary not in the allowlist")
@@ -198,8 +198,8 @@ func TestCheckBinaryRejectsUnlisted(t *testing.T) {
 }
 
 func TestCheckBinaryRejectsPathQualified(t *testing.T) {
-  cfg := newTestConfig(t, Options{Allowlist: map[string]bool{"git": true}})
-  for _, bad := range []string{"/usr/bin/git", "./git", "../git", "sub/git"} {
+  cfg := newTestConfig(t, Options{ Allowlist: map[string]bool{ "git": true } })
+  for _, bad := range []string{ "/usr/bin/git", "./git", "../git", "sub/git" } {
     err := cfg.CheckBinary(bad)
     if err == nil {
       t.Errorf("CheckBinary(%q) should reject a path-qualified binary name", bad)
@@ -229,9 +229,9 @@ func TestRunFlags(t *testing.T) {
 // --- Exec ---
 
 func TestRunDryRunDoesNotExecute(t *testing.T) {
-  cfg := newTestConfig(t, Options{DryRun: true, Allowlist: map[string]bool{"rm": true}})
+  cfg := newTestConfig(t, Options{ DryRun: true, Allowlist: map[string]bool{ "rm": true } })
 
-  res, err := cfg.Exec(context.Background(), Command{ Binary: "rm", Args: []string{"-rf", "/should/not/run"} })
+  res, err := cfg.Exec(context.Background(), Command{ Binary: "rm", Args: []string{ "-rf", "/should/not/run" } })
   if err != nil {
     t.Fatalf("Run: %v", err)
   }
@@ -246,7 +246,7 @@ func TestRunDryRunDoesNotExecute(t *testing.T) {
 func TestRunForceCapturesOutputAndExitCode(t *testing.T) {
   cfg := newTestConfig(t, Options{})
 
-  res, err := cfg.Exec(context.Background(), Command{ Binary: "sh", Args: []string{"-c", "echo out; echo err >&2; exit 3"}, Mode: ExecForce })
+  res, err := cfg.Exec(context.Background(), Command{ Binary: "sh", Args: []string{ "-c", "echo out; echo err >&2; exit 3" }, Mode: ExecForce })
   if err != nil {
     t.Fatalf("Exec: %v", err)
   }
@@ -280,18 +280,18 @@ func TestRunForceRunsInRoot(t *testing.T) {
 }
 
 func TestRunForceTimesOut(t *testing.T) {
-  cfg := newTestConfig(t, Options{Timeout: 30 * time.Millisecond})
+  cfg := newTestConfig(t, Options{ Timeout: 30 * time.Millisecond })
 
-  _, err := cfg.Exec(context.Background(), Command{ Binary: "sleep", Args: []string{"5"}, Mode: ExecForce })
+  _, err := cfg.Exec(context.Background(), Command{ Binary: "sleep", Args: []string{ "5" }, Mode: ExecForce })
   if err == nil || !strings.Contains(err.Error(), "timed out") {
     t.Fatalf("Exec error = %v, want a timeout error", err)
   }
 }
 
 func TestRunForceTruncatesLongOutput(t *testing.T) {
-  cfg := newTestConfig(t, Options{MaxOutput: 10})
+  cfg := newTestConfig(t, Options{ MaxOutput: 10 })
 
-  res, err := cfg.Exec(context.Background(), Command{ Binary: "sh", Args: []string{"-c", "printf '%050d' 0"}, Mode: ExecForce })
+  res, err := cfg.Exec(context.Background(), Command{ Binary: "sh", Args: []string{ "-c", "printf '%050d' 0" }, Mode: ExecForce })
   if err != nil {
     t.Fatal(err)
   }
@@ -304,7 +304,7 @@ func TestRunForceTruncatesLongOutput(t *testing.T) {
 }
 
 func TestDescribeArgs(t *testing.T) {
-  got := DescribeArgs("git", []string{"log", "-3"})
+  got := DescribeArgs("git", []string{ "log", "-3" })
   if got != "git log -3" {
     t.Fatalf("DescribeArgs = %q", got)
   }

@@ -75,7 +75,7 @@ func TestFindFilesMatchesGlob(t *testing.T) {
   writeFile(t, cfg.Root, "a.go", "")
   writeFile(t, cfg.Root, "sub/b_test.go", "")
 
-  out, err := FindFiles(context.Background(), cfg, FindFilesInput{Pattern: "*_test.go"})
+  out, err := FindFiles(context.Background(), cfg, FindFilesInput{ Pattern: "*_test.go" })
   if err != nil {
     t.Fatalf("FindFiles: %v", err)
   }
@@ -98,7 +98,7 @@ func TestFileStatReportsSizeAndLines(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "a.txt", "one\ntwo\nthree")
 
-  out, err := FileStat(context.Background(), cfg, FileStatInput{Path: "a.txt"})
+  out, err := FileStat(context.Background(), cfg, FileStatInput{ Path: "a.txt" })
   if err != nil {
     t.Fatalf("FileStat: %v", err)
   }
@@ -113,7 +113,7 @@ func TestFileStatReportsSizeAndLines(t *testing.T) {
 func TestFileStatRejectsDirectory(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "sub/a.txt", "x")
-  _, err := FileStat(context.Background(), cfg, FileStatInput{Path: "sub"})
+  _, err := FileStat(context.Background(), cfg, FileStatInput{ Path: "sub" })
   if err == nil {
     t.Fatal("expected an error for a directory")
   }

@@ -10,7 +10,7 @@ import (
 // frames is a braille-dot spinner — compact, doesn't jitter the
 // line width, reads fine on any terminal that does UTF-8 (which is
 // to say: any terminal worth targeting in 2026).
-var frames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+var frames = []string{ "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 
 // NewSpinner starts a spinner immediately with the given label and
 // the time since it started.

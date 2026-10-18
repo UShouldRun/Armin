@@ -143,11 +143,11 @@ func TestTurnExecutesToolThenReturnsAnswer(t *testing.T) {
         Role: "assistant",
         ToolCalls: []llm.ToolCall{{Function: llm.ToolCallFunction{
           Name:      "read_file",
-          Arguments: map[string]any{"path": "f.txt"},
+          Arguments: map[string]any{ "path": "f.txt" },
         }}},
       }
     } else {
-      reply = llm.Message{Role: "assistant", Content: "the file says hello world"}
+      reply = llm.Message{ Role: "assistant", Content: "the file says hello world" }
     }
 
     writeChatResponse(t, w, reply)
@@ -156,7 +156,7 @@ func TestTurnExecutesToolThenReturnsAnswer(t *testing.T) {
   var toolCallSeen string
   onToolCall := func(name string, _ map[string]any) { toolCallSeen = name }
 
-  history := []llm.Message{{Role: "system", Content: "sys"}}
+  history := []llm.Message{ { Role: "system", Content: "sys" } }
   answer, err := loop.Turn(context.Background(), &history, Hooks{ ToolCall: onToolCall })
   if err != nil {
     t.Fatalf("Turn: %v", err)
@@ -194,17 +194,17 @@ func TestTurnSurfacesToolErrorAsStructuredResult(t *testing.T) {
         Role: "assistant",
         ToolCalls: []llm.ToolCall{{Function: llm.ToolCallFunction{
           Name:      "read_file",
-          Arguments: map[string]any{"path": "does-not-exist.txt"},
+          Arguments: map[string]any{ "path": "does-not-exist.txt" },
         }}},
       }
     } else {
-      reply = llm.Message{Role: "assistant", Content: "couldn't find that file"}
+      reply = llm.Message{ Role: "assistant", Content: "couldn't find that file" }
     }
 
     writeChatResponse(t, w, reply)
   })
 
-  history := []llm.Message{{Role: "system", Content: "sys"}}
+  history := []llm.Message{ { Role: "system", Content: "sys" } }
   _, err := loop.Turn(context.Background(), &history, Hooks{})
   if err != nil {
     t.Fatalf("Turn: %v", err)
@@ -278,17 +278,17 @@ func TestTurnDispatchesWebSearchWithNilManager(t *testing.T) {
         Role: "assistant",
         ToolCalls: []llm.ToolCall{{Function: llm.ToolCallFunction{
           Name:      "web_search",
-          Arguments: map[string]any{"query": "armin coding agent"},
+          Arguments: map[string]any{ "query": "armin coding agent" },
         }}},
       }
     } else {
-      reply = llm.Message{Role: "assistant", Content: "search is unavailable"}
+      reply = llm.Message{ Role: "assistant", Content: "search is unavailable" }
     }
 
     writeChatResponse(t, w, reply)
   })
 
-  history := []llm.Message{{Role: "system", Content: "sys"}}
+  history := []llm.Message{ { Role: "system", Content: "sys" } }
   _, err := loop.Turn(context.Background(), &history, Hooks{})
   if err != nil {
     t.Fatalf("Turn: %v", err)
@@ -313,13 +313,13 @@ func TestTurnRejectsUnknownTool(t *testing.T) {
   loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
     reply := llm.Message{
       Role: "assistant",
-      ToolCalls: []llm.ToolCall{{Function: llm.ToolCallFunction{Name: "delete_everything"}}},
+      ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{ Name: "delete_everything" } } },
     }
 
     writeChatResponse(t, w, reply)
   })
 
-  history := []llm.Message{{Role: "system", Content: "sys"}}
+  history := []llm.Message{ { Role: "system", Content: "sys" } }
   // The fake server always offers the same bogus tool call, so this
   // runs out the round limit — what matters is that execute()
   // doesn't panic on an unknown name but returns a structured error.

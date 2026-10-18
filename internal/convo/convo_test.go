@@ -20,15 +20,15 @@ func TestAnalyzeEmpty(t *testing.T) {
 
 func TestAnalyzeCountsMessagesToolCallsAndResults(t *testing.T) {
   history := []llm.Message{
-    {Role: "system", Content: "0123456789"}, // 10 chars -> 2 tokens @4 chars/token
-    {Role: "user", Content: "hello"},
+    { Role: "system", Content: "0123456789" }, // 10 chars -> 2 tokens @4 chars/token
+    { Role: "user", Content: "hello" },
     {
       Role:      "assistant",
       Content:   "",
-      ToolCalls: []llm.ToolCall{{Function: llm.ToolCallFunction{Name: "search_code"}}},
+      ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{ Name: "search_code" } } },
     },
-    {Role: "tool", ToolName: "search_code", Content: "result"},
-    {Role: "assistant", Content: "done"},
+    { Role: "tool", ToolName: "search_code", Content: "result" },
+    { Role: "assistant", Content: "done" },
   }
 
   s := Analyze(history)
@@ -49,8 +49,8 @@ func TestAnalyzeCountsMessagesToolCallsAndResults(t *testing.T) {
 
 func TestCompactRefusesWhenTooShort(t *testing.T) {
   history := []llm.Message{
-    {Role: "system", Content: "sys"},
-    {Role: "user", Content: "hi"},
+    { Role: "system", Content: "sys" },
+    { Role: "user", Content: "hi" },
   }
 
   err := Compact(nil, nil, &history, 6, "")
@@ -86,13 +86,13 @@ func TestCompactPreservesSystemAndTail(t *testing.T) {
   client := llm.New(server.URL, "fake-model")
 
   history := []llm.Message{
-    {Role: "system", Content: "you are armin"},
-    {Role: "user", Content: "old message 1"},
-    {Role: "assistant", Content: "old reply 1"},
-    {Role: "user", Content: "old message 2"},
-    {Role: "assistant", Content: "old reply 2"},
-    {Role: "user", Content: "recent 1"},
-    {Role: "assistant", Content: "recent 2"},
+    { Role: "system", Content: "you are armin" },
+    { Role: "user", Content: "old message 1" },
+    { Role: "assistant", Content: "old reply 1" },
+    { Role: "user", Content: "old message 2" },
+    { Role: "assistant", Content: "old reply 2" },
+    { Role: "user", Content: "recent 1" },
+    { Role: "assistant", Content: "recent 2" },
   }
   const keepLast = 2
 
@@ -160,7 +160,7 @@ func TestSuggestParsesOneLinePerSuggestion(t *testing.T) {
   defer server.Close()
   client := llm.New(server.URL, "fake-model")
 
-  history := []llm.Message{{Role: "user", Content: "hi"}}
+  history := []llm.Message{ { Role: "user", Content: "hi" } }
   got, err := Suggest(context.Background(), client, history)
   if err != nil {
     t.Fatalf("Suggest: %v", err)

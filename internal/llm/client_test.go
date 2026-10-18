@@ -43,7 +43,7 @@ func TestChatNonStreaming(t *testing.T) {
   })
 
   client := New(server.URL, "fake-model")
-  msg, err := client.Chat(context.Background(), []Message{{Role: "user", Content: "hey"}}, nil, nil)
+  msg, err := client.Chat(context.Background(), []Message{ { Role: "user", Content: "hey" } }, nil, nil)
   if err != nil {
     t.Fatalf("Chat: %v", err)
   }
@@ -76,7 +76,7 @@ func TestChoreTurnsOffHostedReasoning(t *testing.T) {
   }
 
   client.APIKey, client.Effort = "key", "high"
-  _, err := client.Chore().Chat(context.Background(), []Message{{Role: "user", Content: "hey"}}, nil, nil)
+  _, err := client.Chore().Chat(context.Background(), []Message{ { Role: "user", Content: "hey" } }, nil, nil)
   if err != nil {
     t.Fatalf("Chat: %v", err)
   }
@@ -112,7 +112,7 @@ func TestChatSendsToolCallArgumentsAsJSONString(t *testing.T) {
     }
 
     json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{{ Message: owaiMessage{ Role: "assistant", Content: "ok" } }},
+      Choices: []owaiChoice{ { Message: owaiMessage{ Role: "assistant", Content: "ok" } } },
     })
   })
 
@@ -217,17 +217,17 @@ func TestChatStreamingAssemblesDeltasAndToolCallFragments(t *testing.T) {
       }
     }
 
-    write(owaiStreamChunk{Choices: []owaiStreamChoice{{Delta: owaiStreamDelta{Content: "Hel"}}}})
-    write(owaiStreamChunk{Choices: []owaiStreamChoice{{Delta: owaiStreamDelta{Content: "lo"}}}})
+    write(owaiStreamChunk{ Choices: []owaiStreamChoice{ { Delta: owaiStreamDelta{ Content: "Hel" } } } })
+    write(owaiStreamChunk{ Choices: []owaiStreamChoice{ { Delta: owaiStreamDelta{ Content: "lo" } } } })
     // Tool call arguments split across two fragments, matched by index.
     write(owaiStreamChunk{Choices: []owaiStreamChoice{{Delta: owaiStreamDelta{
       ToolCalls: []owaiStreamToolCall{
-        {Index: 0, ID: "call_1", Function: owaiToolCallFunc{Name: "search_code", Arguments: `{"que`}},
+        { Index: 0, ID: "call_1", Function: owaiToolCallFunc{ Name: "search_code", Arguments: `{"que` } },
       },
     }}}})
     write(owaiStreamChunk{Choices: []owaiStreamChoice{{Delta: owaiStreamDelta{
       ToolCalls: []owaiStreamToolCall{
-        {Index: 0, Function: owaiToolCallFunc{Arguments: `ry":"foo"}`}},
+        { Index: 0, Function: owaiToolCallFunc{ Arguments: `ry":"foo"}` } },
       },
     }}}})
     io.WriteString(w, "data: [DONE]\n\n")
@@ -302,7 +302,7 @@ func TestComplete(t *testing.T) {
     }
 
     gotPrefix, gotSuffix = req.InputPrefix, req.InputSuffix
-    json.NewEncoder(w).Encode(infillResponse{Content: "return 42"})
+    json.NewEncoder(w).Encode(infillResponse{ Content: "return 42" })
   })
 
   client := New(server.URL, "chat-model")
@@ -361,7 +361,7 @@ func TestHealthNotReady(t *testing.T) {
 func TestRequestStartEndBracketEveryCall(t *testing.T) {
   server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{{Message: owaiMessage{Role: "assistant", Content: "ok"}}},
+      Choices: []owaiChoice{ { Message: owaiMessage{ Role: "assistant", Content: "ok" } } },
     })
   })
 
@@ -400,7 +400,7 @@ func TestChatSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
   server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
     gotAuth = r.Header.Get("Authorization")
     json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{{Message: owaiMessage{Role: "assistant", Content: "ok"}}},
+      Choices: []owaiChoice{ { Message: owaiMessage{ Role: "assistant", Content: "ok" } } },
     })
   })
 
@@ -421,7 +421,7 @@ func TestChatOmitsAuthorizationHeaderWhenNoAPIKey(t *testing.T) {
   server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
     sawHeader = r.Header.Get("Authorization") != ""
     json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{{Message: owaiMessage{Role: "assistant", Content: "ok"}}},
+      Choices: []owaiChoice{ { Message: owaiMessage{ Role: "assistant", Content: "ok" } } },
     })
   })
 
@@ -440,7 +440,7 @@ func TestCompleteSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
   var gotAuth string
   server := serverReturning(t, "/infill", func(w http.ResponseWriter, r *http.Request) {
     gotAuth = r.Header.Get("Authorization")
-    json.NewEncoder(w).Encode(infillResponse{Content: "x"})
+    json.NewEncoder(w).Encode(infillResponse{ Content: "x" })
   })
 
   client := New(server.URL, "m")
@@ -700,7 +700,7 @@ func TestChatFallsBackOnceOnForbidden(t *testing.T) {
   client.Fallback = global.URL
   client.OnFallback = func(from, to string) { moved = [2]string{ from, to } }
 
-  msg, err := client.Chat(context.Background(), []Message{{Role: "user", Content: "hey"}}, nil, nil)
+  msg, err := client.Chat(context.Background(), []Message{ { Role: "user", Content: "hey" } }, nil, nil)
   if err != nil {
     t.Fatalf("Chat: %v", err)
   }

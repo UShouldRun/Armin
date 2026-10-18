@@ -18,30 +18,30 @@ func TestParseLine(t *testing.T) {
     {
       name: "function with package scope",
       line: "New\tinternal/agent/loop.go\t31;\"\tf\tline:31\tpackage:agent\ttyperef:typename:*Loop",
-      want: Symbol{Name: "New", Kind: "f", File: "internal/agent/loop.go", Line: 31, Scope: "package:agent"},
+      want: Symbol{ Name: "New", Kind: "f", File: "internal/agent/loop.go", Line: 31, Scope: "package:agent" },
       ok:   true,
     },
     {
       name: "struct field with struct scope",
       line: "LLM\tinternal/agent/loop.go\t22;\"\tm\tline:22\tstruct:agent.Loop\ttyperef:typename:*llm.Client",
-      want: Symbol{Name: "LLM", Kind: "m", File: "internal/agent/loop.go", Line: 22, Scope: "struct:agent.Loop"},
+      want: Symbol{ Name: "LLM", Kind: "m", File: "internal/agent/loop.go", Line: 22, Scope: "struct:agent.Loop" },
       ok:   true,
     },
     {
       name: "no scope field",
       line: "agent\tinternal/agent/loop.go\t4;\"\tp\tline:4",
-      want: Symbol{Name: "agent", Kind: "p", File: "internal/agent/loop.go", Line: 4},
+      want: Symbol{ Name: "agent", Kind: "p", File: "internal/agent/loop.go", Line: 4 },
       ok:   true,
     },
     {
       name: "line number recovered from third column when line: field missing",
       line: "Foo\tfile.go\t7;\"\tf",
-      want: Symbol{Name: "Foo", Kind: "f", File: "file.go", Line: 7},
+      want: Symbol{ Name: "Foo", Kind: "f", File: "file.go", Line: 7 },
       ok:   true,
     },
-    {name: "empty line", line: "", ok: false},
-    {name: "tag file pragma header", line: "!_TAG_FILE_FORMAT\t2\t/extended format/", ok: false},
-    {name: "too few columns", line: "Foo\tfile.go", ok: false},
+    { name: "empty line", line: "", ok: false },
+    { name: "tag file pragma header", line: "!_TAG_FILE_FORMAT\t2\t/extended format/", ok: false },
+    { name: "too few columns", line: "Foo\tfile.go", ok: false },
   }
 
   for _, c := range cases {
@@ -62,10 +62,10 @@ func TestParseLine(t *testing.T) {
 
 func TestRankSymbols(t *testing.T) {
   matches := []Symbol{
-    {Name: "New", File: "other/pkg/file.go"},
-    {Name: "New", File: "same/dir/other.go"},
-    {Name: "New", File: "same/dir/target.go"},
-    {Name: "New", File: "another/file.go"},
+    { Name: "New", File: "other/pkg/file.go" },
+    { Name: "New", File: "same/dir/other.go" },
+    { Name: "New", File: "same/dir/target.go" },
+    { Name: "New", File: "another/file.go" },
   }
 
   rankSymbols(matches, "same/dir/target.go")
@@ -83,7 +83,7 @@ func TestRankSymbols(t *testing.T) {
 }
 
 func TestRankSymbolsNoFromFile(t *testing.T) {
-  matches := []Symbol{{Name: "A", File: "a.go"}, {Name: "A", File: "b.go"}}
+  matches := []Symbol{ { Name: "A", File: "a.go" }, { Name: "A", File: "b.go" } }
   original := append([]Symbol{}, matches...)
 
   rankSymbols(matches, "")
@@ -100,16 +100,16 @@ func TestContainsFold(t *testing.T) {
     s, substr string
     want      bool
   }{
-    {"NewWidget", "widget", true},
-    {"NewWidget", "WIDGET", true},
-    {"NewWidget", "new", true},
-    {"NewWidget", "gadget", false},
-    {"NewWidget", "", true},
-    {"", "x", false},
-    {"", "", true},
-    {"short", "muchlongerquery", false},
-    {"ABC", "abc", true},
-    {"abcabc", "cab", true},
+    { "NewWidget", "widget", true },
+    { "NewWidget", "WIDGET", true },
+    { "NewWidget", "new", true },
+    { "NewWidget", "gadget", false },
+    { "NewWidget", "", true },
+    { "", "x", false },
+    { "", "", true },
+    { "short", "muchlongerquery", false },
+    { "ABC", "abc", true },
+    { "abcabc", "cab", true },
   }
 
   for _, c := range cases {

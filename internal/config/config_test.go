@@ -74,7 +74,7 @@ allow = curl, docker
     Root:               "/some/project",
     Timeout:            30 * time.Second,
     MaxOutput:          5000,
-    ExtraAllowed:       []string{"curl", "docker"},
+    ExtraAllowed:       []string{ "curl", "docker" },
   }
 
   if cfg.Model != want.Model || cfg.CompletionModel != want.CompletionModel ||
@@ -128,7 +128,7 @@ models.fim.args = --ctx-size 8192 --n-gpu-layers 999
   if fim.IdleTimeout != 5 * time.Minute {
     t.Fatalf("fim.IdleTimeout = %v, want 5m", fim.IdleTimeout)
   }
-  want := []string{"--ctx-size", "8192", "--n-gpu-layers", "999"}
+  want := []string{ "--ctx-size", "8192", "--n-gpu-layers", "999" }
   if len(fim.Args) != len(want) {
     t.Fatalf("fim.Args = %v, want %v", fim.Args, want)
   }

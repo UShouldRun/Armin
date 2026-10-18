@@ -15,10 +15,10 @@ func TestLineOffset(t *testing.T) {
     wantEnd   int
     wantOK    bool
   }{
-    {"first line", 0, 0, 5, true},
-    {"middle line", 2, 12, 17, true},
-    {"negative line", -1, 0, 0, false},
-    {"line past end", 99, 0, 0, false},
+    { "first line", 0, 0, 5, true },
+    { "middle line", 2, 12, 17, true },
+    { "negative line", -1, 0, 0, false },
+    { "line past end", 99, 0, 0, false },
   }
 
   for _, c := range cases {

@@ -9,7 +9,7 @@ import (
 
 func TestWriteThenReadMessageRoundTrip(t *testing.T) {
   var buf bytes.Buffer
-  payload := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "test"}
+  payload := map[string]any{ "jsonrpc": "2.0", "id": 1, "method": "test" }
 
   err := writeMessage(&buf, payload)
   if err != nil {
@@ -69,11 +69,11 @@ func TestReadMessageIgnoresUnknownHeaders(t *testing.T) {
 
 func TestReadMessageSequential(t *testing.T) {
   var buf bytes.Buffer
-  err := writeMessage(&buf, map[string]int{"n": 1})
+  err := writeMessage(&buf, map[string]int{ "n": 1 })
   if err != nil {
     t.Fatal(err)
   }
-  err = writeMessage(&buf, map[string]int{"n": 2})
+  err = writeMessage(&buf, map[string]int{ "n": 2 })
   if err != nil {
     t.Fatal(err)
   }

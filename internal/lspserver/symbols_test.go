@@ -9,15 +9,15 @@ func TestWordAt(t *testing.T) {
     character int
     want      string
   }{
-    {"middle of word", "fooBar(x)", 2, "fooBar"},
-    {"cursor on last letter of word", "fooBar(x)", 5, "fooBar"},
-    {"cursor at start of word", "fooBar(x)", 0, "fooBar"},
-    {"cursor on whitespace", "foo bar", 3, ""},
-    {"cursor on punctuation", "foo(bar)", 3, ""},
-    {"underscore identifier", "my_var_2 = 1", 4, "my_var_2"},
-    {"empty line", "", 0, ""},
-    {"character past end of line", "foo", 99, ""},
-    {"negative character", "foo", -5, ""},
+    { "middle of word", "fooBar(x)", 2, "fooBar" },
+    { "cursor on last letter of word", "fooBar(x)", 5, "fooBar" },
+    { "cursor at start of word", "fooBar(x)", 0, "fooBar" },
+    { "cursor on whitespace", "foo bar", 3, "" },
+    { "cursor on punctuation", "foo(bar)", 3, "" },
+    { "underscore identifier", "my_var_2 = 1", 4, "my_var_2" },
+    { "empty line", "", 0, "" },
+    { "character past end of line", "foo", 99, "" },
+    { "negative character", "foo", -5, "" },
   }
 
   for _, c := range cases {

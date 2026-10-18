@@ -72,7 +72,7 @@ func TestCommentAboveNoneAtFileStart(t *testing.T) {
 
 func TestReadDocCommentNilIndexIsCleanError(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
-  in := ReadDocCommentInput{Name: "Foo"}
+  in := ReadDocCommentInput{ Name: "Foo" }
   _, err := ReadDocComment(context.Background(), nil, cfg, in)
   if err == nil {
     t.Fatal("expected an error for a nil ctags index")
@@ -98,7 +98,7 @@ func TestReadDocCommentEndToEnd(t *testing.T) {
   )
 
   idx := ctags.New(cfg.Root, ctagsBin)
-  out, err := ReadDocComment(context.Background(), idx, cfg, ReadDocCommentInput{Name: "Greet"})
+  out, err := ReadDocComment(context.Background(), idx, cfg, ReadDocCommentInput{ Name: "Greet" })
   if err != nil {
     t.Fatalf("ReadDocComment: %v", err)
   }
@@ -113,7 +113,7 @@ func TestReadDocCommentUnknownSymbol(t *testing.T) {
   writeFile(t, cfg.Root, "a.go", "package main\n\nfunc Foo() {}\n")
 
   idx := ctags.New(cfg.Root, ctagsBin)
-  in := ReadDocCommentInput{Name: "DefinitelyNotDefinedAnywhere"}
+  in := ReadDocCommentInput{ Name: "DefinitelyNotDefinedAnywhere" }
   _, err := ReadDocComment(context.Background(), idx, cfg, in)
   if err == nil {
     t.Fatal("expected an error for an undefined symbol")
