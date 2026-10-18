@@ -1,3 +1,5 @@
+// Inputs and outputs of build.go's tools.
+
 package tools
 
 // Command is one project command. Args a caller passes replace

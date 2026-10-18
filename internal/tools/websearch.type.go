@@ -1,3 +1,5 @@
+// Inputs and outputs of websearch.go's tools.
+
 package tools
 
 // WebSearchInput is the argument set for web_search.

@@ -1,3 +1,5 @@
+// Inputs and outputs of listdir.go's tools.
+
 package tools
 
 // ListDirectoryInput is the argument set for list_directory.

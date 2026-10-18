@@ -1,3 +1,6 @@
+// Symbols from the ctags index: FindDefinition, ListSymbols,
+// OutlineFile, and FindReferences (a word-boundary search).
+
 package tools
 
 import (

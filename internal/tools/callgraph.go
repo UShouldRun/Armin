@@ -1,3 +1,7 @@
+// Call-graph questions answered from ctags and a text search:
+// FindCallers, FindDeadCode (symbols nothing references) and
+// ImpactAnalysis (what a change to a symbol reaches).
+
 package tools
 
 import (

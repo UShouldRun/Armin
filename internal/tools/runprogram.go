@@ -1,3 +1,7 @@
+// RunProgram: a program the user approved (builds, scripts, the
+// built binary), in the project, with an optional input and output
+// file; Describe shows what's about to run.
+
 package tools
 
 import (

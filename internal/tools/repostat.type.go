@@ -1,3 +1,5 @@
+// Inputs and outputs of repostat.go's tools.
+
 package tools
 
 // dirCount is one directory or extension's aggregate — files and

@@ -1,3 +1,5 @@
+// Inputs and outputs of symbols.go's tools.
+
 package tools
 
 // SymbolLocation is one ctags.Symbol, reshaped for the JSON contract

@@ -1,3 +1,9 @@
+// Writes: PlanWrite and PlanEdit turn a request into a Change (the
+// whole old and new content, a preview), which the agent shows for
+// approval and then Applies; FileTracker refuses a write to a file
+// the model hasn't read, or that changed since. WriteFile and
+// EditFile write directly (the MCP server's path).
+
 package tools
 
 import (

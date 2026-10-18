@@ -1,3 +1,5 @@
+// WebSearch: a query through the local SearXNG (internal/searxng).
+
 package tools
 
 import (

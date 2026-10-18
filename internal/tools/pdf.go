@@ -1,3 +1,6 @@
+// ReadPDF: a page range of a PDF as text (poppler's pdftotext), with
+// --- page N --- markers to cite and navigate.
+
 package tools
 
 import (

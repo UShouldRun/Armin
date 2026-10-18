@@ -1,3 +1,7 @@
+// RunCommand: one allowlisted, read-only program, run directly (no
+// shell), with its arguments checked; PathArgs names the files its
+// arguments point at, for the access check.
+
 package tools
 
 import (

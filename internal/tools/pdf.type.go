@@ -1,3 +1,5 @@
+// Inputs and outputs of pdf.go's tools.
+
 package tools
 
 // ReadPDFInput is the argument set for read_pdf.

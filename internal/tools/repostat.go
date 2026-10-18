@@ -1,3 +1,7 @@
+// Project facts: line counts, languages, finding files, file stat,
+// TODO/FIXME markers, the environment (OS, toolchains) and the
+// project manifest that orients a new session.
+
 package tools
 
 import (

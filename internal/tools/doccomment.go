@@ -1,3 +1,5 @@
+// ReadDocComment: a symbol's doc comment, found through ctags.
+
 package tools
 
 import (

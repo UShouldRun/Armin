@@ -1,3 +1,5 @@
+// Inputs and outputs of gitinfo.go's tools.
+
 package tools
 
 type GitLogInput struct {

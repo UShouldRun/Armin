@@ -1,3 +1,5 @@
+// Inputs and outputs of search.go's tools.
+
 package tools
 
 // SearchCodeInput is the structured argument set for search_code — a

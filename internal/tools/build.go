@@ -1,3 +1,8 @@
+// The project's checks: DetectCommands finds its test, build and lint
+// commands (Makefile, go.mod, Cargo.toml, package.json, Python config)
+// unless config.conf sets them; RunTests, BuildCheck and LintCheck run
+// them and summarize what failed.
+
 package tools
 
 import (

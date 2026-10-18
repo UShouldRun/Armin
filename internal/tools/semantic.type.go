@@ -1,3 +1,5 @@
+// Inputs and outputs of semantic.go's tools.
+
 package tools
 
 type SemanticSearchInput struct {

@@ -1,3 +1,5 @@
+// ReadFile: a line range of a text file; long files need a range.
+
 package tools
 
 import (

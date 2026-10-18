@@ -1,3 +1,6 @@
+// SemanticSearch: files ranked by how often the query's words occur
+// (keyword ranking, not embeddings).
+
 package tools
 
 import (

@@ -1,3 +1,5 @@
+// Inputs and outputs of deps.go's tools.
+
 package tools
 
 type Dependency struct {

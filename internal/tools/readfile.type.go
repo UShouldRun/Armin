@@ -1,3 +1,5 @@
+// Inputs and outputs of readfile.go's tools.
+
 package tools
 
 // ReadFileInput is the structured argument set for read_file.

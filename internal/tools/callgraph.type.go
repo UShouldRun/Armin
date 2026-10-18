@@ -1,3 +1,5 @@
+// Inputs and outputs of callgraph.go's tools.
+
 package tools
 
 import (

@@ -1,3 +1,6 @@
+// ListDirectory: a folder as an indented tree, skipping .git,
+// node_modules, vendor and the like (SkipDir).
+
 package tools
 
 import (

@@ -1,3 +1,6 @@
+// Dependencies: ListDependencies parses whichever manifest exists,
+// ModuleGraph shows how the project's own packages import each other.
+
 package tools
 
 import (

@@ -1,3 +1,5 @@
+// Inputs and outputs of edit.go's tools.
+
 package tools
 
 import (

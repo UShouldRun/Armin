@@ -1,3 +1,5 @@
+// Inputs and outputs of doccomment.go's tools.
+
 package tools
 
 type ReadDocCommentInput struct {

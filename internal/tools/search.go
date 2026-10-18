@@ -1,3 +1,5 @@
+// SearchCode: ripgrep over the project, matches with a little context.
+
 package tools
 
 import (

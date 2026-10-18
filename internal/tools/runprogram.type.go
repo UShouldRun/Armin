@@ -1,3 +1,5 @@
+// Inputs and outputs of runprogram.go's tools.
+
 package tools
 
 // RunProgramInput is the argument set for run_program.

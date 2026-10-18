@@ -1,3 +1,6 @@
+// Git history, read-only: log, blame, diff, show, the working tree's
+// changes, searching history, code owners and commit statistics.
+
 package tools
 
 import (

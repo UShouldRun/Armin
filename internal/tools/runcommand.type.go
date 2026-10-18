@@ -1,3 +1,5 @@
+// Inputs and outputs of runcommand.go's tools.
+
 package tools
 
 // RunCommandInput is the argument set for run_command. Args is always
