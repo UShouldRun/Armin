@@ -1,3 +1,6 @@
+// Navigation without a model: definition and workspace/symbol from
+// the ctags index, and the symbol facts hover adds to its question.
+
 package lspserver
 
 import (

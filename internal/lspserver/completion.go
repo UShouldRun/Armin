@@ -1,3 +1,9 @@
+// Inline completion (ghost text): inlineCompletion cuts a fill-in-
+// the-middle window around the cursor (fimWindow), adds nearby open
+// files as context (otherChunks), asks the completion model and trims
+// the answer to what fits the line. A newer keystroke cancels an older
+// request (startCompletion, endCompletion).
+
 package lspserver
 
 import (

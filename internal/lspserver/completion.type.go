@@ -1,3 +1,5 @@
+// A fill-in-the-middle window: the text before and after the cursor.
+
 package lspserver
 
 // fim is one fill-in-the-middle request cut out of a document.

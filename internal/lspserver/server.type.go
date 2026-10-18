@@ -1,3 +1,6 @@
+// The server's state: open documents, the hover cache, the chat
+// history and the completion requests in flight.
+
 package lspserver
 
 import (

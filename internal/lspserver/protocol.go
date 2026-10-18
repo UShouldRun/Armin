@@ -1,3 +1,5 @@
+// The server's capabilities and the result shapes it returns.
+
 package lspserver
 
 // Error codes we actually emit — the rest of the JSON-RPC/LSP space

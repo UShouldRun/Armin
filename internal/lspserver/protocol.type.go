@@ -1,3 +1,5 @@
+// LSP and JSON-RPC message shapes, only the fields armin uses.
+
 package lspserver
 
 import (

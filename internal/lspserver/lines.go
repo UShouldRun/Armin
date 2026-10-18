@@ -1,3 +1,6 @@
+// Finding line n of a document without splitting the whole text,
+// for hover and completion, which run on every keystroke.
+
 package lspserver
 
 // lineOffset returns the byte range [start, end) of line n

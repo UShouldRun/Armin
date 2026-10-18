@@ -1,3 +1,6 @@
+// LSP's wire framing: readMessage and writeMessage handle the
+// Content-Length headers around each JSON-RPC message.
+
 package lspserver
 
 import (
