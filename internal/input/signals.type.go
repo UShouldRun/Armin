@@ -1,3 +1,5 @@
+// The signal router's handlers, swapped atomically as frontends start.
+
 package input
 
 import (

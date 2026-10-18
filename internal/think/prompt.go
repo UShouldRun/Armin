@@ -1,3 +1,8 @@
+// The system prompts: basePrompt for frontends that edit, readOnly
+// for nvim's questions; buildSystemPrompt appends the project's
+// instruction file, the memory and skill indexes and the library's
+// "where to look"; openNotes opens the stores those come from.
+
 package think
 
 import (

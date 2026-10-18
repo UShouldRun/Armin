@@ -1,3 +1,8 @@
+// From config.conf to running models: buildModelSpecs turns each
+// models.<name> entry into a llamacpp.ModelSpec (a local llama-server,
+// a hosted API, or one on a cloud machine via remoteSpec), and
+// queryContextSize asks a server for its window.
+
 package think
 
 import (
@@ -34,7 +39,9 @@ func remoteSpec(c config.ModelSpecConfig) *llamacpp.RemoteSpec {
     )
   case c.StackitServer != "":
     r.Provider, r.MachineID = cloud.ProviderSTACKIT, c.StackitServer
-    r.ProjectID = firstNonEmpty(c.StackitProject, os.Getenv("STACKIT_PROJECT_ID"))
+    r.ProjectID = firstNonEmpty(
+      c.StackitProject, os.Getenv("STACKIT_PROJECT_ID"),
+    )
     r.Region = firstNonEmpty(
       c.StackitRegion, firstNonEmpty(os.Getenv("STACKIT_REGION"), "eu01"),
     )
@@ -78,7 +85,10 @@ func buildModelSpecs(opts *input.Options) map[string]llamacpp.ModelSpec {
   specs := make(map[string]llamacpp.ModelSpec, len(fileCfg.Models) + 2)
   for name, c := range fileCfg.Models {
     spec := llamacpp.ModelSpec{
-      URL: catalog.Regional(c.URL), APIKeyEnv: c.APIKeyEnv, ID: c.ID, Effort: c.Reasoning,
+      URL:       catalog.Regional(c.URL),
+      APIKeyEnv: c.APIKeyEnv,
+      ID:        c.ID,
+      Effort:    c.Reasoning,
       Binary: c.Binary, ModelPath: c.ModelPath,
       Port: c.Port, Args: c.Args, IdleTimeout: c.IdleTimeout,
     }

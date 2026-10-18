@@ -1,3 +1,5 @@
+// Mind: everything a frontend needs to run turns.
+
 package think
 
 import (

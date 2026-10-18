@@ -1,3 +1,8 @@
+// Command-line flags. parseFlags declares every flag with its default
+// from config.conf (flags win), and pulls a bare project path ("armin
+// .") out of argv wherever it sits, since Go's flag package stops at
+// the first non-flag. Parse (input.go) turns the result into Options.
+
 package input
 
 import (
@@ -105,7 +110,8 @@ func parseFlags(fileCfg config.Config) cliFlags {
   flag.Usage = func() {
     fmt.Fprintln(os.Stderr, "Usage: armin [path] [flags]")
     fmt.Fprintln(os.Stderr)
-    fmt.Fprintln(os.Stderr, "path is shorthand for -root (\"armin .\" == \"armin -root .\"); giving both is an error.")
+    fmt.Fprintln(os.Stderr, "path is shorthand for -root "+
+      "(\"armin .\" == \"armin -root .\"); giving both is an error.")
     fmt.Fprintln(os.Stderr)
     flag.PrintDefaults()
   }
@@ -134,8 +140,8 @@ func parseFlags(fileCfg config.Config) cliFlags {
     }
 
     if rootExplicitlySet() {
-      fmt.Fprintln(os.Stderr,
-        "armin: both -root and a positional path were given — use one or the other")
+      fmt.Fprintln(os.Stderr, "armin: both -root and a positional "+
+        "path were given — use one or the other")
       os.Exit(2)
     }
 
@@ -143,7 +149,8 @@ func parseFlags(fileCfg config.Config) cliFlags {
   }
 
   if flag.NArg() > 0 {
-    fmt.Fprintf(os.Stderr, "armin: too many positional arguments: %v\n", flag.Args())
+    fmt.Fprintf(os.Stderr,
+      "armin: too many positional arguments: %v\n", flag.Args())
     os.Exit(2)
   }
 
@@ -207,7 +214,8 @@ func extractPositionalRoot(args []string) (rest []string, positional string) {
       if positional == "" {
         positional = a
       } else {
-        rest = append(rest, a) // a second bare token — flag.NArg() > 0 reports this as an error
+        // a second bare token: flag.NArg() > 0 reports the error
+        rest = append(rest, a)
       }
 
     case strings.Contains(a, "="):
@@ -219,7 +227,8 @@ func extractPositionalRoot(args []string) (rest []string, positional string) {
 
       // "-resume <id>": the next word is a session id unless it's
       // a directory (then it's the project root, as before).
-      if name == "resume" && i + 1 < len(args) && looksLikeSessionID(args[i + 1]) {
+      next := i + 1 < len(args)
+      if name == "resume" && next && looksLikeSessionID(args[i + 1]) {
         i++
         rest[len(rest) - 1] = "-resume=" + args[i]
         continue

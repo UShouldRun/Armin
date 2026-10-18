@@ -1,6 +1,14 @@
 // Package input is everything armin is told before it starts: the
 // command line, config.conf and .env, which session to resume, and
-// the signals that arrive while it runs.
+// the signals that arrive while it runs. It's the first of main's
+// three steps (input → think → display): Parse turns all of it into
+// one Options that the other two read.
+//
+//   input.go    Parse: .env, config.conf, flags, the session to
+//               resume → Options; the Mode and Flag values
+//   flags.go    every command-line flag, defaults from config.conf
+//   session.go  the -resume menu
+//   signals.go  Ctrl-C, SIGTERM and SIGHUP, routed to whoever runs
 package input
 
 import (
@@ -34,6 +42,12 @@ func (o *Options) Has(f Flag) bool { return o.Flags & f != 0 }
 
 // Parse reads .env, config.conf and the command line, and asks which
 // session to resume when -resume came alone.
+//
+// Order matters: .env first (config.conf may name keys it holds),
+// then config.conf (its values are the flags' defaults), then the
+// flags; a resumed session may move the project root, which is then
+// resolved through symlinks so every armin in the same project agrees
+// on it (display.Join finds a running instance by its root).
 func Parse() (*Options, error) {
   // Before config.Load(), so a models.<name>.api_key_env entry can
   // resolve against a key .env only just populated.

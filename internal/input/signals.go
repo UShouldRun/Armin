@@ -1,3 +1,7 @@
+// Signals: Ctrl-C goes first to whoever registered OnInterrupt (the
+// REPL stops its turn); SIGTERM and SIGHUP run OnTerminate's cleanup
+// (think stops the models and cloud machines it started) and exit.
+
 package input
 
 import (

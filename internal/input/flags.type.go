@@ -1,3 +1,5 @@
+// The parsed command line, before Parse turns it into Options.
+
 package input
 
 import (
@@ -13,7 +15,7 @@ type cliFlags struct {
   llamaURL, completionLlamaURL              string
   timeout                                   time.Duration
   maxOutput, maxRounds                      int
-  resume                                    string // "": no; "menu"; else a session id
+  resume                                    string // "", "menu" or an id
   dryRun, mcpMode, lspMode, noSave, noColor bool
   autoApprove, newInstance                  bool
   librarySync                               bool

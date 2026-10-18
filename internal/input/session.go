@@ -1,8 +1,11 @@
+// The -resume menu: pickSession lists saved sessions (internal/session)
+// and reads a number, an id or Enter, before the REPL owns stdin.
+
 package input
 
 import (
-  "io"
   "fmt"
+  "io"
   "os"
   "path/filepath"
   "strconv"
@@ -39,7 +42,9 @@ func pickSession(root string) (*session.Saved, error) {
   n, err := strconv.Atoi(line)
   if err == nil {
     if n < 1 || n > min(len(list), 25) {
-      return nil, fmt.Errorf("\n\t... in pickSession:\n\t no session %d in the list", n)
+      return nil, fmt.Errorf(
+        "\n\t... in pickSession:\n\t no session %d in the list", n,
+      )
     }
 
     return session.Load(list[n - 1].ID)

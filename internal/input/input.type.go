@@ -1,3 +1,5 @@
+// What Parse produces: the Options every later step reads.
+
 package input
 
 import (

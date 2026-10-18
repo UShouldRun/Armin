@@ -1,6 +1,19 @@
 // Package think is armin's mind: the sandbox its tools act in, the
 // models it reasons with, the agent loop tying them together, and
-// what it remembers. Package display decides how it's shown.
+// what it remembers. It's main's second step (input → think →
+// display): New turns input's Options into a Mind, and display shows
+// it.
+//
+//   think.go   New: the sandbox, web search, symbols and library
+//              (NewSenses), then the models and the agent loop
+//              (wake → startModels, buildLoop); Shutdown stops what
+//              armin started
+//   models.go  config.conf's models.* entries → llamacpp specs
+//   prompt.go  the system prompts and what's appended to them
+//              (project instructions, memories, skills, library)
+//
+// Everything a frontend needs is on Mind: the Loop to run turns, the
+// Client and Models to switch models, the stores for slash commands.
 package think
 
 import (
@@ -107,8 +120,25 @@ func NewSenses(opts *input.Options) (*Mind, error) {
   return m, nil
 }
 
-// wake starts the models and the agent loop.
+// wake starts the models, then builds the agent loop on the chat one.
 func (m *Mind) wake(ctx context.Context, opts *input.Options) error {
+  err := m.startModels(ctx, opts)
+  if err != nil {
+    return fmt.Errorf("\n\t... in wake:\n\t%w", err)
+  }
+
+  err = m.buildLoop(ctx, opts)
+  if err != nil {
+    return fmt.Errorf("\n\t... in wake:\n\t%w", err)
+  }
+
+  return nil
+}
+
+// startModels sets up the model manager and starts the chat model
+// (loading a local one now, on the GPU if there is one); inline
+// completion gets a client that loads on first use.
+func (m *Mind) startModels(ctx context.Context, opts *input.Options) error {
   cfg := opts.Config
 
   // models owns every configured llama-server: spawning one on first
@@ -137,7 +167,9 @@ func (m *Mind) wake(ctx context.Context, opts *input.Options) error {
 
   client, err := m.Models.Client(ctx, opts.Model)
   if err != nil {
-    return fmt.Errorf("\n\t... in wake:\n\t starting model %q: %w", opts.Model, err)
+    return fmt.Errorf(
+      "\n\t... in startModels:\n\t starting model %q: %w", opts.Model, err,
+    )
   }
 
   m.Client = client
@@ -166,9 +198,18 @@ func (m *Mind) wake(ctx context.Context, opts *input.Options) error {
 
   m.Completion, err = m.Models.LazyClient(completion)
   if err != nil {
-    return fmt.Errorf("\n\t... in wake:\n\t%w", err)
+    return fmt.Errorf("\n\t... in startModels:\n\t%w", err)
   }
 
+  return nil
+}
+
+// buildLoop wires the agent loop to the chat model and to everything
+// a turn uses: the sandbox's services, notes, reasoning aids, the
+// library. A resumed session goes back to the model it used.
+func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
+  cfg := opts.Config
+  client := m.Client
   loop := agent.New(client, m.Sandbox)
   loop.WebSearch = m.WebSearch
   loop.Symbols = m.Symbols
@@ -186,9 +227,10 @@ func (m *Mind) wake(ctx context.Context, opts *input.Options) error {
     loop.Window = w
   }
 
+  var err error
   m.Memories, m.Skills, m.Scratch, err = openNotes(m.Sandbox.Root)
   if err != nil {
-    return fmt.Errorf("\n\t... in wake:\n\t%w", err)
+    return fmt.Errorf("\n\t... in buildLoop:\n\t%w", err)
   }
 
   loop.Memories, loop.Skills, loop.Scratch = m.Memories, m.Skills, m.Scratch
@@ -197,7 +239,8 @@ func (m *Mind) wake(ctx context.Context, opts *input.Options) error {
   loop.Aids = opts.Aids
   confDir, err := config.Dir()
   if err == nil {
-    loop.Procedures = agent.LoadProcedures(filepath.Join(confDir, "procedures"))
+    dir := filepath.Join(confDir, "procedures")
+    loop.Procedures = agent.LoadProcedures(dir)
   }
 
   if m.Library != nil {
@@ -209,10 +252,12 @@ func (m *Mind) wake(ctx context.Context, opts *input.Options) error {
 
   // A resumed session continues on the model it used.
   r := opts.Resumed
-  if r != nil && r.Model != "" && r.Model != client.Model && m.Models.Has(r.Model) {
+  other := r != nil && r.Model != "" && r.Model != client.Model
+  if other && m.Models.Has(r.Model) {
     err := m.Models.SwitchChat(ctx, client, m.Follower(), r.Model)
     if err != nil {
-      ui.Error("resuming with model %q: %s (staying on %q)", r.Model, err, opts.Model)
+      ui.Error("resuming with model %q: %s (staying on %q)",
+        r.Model, err, opts.Model)
     }
   }
 
