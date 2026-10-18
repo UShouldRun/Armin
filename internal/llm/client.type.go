@@ -1,3 +1,6 @@
+// The Client and the message shapes: armin's own (Message,
+// ToolCall, ToolDefinition) and the wire's (owai*).
+
 package llm
 
 import (
