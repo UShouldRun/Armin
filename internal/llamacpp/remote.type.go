@@ -1,3 +1,5 @@
+// Where a remote model's machine is and how to reach it.
+
 package llamacpp
 
 import (

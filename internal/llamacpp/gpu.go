@@ -1,3 +1,7 @@
+// Before loading a local model: is the NVIDIA driver usable? A kernel
+// update without the matching module, or no module at all, means the
+// model would run on the CPU, minutes per answer: GPUWarning says so.
+
 package llamacpp
 
 import (

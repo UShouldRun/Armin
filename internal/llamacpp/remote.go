@@ -1,3 +1,9 @@
+// A model on a cloud machine: spawnRemote boots it (internal/cloud),
+// then runs llama-server there over one SSH session that also
+// forwards its port here. With stop_on_disconnect the remote side
+// shuts the machine down if the session drops, so a crash never
+// leaves a GPU billing.
+
 package llamacpp
 
 import (

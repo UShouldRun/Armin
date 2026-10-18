@@ -1,3 +1,6 @@
+// Linux: a server armin starts dies with armin (Pdeathsig), so a
+// crash never leaves a model holding the GPU.
+
 package llamacpp
 
 import (

@@ -1,5 +1,7 @@
 //go:build !linux
 
+// Elsewhere: no parent-death signal; Shutdown stops the servers.
+
 package llamacpp
 
 import "os/exec"

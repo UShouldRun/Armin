@@ -1,3 +1,5 @@
+// The Manager, ModelSpec, a running process and the tier handle.
+
 package llamacpp
 
 import (
