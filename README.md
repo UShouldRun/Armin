@@ -1180,6 +1180,9 @@ or fires until you run a command yourself. See
 
 ## Project layout
 
+Start with [docs/architecture.md](docs/architecture.md): one page on how
+the pieces fit, linking a short doc per component.
+
 ```
 install.sh                  builds, installs to PATH, checks dependencies, writes a starter config
 cmd/armin/main.go           entrypoint: input → think → display
