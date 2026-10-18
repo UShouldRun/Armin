@@ -58,10 +58,10 @@ func ReadPDF(
     last = min(last, total)
   }
 
-  res, err := cfg.RunForceFull(ctx, "pdftotext", []string{
+  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "pdftotext", Args: []string{
     "-layout", "-f", strconv.Itoa(first), "-l", strconv.Itoa(last),
     resolved, "-",
-  })
+  }, Mode: sandbox.ExecForce | sandbox.ExecFull })
   if err != nil {
     return nil, fmt.Errorf("\n\t... in ReadPDF:\n\t%w", err)
   }
@@ -106,7 +106,7 @@ func pdfPages(ctx context.Context, cfg *sandbox.Config, path string) int {
     return 0
   }
 
-  res, err := cfg.RunForceFull(ctx, "pdfinfo", []string{ path })
+  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "pdfinfo", Args: []string{ path }, Mode: sandbox.ExecForce | sandbox.ExecFull })
   if err != nil || res.ExitCode != 0 {
     return 0
   }

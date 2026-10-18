@@ -18,9 +18,9 @@ func TestRunTimeoutKillsProcessGroup(t *testing.T) {
   pidFile := filepath.Join(dir, "pid")
 
   c := &Config{ Root: dir, BuildTimeout: 300 * time.Millisecond }
-  _, err := c.RunBuild(context.Background(), "sh", []string{
+  _, err := c.Exec(context.Background(), Command{ Binary: "sh", Args: []string{
     "-c", "sleep 30 & echo $! > " + pidFile + "; wait",
-  })
+  }, Mode: ExecForce | ExecFull | ExecBuild })
   if err == nil || !strings.Contains(err.Error(), "timed out") {
     t.Fatalf("err = %v, want a timeout", err)
   }

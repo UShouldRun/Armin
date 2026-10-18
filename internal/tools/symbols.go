@@ -127,7 +127,7 @@ func FindReferences(
     "--line-number", "--context", "1", "--max-columns", "300",
     "--word-regexp", in.Name, searchPath,
   }
-  res, err := cfg.RunForce(ctx, "rg", args)
+  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "rg", Args: args, Mode: sandbox.ExecForce })
   if err != nil {
     return nil, fmt.Errorf("\n\t... in FindReferences:\n\t%w", err)
   }

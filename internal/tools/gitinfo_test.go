@@ -23,7 +23,7 @@ func requireGit(t *testing.T) {
 func initGitRepo(t *testing.T, cfg *sandbox.Config) {
   t.Helper()
   run := func(args ...string) {
-    res, err := cfg.RunForce(context.Background(), "git", args)
+    res, err := cfg.Exec(context.Background(), sandbox.Command{ Binary: "git", Args: args, Mode: sandbox.ExecForce })
     if err != nil {
       t.Fatalf("git %v: %v", args, err)
     }

@@ -226,12 +226,12 @@ func TestRunFlags(t *testing.T) {
   }
 }
 
-// --- Run / RunForce ---
+// --- Exec ---
 
 func TestRunDryRunDoesNotExecute(t *testing.T) {
   cfg := newTestConfig(t, Options{DryRun: true, Allowlist: map[string]bool{"rm": true}})
 
-  res, err := cfg.Run(context.Background(), "rm", []string{"-rf", "/should/not/run"})
+  res, err := cfg.Exec(context.Background(), Command{ Binary: "rm", Args: []string{"-rf", "/should/not/run"} })
   if err != nil {
     t.Fatalf("Run: %v", err)
   }
@@ -246,9 +246,9 @@ func TestRunDryRunDoesNotExecute(t *testing.T) {
 func TestRunForceCapturesOutputAndExitCode(t *testing.T) {
   cfg := newTestConfig(t, Options{})
 
-  res, err := cfg.RunForce(context.Background(), "sh", []string{"-c", "echo out; echo err >&2; exit 3"})
+  res, err := cfg.Exec(context.Background(), Command{ Binary: "sh", Args: []string{"-c", "echo out; echo err >&2; exit 3"}, Mode: ExecForce })
   if err != nil {
-    t.Fatalf("RunForce: %v", err)
+    t.Fatalf("Exec: %v", err)
   }
   if strings.TrimSpace(res.Stdout) != "out" {
     t.Errorf("Stdout = %q, want \"out\"", res.Stdout)
@@ -264,7 +264,7 @@ func TestRunForceCapturesOutputAndExitCode(t *testing.T) {
 func TestRunForceRunsInRoot(t *testing.T) {
   cfg := newTestConfig(t, Options{})
 
-  res, err := cfg.RunForce(context.Background(), "pwd", nil)
+  res, err := cfg.Exec(context.Background(), Command{ Binary: "pwd", Args: nil, Mode: ExecForce })
   if err != nil {
     t.Fatal(err)
   }
@@ -282,16 +282,16 @@ func TestRunForceRunsInRoot(t *testing.T) {
 func TestRunForceTimesOut(t *testing.T) {
   cfg := newTestConfig(t, Options{Timeout: 30 * time.Millisecond})
 
-  _, err := cfg.RunForce(context.Background(), "sleep", []string{"5"})
+  _, err := cfg.Exec(context.Background(), Command{ Binary: "sleep", Args: []string{"5"}, Mode: ExecForce })
   if err == nil || !strings.Contains(err.Error(), "timed out") {
-    t.Fatalf("RunForce error = %v, want a timeout error", err)
+    t.Fatalf("Exec error = %v, want a timeout error", err)
   }
 }
 
 func TestRunForceTruncatesLongOutput(t *testing.T) {
   cfg := newTestConfig(t, Options{MaxOutput: 10})
 
-  res, err := cfg.RunForce(context.Background(), "sh", []string{"-c", "printf '%050d' 0"})
+  res, err := cfg.Exec(context.Background(), Command{ Binary: "sh", Args: []string{"-c", "printf '%050d' 0"}, Mode: ExecForce })
   if err != nil {
     t.Fatal(err)
   }

@@ -65,7 +65,7 @@ func RunCommand(
     }
   }
 
-  res, err := cfg.Run(ctx, in.Binary, args)
+  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: in.Binary, Args: args })
   if err != nil {
     return nil, &RunCommandError{ Error: err.Error() }
   }

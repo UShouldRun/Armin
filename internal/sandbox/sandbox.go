@@ -159,20 +159,6 @@ func (c *Config) CheckExec(bin, dir string) (string, error) {
   return resolved, nil
 }
 
-// RunIn is RunBuild in dir, a directory inside the project.
-func (c *Config) RunIn(
-  ctx context.Context, dir, binary string, args []string,
-) (*RunResult, error) {
-  stdout, stderr, exitCode, err := c.runAt(
-    ctx, "RunIn", c.BuildTimeout, dir, binary, args,
-  )
-  if err != nil {
-    return nil, err
-  }
-
-  return &RunResult{ Stdout: stdout, Stderr: stderr, ExitCode: exitCode }, nil
-}
-
 // New resolves root to an absolute, symlink-resolved path and returns
 // a Config ready to use.
 func New(root string, opts Options) (*Config, error) {
@@ -333,6 +319,13 @@ func (c *Config) CheckBinary(bin string) error {
 }
 
 const (
+  ExecForce ExecMode = 0b00000001 // run even in dry-run mode
+  ExecFull  ExecMode = 0b00000010 // keep all the output
+  ExecBuild ExecMode = 0b00000100 // BuildTimeout instead of Timeout
+  ExecAll   ExecMode = 0b00000111
+)
+
+const (
   RunTruncated RunFlags = 1 << iota
   RunDryRun
   RunAll = RunTruncated | RunDryRun
@@ -341,126 +334,61 @@ const (
 func (f RunFlags) Truncated() bool { return f & RunTruncated != 0 }
 func (f RunFlags) DryRun() bool    { return f & RunDryRun != 0 }
 
-// Run execs binary with args directly — never through a shell — under
-// the configured timeout, and truncates output to MaxOutput bytes.
-// Callers are responsible for calling CheckBinary and ResolvePath
-// first; Run itself doesn't re-check the allowlist so it can also be
-// used for tools like search_code that wrap a fixed, trusted binary
-// (ripgrep) rather than an arbitrary one from run_command.
+// Exec runs one program directly (never through a shell) and returns
+// its output. The caller checks the binary and the paths first
+// (CheckBinary, CheckExec, ResolvePath): Exec doesn't, so the tools
+// that wrap a fixed, trusted binary (ripgrep, git, pdftotext) can use
+// it too. cmd.Mode says how:
 //
-// When c.DryRun is set, Run does not exec anything: it returns a
-// RunResult describing what would have run. Callers that always want
-// to actually run (e.g. search_code, which isn't the user-facing
-// escape hatch run_command targets) should bypass DryRun by calling
-// RunForce.
-func (c *Config) Run(
-  ctx context.Context, binary string, args []string,
-) (*RunResult, error) {
-  if c.DryRun {
+//   ExecForce  run even in dry-run mode: every caller but run_command
+//              passes it (dry-run is about run_command, armin's open
+//              door to the system; search and git always run)
+//   ExecFull   keep all the output; the default cuts it to MaxOutput,
+//              which would corrupt output parsed afterwards (JSON)
+//   ExecBuild  BuildTimeout instead of Timeout, for tests and builds
+//
+// cmd.Dir defaults to the project root; cmd.Stdin feeds the program
+// and cmd.Stdout, when set, receives its output instead of RunResult.
+func (c *Config) Exec(ctx context.Context, cmd Command) (*RunResult, error) {
+  if c.DryRun && cmd.Mode & ExecForce == 0 {
     return &RunResult{
       Stdout: fmt.Sprintf(
-        "[dry-run] would execute: %s", DescribeArgs(binary, args),
+        "[dry-run] would execute: %s", DescribeArgs(cmd.Binary, cmd.Args),
       ),
       Flags: RunDryRun,
     }, nil
   }
 
-  return c.RunForce(ctx, binary, args)
-}
-
-// RunForce execs binary regardless of c.DryRun. See Run for the safe,
-// dry-run-aware entry point most callers want.
-func (c *Config) RunForce(
-  ctx context.Context, binary string, args []string,
-) (*RunResult, error) {
-  stdout, stderr, exitCode, err := c.runRaw(ctx, "RunForce", binary, args)
-  if err != nil {
-    return nil, err
+  timeout := c.Timeout
+  if cmd.Mode & ExecBuild != 0 {
+    timeout = c.BuildTimeout
   }
 
-  out, outTrunc := truncate(stdout, c.MaxOutput)
-  errOut, errTrunc := truncate(stderr, c.MaxOutput)
-
-  var flags RunFlags
-  if outTrunc || errTrunc {
-    flags |= RunTruncated
+  dir := cmd.Dir
+  if dir == "" {
+    dir = c.Root
   }
 
-  return &RunResult{
-    Stdout:   out,
-    Stderr:   errOut,
-    ExitCode: exitCode,
-    Flags:    flags,
-  }, nil
-}
-
-// RunForceFull is RunForce without MaxOutput truncation — for the
-// rare caller (module_graph) that has to parse the whole output as
-// structured data (JSON) afterward, where a truncated stream isn't
-// just shorter, it's invalid and fails to parse. Still bounded by
-// c.Timeout; just not by c.MaxOutput. Use RunForce unless truncation
-// would actually corrupt what you're about to do with the output.
-func (c *Config) RunForceFull(
-  ctx context.Context, binary string, args []string,
-) (*RunResult, error) {
-  stdout, stderr, exitCode, err := c.runRaw(ctx, "RunForceFull", binary, args)
-  if err != nil {
-    return nil, err
-  }
-
-  return &RunResult{ Stdout: stdout, Stderr: stderr, ExitCode: exitCode }, nil
-}
-
-// RunBuild is RunForceFull under BuildTimeout instead of Timeout,
-// for test/build/lint runs. Output is untruncated: the caller keeps
-// the tail, where failures are reported, rather than the head.
-func (c *Config) RunBuild(
-  ctx context.Context, binary string, args []string,
-) (*RunResult, error) {
-  stdout, stderr, exitCode, err := c.runWith(
-    ctx, "RunBuild", c.BuildTimeout, binary, args,
+  stdout, stderr, exitCode, err := c.runIO(
+    ctx, "Exec", timeout, dir, cmd.Binary, cmd.Args, cmd.Stdin, cmd.Stdout,
   )
   if err != nil {
-    return nil, err
+    return nil, fmt.Errorf("\n\t... in Exec:\n\t%w", err)
   }
 
-  return &RunResult{ Stdout: stdout, Stderr: stderr, ExitCode: exitCode }, nil
-}
-
-func (c *Config) runRaw(
-  ctx context.Context, callerName, binary string, args []string,
-) (stdout, stderr string, exitCode int, err error) {
-  return c.runWith(ctx, callerName, c.Timeout, binary, args)
-}
-
-func (c *Config) runWith(
-  ctx context.Context, callerName string, timeout time.Duration,
-  binary string, args []string,
-) (stdout, stderr string, exitCode int, err error) {
-  return c.runAt(ctx, callerName, timeout, c.Root, binary, args)
-}
-
-// RunInWith is RunIn with the program's input read from stdin and,
-// when stdout is set, its output written there instead of returned.
-func (c *Config) RunInWith(
-  ctx context.Context, dir, binary string, args []string,
-  stdin io.Reader, stdout io.Writer,
-) (*RunResult, error) {
-  out, errOut, exitCode, err := c.runIO(
-    ctx, "RunInWith", c.BuildTimeout, dir, binary, args, stdin, stdout,
-  )
-  if err != nil {
-    return nil, err
+  res := &RunResult{ Stdout: stdout, Stderr: stderr, ExitCode: exitCode }
+  if cmd.Mode & ExecFull != 0 {
+    return res, nil
   }
 
-  return &RunResult{ Stdout: out, Stderr: errOut, ExitCode: exitCode }, nil
-}
+  var outCut, errCut bool
+  res.Stdout, outCut = truncate(stdout, c.MaxOutput)
+  res.Stderr, errCut = truncate(stderr, c.MaxOutput)
+  if outCut || errCut {
+    res.Flags |= RunTruncated
+  }
 
-func (c *Config) runAt(
-  ctx context.Context, callerName string, timeout time.Duration,
-  dir, binary string, args []string,
-) (stdout, stderr string, exitCode int, err error) {
-  return c.runIO(ctx, callerName, timeout, dir, binary, args, nil, nil)
+  return res, nil
 }
 
 func (c *Config) runIO(

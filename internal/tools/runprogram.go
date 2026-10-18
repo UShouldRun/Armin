@@ -97,12 +97,20 @@ func RunProgram(
     defer stdout.Close()
   }
 
-  var res *sandbox.RunResult
-  if stdout != nil {
-    res, err = cfg.RunInWith(ctx, dir, bin, in.Args, stdin, stdout)
-  } else {
-    res, err = cfg.RunInWith(ctx, dir, bin, in.Args, stdin, nil)
+  cmd := sandbox.Command{
+    Binary: bin,
+    Args:   in.Args,
+    Dir:    dir,
+    Stdin:  stdin,
+    Mode:   sandbox.ExecForce | sandbox.ExecFull | sandbox.ExecBuild,
   }
+
+  // only a real file: a nil *os.File in an io.Writer isn't nil
+  if stdout != nil {
+    cmd.Stdout = stdout
+  }
+
+  res, err := cfg.Exec(ctx, cmd)
 
   if err != nil {
     return nil, fmt.Errorf("\n\t... in RunProgram:\n\t%w", err)

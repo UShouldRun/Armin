@@ -251,7 +251,7 @@ func requireRipgrep(t *testing.T) {
     t.Fatal(err)
   }
 
-  _, err = cfg.RunForce(context.Background(), "rg", []string{"--version"})
+  _, err = cfg.Exec(context.Background(), sandbox.Command{ Binary: "rg", Args: []string{"--version"}, Mode: sandbox.ExecForce })
   if err != nil {
     t.Skip("ripgrep (rg) not available — skipping search_code tests")
   }

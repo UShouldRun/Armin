@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+  "io"
   "time"
 )
 
@@ -95,4 +96,17 @@ type RunResult struct {
   Stdout, Stderr string
   ExitCode       int
   Flags          RunFlags
+}
+
+// ExecMode says how Exec runs a Command; one bit each.
+type ExecMode uint8
+
+// Command is one program for Exec to run.
+type Command struct {
+  Binary string
+  Args   []string
+  Dir    string    // default: the project root
+  Stdin  io.Reader // the program's input, if any
+  Stdout io.Writer // set: the program's output goes here instead
+  Mode   ExecMode
 }

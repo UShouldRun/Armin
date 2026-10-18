@@ -311,7 +311,7 @@ func EnvInfo(
 ) (*EnvInfoOutput, error) {
   out := &EnvInfoOutput{ OS: runtime.GOOS, Arch: runtime.GOARCH }
 
-  res, err := cfg.RunForce(ctx, "go", []string{ "version" })
+  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "go", Args: []string{ "version" }, Mode: sandbox.ExecForce })
   if err == nil && res.ExitCode == 0 {
     out.GoVersion = strings.TrimSpace(res.Stdout)
   }

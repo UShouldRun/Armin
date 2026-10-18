@@ -68,7 +68,7 @@ func GitLog(
     args = append(args, "--", resolved)
   }
 
-  res, err := cfg.RunForce(ctx, "git", args)
+  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "git", Args: args, Mode: sandbox.ExecForce })
   if err != nil {
     return nil, fmt.Errorf("\n\t... in GitLog:\n\t%w", err)
   }
@@ -125,7 +125,7 @@ func GitBlame(
     "blame", "--line-porcelain",
     "-L", fmt.Sprintf("%d,%d", start, end), resolved,
   }
-  res, err := cfg.RunForce(ctx, "git", args)
+  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "git", Args: args, Mode: sandbox.ExecForce })
   if err != nil {
     return nil, fmt.Errorf("\n\t... in GitBlame:\n\t%w", err)
   }
@@ -199,7 +199,7 @@ func GitDiff(
     args = append(args, "--", resolved)
   }
 
-  res, err := cfg.RunForce(ctx, "git", args)
+  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "git", Args: args, Mode: sandbox.ExecForce })
   if err != nil {
     return nil, fmt.Errorf("\n\t... in GitDiff:\n\t%w", err)
   }
@@ -226,7 +226,7 @@ func GitShow(
     return nil, fmt.Errorf("\n\t... in GitShow:\n\t hash is required")
   }
 
-  res, err := cfg.RunForce(ctx, "git", []string{ "show", in.Hash })
+  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "git", Args: []string{ "show", in.Hash }, Mode: sandbox.ExecForce })
   if err != nil {
     return nil, fmt.Errorf("\n\t... in GitShow:\n\t%w", err)
   }
@@ -257,7 +257,7 @@ func WorkingTreeDiff(
     args = append(args, "--", resolved)
   }
 
-  res, err := cfg.RunForce(ctx, "git", args)
+  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "git", Args: args, Mode: sandbox.ExecForce })
   if err != nil {
     return nil, fmt.Errorf("\n\t... in WorkingTreeDiff:\n\t%w", err)
   }
@@ -275,7 +275,7 @@ func WorkingTreeDiff(
   }
 
   statusArgs := []string{ "status", "--porcelain", "--untracked-files=all" }
-  statusRes, err := cfg.RunForce(ctx, "git", statusArgs)
+  statusRes, err := cfg.Exec(ctx, sandbox.Command{ Binary: "git", Args: statusArgs, Mode: sandbox.ExecForce })
   if err == nil {
     for _, line := range strings.Split(strings.TrimRight(statusRes.Stdout, "\n"), "\n") {
       if strings.HasPrefix(line, "?? ") {
@@ -314,7 +314,7 @@ func GrepHistory(
     args = append(args, "--", resolved)
   }
 
-  res, err := cfg.RunForce(ctx, "git", args)
+  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "git", Args: args, Mode: sandbox.ExecForce })
   if err != nil {
     return nil, fmt.Errorf("\n\t... in GrepHistory:\n\t%w", err)
   }
@@ -348,7 +348,7 @@ func CodeOwners(
     args = append(args, "--", resolved)
   }
 
-  res, err := cfg.RunForce(ctx, "git", args)
+  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "git", Args: args, Mode: sandbox.ExecForce })
   if err != nil {
     return nil, fmt.Errorf("\n\t... in CodeOwners:\n\t%w", err)
   }
@@ -402,7 +402,7 @@ func CommitStats(
     args = append(args, "--", resolved)
   }
 
-  res, err := cfg.RunForce(ctx, "git", args)
+  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "git", Args: args, Mode: sandbox.ExecForce })
   if err != nil {
     return nil, fmt.Errorf("\n\t... in CommitStats:\n\t%w", err)
   }
