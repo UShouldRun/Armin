@@ -12,10 +12,12 @@ const (
 // Thresholds, as percent of the active window. Below trimAt nothing
 // changes, so the prompt prefix stays byte-stable and llama-server's
 // KV cache keeps hitting; past it, old tool results go (in a batch);
-// past DefaultCompactAt the next request is at risk, and something
+// past suggestAt the model offers the user a compaction; past
+// DefaultCompactAt the next request is at risk, and something
 // bigger has to happen. shrinkAt is of the resident window.
 const (
   trimAt           = 50
+  suggestAt        = 60
   DefaultCompactAt = 75
   shrinkAt         = 50
 )
@@ -52,6 +54,19 @@ func Decide(s ContextState) Action {
   }
 
   return act | ActSave | ActCompact
+}
+
+// SuggestCompact reports whether the model should offer the user a
+// compaction: past suggestAt a few more turns reach DefaultCompactAt,
+// and a compaction the user picks at a break between tasks loses
+// less than the automatic one landing in the middle of one.
+func SuggestCompact(s ContextState) bool {
+  if s.Window <= 0 {
+    return false
+  }
+
+  return s.Used > s.Window * suggestAt / 100 &&
+    s.Used <= s.Window * DefaultCompactAt / 100
 }
 
 // DecideAfterCompact checks whether a compaction left so little that

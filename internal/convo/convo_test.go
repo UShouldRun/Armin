@@ -107,6 +107,9 @@ func TestCompactPreservesSystemAndTail(t *testing.T) {
   if !strings.Contains(history[1].Content, "did X") {
     t.Fatalf("history[1] = %+v, want it to contain the model's summary", history[1])
   }
+  if !IsSummary(history[1]) || !strings.HasSuffix(history[1].Content, refetchNote) {
+    t.Fatalf("history[1] = %+v, want a summary ending in the refetch note", history[1])
+  }
 
   tail := history[len(history) - keepLast:]
   if tail[0].Content != "recent 1" || tail[1].Content != "recent 2" {

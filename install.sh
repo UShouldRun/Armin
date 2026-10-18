@@ -10,6 +10,8 @@
 #
 # Usage: ./install.sh [--prefix DIR] [--no-config] [--no-skills]
 #                     [--update-skills] [--install-deps | --no-deps]
+#                     [--library-sync | --no-library-sync]
+#                     [--library-model NAME]
 #
 #   --prefix DIR      install the binary here (default: ~/.local/bin)
 #   --no-config       skip writing a starter config.conf
@@ -26,6 +28,8 @@ write_config=1
 install_skills=1
 update_skills=0
 deps=ask
+library_sync=ask
+library_model=""
 
 usage() {
   echo "Usage: ./install.sh [--prefix DIR] [--no-config] [--no-skills] [--update-skills]"
@@ -36,6 +40,8 @@ usage() {
   echo "  --update-skills   overwrite installed copies of the bundled skills"
   echo "  --install-deps    install missing commands without asking"
   echo "  --no-deps         only report missing commands, never offer to install them"
+  echo "  --library-sync    catalog new library books without asking (--no-library-sync: never)"
+  echo "  --library-model M the model that catalogs them (default: config.conf's model)"
 }
 
 while [ $# -gt 0 ]; do
@@ -68,6 +74,19 @@ while [ $# -gt 0 ]; do
     --no-deps)
       deps=no
       shift
+      ;;
+    --library-sync)
+      library_sync=yes
+      shift
+      ;;
+    --no-library-sync)
+      library_sync=no
+      shift
+      ;;
+    --library-model)
+      [ $# -ge 2 ] || { echo "install.sh: --library-model needs a value" >&2; exit 1; }
+      library_model="$2"
+      shift 2
       ;;
     -h|--help)
       usage
@@ -400,6 +419,44 @@ if [ "$install_skills" -eq 1 ] && [ -d skills ]; then
     cp -R "$src" "$dst"
     ok "installed skill $name to $dst"
   done
+fi
+
+# --- Reference library -------------------------------------------------------
+# library = <folder> in config.conf: books and docs the agent searches
+# with library_search. A model catalogs each new book into the topic
+# table (where each subject is covered); that runs here when books
+# are waiting, since it can take a while.
+
+echo
+echo "reference library:"
+library_dir=$(sed -n 's/^[[:space:]]*library[[:space:]]*=[[:space:]]*//p' "$config_path" 2> /dev/null | tail -1)
+library_dir=${library_dir/#\~/$HOME}
+
+if [ -z "$library_dir" ]; then
+  warn "none configured — add library = <folder> to $config_path"
+  warn "docs/library-fetch.sh downloads a starter set of free books and docs into ~/Documents/Software"
+elif [ ! -d "$library_dir" ]; then
+  warn "library = $library_dir, but that folder doesn't exist"
+else
+  ok "library at $library_dir"
+  model_flag=""
+  [ -n "$library_model" ] && model_flag="-model $library_model"
+  sync=$library_sync
+  if [ "$sync" = ask ]; then
+    if [ -t 0 ]; then
+      printf '  index it and have a model catalog new books now? It can take a while. [y/N] '
+      read -r answer
+      case "$answer" in y|Y|yes) sync=yes ;; *) sync=no ;; esac
+    else
+      sync=no
+    fi
+  fi
+
+  if [ "$sync" = yes ]; then
+    "$prefix/armin" -library-sync -new -no-save $model_flag || warn "library sync failed — run armin -library-sync later"
+  else
+    warn "later: armin -library-sync (or /library catalog inside armin)"
+  fi
 fi
 
 echo

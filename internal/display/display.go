@@ -63,6 +63,8 @@ func Run(
     return runLSP(ctx, opts, mind)
   case input.ModeWeb:
     return runWeb(ctx, opts, mind)
+  case input.ModeLibrary:
+    return runLibrary(ctx, opts, mind)
   }
 
   return runREPL(ctx, opts, mind, sig)
@@ -87,6 +89,7 @@ func runWeb(ctx context.Context, opts *input.Options, mind *think.Mind) error {
     Resumed:      opts.Resumed,
     Autosave:     !opts.Has(input.FlagNoSave),
     ScratchBase:  mind.Scratch.Dir,
+    Effort:       opts.Effort,
   })
 }
 
@@ -112,6 +115,7 @@ func runREPL(
   }
 
   r.SetAutoApprove(opts.Has(input.FlagAutoApprove))
+  r.SetEffort(opts.Effort)
   r.Terminal = opts.Config.Terminal
   r.ScratchBase = mind.Scratch.Dir
   r.BindScratch()

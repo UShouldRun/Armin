@@ -63,11 +63,29 @@ const compactPrompt = `Summarize the conversation above into a brief for yoursel
 - files changed or created, and their state (done / half-done / verified)
 - key facts found about the codebase, as pointers (file:line, symbol names), not content
 - what is still open or next
+- a "Refetch" list, last: the sources the remaining work can't do without, one per line, most critical first —
+  - files as path:start-end (or path + symbol), with why each matters
+  - web searches as the exact query to re-run and the result URLs relied on, with what they answered
+  - scratchpad files by name
+  Only what the open work needs; leave out anything finished.
 Point to scratchpad files and memories by name instead of restating them. Bullet points, no preamble.`
 
 // summaryHeader marks the message that replaces compacted history.
 const summaryHeader = "[Summary of the earlier conversation, " +
   "compacted to save context]\n"
+
+// refetchNote ends every summary: it's pointers, and details the
+// model needs have to come back from their source.
+const refetchNote = "\n\nThis summary holds pointers, not contents. " +
+  "Before relying on a detail or editing, fetch the Refetch items the " +
+  "next step needs, most critical first: read_file for code, " +
+  "web_search with the listed query for web sources, scratchpad_read " +
+  "for your notes and archived tool results, memory_read for memories."
+
+// IsSummary reports whether m is a compaction summary.
+func IsSummary(m llm.Message) bool {
+  return m.Role == "user" && strings.HasPrefix(m.Content, summaryHeader)
+}
 
 // maxSummaryInputBytes caps each tool result fed to the summary
 // call, so summarizing an over-full history can't overflow too.
@@ -116,7 +134,7 @@ func Compact(
 
   ask = append(ask, llm.Message{ Role: "user", Content: compactPrompt })
 
-  reply, err := client.Chat(ctx, ask, nil, nil)
+  reply, err := client.Chore().Chat(ctx, ask, nil, nil)
   if err != nil {
     return fmt.Errorf("\n\t... in Compact:\n\t%w", err)
   }
@@ -135,6 +153,8 @@ func Compact(
     note.WriteString(extra)
   }
 
+  note.WriteString(refetchNote)
+
   compacted := make([]llm.Message, 0, 2 + len(tail))
   compacted = append(compacted, system)
   compacted = append(compacted, llm.Message{
@@ -152,7 +172,7 @@ func Compact(
 func lastUserIn(msgs []llm.Message) string {
   for i := len(msgs) - 1; i >= 0; i-- {
     m := msgs[i]
-    if m.Role == "user" && !strings.HasPrefix(m.Content, summaryHeader) {
+    if m.Role == "user" && !IsSummary(m) {
       return m.Content
     }
   }
@@ -183,7 +203,7 @@ func Suggest(
     llm.Message{ Role: "user", Content: suggestPrompt },
   )
 
-  reply, err := client.Chat(ctx, ask, nil, nil)
+  reply, err := client.Chore().Chat(ctx, ask, nil, nil)
   if err != nil {
     return nil, fmt.Errorf("\n\t... in Suggest:\n\t%w", err)
   }

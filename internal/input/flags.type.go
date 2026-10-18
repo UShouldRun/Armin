@@ -16,6 +16,8 @@ type cliFlags struct {
   resume                                    string // "": no; "menu"; else a session id
   dryRun, mcpMode, lspMode, noSave, noColor bool
   autoApprove, newInstance                  bool
+  librarySync                               bool
+  libraryAdd, libraryTo, effort, aids       string
 }
 
 // resumeFlag is -resume: a bool flag that can also carry a value.

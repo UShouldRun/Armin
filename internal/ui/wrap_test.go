@@ -129,3 +129,28 @@ func TestFitLine(t *testing.T) {
     t.Fatalf("multi-byte: %q", fitLine("ç·ç·ç·", 4))
   }
 }
+
+func TestLayoutInputBreaksAtNewlines(t *testing.T) {
+  text := []rune("ab\n\ncdefghij\n")
+  rows := layoutInput(text, 4, 4)
+  want := []string{ "ab\n", "\n", "cdef", "ghij\n", "" }
+  if len(rows) != len(want) {
+    t.Fatalf("rows = %q", rows)
+  }
+
+  for i := range rows {
+    if string(rows[i]) != want[i] {
+      t.Fatalf("rows = %q, want %q", rows, want)
+    }
+  }
+
+  r, c := cursorAt(rows, 3)
+  if r != 1 || c != 0 {
+    t.Fatalf("cursor after the first newline = %d,%d", r, c)
+  }
+
+  r, c = cursorAt(rows, len(text))
+  if r != 4 || c != 0 {
+    t.Fatalf("cursor after a closing newline = %d,%d", r, c)
+  }
+}

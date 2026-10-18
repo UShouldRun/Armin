@@ -264,3 +264,75 @@ func TestKillLineAndWord(t *testing.T) {
     t.Fatal("Ctrl-W on an empty line changed it")
   }
 }
+
+func TestLineStatePasteKeepsNewlines(t *testing.T) {
+  s := lineState{ suggestion: []rune("stale") }
+  typeRunes(&s, "see:")
+  out := s.apply(key{ control: keyPaste, paste: []rune("\nline 1\nline 2") })
+  if out.submit || !out.changed || s.text() != "see:\nline 1\nline 2" {
+    t.Fatalf("after paste: text = %q, out = %+v", s.text(), out)
+  }
+
+  if len(s.suggestion) != 0 {
+    t.Fatal("a paste should clear the suggestion")
+  }
+
+  s.apply(ck(keyKillWord))
+  s.apply(ck(keyKillWord))
+  if s.text() != "see:\nline 1\n" {
+    t.Fatalf("after Ctrl-W twice = %q", s.text())
+  }
+}
+
+func TestLineStateLargePasteFolds(t *testing.T) {
+  big := strings.Repeat("line\n", 20)
+
+  var s lineState
+  typeRunes(&s, "look: ")
+  s.apply(key{ control: keyPaste, paste: []rune(big) })
+  typeRunes(&s, " ok")
+
+  if s.text() != "look: " + big + " ok" {
+    t.Fatalf("text = %q", s.text())
+  }
+
+  if got := string(s.display()); got != "look: [pasted 20 lines] ok" {
+    t.Fatalf("display = %q", got)
+  }
+
+  // Backspace over the label drops the whole paste.
+  for range 3 {
+    s.apply(ck(keyBackspace))
+  }
+
+  s.apply(ck(keyBackspace))
+  if s.text() != "look: " || len(s.pastes) != 0 {
+    t.Fatalf("after backspace: text = %q, pastes = %d", s.text(), len(s.pastes))
+  }
+}
+
+func TestLineStateLongSingleLinePasteFolds(t *testing.T) {
+  var s lineState
+  s.apply(key{ control: keyPaste, paste: []rune(strings.Repeat("x", 1500)) })
+  if got := string(s.display()); got != "[pasted 1500 chars]" {
+    t.Fatalf("display = %q", got)
+  }
+}
+
+func TestLineStateSmallPasteStaysInline(t *testing.T) {
+  var s lineState
+  s.apply(key{ control: keyPaste, paste: []rune("a\nb\n") })
+  if len(s.pastes) != 0 || string(s.display()) != "a\nb\n" {
+    t.Fatalf("display = %q, pastes = %d", string(s.display()), len(s.pastes))
+  }
+}
+
+func TestLineStateKillLineDropsPastes(t *testing.T) {
+  var s lineState
+  s.apply(key{ control: keyPaste, paste: []rune(strings.Repeat("y\n", 30)) })
+  s.apply(ck(keyKillLine))
+  typeRunes(&s, "hi")
+  if s.text() != "hi" || len(s.pastes) != 0 {
+    t.Fatalf("text = %q, pastes = %d", s.text(), len(s.pastes))
+  }
+}

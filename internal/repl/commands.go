@@ -149,6 +149,21 @@ func commandList() []command {
       run:     cmdTitle,
     },
     {
+      names:   []string{ "effort" },
+      usage:   "/effort [auto|off|low|medium|high] [task]",
+      summary: "how hard the model thinks; auto lets it judge " +
+        "each request. With a task, for that task only",
+      run:     cmdEffort,
+    },
+    {
+      names:   []string{ "library", "lib" },
+      usage: "/library [index|catalog [model]|merge [model]|" +
+        "add <path>... [to <folder>]|topics [topic]]",
+      summary: "the reference library: status, reindex, " +
+        "catalog topics, add files",
+      run:     cmdLibrary,
+    },
+    {
       names:   []string{ "scratch" },
       usage:   "/scratch [show <name>|clear]",
       summary: "list, show or clear the scratchpad",

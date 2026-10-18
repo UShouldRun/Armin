@@ -53,6 +53,43 @@ func TestChatNonStreaming(t *testing.T) {
   }
 }
 
+func TestChoreTurnsOffHostedReasoning(t *testing.T) {
+  var got *owaiReasoning
+  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+    var req owaiChatRequest
+    err := json.NewDecoder(r.Body).Decode(&req)
+    if err != nil {
+      t.Fatal(err)
+    }
+
+    got = req.Reasoning
+    json.NewEncoder(w).Encode(owaiChatResponse{
+      Choices: []owaiChoice{
+        { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
+      },
+    })
+  })
+
+  client := New(server.URL, "fake-model")
+  if client.Chore() != client {
+    t.Error("Chore copied a local client")
+  }
+
+  client.APIKey, client.Effort = "key", "high"
+  _, err := client.Chore().Chat(context.Background(), []Message{{Role: "user", Content: "hey"}}, nil, nil)
+  if err != nil {
+    t.Fatalf("Chat: %v", err)
+  }
+
+  if got == nil || got.Effort != "none" {
+    t.Fatalf("Reasoning = %+v, want effort none", got)
+  }
+
+  if client.Effort != "high" {
+    t.Fatalf("Chore changed the shared client's Effort to %q", client.Effort)
+  }
+}
+
 func TestChatSendsToolCallArgumentsAsJSONString(t *testing.T) {
   server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
     var raw map[string]any
@@ -686,5 +723,57 @@ func TestChatForbiddenWithoutFallbackFails(t *testing.T) {
   _, err := client.Chat(context.Background(), nil, nil, nil)
   if err == nil {
     t.Fatal("expected an error for a 403 with no fallback")
+  }
+}
+
+func TestEffortReachesTheServer(t *testing.T) {
+  var got owaiChatRequest
+  answer := func(w http.ResponseWriter, r *http.Request) {
+    got = owaiChatRequest{}
+    json.NewDecoder(r.Body).Decode(&got)
+    msg := owaiMessage{ Role: "assistant", Content: "ok" }
+    json.NewEncoder(w).Encode(owaiChatResponse{
+      Choices: []owaiChoice{ { Message: msg } },
+    })
+  }
+
+  server := serverReturning(t, "/v1/chat/completions", answer)
+  ctx := context.Background()
+  msgs := []Message{ { Role: "user", Content: "hi" } }
+  kw := func(k string) any { return got.TemplateKwargs[k] }
+
+  // local, thinking off: every switch, and a zero budget
+  local := New(server.URL, "local")
+  local.Effort = "none"
+  local.Chat(ctx, msgs, nil, nil)
+  if got.Reasoning != nil || kw("enable_thinking") != false ||
+    kw("reasoning_effort") != "low" ||
+    got.ThinkBudget == nil || *got.ThinkBudget != 0 {
+    t.Fatalf("local off: %+v budget %v", got.TemplateKwargs, got.ThinkBudget)
+  }
+
+  // local, high: thinking on, no budget
+  local.Effort = "high"
+  local.Chat(ctx, msgs, nil, nil)
+  if kw("enable_thinking") != true || kw("reasoning_effort") != "high" ||
+    got.ThinkBudget != nil {
+    t.Fatalf("local high: %+v budget %v", got.TemplateKwargs, got.ThinkBudget)
+  }
+
+  // no effort: nothing sent
+  local.Effort = ""
+  local.Chat(ctx, msgs, nil, nil)
+  if got.TemplateKwargs != nil || got.ThinkBudget != nil {
+    t.Fatalf("no effort sent %+v", got.TemplateKwargs)
+  }
+
+  // hosted: OpenRouter's field only
+  hosted := New(server.URL, "planner")
+  hosted.APIKey, hosted.Effort = "k", "medium"
+  hosted.Chat(ctx, msgs, nil, nil)
+  if got.Reasoning == nil || got.Reasoning.Effort != "medium" ||
+    got.TemplateKwargs != nil {
+    t.Fatalf("hosted: reasoning %+v kwargs %+v",
+      got.Reasoning, got.TemplateKwargs)
   }
 }

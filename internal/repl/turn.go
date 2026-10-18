@@ -33,10 +33,13 @@ func (v *turnView) startSpinner() {
   }
 }
 
+// Phases say who's working: the model (waiting on it, reading,
+// thinking, writing a call) or a tool (agent.Activity).
 const (
   phaseWaiting  = "waiting for the model"
-  phaseReading  = "reading the prompt"
-  phaseThinking = "thinking"
+  phaseReading  = "model is reading the prompt"
+  phaseThinking = "model is thinking"
+  phaseResults  = "model is reading the results"
 
   // stallAfter is how long the model may stay silent before the
   // status says so.
@@ -51,6 +54,15 @@ func (v *turnView) setPhase(phase string, watch bool) {
 
   now := time.Now()
   v.phase, v.since, v.last, v.watch, v.count = phase, now, now, watch, 0
+}
+
+// resetClock restarts the phase's elapsed time: a tool's run starts
+// once its approval is answered, not when it was asked.
+func (v *turnView) resetClock() {
+  v.mu.Lock()
+  defer v.mu.Unlock()
+
+  v.since, v.last = time.Now(), time.Now()
 }
 
 // status is the spinner's text: what's happening, for how long, and
@@ -68,7 +80,8 @@ func (v *turnView) status() string {
   stalled := v.watch && time.Since(v.last) > stallAfter
   if stalled {
     s += " · nothing from the model for " + ui.Since(v.last)
-  } else if v.phase == phaseWaiting && time.Since(v.since) > 5 * time.Second {
+  } else if v.watch && v.count == 0 && time.Since(v.since) > 5 * time.Second &&
+    (v.phase == phaseWaiting || v.phase == phaseResults) {
     s += " (it may be loading or busy)"
   }
 
@@ -232,6 +245,14 @@ var proposed = map[string]bool{
   "edit_file": true, "write_file": true, "run_program": true,
 }
 
+// drafting shows the model writing a tool call: until its
+// arguments are done, nothing streams and nothing runs.
+func (v *turnView) drafting(name string) {
+  v.endLine()
+  v.setPhase("model is writing a " + name + " call", true)
+  v.startSpinner()
+}
+
 func (v *turnView) toolCall(name string, args map[string]any) {
   v.stopSpinner()
   v.endLine()
@@ -246,13 +267,7 @@ func (v *turnView) toolCall(name string, args map[string]any) {
     ui.ToolLine(agent.CallLine(name, args))
   }
 
-  what := name
-  bin, _ := args["binary"].(string)
-  if bin != "" {
-    what = bin
-  }
-
-  v.setPhase("running " + what, false)
+  v.setPhase(agent.Activity(name, args), false)
   v.startSpinner()
 }
 
@@ -270,7 +285,7 @@ func (v *turnView) toolSummary(line string) {
   }
 
   ui.ToolResultLine(line)
-  v.setPhase(phaseWaiting, true)
+  v.setPhase(phaseResults, true)
   v.startSpinner()
 }
 
@@ -313,15 +328,25 @@ func (r *REPL) turnAs(ctx context.Context, input, shown, origin string) error {
     start:        time.Now(),
   }
 
+  effort, task := r.turnPlan(turnCtx, input)
+
   v.setPhase(phaseWaiting, true)
   v.startSpinner()
 
   hooks := agent.Hooks{
+    Effort:     effort.Wire(),
+    Task:       task,
+    Aside: func(msg string) {
+      v.stopSpinner()
+      v.endLine()
+      ui.Info("%s", msg)
+    },
     Token:      v.token,
     Reasoning:  v.reasoning,
     ToolCall:   v.toolCall,
     ToolResult: v.toolResult,
     Progress:   v.progress,
+    Drafting:   v.drafting,
     Usage:      func(u llm.Usage) { r.lastTokens = u.Total() },
     Notice: func(msg string) {
       v.stopSpinner()
@@ -351,8 +376,8 @@ func (r *REPL) turnAs(ctx context.Context, input, shown, origin string) error {
       v.held = "" // the proposal block is the call's header
       r.showProposal(p)
       r.proposal = &p
-      v.setPhase(phaseWaiting, false)
-      v.startSpinner()
+      v.startSpinner() // still the tool's phase: it runs next
+
     }
 
     hooks.Approve = func(tool, preview string) (bool, string) {
@@ -365,6 +390,7 @@ func (r *REPL) turnAs(ctx context.Context, input, shown, origin string) error {
       v.stopSpinner()
       v.endLine()
       ok, feedback := r.approve(tool, preview)
+      v.resetClock()
       v.startSpinner()
 
       return ok, feedback

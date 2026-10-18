@@ -75,6 +75,10 @@ type REPL struct {
 
   state flags
 
+  // effort is how hard the model thinks; once, when set, overrides
+  // it for the next turn only (/effort high <task>).
+  effort, once agent.Effort
+
   // system is the system prompt as built, for Explain's one-off
   // questions (History[0] belongs to the REPL goroutine).
   system string

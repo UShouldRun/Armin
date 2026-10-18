@@ -15,6 +15,16 @@ const (
   keyKillLine  // Ctrl-U
   keyKillWord  // Ctrl-W
   keyIgnored   // a recognized-but-unsupported sequence (arrow keys)
+  keyPaste     // a bracketed paste, its text in key.paste
+)
+
+// Bracketed paste: with it on, the terminal wraps pasted text in
+// these, so a pasted newline reads as text, not as Enter.
+const (
+  pasteOn    = "\x1b[?2004h"
+  pasteOff   = "\x1b[?2004l"
+  pasteEnd   = "\x1b[201~"
+  pasteLimit = 1 << 20 // bytes kept from one paste
 )
 
 // decodeKey reads one logical keypress from r: a single rune (ASCII
@@ -91,9 +101,9 @@ func utf8SeqLen(b byte) int {
 }
 
 // decodeEscape consumes one CSI ("\x1b[...") or SS3 ("\x1bO...")
-// sequence and reports keyIgnored. A bare ESC with nothing following
-// (the user pressing Escape itself) is also keyIgnored, not an
-// error.
+// sequence and reports keyIgnored, except a paste's start, which
+// reads the whole paste. A bare ESC with nothing following (the user
+// pressing Escape itself) is also keyIgnored, not an error.
 func decodeEscape(r *bufio.Reader) (key, error) {
   b1, err := r.ReadByte()
   if err != nil {
@@ -104,6 +114,8 @@ func decodeEscape(r *bufio.Reader) (key, error) {
     return key{ control: keyIgnored }, nil
   }
 
+  var params [8]byte
+  n := 0
   for {
     b2, err := r.ReadByte()
     if err != nil {
@@ -111,7 +123,66 @@ func decodeEscape(r *bufio.Reader) (key, error) {
     }
 
     if b2 >= 0x40 && b2 <= 0x7e {
+      if b1 == '[' && b2 == '~' && string(params[:n]) == "200" {
+        return decodePaste(r)
+      }
+
       return key{ control: keyIgnored }, nil
     }
+
+    if n < len(params) {
+      params[n] = b2
+      n++
+    }
   }
+}
+
+// decodePaste reads up to the paste's end marker. Line endings come
+// out as '\n', tabs stay, other control bytes are dropped: they'd
+// throw off the line editor's columns.
+func decodePaste(r *bufio.Reader) (key, error) {
+  var raw []byte
+  match := 0 // bytes of pasteEnd seen so far
+  for match < len(pasteEnd) {
+    b, err := r.ReadByte()
+    if err != nil {
+      return key{}, err
+    }
+
+    if b == pasteEnd[match] {
+      match++
+      continue
+    }
+
+    // Past the limit, the rest is read to the end but not kept.
+    if len(raw) < pasteLimit {
+      raw = append(raw, pasteEnd[:match]...)
+    }
+
+    match = 0
+    if b == pasteEnd[0] {
+      match = 1
+    } else if len(raw) < pasteLimit {
+      raw = append(raw, b)
+    }
+  }
+
+  text := make([]rune, 0, len(raw))
+  for i := 0; i < len(raw); {
+    ru, size := utf8.DecodeRune(raw[i:])
+    i += size
+
+    switch {
+    case ru == '\r':
+      if i < len(raw) && raw[i] == '\n' {
+        i++
+      }
+
+      text = append(text, '\n')
+    case ru == '\n', ru == '\t', ru >= 0x20 && ru != 0x7f:
+      text = append(text, ru)
+    }
+  }
+
+  return key{ control: keyPaste, paste: text }, nil
 }

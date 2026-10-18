@@ -49,7 +49,7 @@ func TestTurnStatus(t *testing.T) {
 
   v.progress(2048, 13906)
   s = v.status()
-  if !strings.HasPrefix(s, "reading the prompt 2.0k/13k") {
+  if !strings.HasPrefix(s, phaseReading + " 2.0k/13k") {
     t.Fatalf("status = %q", s)
   }
 
@@ -65,6 +65,41 @@ func TestTurnStatus(t *testing.T) {
   s = v.status()
   if s != "running make · 1m30s" {
     t.Fatalf("a long tool run is flagged as a silent model: %q", s)
+  }
+}
+
+// A run's status is the run's, from its call through its proposal
+// until it returns — never "waiting for the model".
+func TestToolStatus(t *testing.T) {
+  v := &turnView{ wrap: ui.NewWrapper(80) }
+  capture(t, func() {
+    v.drafting("run_program")
+  })
+
+  s := v.status()
+  v.stopSpinner()
+  if !strings.HasPrefix(s, "model is writing a run_program call") {
+    t.Fatalf("status while the call is written = %q", s)
+  }
+
+  capture(t, func() {
+    v.toolCall("run_program", map[string]any{ "binary": "make" })
+  })
+
+  s = v.status()
+  v.stopSpinner()
+  if !strings.HasPrefix(s, "running make") {
+    t.Fatalf("status while it runs = %q", s)
+  }
+
+  capture(t, func() {
+    v.toolSummary("ok")
+  })
+
+  s = v.status()
+  v.stopSpinner()
+  if !strings.HasPrefix(s, phaseResults) {
+    t.Fatalf("status after it ran = %q", s)
   }
 }
 

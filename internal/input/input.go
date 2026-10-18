@@ -7,6 +7,7 @@ import (
   "fmt"
   "path/filepath"
 
+  "armin/internal/agent"
   "armin/internal/config"
   "armin/internal/session"
   "armin/internal/ui"
@@ -17,6 +18,7 @@ const (
   ModeWeb              // -web: the chat in a browser
   ModeLSP              // -lsp: nvim's hover, completion and :ArminAsk
   ModeMCP              // -mcp: the tools alone, for another agent
+  ModeLibrary          // -library-sync/-add: index, catalog, exit
 )
 
 const (
@@ -46,6 +48,22 @@ func Parse() (*Options, error) {
   }
 
   f := parseFlags(fileCfg)
+  aids, ok := agent.ParseAids(f.aids)
+  if !ok {
+    return nil, fmt.Errorf(
+      "\n\t... in Parse:\n\t aids %q: want all, none or a list of "+
+        "stuck, procedure, verify",
+      f.aids,
+    )
+  }
+
+  effort, ok := agent.ParseEffort(f.effort)
+  if !ok {
+    return nil, fmt.Errorf(
+      "\n\t... in Parse:\n\t effort %q: want one of %s",
+      f.effort, agent.EffortNames,
+    )
+  }
 
   // Picked before the sandbox exists: a session from another
   // directory resumes there.
@@ -94,11 +112,17 @@ func Parse() (*Options, error) {
     Timeout:            f.timeout,
     MaxOutput:          f.maxOutput,
     MaxRounds:          f.maxRounds,
+    Effort:             effort,
+    Aids:               aids,
     Config:             fileCfg,
     Resumed:            resumed,
   }
 
   switch {
+  case f.librarySync || f.libraryAdd != "":
+    o.Mode = ModeLibrary
+    o.LibraryAdd = splitList(f.libraryAdd)
+    o.LibraryTo = f.libraryTo
   case f.mcpMode:
     o.Mode = ModeMCP
   case f.lspMode:

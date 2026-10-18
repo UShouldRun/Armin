@@ -4,6 +4,7 @@ import (
   "sync"
 
   "armin/internal/ctags"
+  "armin/internal/library"
   "armin/internal/llm"
   "armin/internal/notes"
   "armin/internal/sandbox"
@@ -35,6 +36,15 @@ type Loop struct {
   Memories *notes.Memories
   Skills   *notes.Skills
   Scratch  *notes.Scratchpad
+
+  // Library backs library_search and library_topics; nil drops
+  // them from the definitions.
+  Library *library.Library
+
+  // Aids are the reasoning aids turns get (see AidAll); Procedures
+  // the steps per kind of task (DefaultProcedures when nil).
+  Aids       Aids
+  Procedures map[Task]string
 
   // MaxRounds overrides DefaultMaxRounds.
   MaxRounds int
@@ -105,6 +115,21 @@ type Hooks struct {
   // Progress receives the model's prompt-reading progress (tokens
   // read of total) before each reply starts, where supported.
   Progress func(done, total int)
+
+  // Drafting hears a tool call's name as the model starts writing
+  // it: the stretch between thinking and ToolCall.
+  Drafting func(name string)
+
+  // Effort, if set, is how hard the model thinks this turn (an
+  // Effort's Wire value); empty keeps the model's default.
+  Effort string
+
+  // Task is the kind of request (see Assess), for its procedure.
+  Task Task
+
+  // Aside receives what the reasoning aids do (stepping back,
+  // checking the work), one line each.
+  Aside func(string)
 }
 
 // Proposal is a write or a run about to happen.

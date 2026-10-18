@@ -165,17 +165,32 @@ func Wrap(s string, width int) string {
 
 // layoutInput splits an input line into rows: the first holds
 // first runes (after the prompt), the rest rest runes each. Rows
-// break after a space when one fits, else mid-word. Every rune lands
-// in exactly one row, so a rune index maps to a row and column.
+// break at a newline (which ends its row), else after a space when
+// one fits, else mid-word. Every rune lands in exactly one row, so a
+// rune index maps to a row and column.
 func layoutInput(text []rune, first, rest int) [][]rune {
   rows := [][]rune{}
   capacity := max(first, 1)
-  for len(text) > capacity {
-    cut := capacity
-    for i := capacity; i > capacity / 2; i-- {
-      if text[i - 1] == ' ' {
-        cut = i
+  for {
+    cut := 0
+    for i := 0; i < len(text) && i <= capacity; i++ {
+      if text[i] == '\n' {
+        cut = i + 1
         break
+      }
+    }
+
+    if cut == 0 && len(text) <= capacity {
+      break
+    }
+
+    if cut == 0 {
+      cut = capacity
+      for i := capacity; i > capacity / 2; i-- {
+        if text[i - 1] == ' ' {
+          cut = i
+          break
+        }
       }
     }
 

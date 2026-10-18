@@ -3,6 +3,7 @@ package think
 import (
   "armin/internal/agent"
   "armin/internal/ctags"
+  "armin/internal/library"
   "armin/internal/llamacpp"
   "armin/internal/llm"
   "armin/internal/notes"
@@ -15,6 +16,7 @@ type Mind struct {
   Sandbox   *sandbox.Config
   WebSearch *searxng.Manager // nil without docker
   Symbols   *ctags.Index
+  Library   *library.Library // nil without library = in config.conf
 
   // Nil in input.ModeMCP, which serves the tools alone.
   Models   *llamacpp.Manager

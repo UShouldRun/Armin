@@ -6,6 +6,7 @@ import (
   "strings"
 
   "armin/internal/config"
+  "armin/internal/library"
   "armin/internal/notes"
   "armin/internal/session"
 )
@@ -22,6 +23,9 @@ How to work:
 - Old tool results get replaced by stubs; call the tool again if you need one back.
 - Save durable facts (user preferences, project conventions, decisions) with memory_save; not task progress.
 - If a skill in the index covers the task, load it with use_skill first.
+- Never guess at numbers, dates, text processing or parsing — compute them with a short python3 script through run_program: {"binary":"python3","args":["-c","print(2**0.5)"]} for one-liners, or a scratch .py file for anything longer. If you're not sure python3 is installed, check once with run_command ({"binary":"python3","args":["--version"]}) and remember the answer for the session; a failed script is a signal to try another tool, not to fall back to guessing.
+- git status compares against origin as of the last successful fetch; after a failed pull or fetch it says nothing about the remote. Report the failure and its error instead of concluding the branch is up to date.
+- You don't know today's date. For "today", "this week" and the like, let the tool resolve it (git log --since=midnight, --since="1 week ago"); never write a date of your own into a command or an answer.
 - If web_search reports an error or finds nothing relevant, tell the user so plainly. Never present what you write from memory as researched or sourced.
 - When you used web_search in this turn, cite every claim that comes from a result inline as [id], using the result's id, and end the answer with a Sources list: "- [title](url)" for each id you cited. If you didn't search, don't add a Sources section; cite files as file:line instead.
 - Your reasoning from earlier turns is saved in the scratchpad file "thinking"; old tool results you see as stubs are archived there too — read them back instead of re-running the tool.
@@ -54,6 +58,7 @@ Keep answers concise.`
 // are a tool call away.
 func buildSystemPrompt(
   base, root string, mem *notes.Memories, skills *notes.Skills,
+  lib *library.Library,
 ) string {
   var b strings.Builder
   b.WriteString(base)
@@ -72,6 +77,11 @@ func buildSystemPrompt(
   if skills.Len() > 0 {
     b.WriteString("\n\n# Skills (use_skill to load)\n")
     b.WriteString(skills.Index())
+  }
+
+  if lib != nil {
+    b.WriteString("\n\n# Library (library_search, library_topics)\n")
+    b.WriteString(lib.PromptIndex())
   }
 
   return b.String()

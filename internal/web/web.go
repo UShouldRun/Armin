@@ -358,6 +358,7 @@ func (e *sse) send(kind string, v any) {
 func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
   var in struct {
     Message string `json:"message"`
+    Effort  string `json:"effort"` // optional: auto, off, low, medium, high
   }
 
   err := json.NewDecoder(r.Body).Decode(&in)
@@ -385,7 +386,27 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 
   s.history = append(s.history, llm.Message{ Role: "user", Content: in.Message })
 
+  effort := s.cfg.Effort
+  asked, ok := agent.ParseEffort(in.Effort)
+  if ok {
+    effort = asked
+  }
+
+  task := agent.TaskOther
+  auto := effort == agent.EffortAuto
+  if auto || s.cfg.Loop.Aids.Has(agent.AidProcedure) {
+    judged, kind := agent.Assess(r.Context(), s.cfg.Client, in.Message)
+    task = kind
+    if auto {
+      effort = judged
+      ev.send("effort", effort.String())
+    }
+  }
+
   hooks := agent.Hooks{
+    Effort:    effort.Wire(),
+    Task:      task,
+    Aside:     func(msg string) { ev.send("aside", msg) },
     Token:     func(d string) { ev.send("token", d) },
     Reasoning: func(d string) { ev.send("reasoning", d) },
     ToolCall: func(name string, args map[string]any) {

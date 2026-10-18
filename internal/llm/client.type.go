@@ -113,8 +113,10 @@ type Client struct {
   // alias for it.
   ID string
 
-  // Effort, if set, caps how hard a hosted reasoning model thinks:
-  // "none", "minimal", "low", "medium", "high", "xhigh", "max".
+  // Effort, if set, caps how hard a reasoning model thinks: "none",
+  // "minimal", "low", "medium", "high", "xhigh", "max". A hosted
+  // model gets it as is; a local llama-server gets the template
+  // switches and a thinking budget it maps to (see localEffort).
   Effort string
 
   // APIKey, if set, is sent as "Authorization: Bearer <APIKey>" on
@@ -168,6 +170,10 @@ type StreamHandlers struct {
   // progress (tokens read of total) before the first token: on a
   // long context that's the silent stretch that looks like a hang.
   Progress func(done, total int)
+
+  // Drafting, if set, hears a tool call's name as soon as the model
+  // starts writing it, before its arguments are done.
+  Drafting func(name string)
 }
 
 // idleWatch cancels a request's context once nothing has been read
@@ -296,6 +302,12 @@ type owaiChatRequest struct {
 
   // Reasoning is OpenRouter's thinking budget, sent only when set.
   Reasoning *owaiReasoning `json:"reasoning,omitempty"`
+
+  // llama-server's: the chat template's own switches
+  // (enable_thinking, reasoning_effort) and a hard cap on thinking
+  // tokens, for models whose template has no effort levels.
+  TemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
+  ThinkBudget    *int           `json:"thinking_budget_tokens,omitempty"`
 }
 
 type owaiReasoning struct {

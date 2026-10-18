@@ -16,9 +16,15 @@ type SuggestFunc func(ctx context.Context, partial string) string
 // buffer plus the ghost-text suggestion currently shown for it.
 // Kept separate from the raw terminal I/O below so it can be unit
 // tested without a real TTY.
+//
+// A large paste sits in buf as one rune, pasteBase + its index in
+// pastes: shown as a short label, sent as the text. Editing only
+// happens at the end, so the pastes buf holds are always a prefix
+// of pastes.
 type lineState struct {
   buf        []rune
   suggestion []rune
+  pastes     [][]rune
 }
 
 type outcome struct {

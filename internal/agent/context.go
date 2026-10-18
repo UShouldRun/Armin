@@ -366,7 +366,7 @@ func (l *Loop) manageContext(
   }
 
   if act & ActCompact != 0 {
-    l.compact(ctx, history)
+    l.compact(ctx, history, hooks)
     after = convo.Analyze(*history).ApproxTokens
     if DecideAfterCompact(l.state(*history, after)) & ActShrink != 0 {
       notice(hooks,
@@ -386,6 +386,62 @@ func (l *Loop) manageContext(
   }
 
   return true
+}
+
+// compactHint is the note behind SuggestCompact. It goes in as its
+// own "[armin]" message after the user's, at the end of history, so
+// the cached prefix stays intact and frontends keep it out of view.
+const compactHint = compactHintPrefix + "~%d%% full (~%dk of %dk " +
+  "tokens). At %d%% armin compacts it automatically, which may land " +
+  "in the middle of a task. Answer the user's message first. Then, " +
+  "only if the work is at a natural break (a task finished, or a new " +
+  "topic starting), end your reply by asking whether to compact now " +
+  "with /compact (the compact button in the web page). Before asking, " +
+  "make sure your plan, progress and key findings are in the " +
+  "scratchpad, and tell them that after compacting you'll re-read the " +
+  "files and notes you still need rather than work from memory. If " +
+  "you're in the middle of a task, don't ask. This note isn't repeated."
+
+const compactHintPrefix = "[armin] Context is "
+
+// hintCompact adds compactHint at the start of a turn, once per
+// stretch of history: a compaction summary starts a new one.
+func (l *Loop) hintCompact(history *[]llm.Message, hooks Hooks) {
+  h := *history
+  if len(h) == 0 || h[len(h) - 1].Role != "user" {
+    return
+  }
+
+  used := l.Estimate(h)
+  if !SuggestCompact(l.state(h, used)) {
+    return
+  }
+
+  for i := len(h) - 1; i > 0; i-- {
+    if h[i].Role != "user" {
+      continue
+    }
+
+    if convo.IsSummary(h[i]) {
+      break
+    }
+
+    if strings.HasPrefix(h[i].Content, compactHintPrefix) {
+      return
+    }
+  }
+
+  window := l.window()
+  notice(hooks,
+    "context ~%dk of %dk — the model will offer to compact at a break",
+    used / 1000, window / 1000,
+  )
+  *history = append(h, llm.Message{
+    Role: "user",
+    Content: fmt.Sprintf(compactHint,
+      used * 100 / window, used / 1000, window / 1000, DefaultCompactAt,
+    ),
+  })
 }
 
 // saveNote asks the model to persist what it needs before older
@@ -421,8 +477,9 @@ func (l *Loop) saveBeforeCompact(
   copy(ask, history)
   ask = append(ask, llm.Message{ Role: "user", Content: saveNote })
 
+  client := l.LLM.Chore()
   for round := 0; round < saveRounds; round++ {
-    reply, err := l.LLM.Chat(ctx, ask, defs, nil)
+    reply, err := client.Chat(ctx, ask, defs, nil)
     if err != nil {
       return
     }
@@ -455,7 +512,9 @@ func (l *Loop) saveBeforeCompact(
 
 // compact stubs everything before the current turn, then has the
 // model summarize older history if that wasn't enough.
-func (l *Loop) compact(ctx context.Context, history *[]llm.Message) {
+func (l *Loop) compact(
+  ctx context.Context, history *[]llm.Message, hooks Hooks,
+) {
   h := *history
   l.elide(h[:keptFrom(h, 1)], false)
   if convo.Analyze(h).ApproxTokens <= l.window() * DefaultCompactAt / 100 * 2 / 3 {
@@ -469,6 +528,11 @@ func (l *Loop) compact(ctx context.Context, history *[]llm.Message) {
       extra = "Scratchpad files (scratchpad_read to open):\n" + s
     }
   }
+
+  notice(hooks,
+    "summarizing ~%dk tokens of older history",
+    convo.Analyze(h).ApproxTokens / 1000,
+  )
 
   // A failed summary isn't fatal: the request may still fit, and if
   // not the server's own error says so.

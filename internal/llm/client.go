@@ -91,6 +91,22 @@ func (c *Client) Chat(
   )
 }
 
+// Chore returns c for background work (summaries, saving notes,
+// suggestions) where thinking buys little: a hosted reasoning model
+// gets a copy with reasoning off, since on a long context its
+// thinking can take longer than the answer. A local llama-server
+// gets c itself.
+func (c *Client) Chore() *Client {
+  if c.APIKey == "" {
+    return c
+  }
+
+  q := *c
+  q.Effort = "none"
+
+  return &q
+}
+
 // ChatStream is Chat with separate handlers for content and
 // reasoning deltas. Tool-call argument fragments arrive
 // incrementally too; readStreamedReply assembles them by index.
@@ -126,8 +142,13 @@ func (c *Client) ChatStream(
     Stream:   h.streaming(),
   }
 
-  if c.Effort != "" {
+  // A hosted API (an id or a key of its own) takes OpenRouter's
+  // field; llama-server takes its template's.
+  hosted := c.APIKey != "" || c.ID != ""
+  if c.Effort != "" && hosted {
     reqBody.Reasoning = &owaiReasoning{ Effort: c.Effort }
+  } else if c.Effort != "" {
+    reqBody.TemplateKwargs, reqBody.ThinkBudget = localEffort(c.Effort)
   }
 
   if reqBody.Stream {
@@ -416,6 +437,10 @@ func readStreamedReply(
       }
 
       if tc.Function.Name != "" {
+        if acc.name == "" && h.Drafting != nil {
+          h.Drafting(tc.Function.Name)
+        }
+
         acc.name = tc.Function.Name
       }
 
@@ -727,4 +752,40 @@ func (c *Client) endpoint(path string) string {
   }
 
   return base + path
+}
+
+// thinkBudgets cap thinking tokens per effort on a local model; high
+// is unbounded.
+var thinkBudgets = map[string]int{
+  "none":    0,
+  "minimal": 0,
+  "low":     1024,
+  "medium":  4096,
+}
+
+// localEffort is how an effort reaches llama-server: every template
+// switch a model might know (Qwen's enable_thinking, the
+// reasoning_effort of K2 and gpt-oss, which only take low, medium
+// and high), plus a thinking budget, which works whatever the
+// template.
+func localEffort(effort string) (map[string]any, *int) {
+  level := effort
+  switch effort {
+  case "none", "minimal":
+    level = "low"
+  case "xhigh", "max":
+    level = "high"
+  }
+
+  kwargs := map[string]any{
+    "enable_thinking":  effort != "none" && effort != "minimal",
+    "reasoning_effort": level,
+  }
+
+  budget, ok := thinkBudgets[effort]
+  if !ok {
+    return kwargs, nil
+  }
+
+  return kwargs, &budget
 }

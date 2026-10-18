@@ -31,6 +31,8 @@ type Config struct {
   // ScratchBase is the project's scratch folder; the session's own
   // scratchpad is a folder under it named by the session id.
   ScratchBase string
+  // Effort is how hard the model thinks; a request may override it.
+  Effort agent.Effort
 }
 
 // Server holds the one browser session.

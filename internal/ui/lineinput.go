@@ -24,6 +24,18 @@ var ErrInterrupted = errors.New("input interrupted")
 // character, short enough to feel responsive once they pause.
 const suggestDebounce = 300 * time.Millisecond
 
+// A paste longer than this many lines or runes is folded into a
+// label: drawn whole, it could be taller than the terminal, which
+// the redraw can't climb back over.
+const (
+  foldLines = 8
+  foldRunes = 1000
+)
+
+// pasteBase is where folded pastes' runes start, in the last
+// private-use plane; typed or pasted runes up there are dropped.
+const pasteBase rune = 0x100000
+
 // apply mutates the line state for one decoded key and reports what
 // happened. Typing over a shown suggestion, or backspacing, clears
 // it — a suggestion is only valid for the exact buffer it was
@@ -44,8 +56,7 @@ func (s *lineState) apply(k key) outcome {
       return outcome{}
     }
 
-    s.buf = s.buf[:len(s.buf) - 1]
-    s.suggestion = nil
+    s.truncate(len(s.buf) - 1)
 
     return outcome{ changed: true }
 
@@ -54,18 +65,18 @@ func (s *lineState) apply(k key) outcome {
       return outcome{}
     }
 
-    s.buf, s.suggestion = s.buf[:0], nil
+    s.reset()
 
     return outcome{ changed: true }
 
   case keyKillWord:
     // Like a shell: trailing spaces, then the word before them.
     n := len(s.buf)
-    for n > 0 && s.buf[n - 1] == ' ' {
+    for n > 0 && isSpace(s.buf[n - 1]) {
       n--
     }
 
-    for n > 0 && s.buf[n - 1] != ' ' {
+    for n > 0 && !isSpace(s.buf[n - 1]) {
       n--
     }
 
@@ -73,7 +84,7 @@ func (s *lineState) apply(k key) outcome {
       return outcome{}
     }
 
-    s.buf, s.suggestion = s.buf[:n], nil
+    s.truncate(n)
 
     return outcome{ changed: true }
 
@@ -99,6 +110,19 @@ func (s *lineState) apply(k key) outcome {
 
   case keyIgnored:
     return outcome{}
+
+  case keyPaste:
+    if len(k.paste) == 0 {
+      return outcome{}
+    }
+
+    s.paste(k.paste)
+
+    return outcome{ changed: true }
+  }
+
+  if k.r >= pasteBase {
+    return outcome{}
   }
 
   s.buf = append(s.buf, k.r)
@@ -107,7 +131,91 @@ func (s *lineState) apply(k key) outcome {
   return outcome{ changed: true }
 }
 
-func (s *lineState) text() string { return string(s.buf) }
+func isSpace(r rune) bool { return r == ' ' || r == '\n' || r == '\t' }
+
+// paste appends p, folded into one rune when it's large.
+func (s *lineState) paste(p []rune) {
+  s.suggestion = nil
+
+  lines := 1
+  for _, r := range p[:len(p) - 1] {
+    if r == '\n' {
+      lines++
+    }
+  }
+
+  if lines <= foldLines && len(p) <= foldRunes {
+    for _, r := range p {
+      if r < pasteBase {
+        s.buf = append(s.buf, r)
+      }
+    }
+
+    return
+  }
+
+  s.buf = append(s.buf, pasteBase + rune(len(s.pastes)))
+  s.pastes = append(s.pastes, p)
+}
+
+// truncate cuts buf to n runes, letting go of the pastes cut with
+// it.
+func (s *lineState) truncate(n int) {
+  s.buf, s.suggestion = s.buf[:n], nil
+
+  kept := 0
+  for _, r := range s.buf {
+    if r >= pasteBase {
+      kept = int(r - pasteBase) + 1
+    }
+  }
+
+  clear(s.pastes[kept:])
+  s.pastes = s.pastes[:kept]
+}
+
+func (s *lineState) reset() { s.truncate(0) }
+
+// expand is buf with each folded paste swapped for its text, or,
+// with labels, for the label shown in its place.
+func (s *lineState) expand(labels bool) []rune {
+  out := make([]rune, 0, len(s.buf))
+  for _, r := range s.buf {
+    if r < pasteBase {
+      out = append(out, r)
+      continue
+    }
+
+    p := s.pastes[r - pasteBase]
+    if !labels {
+      out = append(out, p...)
+      continue
+    }
+
+    out = append(out, []rune(pasteLabel(p))...)
+  }
+
+  return out
+}
+
+func pasteLabel(p []rune) string {
+  lines := 1
+  for _, r := range p[:len(p) - 1] {
+    if r == '\n' {
+      lines++
+    }
+  }
+
+  if lines == 1 {
+    return fmt.Sprintf("[pasted %d chars]", len(p))
+  }
+
+  return fmt.Sprintf("[pasted %d lines]", lines)
+}
+
+// text is what was typed, pastes and all; display is what's drawn.
+func (s *lineState) text() string    { return string(s.expand(false)) }
+func (s *lineState) display() []rune { return s.expand(true) }
 
 func (s *lineState) setSuggestion(sug string) {
   s.suggestion = []rune(sug)
@@ -116,12 +224,13 @@ func (s *lineState) setSuggestion(sug string) {
 // render splits the current line into what's actually been typed
 // (prompt + buf) and the dim suggestion tail shown after it.
 func (s *lineState) render(prompt string) (visible, ghost string) {
-  return prompt + string(s.buf), string(s.suggestion)
+  return prompt + string(s.display()), string(s.suggestion)
 }
 
 // ReadLineWithGhostText reads one line from stdin. On a terminal it
 // edits the line in raw mode — linear typing, Backspace, Ctrl-U,
-// Ctrl-W, no arrow-key movement or history — wrapping it at
+// Ctrl-W, no arrow-key movement or history, pastes taken whole with
+// their newlines — wrapping it at
 // TextWidth, and, when suggest is non-nil, shows a dim inline
 // suggestion that Tab accepts. Without a terminal (piped input,
 // scripts, tests) it falls back to a plain buffered read.
@@ -142,6 +251,9 @@ func ReadLineWithGhostText(
   }
 
   defer restoreMode(fd, state)
+
+  fmt.Print(pasteOn)
+  defer fmt.Print(pasteOff)
 
   read := func() (key, error) { return decodeKey(reader) }
 
@@ -189,6 +301,9 @@ func ReadLineWake(
   }
 
   defer restoreMode(fd, state)
+
+  fmt.Print(pasteOn)
+  defer fmt.Print(pasteOff)
 
   pump.start()
   read := func() (key, error) {
@@ -238,7 +353,11 @@ func editLine(
     gen   int
   )
 
-  state.buf = []rune(initial)
+  // Text handed back from before (see ReadLineWake) is pasted, so
+  // a large paste in it folds again.
+  if initial != "" {
+    state.paste([]rune(initial))
+  }
 
   var cancelPrev context.CancelFunc = func() {}
   defer func() { cancelPrev() }()
@@ -277,8 +396,9 @@ func editLine(
   row := 0
   redraw := func() {
     mu.Lock()
-    typed := len(state.buf)
-    text := append(append([]rune{}, state.buf...), state.suggestion...)
+    text := state.display()
+    typed := len(text)
+    text = append(text, state.suggestion...)
     mu.Unlock()
 
     width, promptW, hang := measure()
@@ -298,9 +418,9 @@ func editLine(
 
       // Runes past what was typed are the suggestion, shown dim.
       split := min(max(typed - at, 0), len(r))
-      b.WriteString(string(r[:split]))
+      b.WriteString(inputText(r[:split]))
       if split < len(r) {
-        b.WriteString(Dim(string(r[split:])))
+        b.WriteString(Dim(inputText(r[split:])))
       }
 
       at += len(r)
@@ -425,4 +545,22 @@ func editLine(
       scheduleSuggest()
     }
   }
+}
+
+// inputText is how a row of input prints: one column per rune, so a
+// tab shows as a space, and a row's closing newline isn't printed —
+// the row break is.
+func inputText(row []rune) string {
+  var b strings.Builder
+  for _, r := range row {
+    switch r {
+    case '\n':
+    case '\t':
+      b.WriteByte(' ')
+    default:
+      b.WriteRune(r)
+    }
+  }
+
+  return b.String()
 }

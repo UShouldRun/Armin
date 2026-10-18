@@ -49,3 +49,26 @@ func TestResultLine(t *testing.T) {
     }
   }
 }
+
+func TestActivity(t *testing.T) {
+  cases := []struct {
+    name string
+    args map[string]any
+    want string
+  }{
+    { "read_file", map[string]any{ "path": "main.go" }, "reading main.go" },
+    { "memory_read", map[string]any{ "name": "style" }, "reading memory style" },
+    { "web_search", map[string]any{ "query": "go 1.26" }, `searching the web for "go 1.26"` },
+    { "search_code", map[string]any{}, "searching the code for" },
+    { "run_program", map[string]any{ "binary": "make" }, "running make" },
+    { "scratchpad_write", map[string]any{ "name": "plan" }, "writing the plan" },
+    { "mystery", nil, "running mystery" },
+  }
+
+  for _, c := range cases {
+    got := Activity(c.name, c.args)
+    if got != c.want {
+      t.Errorf("Activity(%s) = %q, want %q", c.name, got, c.want)
+    }
+  }
+}

@@ -13,8 +13,10 @@ import (
 
   "armin/internal/agent"
   "armin/internal/catalog"
+  "armin/internal/config"
   "armin/internal/ctags"
   "armin/internal/input"
+  "armin/internal/library"
   "armin/internal/llamacpp"
   "armin/internal/llm"
   "armin/internal/sandbox"
@@ -89,6 +91,18 @@ func NewSenses(opts *input.Options) (*Mind, error) {
   // One ctags index for the agent's symbol tools, -lsp's definition
   // and workspace/symbol, and -mcp — the repo is scanned once.
   m.Symbols = ctags.New(sb.Root, opts.CtagsBin)
+
+  // The reference library: its folder is readable like the project,
+  // so read_pdf and read_file can follow a citation.
+  if cfg.Library != "" {
+    lib, err := library.Open(cfg.Library)
+    if err != nil {
+      ui.Warn("library: %s", err)
+    } else {
+      m.Library = lib
+      sb.AddReadRoot(lib.Root)
+    }
+  }
 
   return m, nil
 }
@@ -180,6 +194,19 @@ func (m *Mind) wake(ctx context.Context, opts *input.Options) error {
   loop.Memories, loop.Skills, loop.Scratch = m.Memories, m.Skills, m.Scratch
   m.Loop = loop
 
+  loop.Aids = opts.Aids
+  confDir, err := config.Dir()
+  if err == nil {
+    loop.Procedures = agent.LoadProcedures(filepath.Join(confDir, "procedures"))
+  }
+
+  if m.Library != nil {
+    loop.Library = m.Library
+    if opts.Mode != input.ModeLibrary {
+      m.refreshLibrary(ctx)
+    }
+  }
+
   // A resumed session continues on the model it used.
   r := opts.Resumed
   if r != nil && r.Model != "" && r.Model != client.Model && m.Models.Has(r.Model) {
@@ -211,7 +238,34 @@ func (m *Mind) SystemPrompt(readOnly bool) string {
     base = readOnlyPrompt
   }
 
-  return buildSystemPrompt(base, m.Sandbox.Root, m.Memories, m.Skills)
+  return buildSystemPrompt(
+    base, m.Sandbox.Root, m.Memories, m.Skills, m.Library,
+  )
+}
+
+// refreshLibrary reindexes a library that changed since its index
+// was built, in the background (searches use the old index
+// meanwhile), and points at books the topic table lacks.
+func (m *Mind) refreshLibrary(ctx context.Context) {
+  lib := m.Library
+  pending := len(lib.Pending(nil))
+  if pending > 0 {
+    msg := fmt.Sprintf("  library: %d books aren't in the topic "+
+      "table yet — /library catalog", pending)
+    fmt.Fprintln(os.Stderr, ui.Dim(msg))
+  }
+
+  if !lib.Stale() {
+    return
+  }
+
+  go func() {
+    err := lib.Build(ctx, nil)
+    if err != nil && ctx.Err() == nil {
+      msg := "  library: indexing failed: " + err.Error()
+      fmt.Fprintln(os.Stderr, ui.Dim(msg))
+    }
+  }()
 }
 
 // Shutdown stops only what armin itself started. Safe to call twice.

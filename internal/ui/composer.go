@@ -3,6 +3,7 @@ package ui
 import (
   "fmt"
   "os"
+  "strings"
   "time"
 )
 
@@ -36,7 +37,7 @@ func StartComposer(pump *KeyPump, hint string, send func(string)) *Composer {
 
   // Make room: if the cursor is on the last row, the region would
   // leave it outside, where output would overwrite the bar.
-  fmt.Print("\n\x1b[1A")
+  fmt.Print("\n\x1b[1A" + pasteOn)
   c.layout()
   pump.start()
   go c.run()
@@ -56,7 +57,7 @@ func (c *Composer) layout() {
 // draw paints the bar on the last row without moving the cursor.
 func (c *Composer) draw() {
   c.mu.Lock()
-  text, queued, paused := string(c.state.buf), c.queued, c.paused
+  text, queued, paused := barText(c.state.display()), c.queued, c.paused
   c.mu.Unlock()
 
   width := termCols()
@@ -135,8 +136,8 @@ func (c *Composer) key(k key) {
   out := c.state.apply(k)
   line := ""
   if out.submit {
-    line = string(c.state.buf)
-    c.state.buf = c.state.buf[:0]
+    line = c.state.text()
+    c.state.reset()
   }
 
   c.mu.Unlock()
@@ -199,11 +200,29 @@ func (c *Composer) Stop() string {
   close(c.stop)
   <-c.done
 
-  fmt.Printf("\x1b7\x1b[%d;1H\x1b[2K\x1b[r\x1b8", c.rows)
+  fmt.Printf("\x1b7\x1b[%d;1H\x1b[2K\x1b[r\x1b8" + pasteOff, c.rows)
   restoreMode(int(os.Stdin.Fd()), c.mode)
 
   c.mu.Lock()
   defer c.mu.Unlock()
 
-  return string(c.state.buf)
+  return c.state.text()
+}
+
+// barText is the typed text on the bar's one row: a pasted newline
+// shows as ↵, a tab as a space.
+func barText(buf []rune) string {
+  var b strings.Builder
+  for _, r := range buf {
+    switch r {
+    case '\n':
+      b.WriteRune('↵')
+    case '\t':
+      b.WriteByte(' ')
+    default:
+      b.WriteRune(r)
+    }
+  }
+
+  return b.String()
 }

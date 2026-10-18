@@ -86,6 +86,21 @@ func parseFlags(fileCfg config.Config) cliFlags {
   flag.BoolVar(&f.noSave, "no-save", false,
     "don't persist the session to disk after each turn")
   flag.BoolVar(&f.noColor, "no-color", false, "disable ANSI styling")
+  flag.StringVar(&f.effort, "effort", firstNonEmpty(fileCfg.Effort, "auto"),
+    "how hard the model thinks: auto (it judges each request), off, "+
+      "low, medium or high; /effort changes it in the chat")
+  flag.StringVar(&f.aids, "aids", firstNonEmpty(fileCfg.Aids, "all"),
+    "reasoning aids: all, none, or a list of stuck (step back after "+
+      "repeated failures), procedure (steps per kind of task), verify "+
+      "(check the work before answering)")
+  flag.BoolVar(&f.librarySync, "library-sync", false,
+    "index the reference library (library = in config.conf) and have "+
+      "-model catalog the books the topic table lacks, then exit")
+  flag.StringVar(&f.libraryAdd, "library-add", "",
+    "comma-separated files or folders to copy into the library, "+
+      "then index and catalog them, and exit")
+  flag.StringVar(&f.libraryTo, "library-to", "added",
+    "the library folder (topic) -library-add copies into, e.g. go, math")
 
   flag.Usage = func() {
     fmt.Fprintln(os.Stderr, "Usage: armin [path] [flags]")
@@ -165,6 +180,7 @@ var boolFlagNames = map[string]bool{
   "resume":   true,
   "no-save":  true,
   "no-color": true,
+  "library-sync": true,
   "h":        true,
   "help":     true,
 }

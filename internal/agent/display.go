@@ -93,6 +93,18 @@ func CallLine(name string, args map[string]any) string {
 
     return line
 
+  case toolLibrarySearch:
+    line := name + "  " + quote(str("query"))
+    t := str("topic")
+    if t != "" {
+      line += " · " + t
+    }
+
+    return line
+
+  case toolLibraryTopics:
+    return name + "  " + str("topic")
+
   case toolWriteFile:
     return fmt.Sprintf("%s  %s (%d lines)", name, str("path"), lines(args["content"]))
 
@@ -143,6 +155,107 @@ func CallLine(name string, args map[string]any) string {
   return strings.TrimSpace(name + "  " + strings.Join(parts, " "))
 }
 
+// Activity is what a running tool is doing, for a status line:
+// short, so it fits beside the elapsed time without wrapping.
+func Activity(name string, args map[string]any) string {
+  str := func(k string) string {
+    v, _ := args[k].(string)
+    return clip(oneLine(v), 40)
+  }
+
+  // with appends " " + s when s is set; quoted quotes it.
+  with := func(what, s string) string {
+    if s == "" {
+      return what
+    }
+
+    return what + " " + s
+  }
+
+  quoted := func(what, s string) string {
+    if s == "" {
+      return what
+    }
+
+    return what + " " + quote(s)
+  }
+
+  switch toolIDs[name] {
+  case toolReadFile, toolReadPDF, toolOutlineFile, toolReadDocComment:
+    return with("reading", str("path"))
+  case toolFileStat, toolCountLines:
+    return with("checking", str("path"))
+  case toolListDirectory, toolFindFiles, toolListLanguages:
+    return with("listing files", str("path"))
+  case toolSearchCode, toolSemanticSearch, toolFindTodoFixme:
+    return quoted("searching the code for", str("pattern") + str("query"))
+  case toolFindDefinition, toolFindReferences, toolFindCallers,
+    toolListSymbols:
+    return with("looking up", str("name") + str("query"))
+  case toolFindDeadCode, toolImpactAnalysis, toolModuleGraph,
+    toolListDependencies, toolProjectManifest, toolEnvInfo:
+    return "inspecting the project"
+  case toolGitLog, toolGitBlame, toolGitDiff, toolGitShow,
+    toolWorkingTreeDiff, toolGrepHistory, toolCodeOwners,
+    toolCommitStats:
+    return "reading git history"
+  case toolWebSearch:
+    return quoted("searching the web for", str("query"))
+  case toolLibrarySearch:
+    return quoted("looking it up in the library:", str("query"))
+  case toolLibraryTopics:
+    return "checking the library's topics"
+  case toolWriteFile:
+    return with("writing", str("path"))
+  case toolEditFile:
+    return with("editing", str("path"))
+  case toolRunTests:
+    return "running the tests"
+  case toolBuildCheck:
+    return "building"
+  case toolLintCheck:
+    return "linting"
+  case toolRunCommand, toolRunProgram:
+    return with("running", str("binary"))
+  case toolMemoryRead:
+    return with("reading memory", str("name"))
+  case toolMemorySave:
+    return with("saving to memory", str("name"))
+  case toolMemoryDelete:
+    return with("forgetting", str("name"))
+  case toolScratchpadWrite:
+    if strings.Contains(str("name"), "plan") {
+      return "writing the plan"
+    }
+
+    return with("writing notes", str("name"))
+  case toolScratchpadRead:
+    if strings.Contains(str("name"), "plan") {
+      return "reading the plan"
+    }
+
+    return with("reading notes", str("name"))
+  case toolScratchpadList:
+    return "listing notes"
+  case toolUseSkill:
+    return with("loading skill", str("name"))
+  case toolRequestAccess:
+    return with("asking for access to", str("dir"))
+  }
+
+  return "running " + name
+}
+
+// clip cuts s to n runes, marking the cut.
+func clip(s string, n int) string {
+  r := []rune(s)
+  if len(r) <= n {
+    return s
+  }
+
+  return string(r[:n - 1]) + "…"
+}
+
 // ResultLine summarizes a tool result (its JSON) in one line: what
 // came back, not the whole of it.
 func ResultLine(name, result string) string {
@@ -185,6 +298,19 @@ func ResultLine(name, result string) string {
     }
 
     return fmt.Sprintf("%d results — %s", len(results), domains(results, 3))
+
+  case toolLibrarySearch:
+    results, _ := r["results"].([]any)
+    if len(results) == 0 {
+      return "nothing found"
+    }
+
+    titles := libraryTitles(results, 2)
+    return fmt.Sprintf("%d passages — %s", len(results), titles)
+
+  case toolLibraryTopics:
+    rows, _ := r["topics"].([]any)
+    return plural(len(rows), "row")
 
   case toolReadFile:
     shown := strings.Count(str("content"), "\n") + 1
@@ -375,4 +501,28 @@ func sizeOf(s string) string {
   }
 
   return fmt.Sprintf("%.1f KB", float64(len(s)) / 1024)
+}
+
+// libraryTitles names the first n distinct books of library results,
+// with the page or line of each.
+func libraryTitles(results []any, n int) string {
+  var out []string
+  seen := map[string]bool{}
+  for _, x := range results {
+    m, _ := x.(map[string]any)
+    title, _ := m["title"].(string)
+    where, _ := m["where"].(string)
+    book, _, _ := strings.Cut(title, " › ")
+    if book == "" || seen[book] {
+      continue
+    }
+
+    seen[book] = true
+    out = append(out, book + ", " + where)
+    if len(out) == n {
+      break
+    }
+  }
+
+  return strings.Join(out, "; ")
 }

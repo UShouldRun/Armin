@@ -475,9 +475,13 @@ func (c *Config) runIO(
   // A killed make can leave a compiler holding the output pipes;
   // don't wait on it forever.
   cmd.WaitDelay = 5 * time.Second
+  env := os.Environ()
   if c.Env != nil {
-    cmd.Env = c.Env()
+    env = c.Env()
   }
+
+  cmd.Env = noPrompt(env)
+  detachTerminal(cmd)
 
   var outBuf, errBuf bytes.Buffer
   cmd.Stdin = stdin
@@ -509,6 +513,22 @@ func (c *Config) runIO(
   }
 
   return outBuf.String(), errBuf.String(), exitCode, nil
+}
+
+// noPrompt makes git fail with an error rather than wait for an
+// answer nobody can give: no username/password prompt, and ssh in
+// batch mode (no passphrase or unknown-host-key questions). A
+// GIT_SSH_COMMAND the user already set is kept: replacing it would
+// drop their key or wrapper.
+func noPrompt(env []string) []string {
+  env = append(env[:len(env):len(env)], "GIT_TERMINAL_PROMPT=0")
+  for _, kv := range env {
+    if strings.HasPrefix(kv, "GIT_SSH_COMMAND=") {
+      return env
+    }
+  }
+
+  return append(env, "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
 }
 
 // DescribeArgs renders binary + args the way they'd actually be

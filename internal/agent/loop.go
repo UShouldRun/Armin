@@ -48,6 +48,7 @@ func (l *Loop) Definitions() []llm.ToolDefinition {
     }
 
     l.defs = append(l.defs, l.noteDefinitions()...)
+    l.defs = append(l.defs, l.libraryDefinitions()...)
     raw, _ := json.Marshal(l.defs)
     l.defsTokens = len(raw) / 4
 
@@ -899,10 +900,28 @@ func (l *Loop) Turn(
   defs := l.Definitions()
   stream := llm.StreamHandlers{
     Token: hooks.Token, Reasoning: hooks.Reasoning, Progress: hooks.Progress,
+    Drafting: hooks.Drafting,
   }
 
+  // The turn's effort on a copy: lspserver runs turns concurrently
+  // on the same client.
+  client := l.LLM
+  if hooks.Effort != "" {
+    c := *l.LLM
+    c.Effort = hooks.Effort
+    client = &c
+  }
+
+  setEffortLine(*history, hooks.Effort)
+  l.addProcedure(*history, hooks.Task)
+
   turnStart := len(*history)
-  var last llm.Usage
+  var (
+    last     llm.Usage
+    stuck    stall
+    verified bool
+  )
+
   sources := &turnSources{}
   failed := map[string]string{} // name+args → error since the last success
   declined := map[string]bool{}  // directories the user refused this turn
@@ -913,6 +932,7 @@ func (l *Loop) Turn(
   defer func() { l.endTurn(history, turnStart, hooks) }()
 
   stopNote := roundLimitNote
+  l.hintCompact(history, hooks)
 
   for round := 0; round < l.maxRounds(); round++ {
     // Messages the user sent while the turn ran go in before the
@@ -926,7 +946,7 @@ func (l *Loop) Turn(
       last = llm.Usage{}
     }
 
-    reply, err := l.LLM.ChatStream(ctx, *history, defs, stream)
+    reply, err := client.ChatStream(ctx, *history, defs, stream)
     if err != nil {
       return "", fmt.Errorf(
         "\n\t... in Turn:\n\t model call failed: %w", err,
@@ -941,6 +961,23 @@ func (l *Loop) Turn(
     *history = append(*history, *reply)
 
     if len(reply.ToolCalls) == 0 {
+      // One check of work that changed or ran something; an issue
+      // sends the model back for another round.
+      check := l.Aids.Has(AidVerify) && !verified &&
+        changedOrRan(*history, turnStart)
+      if check {
+        verified = true
+        issue := l.verify(ctx, *history, turnStart)
+        if issue != "" {
+          note(hooks, "checking the work: " + issue)
+          *history = append(*history, llm.Message{
+            Role: "user", Content: fmt.Sprintf(verifyNote, issue),
+          })
+
+          continue
+        }
+      }
+
       answer := l.finish(history, sources, hooks)
 
       // Done — unless the user said more meanwhile: then the turn
@@ -952,6 +989,7 @@ func (l *Loop) Turn(
       return answer, nil
     }
 
+    stepBack := false
     for _, call := range reply.ToolCalls {
       if ctx.Err() != nil {
         return "", fmt.Errorf("\n\t... in Turn:\n\t%w", ctx.Err())
@@ -1033,11 +1071,23 @@ func (l *Loop) Turn(
         hooks.ToolResult(call.Function.Name, string(resultJSON))
       }
 
+      id := toolIDs[call.Function.Name]
+      if l.Aids.Has(AidStuck) && stuck.observe(id, resultJSON) {
+        stepBack = true
+      }
+
       *history = append(*history, llm.Message{
         Role:       "tool",
         ToolName:   call.Function.Name,
         ToolCallID: call.ID,
         Content:    string(resultJSON),
+      })
+    }
+
+    if stepBack {
+      note(hooks, "stepping back after repeated failures")
+      *history = append(*history, llm.Message{
+        Role: "user", Content: stuckNote,
       })
     }
 
@@ -1050,7 +1100,7 @@ func (l *Loop) Turn(
   *history = append(*history, llm.Message{
     Role: "user", Content: stopNote,
   })
-  reply, err := l.LLM.ChatStream(ctx, *history, nil, stream)
+  reply, err := client.ChatStream(ctx, *history, nil, stream)
   if err != nil {
     return "", fmt.Errorf(
       "\n\t... in Turn:\n\t stopping the turn (tool-round limit %d or "+
@@ -1369,6 +1419,11 @@ func (l *Loop) execute(
   }
 
   out, ok := l.executeNote(id, raw)
+  if ok {
+    return out
+  }
+
+  out, ok = l.executeLibrary(id, raw)
   if ok {
     return out
   }

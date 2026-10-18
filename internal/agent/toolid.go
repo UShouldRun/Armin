@@ -48,6 +48,8 @@ const (
   toolScratchpadList
   toolUseSkill
   toolRequestAccess
+  toolLibrarySearch
+  toolLibraryTopics
   toolCount
 )
 
@@ -98,6 +100,8 @@ var toolIDs = map[string]ToolID{
   "scratchpad_read": toolScratchpadRead,
   "scratchpad_list": toolScratchpadList,
   "request_access":  toolRequestAccess,
+  "library_search":  toolLibrarySearch,
+  "library_topics":  toolLibraryTopics,
   "use_skill":       toolUseSkill,
 }
 

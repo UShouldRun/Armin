@@ -8,6 +8,7 @@ package ui
 type key struct {
   r       rune
   control controlKey
+  paste   []rune // keyPaste: the pasted text, newlines kept
 }
 
 type controlKey int

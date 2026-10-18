@@ -83,3 +83,30 @@ func TestDecodeKeySequential(t *testing.T) {
     t.Fatalf("second key = %+v, err = %v", second, err)
   }
 }
+
+func TestDecodeKeyBracketedPaste(t *testing.T) {
+  r := bufio.NewReader(strings.NewReader("\x1b[200~one\r\ntwo\rthree\n\tfour\x1b[A\x1b[201~x"))
+
+  k, err := decodeKey(r)
+  if err != nil || k.control != keyPaste {
+    t.Fatalf("decodeKey(paste) = %+v, %v", k, err)
+  }
+
+  want := "one\ntwo\nthree\n\tfour[A"
+  if string(k.paste) != want {
+    t.Fatalf("paste = %q, want %q", string(k.paste), want)
+  }
+
+  next, err := decodeKey(r)
+  if err != nil || next.r != 'x' {
+    t.Fatalf("key after the paste = %+v, %v", next, err)
+  }
+}
+
+func TestDecodeKeyPasteEndAfterEscape(t *testing.T) {
+  // An ESC right before the end marker mustn't hide it.
+  k := decode(t, "\x1b[200~a\x1b\x1b[201~")
+  if k.control != keyPaste || string(k.paste) != "a" {
+    t.Fatalf("decodeKey = %+v", k)
+  }
+}

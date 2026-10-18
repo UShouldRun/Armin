@@ -138,6 +138,8 @@ explaining the project by hand.
 | `/skills` | list skills |
 | `/skill <name> [task]`, `/<name> [task]` | run a skill |
 | `/scratch [show <name>\|clear]` | list, show or clear the scratchpad |
+| `/effort [auto\|off\|low\|medium\|high] [task]` | how hard the model thinks; `auto` lets it judge each request — see "How hard it thinks" |
+| `/library [index\|catalog [model]\|merge [model]\|add <path>... [to <folder>]\|topics [topic]]` | the reference library: status, reindex, have a model catalog new books, copy files in, show the topic table — see "Reference library" |
 
 Switching to a model with no tool-calling support (a plain
 completion/FIM base model, say) doesn't fail with a raw HTTP error —
@@ -183,13 +185,17 @@ scripts get a plain buffered read.
 | `-resume [id]` | off | resume a session: alone, pick from a menu; with an id (or prefix), that one |
 | `-no-save` | off | don't persist the session to disk after each turn |
 | `-no-color` | off | disable ANSI styling |
+| `-aids` | `all` | reasoning aids: `all`, `none`, or a list of `stuck`, `procedure`, `verify` — see "Reasoning aids" |
+| `-effort` | `auto` | how hard the model thinks: `auto` (it judges each request), `off`, `low`, `medium` or `high` |
+| `-library-sync` | off | index the reference library and have `-model` catalog the books the topic table lacks, then exit |
+| `-library-add` | — | comma-separated files or folders to copy into the library (under `-library-to`, default `added`), then index and catalog them, and exit |
 
 Flag defaults can also come from a config file (see below); explicit
 flags always win.
 
 ## The tools
 
-The model has 37 narrow, structured tools — never a free-form shell
+The model has 37 narrow, structured tools (39 with a reference library) — never a free-form shell
 string — plus the memory, scratchpad and skill tools described in
 "Memories, skills and the scratchpad" below. Editing:
 
@@ -468,7 +474,55 @@ build_timeout   = 10m    # run_tests / build_check / lint_check
 test_cmd        = go test -race ./...
 build_cmd       = make
 lint_cmd        = golangci-lint run
+library         = ~/Documents/Software  # reference library, see below
+effort          = auto   # auto, off, low, medium, high
+aids            = all    # all, none, or stuck,procedure,verify
 ```
+
+## Reference library
+
+`library = <folder>` in config.conf gives the model a shelf of real
+references to look facts up in instead of recalling them: books,
+official docs, language standards, RFCs, man pages. Top-level
+folders are topics (`go`, `c`, `linux`, `math`, ...); each file or
+folder inside one is a book. PDFs are read page by page (poppler's
+`pdftotext`), HTML, Markdown, reStructuredText, man pages and plain
+text section by section.
+
+- **`library_search`** ranks passages with BM25 over an inverted
+  index in `<folder>/.armin/index` (only a small term table is kept
+  in memory; postings and text are read from disk per query). Each
+  result has the title, file, page or line, the passage, and the
+  `read_pdf` / `read_file` call that reads on — the folder is
+  readable without asking. `topic` keeps a search to one topic's
+  books.
+- **`library_topics`** answers "where is X covered": book, chapters
+  or pages, and what it's good for.
+- The **system prompt** carries a short "where to look" line per
+  topic and asks the model to cite `[Title, page N]` with a Library
+  sources list of files, so you can check every claim.
+
+The topic table (`<folder>/.armin/topics.tsv`, and `TOPICS.md` for
+reading) is written by a model: for each new or changed book it reads
+the table of contents (or a folder's files and headings) and answers
+`topic | where | note` lines. That runs on `armin -library-sync`
+(install.sh offers it), `/library catalog [model]`, and after adding
+files with `/library add <path>... [to <folder>]` or `armin
+-library-add a.pdf,notes/ -library-to go`. A hosted model makes quick
+work of it (`/library catalog planner`); hand edits to the table stay
+until that book changes and is cataloged again. armin reindexes in
+the background on startup when files changed, and says when books are
+waiting to be cataloged.
+
+Models name topics freely, so past 80 distinct topics a merge pass
+(also `/library merge [model]`) has the model fold synonyms and
+narrow topics into about 60 canonical ones; the mapping is kept in
+`.armin/aliases.tsv`, and later catalogs use the canonical names.
+
+[docs/library-fetch.sh](docs/library-fetch.sh) downloads a starter
+library of freely licensed books and docs (Go and C references,
+Beej's guides, OS, networking, databases, security, performance,
+math, physics) into `~/Documents/Software`.
 
 ## Model lifecycle
 
@@ -661,6 +715,48 @@ Requests use a read-idle timeout instead of a whole-request one:
 a generation that keeps streaming is never cut off, and a server
 that goes silent for `read_timeout` (default 5m, long enough for a
 large prompt to process on a remote box) is.
+
+### How hard it thinks
+
+`/effort [auto|off|low|medium|high] [task]` sets how much the model
+thinks; `effort =` in config.conf and `-effort` set the default,
+`auto`. With a task (`/effort high why does this deadlock?`) the
+level is for that task alone. `auto` lets the model judge: before
+each turn it answers, with its thinking off, whether the request
+needs low, medium or high, and armin shows the choice. The web chat
+takes an `effort` field per message.
+
+A hosted model gets OpenRouter's `reasoning.effort`. A local
+llama-server gets every switch a chat template might know
+(`enable_thinking`, `reasoning_effort` low/medium/high) plus a cap on
+thinking tokens, which works whatever the template: off 0, low 1024,
+medium 4096, high unbounded.
+
+High and low effort also put the line Qwen3.8's chat template uses
+for its xhigh and low efforts at the top of the system prompt ("Reasoning
+effort is set to xhigh. Please think carefully..."); Qwen3.8 is trained
+on those words, and to other models they're plain instructions. The
+prompt only changes when the effort does, so the server's cache holds.
+
+### Reasoning aids
+
+Three small aids steer how the model works, not what it knows (`aids =`
+in config.conf, `-aids`: `all` by default, `none`, or a list):
+
+- **stuck**: after three misses in a row (tool errors, failing tests or
+  builds, programs exiting non-zero, with any passing check resetting
+  the count) armin asks the model to step back: what it knows for sure,
+  two or three hypotheses, the cheapest one to test. At most twice a
+  turn.
+- **procedure**: auto's question also names the kind of task (fix,
+  build, debug, explain, shell), and the request gets that kind's
+  steps, each opening with a feasibility check: say so when the
+  request contradicts the code or can't be done. Files in
+  `~/.config/armin/procedures/<kind>.md` replace the built-in steps.
+- **verify**: before the final answer of a turn that changed files or
+  ran code, one quick no-thinking check of the request, the actions and
+  their outcome, and the answer. An issue (an edit never tested, a part
+  of the request not done) sends the model back for one more round.
 
 ## Context management
 
@@ -1093,6 +1189,7 @@ internal/
   sandbox/     path jail, allowlist, timeouts, truncation, dry-run
   ctags/       symbol index backing find_definition/list_symbols/etc. and -lsp
   searxng/     web_search's local SearXNG container lifecycle
+  library/     the reference library: extraction, BM25 index, topic table
   mcpserver/   MCP stdio adapter around the same tools
   lspserver/   minimal LSP stdio adapter (hover + armin.ask) around the same tools
   notes/       memories, skills, scratchpad, project instruction file

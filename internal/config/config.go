@@ -271,6 +271,12 @@ func apply(cfg *Config, key, value string) error {
     }
 
     cfg.AutoApprove = b
+  case "aids":
+    cfg.Aids = value
+  case "effort":
+    cfg.Effort = value
+  case "library":
+    cfg.Library = value
   case "test_cmd":
     cfg.TestCmd = strings.Fields(value)
   case "build_cmd":

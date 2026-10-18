@@ -276,3 +276,76 @@ func TestEndTurnArchivesThinking(t *testing.T) {
     t.Fatalf("thinking.md = %q, %v", raw, err)
   }
 }
+
+func TestSuggestCompact(t *testing.T) {
+  cases := []struct {
+    name string
+    s    ContextState
+    want bool
+  }{
+    { "no window", ContextState{ Used: 99999 }, false },
+    { "below the mark", ContextState{ Used: 55000, Window: 100000 }, false },
+    { "between the mark and auto-compaction", ContextState{ Used: 65000, Window: 100000 }, true },
+    { "auto-compaction's turn", ContextState{ Used: 80000, Window: 100000 }, false },
+  }
+
+  for _, c := range cases {
+    got := SuggestCompact(c.s)
+    if got != c.want {
+      t.Errorf("%s: SuggestCompact = %v, want %v", c.name, got, c.want)
+    }
+  }
+}
+
+func TestCompactHintOncePerStretch(t *testing.T) {
+  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {})
+  history := []llm.Message{
+    { Role: "system", Content: "sys" },
+    { Role: "user", Content: strings.Repeat("q", 8000) },
+    { Role: "assistant", Content: strings.Repeat("a", 8000) },
+    { Role: "user", Content: "next" },
+  }
+  loop.ContextSize = loop.Estimate(history) * 100 / 67
+
+  hints := func() int {
+    n := 0
+    for _, m := range history {
+      if strings.HasPrefix(m.Content, compactHintPrefix) {
+        n++
+      }
+    }
+
+    return n
+  }
+
+  var notices []string
+  hooks := Hooks{ Notice: func(s string) { notices = append(notices, s) } }
+  loop.hintCompact(&history, hooks)
+  if hints() != 1 || len(notices) != 1 {
+    t.Fatalf("hints = %d, notices = %v; want one of each", hints(), notices)
+  }
+
+  if !strings.Contains(history[len(history) - 1].Content, "/compact") {
+    t.Fatalf("hint = %q, want it to name /compact", history[len(history) - 1].Content)
+  }
+
+  history = append(history,
+    llm.Message{ Role: "assistant", Content: "done" },
+    llm.Message{ Role: "user", Content: "more" },
+  )
+  loop.hintCompact(&history, hooks)
+  if hints() != 1 {
+    t.Fatalf("hints = %d after a second turn, want it not repeated", hints())
+  }
+
+  // A compaction starts a new stretch: the hint may come back.
+  history = append(history,
+    llm.Message{ Role: "assistant", Content: "ok" },
+    llm.Message{ Role: "user", Content: "[Summary of the earlier conversation, compacted to save context]\n- x" },
+    llm.Message{ Role: "user", Content: "again" },
+  )
+  loop.hintCompact(&history, hooks)
+  if hints() != 2 {
+    t.Fatalf("hints = %d after a compaction, want a new one", hints())
+  }
+}

@@ -87,6 +87,18 @@ type Config struct {
   BuildTimeout  time.Duration
   AutoApprove   bool
 
+  // Library is a folder of reference books and docs the agent
+  // searches with library_search (see internal/library).
+  Library string
+
+  // Effort is how hard models think by default: auto (the model
+  // judges each request), off, low, medium or high.
+  Effort string
+
+  // Aids are the reasoning aids: all, none, or a list of stuck,
+  // procedure, verify.
+  Aids string
+
   // Project commands as argv, overriding detection.
   TestCmd, BuildCmd, LintCmd []string
 }

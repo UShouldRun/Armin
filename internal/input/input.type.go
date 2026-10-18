@@ -3,6 +3,7 @@ package input
 import (
   "time"
 
+  "armin/internal/agent"
   "armin/internal/config"
   "armin/internal/session"
 )
@@ -19,6 +20,10 @@ type Options struct {
   LlamaURL, CompletionLlamaURL     string
   CtagsBin, WebAddr                string
   AddDirs                          []string
+  LibraryAdd                       []string // files to copy in
+  LibraryTo                        string   // their topic folder
+  Effort                           agent.Effort
+  Aids                             agent.Aids
   Timeout                          time.Duration
   MaxOutput, MaxRounds             int
   Mode                             Mode
