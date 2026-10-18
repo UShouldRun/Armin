@@ -56,6 +56,37 @@ var regionZones = map[string][]string{
 // regional, a zone outside every region — comes back unchanged.
 func Regional(base string) string { return regional(base, zone("/")) }
 
+// RegionalFor is Regional under a config.conf region setting:
+// "auto" picks by time zone, "eu" or "us" force that region's host
+// (for Business-plan users who want in-region routing even when
+// traveling), and "off" leaves base alone — most accounts can't use
+// the regional hosts, so this is the sane default for them.
+func RegionalFor(base, setting string) string {
+  switch setting {
+  case "", "auto":
+    return Regional(base)
+  case "off":
+    return base
+  case "eu", "us":
+    return forced(base, setting)
+  }
+
+  return base
+}
+
+// forced is base moved onto prefix's in-region host whatever the
+// machine's time zone says.
+func forced(base, prefix string) string {
+  u, err := url.Parse(base)
+  if err != nil || u.Host != "openrouter.ai" {
+    return base
+  }
+
+  u.Host = prefix + "." + u.Host
+
+  return u.String()
+}
+
 // regional is Regional for the time zone tz.
 func regional(base, tz string) string {
   u, err := url.Parse(base)

@@ -85,7 +85,7 @@ func buildModelSpecs(opts *input.Options) map[string]llamacpp.ModelSpec {
   specs := make(map[string]llamacpp.ModelSpec, len(fileCfg.Models) + 2)
   for name, c := range fileCfg.Models {
     spec := llamacpp.ModelSpec{
-      URL:       catalog.Regional(c.URL),
+      URL:       catalog.RegionalFor(c.URL, c.Region),
       APIKeyEnv: c.APIKeyEnv,
       ID:        c.ID,
       Effort:    c.Reasoning,

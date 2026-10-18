@@ -146,9 +146,11 @@ func (m *Mind) startModels(ctx context.Context, opts *input.Options) error {
   m.Models = llamacpp.New(buildModelSpecs(opts))
   m.Sandbox.Env = m.Models.Environ // no API keys for builds, tests or programs
   m.Models.ReadTimeout = cfg.ReadTimeout
-  // stderr: -lsp speaks its protocol on stdout.
+  // stderr: -lsp speaks its protocol on stdout. The leading blank
+  // line keeps a mid-request notice (a refused regional host) from
+  // splicing into the answer text or the prompt above it.
   m.Models.OnStatus = func(s string) {
-    fmt.Fprintln(os.Stderr, ui.Dim("  " + s))
+    fmt.Fprintln(os.Stderr, "\n" + ui.Dim("  " + s))
   }
 
   // Before the chat model loads: on the CPU that takes minutes.

@@ -25,6 +25,7 @@ type ModelSpecConfig struct {
   APIKeyEnv string
   ID        string // the hosted API's name for the model
   Reasoning string // a hosted model's reasoning effort
+  Region    string // openrouter host: auto (by time zone), eu, us, off
 
   Binary    string
   ModelPath string

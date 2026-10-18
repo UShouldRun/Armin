@@ -66,7 +66,8 @@ OpenRouter's public model list, narrowed to models armin can drive
 (tool calling), and priced by what a deep session costs. It's fetched
 in the background and cached a day, so no picker waits on it.
 `region.go` picks OpenRouter's in-region host for your time zone and
-falls back to the global one.
+falls back to the global one — or, under
+`models.<name>.region = eu|us|off`, the host the config forces.
 
 ## Connections
 

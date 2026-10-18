@@ -587,12 +587,17 @@ models.planner.url         = https://openrouter.ai/api/v1
 models.planner.api_key_env = OPENROUTER_API_KEY
 models.planner.id          = qwen/qwen3.8-27b
 models.planner.reasoning   = medium
+models.planner.region      = auto
 ```
 
 When the machine's time zone is in a region OpenRouter routes
 in-region (the EU or the US), an `openrouter.ai` URL is sent to that
 region's host instead — `eu.openrouter.ai` or `us.openrouter.ai` —
 so prompts and completions are decrypted and served only there.
+`models.<name>.region` decides: `auto` (the default) picks by time
+zone, `eu` or `us` forces that region's host whatever the time zone
+says, and `off` never leaves the global host — most accounts can't
+use the regional ones, so `off` is the sane setting for them.
 In-region routing needs OpenRouter's Business plan: without it the
 region refuses (403), and armin says so and moves to the global host
 for the rest of the session. A URL written as `eu.openrouter.ai` (or

@@ -47,6 +47,34 @@ func TestGlobal(t *testing.T) {
   }
 }
 
+func TestRegionalFor(t *testing.T) {
+  const base = "https://openrouter.ai/api/v1"
+  cases := []struct{ setting, want string }{
+    { "auto", Regional(base) }, // by time zone, like Regional
+    { "off", base },            // most accounts can't use the regional hosts
+    { "eu", "https://eu.openrouter.ai/api/v1" },
+    { "us", "https://us.openrouter.ai/api/v1" },
+    { "nonsense", base },
+  }
+
+  for _, c := range cases {
+    got := RegionalFor(base, c.setting)
+    if got != c.want {
+      t.Errorf("RegionalFor(%q, %q) = %q, want %q", base, c.setting, got, c.want)
+    }
+  }
+
+  // unset is auto: by time zone, whatever that resolves to here
+  if RegionalFor(base, "") != Regional(base) {
+    t.Errorf("RegionalFor(base, \"\") is not Regional(base)")
+  }
+
+  // a forced region leaves a non-OpenRouter URL alone
+  if got := RegionalFor("https://api.anthropic.com/v1", "eu"); got != "https://api.anthropic.com/v1" {
+    t.Errorf("RegionalFor on another provider = %q", got)
+  }
+}
+
 func TestZone(t *testing.T) {
   t.Setenv("TZ", "")
   root := t.TempDir()
