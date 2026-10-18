@@ -1,8 +1,10 @@
-// Error display: the ... in Func chain wrapped around every error is
+// Error display: the "... in Func" chain wrapped around every error is
 // a trace for the developer, not the user. SplitTrace separates the
-// two, and JsonErrorMessage pulls the human message out of the JSON
-// bodies llama-server and OpenRouter send back on failure, so the
-// user sees "slot lost the model" instead of the JSON that said it.
+// two: the message keeps each frame's own words ("model call failed:
+// calling llama-server at …: connection refused") without the
+// function names; JSONErrorMessage pulls the human message out of the
+// JSON bodies llama-server and OpenRouter send back on failure. The
+// last trace is kept for /trace (ShowTrace).
 
 package ui
 
@@ -11,49 +13,59 @@ import (
   "fmt"
   "os"
   "strings"
+  "sync/atomic"
 )
 
-// SplitTrace splits an error string into the message to show and the
-// "... in Func" chain to hide. Each wrapper adds
-// "\n\t... in Func:\n\t" around what it wraps, so the innermost
-// message sits after the LAST part's "\n\t" — and since the wrapping
-// is applied outermost-last, the last marker in the string is the
-// innermost frame's name, with the original message after its
-// newline. An error with no chain is all message.
-//
-//   message, trace := SplitTrace(err.Error())
-//   ui.Error("%s", message)        // what the user reads
-//   if trace != "" { ... }         // "/trace" or an expand control
-//
-func SplitTrace(s string) (message, trace string) {
-  const marker = "\n\t... in "
+// traceMarker opens every frame: each wrapper writes
+// fmt.Errorf("\n\t... in Func:\n\t<its words>%w", err).
+const traceMarker = "\n\t... in "
 
-  if !strings.Contains(s, marker) {
+// lastTrace is the most recent error's full chain, for /trace. Errors
+// are shown from several goroutines (the REPL, relayed frontends).
+var lastTrace atomic.Pointer[string]
+
+// traceFrames splits a chain into its frames, outermost first, and the
+// text before the first marker (an unwrapped prefix, usually empty).
+func traceFrames(s string) (string, []traceFrame) {
+  parts := strings.Split(s, traceMarker)
+  out := make([]traceFrame, 0, len(parts) - 1)
+  for _, p := range parts[1:] {
+    fn, text, _ := strings.Cut(p, ":\n\t")
+    out = append(out, traceFrame{ fn: fn, text: strings.TrimSpace(text) })
+  }
+
+  return strings.TrimSpace(parts[0]), out
+}
+
+// SplitTrace splits an error string into the message to show and the
+// chain to hide. The message joins every frame's own words, outermost
+// first; an error with no chain is all message.
+func SplitTrace(s string) (message, trace string) {
+  if !strings.Contains(s, traceMarker) {
     return s, ""
   }
 
-  parts := strings.Split(s, marker)
-
-  // The final part is "Func:\n\t<message>": the message is what
-  // follows that part's first newline indent (a multi-line leaf
-  // message keeps its remaining lines), the rest is the trace.
-  lastPart := parts[len(parts)-1]
-  _, after, found := strings.Cut(lastPart, "\n\t")
-  if !found {
-    // a marker with nothing after it: degenerate, show it all
-    return s, strings.TrimPrefix(s, marker)
+  prefix, fs := traceFrames(s)
+  words := make([]string, 0, len(fs) + 1)
+  if prefix != "" {
+    words = append(words, prefix)
   }
 
-  return after, strings.TrimPrefix(s, marker)
+  for _, f := range fs {
+    if f.text != "" {
+      words = append(words, f.text)
+    }
+  }
+
+  return strings.Join(words, " "), strings.TrimPrefix(s, traceMarker)
 }
 
-// JsonErrorMessage pulls the message out of a JSON error body the
-// message carries — llama-server's and OpenRouter's failures come
-// back as {"error":{"message":...}} pasted after a status prefix
-// ("llama-server returned 500: ..."). It returns the prefix plus the
-// message field, so the readable parts stay and the JSON goes; ""
-// when there's no such body. The raw form stays in the trace.
-func JsonErrorMessage(body string) string {
+// JSONErrorMessage pulls the message out of a JSON error body the text
+// carries: llama-server's and OpenRouter's failures come back as
+// {"error":{"message":...}} after a status prefix ("llama-server
+// returned 500: ..."). It returns the prefix plus the message field,
+// or "" when there's no such body.
+func JSONErrorMessage(body string) string {
   i := strings.Index(body, `{"error"`)
   if i < 0 {
     i = strings.Index(body, `{"message"`)
@@ -85,65 +97,84 @@ func JsonErrorMessage(body string) string {
   }
 
   prefix := strings.TrimSpace(body[:i])
-  sep := " "
   if prefix == "" {
-    sep = ""
+    return msg
   }
 
-  return prefix + sep + msg
+  return prefix + " " + msg
 }
 
-// LastTrace is the most recent error's full chain, stashed by ErrorOf
-// for /trace to print. Frontends without the command (the web UI)
-// never read it.
-var LastTrace string
+// Readable is an error's text the way a person should read it: its
+// message, with a JSON error body reduced to its message field.
+func Readable(s string) (message, trace string) {
+  message, trace = SplitTrace(s)
+  readable := JSONErrorMessage(message)
+  if readable != "" {
+    message = readable
+  }
 
-// Err prints err collapsed to its message, stashing the full chain
-// in LastTrace for /trace. The replacement for ui.Error("%s", err)
-// at every error call site.
+  return message, trace
+}
+
+// Err prints err collapsed to its message, keeping the chain for
+// /trace. The replacement for ui.Error("%s", err).
 func Err(err error) {
   Error("%s", ErrorOf(err))
 }
 
-// ErrText is Err for a string that's already an error's text —
-// shared frontends receive errors as strings (share.Event.Delta).
+// ErrText is Err for a string that's already an error's text: shared
+// frontends receive errors as strings (share.Event.Delta).
 func ErrText(s string) {
   Error("%s", ErrorText(s))
 }
 
-// ErrorOf renders err the way the frontends want it: the message to
-// read, with the trace stashed in LastTrace for whoever expands it.
+// ErrorOf renders err for the terminal: the message, and a hint when
+// there's a chain to expand.
 func ErrorOf(err error) string {
   return ErrorText(err.Error())
 }
 
 // ErrorText is ErrorOf for an error already rendered to a string.
 func ErrorText(s string) string {
-  message, trace := SplitTrace(s)
+  message, trace := Readable(s)
   if trace == "" {
-    LastTrace = ""
+    lastTrace.Store(nil)
     return message
   }
 
-  LastTrace = s
-
-  // a JSON error body in the message: show its message field, the
-  // raw JSON stays in the trace
-  if j := JsonErrorMessage(message); j != "" {
-    message = j
-  }
+  lastTrace.Store(&s)
 
   return message + "  " + Dim("(/trace to expand)")
 }
 
-// ShowTrace prints the stashed chain, innermost frame last.
+// FormatTrace lays a chain out one frame per line, outermost first:
+// "  ... in Func: its words".
+func FormatTrace(s string) string {
+  prefix, fs := traceFrames(s)
+  var b strings.Builder
+  if prefix != "" {
+    b.WriteString("  " + prefix + "\n")
+  }
+
+  for _, f := range fs {
+    b.WriteString("  ... in " + f.fn)
+    if f.text != "" {
+      b.WriteString(": " + strings.ReplaceAll(f.text, "\n\t", "\n    "))
+    }
+
+    b.WriteByte('\n')
+  }
+
+  return b.String()
+}
+
+// ShowTrace prints the last error's chain.
 func ShowTrace() {
-  if LastTrace == "" {
+  s := lastTrace.Load()
+  if s == nil {
     Info("no error to expand yet")
     return
   }
 
-  fmt.Fprintln(os.Stderr, Red("trace: ") + Dim(strings.ReplaceAll(
-    "\n\t... in " + LastTrace, "\n\t", "\n    "),
-  ))
+  fmt.Fprint(os.Stderr, Red("trace:") + "\n" + Dim(FormatTrace(*s)))
 }

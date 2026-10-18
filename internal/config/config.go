@@ -341,7 +341,9 @@ func applyModel(cfg *Config, name, field, value string) error {
   case "region":
     if value != "auto" && value != "eu" && value != "us" && value != "off" {
       return fmt.Errorf(
-        "\n\t... in applyModel:\n\t models.%s.region: want auto, eu, us or off", name,
+        "\n\t... in applyModel:\n\t models.%s.region: "+
+          "want auto, eu, us or off",
+        name,
       )
     }
 

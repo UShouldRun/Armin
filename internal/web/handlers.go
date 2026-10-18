@@ -218,9 +218,9 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
   if err != nil {
     // collapsed message for the page, the full chain expandable
     // under it (see the "error" case in index.html)
-    message, trace := ui.SplitTrace(err.Error())
-    if j := ui.JsonErrorMessage(message); j != "" {
-      message = j
+    message, trace := ui.Readable(err.Error())
+    if trace != "" {
+      trace = ui.FormatTrace(err.Error())
     }
 
     ev.send("error", map[string]any{ "message": message, "trace": trace })

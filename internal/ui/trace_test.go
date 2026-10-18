@@ -3,6 +3,7 @@ package ui
 import (
   "errors"
   "fmt"
+  "strings"
   "testing"
 )
 
@@ -17,80 +18,80 @@ func TestSplitTrace(t *testing.T) {
     t.Fatalf("message = %q", message)
   }
 
-  wantTrace := "RunCommand:\n\t\n\t... in CheckExec:\n\t\"ps\" isn't in run_program's allowlist"
-  if trace != wantTrace {
-    t.Fatalf("trace = %q\nwant  %q", trace, wantTrace)
+  want := "RunCommand:\n\t\n\t... in CheckExec:\n\t\"ps\" isn't in " +
+    "run_program's allowlist"
+  if trace != want {
+    t.Fatalf("trace = %q\nwant  %q", trace, want)
   }
 
-  // no chain: all message
-  m2, tr2 := SplitTrace("plain failure")
-  if m2 != "plain failure" || tr2 != "" {
-    t.Fatalf("plain: %q %q", m2, tr2)
+  // a middle frame's words stay in the message, without its name
+  s = fmt.Errorf("\n\t... in Turn:\n\t model call failed: %w",
+    fmt.Errorf("\n\t... in ChatStream:\n\t calling llama-server at "+
+      "http://x: %w", errors.New("connection refused"))).Error()
+  message, _ = SplitTrace(s)
+  want = "model call failed: calling llama-server at http://x: " +
+    "connection refused"
+  if message != want {
+    t.Fatalf("joined = %q\nwant     %q", message, want)
   }
 
-  // single-level chain
-  m3, _ := SplitTrace("\n\t... in Load:\n\tbad config")
-  if m3 != "bad config" {
-    t.Fatalf("single = %q", m3)
-  }
-}
-
-func TestJsonErrorMessage(t *testing.T) {
-  if got := JsonErrorMessage(`llama-server returned 500: {"error":{"message":"slot lost the model","code":500}}`); got != "llama-server returned 500: slot lost the model" {
-    t.Fatalf("with prefix = %q", got)
+  plain, none := SplitTrace("plain failure")
+  if plain != "plain failure" || none != "" {
+    t.Fatalf("plain: %q %q", plain, none)
   }
 
-  if got := JsonErrorMessage(`{"error":{"message":"slot lost the model","code":500}}`); got != "slot lost the model" {
-    t.Fatalf("nested = %q", got)
-  }
-
-  if got := JsonErrorMessage(`{"message":"Regional routing requires a Business plan."}`); got != "Regional routing requires a Business plan." {
-    t.Fatalf("flat = %q", got)
-  }
-
-  if got := JsonErrorMessage(`{"status":"error"}`); got != "" {
-    t.Fatalf("no message field = %q", got)
-  }
-
-  if got := JsonErrorMessage("plain text body"); got != "" {
-    t.Fatalf("non-JSON = %q", got)
-  }
-
-  // truncated JSON (the body was cut off): nothing to show, fall back
-  if got := JsonErrorMessage(`llama-server returned 500: {"error":{"mes`); got != "" {
-    t.Fatalf("truncated = %q", got)
+  single, _ := SplitTrace("\n\t... in Load:\n\tbad config")
+  if single != "bad config" {
+    t.Fatalf("single = %q", single)
   }
 }
 
-func TestErrorOf(t *testing.T) {
-  err := fmt.Errorf("\n\t... in Complete:\n\t llama-server returned 500: {\"error\":{\"message\":\"slot lost the model\"}}")
+func TestJSONErrorMessage(t *testing.T) {
+  cases := []struct{ in, want string }{
+    { `llama-server returned 500: ` +
+        `{"error":{"message":"slot lost the model","code":500}}`,
+      "llama-server returned 500: slot lost the model" },
+    { `{"error":{"message":"slot lost the model","code":500}}`,
+      "slot lost the model" },
+    { `{"message":"Regional routing requires a Business plan."}`,
+      "Regional routing requires a Business plan." },
+    { `{"status":"error"}`, "" },
+    { "plain text body", "" },
+    { `llama-server returned 500: {"error":{"mes`, "" }, // cut off
+  }
+
+  for _, c := range cases {
+    got := JSONErrorMessage(c.in)
+    if got != c.want {
+      t.Fatalf("JSONErrorMessage(%q) = %q, want %q", c.in, got, c.want)
+    }
+  }
+}
+
+func TestErrorOfAndTrace(t *testing.T) {
+  err := fmt.Errorf("\n\t... in Complete:\n\t llama-server returned 500: " +
+    "{\"error\":{\"message\":\"slot lost the model\"}}")
 
   got := ErrorOf(err)
-  if LastTrace == "" {
-    t.Fatal("trace wasn't stashed")
+  if lastTrace.Load() == nil {
+    t.Fatal("trace wasn't kept")
   }
 
-  if !contains(got, "slot lost the model") {
-    t.Fatalf("ErrorOf = %q, want the JSON's message", got)
+  if !strings.Contains(got, "slot lost the model") ||
+    strings.Contains(got, `{"error"`) || !strings.Contains(got, "/trace") {
+    t.Fatalf("ErrorOf = %q", got)
   }
 
-  if contains(got, `{"error"`) {
-    t.Fatalf("ErrorOf = %q, want the raw JSON hidden", got)
+  // the trace reads one frame per line, no stray marker
+  lines := FormatTrace(err.Error())
+  first := "  ... in Complete: llama-server returned 500"
+  if !strings.HasPrefix(lines, first) ||
+    strings.Count(lines, "... in") != 1 {
+    t.Fatalf("FormatTrace = %q", lines)
   }
 
-  if !contains(got, "/trace") {
-    t.Fatalf("ErrorOf = %q, want the expand hint", got)
-  }
-
-  // no chain: plain message, nothing stashed
-  LastTrace = ""
   got = ErrorOf(errors.New("simple"))
-  if got != "simple" || LastTrace != "" {
-    t.Fatalf("plain: %q %q", got, LastTrace)
+  if got != "simple" || lastTrace.Load() != nil {
+    t.Fatalf("plain: %q, trace kept: %v", got, lastTrace.Load() != nil)
   }
-}
-
-func contains(s, sub string) bool {
-  return len(s) >= len(sub) && (s == sub || len(sub) == 0 ||
-    func() bool { for i := 0; i+len(sub) <= len(s); i++ { if s[i:i+len(sub)] == sub { return true } }; return false }())
 }

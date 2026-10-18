@@ -578,27 +578,65 @@ function M._chat_reset_turn()
 end
 
 -- split_trace splits an armin error string into the message to show
--- and the "... in Func" chain to fold away, so the chat shows what
--- went wrong, not the plumbing. Mirrors ui.SplitTrace on the server.
+-- and the "... in Func" chain kept for :ArminTrace. The message joins
+-- each frame's own words, without the function names. Mirrors
+-- ui.SplitTrace on the server.
+local trace_marker = "\n\t... in "
+
+local function trace_frames(s)
+  local frames, from = {}, 1
+  local prefix = s
+  local first = s:find(trace_marker, 1, true)
+  if first then prefix = s:sub(1, first - 1) end
+  while true do
+    local i = s:find(trace_marker, from, true)
+    if not i then break end
+    local j = s:find(trace_marker, i + 1, true)
+    local part = s:sub(i + #trace_marker, j and j - 1 or #s)
+    local fn, text = part:match("^(.-):\n\t(.*)$")
+    table.insert(frames, { fn = fn or part, text = vim.trim(text or "") })
+    from = i + 1
+  end
+  return vim.trim(prefix), frames
+end
+
 local function split_trace(s)
-  local marker = "\n\t... in "
-  if not s:find(marker, 1, true) then
+  if not s:find(trace_marker, 1, true) then
     return s, ""
   end
 
-  -- the message is what follows the last marker's newline
-  local last = s
-  local from = 1
-  while true do
-    local i = s:find(marker, from, true)
-    if not i then break end
-    last = s:sub(i + #marker)
-    from = i + 1
+  local prefix, frames = trace_frames(s)
+  local words = {}
+  if prefix ~= "" then table.insert(words, prefix) end
+  for _, f in ipairs(frames) do
+    if f.text ~= "" then table.insert(words, f.text) end
+  end
+  return table.concat(words, " "), s
+end
+
+-- M.trace shows the last error's chain in a scratch split, one frame
+-- per line, outermost first.
+function M.trace()
+  local s = M._last_trace
+  if not s or s == "" then
+    vim.notify("armin: no error to expand yet")
+    return
   end
 
-  local nl = last:find("\n\t", 1, true)
-  local message = nl and last:sub(nl + 2) or last
-  return message, s
+  local prefix, frames = trace_frames(s)
+  local lines = {}
+  if prefix ~= "" then table.insert(lines, prefix) end
+  for _, f in ipairs(frames) do
+    local line = "... in " .. f.fn
+    if f.text ~= "" then line = line .. ": " .. f.text:gsub("\n\t", " ") end
+    table.insert(lines, line)
+  end
+
+  vim.cmd("botright new")
+  local buf = vim.api.nvim_get_current_buf()
+  vim.bo[buf].buftype, vim.bo[buf].bufhidden = "nofile", "wipe"
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  vim.bo[buf].modifiable = false
 end
 
 -- finish_turn closes a turn on its "done" or "error" event.
@@ -614,16 +652,9 @@ local function finish_turn(e)
       chat_insert({ "  ■ stopped" })
     else
       local message, trace = split_trace(e.delta or "failed")
+      M._last_trace = trace
+      if trace ~= "" then message = message .. "  (:ArminTrace to expand)" end
       chat_insert({ "  ✗ " .. message })
-      if trace ~= "" then
-        -- the chain, folded under a fold marker: open with zo
-        local lines = {}
-        for frame in trace:gmatch("[^\n]+") do
-          table.insert(lines, "    " .. frame:gsub("^\t", "  "))
-        end
-        chat_insert({ "  ▸ trace (zo to open)" })
-        chat_insert(lines)
-      end
     end
   elseif not chat.answer_start and e.delta and e.delta ~= "" then
     -- Nothing streamed: render the final answer directly.
@@ -1749,6 +1780,7 @@ function M.setup(opts)
   end, { nargs = "*", desc = "Open armin's chat, optionally asking something" })
   cmd("ArminClear", M.clear, { desc = "Start armin's chat over" })
   cmd("ArminCancel", M.stop_answer, { desc = "Stop armin's answer in flight" })
+  cmd("ArminTrace", M.trace, { desc = "Show the last error's function trace" })
   cmd("ArminModel", function(o)
     M.model(o.args ~= "" and o.args or nil)
   end, { nargs = "?", complete = model_names, desc = "List or switch armin's chat model" })
