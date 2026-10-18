@@ -1,6 +1,15 @@
 // Package sandbox holds the safety boundaries that are enforced in
 // code, not left to model judgment: path jail, binary allowlist,
-// subprocess timeouts, output truncation, and dry-run.
+// subprocess timeouts, output truncation, and dry-run. Every tool
+// acts through a Config.
+//
+//   sandbox.go    New; ResolvePath (the jail: symlinks resolved,
+//                 reads in the project or an added folder) and
+//                 InRoot (writes: the project only); the allowlists
+//                 and CheckBinary/CheckExec; Exec, the one way armin
+//                 runs a program
+//   procattr_*.go  children in their own session: no terminal to
+//                  prompt on, and a timeout kills the whole group
 package sandbox
 
 import (
