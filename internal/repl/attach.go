@@ -227,7 +227,7 @@ func (a *Attached) follow(origin string) bool {
       if e.Delta == "stopped" {
         ui.Info("interrupted")
       } else {
-        ui.Error("%s", e.Delta)
+        ui.ErrText(e.Delta)
       }
 
       return true
@@ -293,13 +293,13 @@ func (a *Attached) command(input string) bool {
   case "clear":
     err := a.client.Clear(context.Background())
     if err != nil {
-      ui.Error("%s", err)
+      ui.Err(err)
     }
 
   case "history":
     lines, err := a.client.Lines(context.Background())
     if err != nil {
-      ui.Error("%s", err)
+      ui.Err(err)
       return true
     }
 
@@ -323,7 +323,7 @@ func (a *Attached) command(input string) bool {
 
     info, err := a.client.SwitchModel(context.Background(), arg)
     if err != nil {
-      ui.Error("%s", err)
+      ui.Err(err)
       return true
     }
 

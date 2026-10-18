@@ -64,7 +64,7 @@ func cmdHistory(r *REPL, _ context.Context, _ []string) {
 func cmdSave(r *REPL, _ context.Context, _ []string) {
   err := session.Save(&r.Meta, r.History)
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
     return
   }
 
@@ -89,7 +89,7 @@ func cmdSessions(r *REPL, _ context.Context, args []string) {
 
   list, err := session.List()
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
     return
   }
 
@@ -164,7 +164,7 @@ func ago(t time.Time) string {
 func (r *REPL) deleteSession(id string) {
   saved, err := session.Load(id)
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
     return
   }
 
@@ -186,7 +186,7 @@ func (r *REPL) deleteSession(id string) {
 
   m, err := session.Delete(saved.ID)
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
     return
   }
 
@@ -212,7 +212,7 @@ func cmdResume(r *REPL, _ context.Context, args []string) {
 
   saved, err := session.Load(args[0])
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
     return
   }
 

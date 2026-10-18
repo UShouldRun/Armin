@@ -23,7 +23,7 @@ func cmdMemory(r *REPL, _ context.Context, args []string) {
     case "show":
       m, body, err := mem.Read(args[1])
       if err != nil {
-        ui.Error("%s", err)
+        ui.Err(err)
         return
       }
 
@@ -34,7 +34,7 @@ func cmdMemory(r *REPL, _ context.Context, args []string) {
     case "rm", "delete", "forget":
       m, err := mem.Delete(args[1])
       if err != nil {
-        ui.Error("%s", err)
+        ui.Err(err)
         return
       }
 
@@ -46,7 +46,7 @@ func cmdMemory(r *REPL, _ context.Context, args []string) {
 
   list, err := mem.List()
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
     return
   }
 
@@ -72,7 +72,7 @@ func cmdRemember(r *REPL, ctx context.Context, args []string) {
     strings.Join(args, " ")
   err := r.turn(ctx, prompt)
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
   }
 
   r.maybeAutosave()
@@ -120,7 +120,7 @@ func cmdSkill(r *REPL, ctx context.Context, args []string) {
 
   body, err := sk.Instructions()
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
     return
   }
 
@@ -141,7 +141,7 @@ func cmdSkill(r *REPL, ctx context.Context, args []string) {
 
   err = r.turn(ctx, prompt)
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
   }
 
   r.maybeAutosave()
@@ -157,7 +157,7 @@ func cmdScratch(r *REPL, _ context.Context, args []string) {
   if len(args) >= 1 && args[0] == "clear" {
     n, err := pad.Clear()
     if err != nil {
-      ui.Error("%s", err)
+      ui.Err(err)
       return
     }
 
@@ -169,7 +169,7 @@ func cmdScratch(r *REPL, _ context.Context, args []string) {
   if len(args) >= 2 && args[0] == "show" {
     content, _, err := pad.Read(args[1], 0, 0)
     if err != nil {
-      ui.Error("%s", err)
+      ui.Err(err)
       return
     }
 
@@ -180,7 +180,7 @@ func cmdScratch(r *REPL, _ context.Context, args []string) {
 
   list, err := pad.List()
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
     return
   }
 

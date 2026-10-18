@@ -170,7 +170,18 @@ func commandList() []command {
       summary: "list, show or clear the scratchpad",
       run:     cmdScratch,
     },
+    {
+      names:   []string{ "trace" },
+      summary: "expand the last error's function trace",
+      run:     cmdTrace,
+    },
   }
+}
+
+// cmdTrace prints the full chain of the last error shown, which
+// Error collapsed to its message.
+func cmdTrace(r *REPL, ctx context.Context, args []string) {
+  ui.ShowTrace()
 }
 
 var byName = buildCommandIndex()
@@ -327,7 +338,7 @@ func cmdCompact(r *REPL, ctx context.Context, args []string) {
   spinner.Stop()
 
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
     return
   }
 
@@ -430,7 +441,7 @@ func cmdAddDir(r *REPL, _ context.Context, args []string) {
 
   err := r.AddDir(strings.Join(args, " "))
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
   }
 }
 

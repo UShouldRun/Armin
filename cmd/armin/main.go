@@ -24,7 +24,7 @@ import (
 func main() {
   err := run()
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
     os.Exit(1)
   }
 }

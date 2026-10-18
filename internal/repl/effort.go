@@ -63,7 +63,7 @@ func cmdEffort(r *REPL, ctx context.Context, args []string) {
   r.once = level
   err := r.turn(ctx, strings.Join(args[1:], " "))
   if err != nil {
-    ui.Error("%s", err)
+    ui.Err(err)
   }
 
   r.maybeAutosave()

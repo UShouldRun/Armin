@@ -43,7 +43,7 @@ func cmdLibrary(r *REPL, ctx context.Context, args []string) {
     })
     fmt.Println()
     if err != nil {
-      ui.Error("%s", err)
+      ui.Err(err)
       return
     }
 
@@ -54,7 +54,7 @@ func cmdLibrary(r *REPL, ctx context.Context, args []string) {
     if len(args) > 1 {
       c, err := r.catalogClient(ctx, args[1])
       if err != nil {
-        ui.Error("%s", err)
+        ui.Err(err)
         return
       }
 
@@ -63,7 +63,7 @@ func cmdLibrary(r *REPL, ctx context.Context, args []string) {
 
     err := lib.Sync(ctx, library.AskWith(client), client.Model)
     if err != nil {
-      ui.Error("%s", err)
+      ui.Err(err)
     }
 
   case "merge":
@@ -71,7 +71,7 @@ func cmdLibrary(r *REPL, ctx context.Context, args []string) {
     if len(args) > 1 {
       c, err := r.catalogClient(ctx, args[1])
       if err != nil {
-        ui.Error("%s", err)
+        ui.Err(err)
         return
       }
 
@@ -80,7 +80,7 @@ func cmdLibrary(r *REPL, ctx context.Context, args []string) {
 
     before, after, err := lib.MergeTopics(ctx, library.AskWith(client))
     if err != nil {
-      ui.Error("%s", err)
+      ui.Err(err)
       return
     }
 
@@ -104,13 +104,13 @@ func cmdLibrary(r *REPL, ctx context.Context, args []string) {
     }
 
     if err != nil {
-      ui.Error("%s", err)
+      ui.Err(err)
       return
     }
 
     err = lib.Sync(ctx, library.AskWith(r.LLM), r.LLM.Model)
     if err != nil {
-      ui.Error("%s", err)
+      ui.Err(err)
     }
 
   case "topics":

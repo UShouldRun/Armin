@@ -25,6 +25,7 @@ import (
   "armin/internal/convo"
   "armin/internal/llm"
   "armin/internal/tools"
+  "armin/internal/ui"
 )
 
 func writeJSON(w http.ResponseWriter, v any) {
@@ -215,7 +216,14 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
   answer, err := s.cfg.Loop.Turn(r.Context(), &s.history, hooks)
   close(beat)
   if err != nil {
-    ev.send("error", err.Error())
+    // collapsed message for the page, the full chain expandable
+    // under it (see the "error" case in index.html)
+    message, trace := ui.SplitTrace(err.Error())
+    if j := ui.JsonErrorMessage(message); j != "" {
+      message = j
+    }
+
+    ev.send("error", map[string]any{ "message": message, "trace": trace })
   } else {
     ev.send("done", answer)
   }

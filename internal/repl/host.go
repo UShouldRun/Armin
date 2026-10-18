@@ -143,7 +143,7 @@ func (h host) Ask(_ context.Context, question, file, origin string) error {
 
     err := r.turnAs(r.runCtx, share.Question(question, file), question, origin)
     if err != nil {
-      ui.Error("%s", err)
+      ui.Err(err)
     }
 
     r.maybeAutosave()

@@ -306,7 +306,7 @@ func (r *REPL) Run(ctx context.Context) error {
             " configured).", r.LLM.Model,
         )
       } else {
-        ui.Error("%s", err)
+        ui.Err(err)
       }
     }
 

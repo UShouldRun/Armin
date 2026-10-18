@@ -88,6 +88,9 @@
   .err { color: var(--delt); }
   details.think { color: var(--dim); margin: 4px 0; font-size: 13px; }
   details.think summary { cursor: pointer; }
+  details.trace { margin: 4px 0; font-size: 13px; }
+  details.trace summary { cursor: pointer; color: var(--dim); }
+  details.trace pre { margin: 4px 0; color: var(--dim); white-space: pre-wrap; }
   details.think div { white-space: pre-wrap; border-left: 2px solid var(--line); padding-left: 8px; }
   .approve { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin: 6px 0; background: var(--panel); }
   .approve pre { margin: 6px 0; max-height: 320px; overflow: auto; font-size: 12px; }
@@ -949,9 +952,22 @@ async function send(text) {
       setPhase("waiting for your approval", false);
       approvalBox(data);
       break;
-    case "error":
-      add("msg err", esc(data));
+    case "error": {
+      // {message, trace} from the server, or a plain string (the
+      // fetch failed before the stream started)
+      const m = typeof data === "string" ? { message: data, trace: "" } : data;
+      const div = add("msg err", esc(m.message));
+      if (m.trace) {
+        const d = document.createElement("details");
+        d.className = "trace";
+        d.innerHTML = "<summary>trace</summary>";
+        const pre = document.createElement("pre");
+        pre.textContent = m.trace;
+        d.appendChild(pre);
+        div.appendChild(d);
+      }
       break;
+    }
     case "done":
       if (!msg && data) { msg = add("msg md", ""); answer = data; }
       else if (data) answer = data;
