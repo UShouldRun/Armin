@@ -1,3 +1,5 @@
+// JSON-RPC and MCP message shapes, only the fields armin uses.
+
 package mcpserver
 
 import (

@@ -1,6 +1,15 @@
 // Package mcpserver serves armin's sandboxed tools (the agent's tool
 // table, see agent/tools.go) over MCP, so other MCP clients (Claude
-// Desktop, etc.) can use them. No SDK: MCP-
+// Desktop, etc.) can use them. Started with -mcp; no models load.
+//
+//   server.go    Serve: the JSON-RPC loop (initialize, tools/list,
+//                tools/call), the tool list and dispatch, replies
+//   protocol.go  the error codes
+//
+// Requests run concurrently: a slow build_check doesn't hold up a
+// ping. Writes go straight to disk (the client approves them); the
+// rest runs through agent.Loop.RunTool on the same table the REPL's
+// agent uses. No SDK: MCP-
 // over-stdio is JSON-RPC 2.0 on
 // newline-delimited JSON, and the surface armin actually needs
 // (initialize, tools/list, tools/call) is small enough to implement
@@ -86,6 +95,7 @@ func (s *Server) Serve(
   if err != nil {
     return fmt.Errorf("\n\t... in Serve:\n\t%w", err)
   }
+
   return nil
 }
 
@@ -118,6 +128,7 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
       s.respondError(msg.ID, errInvalidParams, err.Error())
       return
     }
+
     s.respond(msg.ID, s.callTool(ctx, p), nil)
 
   default:
@@ -127,6 +138,7 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
         fmt.Sprintf("method not supported: %s", msg.Method),
       )
     }
+
     // Unhandled notifications are silently ignored, per spec.
   }
 }
@@ -221,6 +233,7 @@ func jsonResult(v any) callToolResult {
   if err != nil {
     return errorResult(err)
   }
+
   return callToolResult{
     Content: []textContent{
       { Type: "text", Text: string(encoded) },
@@ -242,6 +255,7 @@ func errorResult(err error) callToolResult {
 func jsonErrorResult(v any) callToolResult {
   r := jsonResult(v)
   r.IsError = true
+
   return r
 }
 
@@ -249,6 +263,7 @@ func (s *Server) respond(id json.RawMessage, result any, errObj *rpcError) {
   if len(id) == 0 {
     return // notification — nothing to respond to
   }
+
   s.write(rpcResponse{
     JSONRPC: "2.0", ID: id, Result: result, Error: errObj,
   })
@@ -264,6 +279,7 @@ func (s *Server) write(msg rpcResponse) {
     fmt.Fprintln(os.Stderr, "armin mcp: encode failed:", err)
     return
   }
+
   body = append(body, '\n')
 
   s.writeMu.Lock()

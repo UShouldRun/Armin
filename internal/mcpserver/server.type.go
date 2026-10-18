@@ -1,3 +1,5 @@
+// The server: the sandbox, the loop that runs tools, the writer.
+
 package mcpserver
 
 import (

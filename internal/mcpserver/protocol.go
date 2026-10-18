@@ -1,3 +1,5 @@
+// The JSON-RPC error codes the server replies with.
+
 package mcpserver
 
 // protocolVersion is the MCP spec revision this server speaks.
