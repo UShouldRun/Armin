@@ -1,3 +1,7 @@
+// A terminal joined to the project's instance (another armin, or
+// nvim's): DialAttached connects, Run shows the shared chat and sends
+// questions, Interrupt stops the turn in flight.
+
 package repl
 
 import (

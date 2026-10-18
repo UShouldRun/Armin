@@ -1,3 +1,5 @@
+// A slash command's entry in the table.
+
 package repl
 
 import (

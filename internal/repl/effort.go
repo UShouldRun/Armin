@@ -1,3 +1,5 @@
+// /effort and the effort each turn runs at (agent.PlanTurn).
+
 package repl
 
 import (

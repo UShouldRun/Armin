@@ -1,10 +1,15 @@
+// Models: /model shows and switches the chat model; printModelInfo
+// and ChooseHosted show OpenRouter's suggestions with prices.
+
 package repl
 
 import (
+  "context"
   "fmt"
   "strconv"
   "strings"
 
+  "armin/internal/agent"
   "armin/internal/catalog"
   "armin/internal/share"
   "armin/internal/ui"
@@ -188,4 +193,67 @@ func ChooseHosted(info share.ModelInfo, hosted string, read func(string) (string
 
     ui.Error("not a number from the list or an OpenRouter id (vendor/model)")
   }
+}
+
+func cmdModel(r *REPL, ctx context.Context, args []string) {
+  if len(args) == 0 {
+    printCurrentModel(r)
+    return
+  }
+
+  name := args[0]
+
+  // A bare OpenRouter model asks which model to reach through it.
+  info := r.Host().Models()
+  if name == info.Hosted && r.pump != nil {
+    name = ChooseHosted(info, name, r.ask)
+    if name == "" {
+      return
+    }
+  }
+
+  r.switchModel(ctx, name)
+}
+
+// switchModel switches chat (and completion, between local models)
+// to name, for this terminal or for a frontend that joined it.
+func (r *REPL) switchModel(ctx context.Context, name string) {
+  err := r.Models.SwitchChat(ctx, r.LLM, r.Follower, name)
+  if err != nil {
+    ui.Error("switching to %q: %s", name, err)
+    return
+  }
+
+  if r.ContextFromServer {
+    n, err := r.LLM.ContextSize(ctx)
+    if err != nil {
+      n = 0
+    }
+
+    r.Loop.ContextSize = n
+  }
+
+  // A nil *llamacpp.Window must become a nil interface, not a typed nil.
+  r.Loop.Window = nil
+  w := r.Models.Window(name)
+  if w != nil {
+    r.Loop.Window = w
+  }
+
+  agent.SetModelLine(r.History, name, r.Models.Label(name))
+  r.lastTokens = 0
+  r.current.Store(&name)
+  completing := r.completer().Model
+  r.completing.Store(&completing)
+  ui.Info("switched to %s", r.modelName())
+  if completing != name {
+    ui.Info("completion stays on %s, on this machine", completing)
+  }
+
+  info := r.Host().Models()
+  r.emit(share.Event{ Type: "model", Model: &info })
+}
+
+func printCurrentModel(r *REPL) {
+  printModelInfo(r.Host().Models())
 }

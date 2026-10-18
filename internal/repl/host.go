@@ -1,3 +1,7 @@
+// This REPL as the project's instance: the share.Host methods joined
+// frontends call, run on the REPL's goroutine through an inbox so the
+// conversation has one owner.
+
 package repl
 
 import (

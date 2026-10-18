@@ -1,3 +1,5 @@
+// The REPL's state: history, session, the agent loop, packed flags.
+
 package repl
 
 import (

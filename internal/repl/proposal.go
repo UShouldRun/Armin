@@ -1,3 +1,6 @@
+// A write or a run, shown in full before it happens: the file and a
+// compact diff, or the command line and the script it runs.
+
 package repl
 
 import (

@@ -1,3 +1,6 @@
+// /library: the reference library's status, reindexing, cataloging,
+// adding files and the topic table.
+
 package repl
 
 import (

@@ -1,3 +1,5 @@
+// A joined terminal's state.
+
 package repl
 
 import (

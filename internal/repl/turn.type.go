@@ -1,3 +1,5 @@
+// A turn's view state: phase, stream mode, held lines.
+
 package repl
 
 import (

@@ -1,3 +1,5 @@
+// The rotating tips shown under the spinner while a turn runs.
+
 package repl
 
 import (

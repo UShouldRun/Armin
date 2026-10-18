@@ -1,3 +1,6 @@
+// The full picture of a proposal in a new terminal window (terminal
+// = in config.conf): the whole diff, or the script about to run.
+
 package repl
 
 import (

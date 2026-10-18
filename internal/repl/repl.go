@@ -1,7 +1,22 @@
-// Package repl is the interactive loop: reads a line, dispatches
-// slash commands or forwards to the agent, streams the reply, and
-// owns the session/context UX (plan Phase 4, plus the "way better
-// TUI" and "/model, /context like Claude Code" asks on top of it).
+// Package repl is the terminal chat: it reads a line, runs slash
+// commands or a turn of the agent loop, and draws the turn as it
+// streams. It's what plain `armin` shows (display.runREPL starts it).
+//
+//   repl.go       New, Run: the read loop, the prompt line, follow-up
+//                 suggestions, autosave and session titles
+//   turn.go       one turn: planning, hooks, approvals
+//   turnview.go   how a turn looks while it runs
+//   proposal.go   a write or a run shown in full before it happens
+//   viewer.go     the full diff in another terminal window
+//   commands.go   the slash-command table, dispatch, help, toggles
+//   sessions.go   /sessions, /resume, /title, /save, /history, /clear
+//   notes.go      /memory, /remember, /skills, /skill, /scratch
+//   models.go     /model and the OpenRouter picker
+//   effort.go     /effort and the per-turn effort
+//   library.go    /library
+//   tips.go       the rotating tips under the spinner
+//   host.go       this REPL as the project's instance, serving others
+//   attach.go     a terminal joined to another instance's chat
 package repl
 
 import (
