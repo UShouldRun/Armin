@@ -364,7 +364,8 @@ func (s *Server) relay() {
   s.notify("window/showMessage", map[string]any{
     "type":    1,
     "message": fmt.Sprintf(
-      "armin: instance %d went away — :ArminStop then :ArminLsp to start one here",
+      "armin: instance %d went away — :ArminStop then :ArminLsp to start " +
+        "one here",
       s.remote.Instance,
     ),
   })

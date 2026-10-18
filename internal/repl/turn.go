@@ -292,7 +292,8 @@ func (r *REPL) approve(tool, preview string) (bool, string) {
       if err != nil {
         ui.Error("can't open it: %s", err)
       } else {
-        ui.Info("opened in a new window (read-only) — answer here when you're done")
+        ui.Info("opened in a new window (read-only) — answer here when " +
+          "you're done")
       }
 
       continue

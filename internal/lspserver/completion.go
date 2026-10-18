@@ -338,7 +338,8 @@ func (s *Server) warnCompletionFailure(err error) {
   s.warnOnce.Do(func() {
     fmt.Fprintf(
       os.Stderr,
-      "armin lsp: completion model call failed, will keep trying silently: %s\n",
+      "armin lsp: completion model call failed, will keep trying silently: " +
+        "%s\n",
       err,
     )
   })

@@ -67,7 +67,8 @@ func printModelInfo(info share.ModelInfo) {
 // with what they cost.
 func printSuggestions(info share.ModelInfo) {
   if len(info.Suggested) == 0 {
-    fmt.Println(ui.Dim("suggestions: loading from OpenRouter — /model again in a moment"))
+    fmt.Println(ui.Dim("suggestions: loading from OpenRouter — /model " +
+      "again in a moment"))
     return
   }
 
@@ -79,7 +80,8 @@ func printSuggestions(info share.ModelInfo) {
   fmt.Printf(
     "%s\n",
     ui.Dim(fmt.Sprintf(
-      "suggested on OpenRouter — /model %s:<id>; $ in / out per 1M tokens, ~ a deep session (%.1fM in, %dk out):",
+      "suggested on OpenRouter — /model %s:<id>; $ in / out per 1M tokens, " +
+        "~ a deep session (%.1fM in, %dk out):",
       info.Hosted, float64(catalog.SessionIn) / 1e6, catalog.SessionOut / 1000,
     )),
   )
@@ -88,7 +90,8 @@ func printSuggestions(info share.ModelInfo) {
   for _, s := range info.Suggested {
     if s.Free && !free {
       free = true
-      fmt.Println(ui.Dim("  free (rate-limited; check the provider's data policy):"))
+      fmt.Println(ui.Dim("  free (rate-limited; check the provider's data " +
+        "policy):"))
     }
 
     marker := "  "
@@ -171,7 +174,8 @@ func ChooseHosted(info share.ModelInfo, hosted string, read func(string) (string
   }
 
   if len(info.Suggested) == 0 {
-    fmt.Println(ui.Dim("  (suggestions still loading — type any OpenRouter id, or Enter)"))
+    fmt.Println(ui.Dim("  (suggestions still loading — type any OpenRouter " +
+      "id, or Enter)"))
   }
 
   for {

@@ -220,13 +220,15 @@ func (r *REPL) Run(ctx context.Context) error {
 
   ui.Banner(r.Root, r.modelName(), r.LLM.BaseURL)
   if r.hub != nil {
-    ui.Instance(r.LLM.Model, r.hub.Instance, "— nvim's :ArminLsp and other armins here join it")
+    ui.Instance(r.LLM.Model, r.hub.Instance, "— nvim's :ArminLsp and other " +
+      "armins here join it")
   }
 
   w := r.Loop.Window
   if w != nil {
     ui.Info(
-      "  context: %dk in VRAM, grows to %dk with KV streaming when a task needs it",
+      "  context: %dk in VRAM, grows to %dk with KV streaming when a task " +
+        "needs it",
       w.Resident() / 1000, w.Max() / 1000,
     )
   }
@@ -235,7 +237,8 @@ func (r *REPL) Run(ctx context.Context) error {
   case r.resumedAt != nil:
     ui.Info(
       "  session: %s (%s), last saved %s",
-      titleOr(r.Meta.Title), ShortID(r.Meta.ID), r.resumedAt.Format("Jan 2 15:04"),
+      titleOr(r.Meta.Title), ShortID(r.Meta.ID), r.resumedAt.Format("Jan 2 " +
+        "15:04"),
     )
   default:
     ui.Info("  session: new (%s)", ShortID(r.Meta.ID))

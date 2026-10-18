@@ -134,7 +134,8 @@ func commandList() []command {
     {
       names:   []string{ "sessions" },
       usage:   "/sessions [rm <id>]",
-      summary: "list saved sessions (* = this directory), or delete one and its scratchpad",
+      summary: "list saved sessions (* = this directory), or delete one " +
+        "and its scratchpad",
       run:     cmdSessions,
     },
     {
@@ -301,7 +302,8 @@ func cmdContext(r *REPL, _ context.Context, _ []string) {
       size, used * 100 / size, agent.DefaultCompactAt,
     )
   } else {
-    fmt.Println(ui.Dim("  window:         unknown — auto-compaction off (set context_size)"))
+    fmt.Println(ui.Dim("  window:         unknown — auto-compaction off " +
+      "(set context_size)"))
   }
 
   fmt.Println(ui.Dim(

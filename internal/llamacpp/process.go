@@ -114,7 +114,8 @@ func (m *Manager) spawn(ctx context.Context, name string, spec ModelSpec) error 
     proc.stop(ctx)
 
     return fmt.Errorf(
-      "\n\t... in spawn:\n\t %q never became healthy: %w\n\t llama-server said: %s",
+      "\n\t... in spawn:\n\t %q never became healthy: %w\n\t llama-server " +
+        "said: %s",
       name, err, lastLines(proc.out.String(), 4),
     )
   }

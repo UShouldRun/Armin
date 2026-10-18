@@ -99,7 +99,8 @@ func readWholeReply(r io.Reader) (*Message, error) {
   err = json.Unmarshal(body, &parsed)
   if err != nil {
     return nil, fmt.Errorf(
-      "\n\t... in readWholeReply:\n\t parsing llama-server response: %w (body: %s)",
+      "\n\t... in readWholeReply:\n\t parsing llama-server response: %w " +
+        "(body: %s)",
       err, string(body),
     )
   }
@@ -113,7 +114,8 @@ func readWholeReply(r io.Reader) (*Message, error) {
 
   if len(parsed.Choices) == 0 {
     return nil, fmt.Errorf(
-      "\n\t... in readWholeReply:\n\t no choices in llama-server response (body: %s)",
+      "\n\t... in readWholeReply:\n\t no choices in llama-server response " +
+        "(body: %s)",
       string(body),
     )
   }
@@ -254,7 +256,8 @@ func readStreamedReply(
       err := json.Unmarshal([]byte(acc.arguments.String()), &args)
       if err != nil {
         return nil, fmt.Errorf(
-          "\n\t... in readStreamedReply:\n\t parsing streamed tool call arguments: %w (raw: %s)",
+          "\n\t... in readStreamedReply:\n\t parsing streamed tool call " +
+            "arguments: %w (raw: %s)",
           err, acc.arguments.String(),
         )
       }

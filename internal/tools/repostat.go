@@ -267,7 +267,8 @@ func FileStat(
   }
   if info.IsDir() {
     return nil, fmt.Errorf(
-      "\n\t... in FileStat:\n\t %q is a directory, not a file — use list_directory",
+      "\n\t... in FileStat:\n\t %q is a directory, not a file — use " +
+        "list_directory",
       in.Path,
     )
   }

@@ -42,7 +42,8 @@ func RunCommand(
     if cfg.ExecAllowlist[in.Binary] {
       return nil, &RunCommandError{
         Error: in.Binary + " isn't read-only, so run_command can't run it: " +
-          "call run_program with the same binary and args (the user approves it)",
+          "call run_program with the same binary and args (the user " +
+            "approves it)",
       }
     }
 

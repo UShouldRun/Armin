@@ -34,7 +34,8 @@ func gpuWarning(root string) string {
   if err != nil {
     if hasNvidiaModule(at("lib/modules"), release) {
       return fmt.Sprintf(
-        "the NVIDIA driver is installed for kernel %s but not loaded, so local models run on the CPU — reboot (or sudo modprobe nvidia)",
+        "the NVIDIA driver is installed for kernel %s but not loaded, so " +
+          "local models run on the CPU — reboot (or sudo modprobe nvidia)",
         release,
       )
     }
@@ -45,7 +46,8 @@ func gpuWarning(root string) string {
       return msg + fmt.Sprintf(" — reboot into %s, which has one", others[len(others) - 1])
     }
 
-    msg += " — update the driver for this kernel (Ubuntu: sudo apt full-upgrade) and reboot"
+    msg += " — update the driver for this kernel (Ubuntu: sudo apt " +
+      "full-upgrade) and reboot"
     if len(others) > 0 {
       msg += fmt.Sprintf(", or pick %s in GRUB, which has one", others[len(others) - 1])
     }
@@ -56,7 +58,8 @@ func gpuWarning(root string) string {
   libs := libraryVersion(at)
   if loaded != "" && libs != "" && loaded != libs {
     return fmt.Sprintf(
-      "the NVIDIA driver loaded is %s but its libraries are %s, so the GPU can't be used — reboot to load the new driver",
+      "the NVIDIA driver loaded is %s but its libraries are %s, so the GPU " +
+        "can't be used — reboot to load the new driver",
       loaded, libs,
     )
   }
