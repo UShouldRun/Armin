@@ -1,3 +1,7 @@
+// What frontends display: Lines turns a history into chat lines (the
+// questions, tool calls and answers, not the raw messages), Question
+// marks a question asked from a file, Suggest fills in model picks.
+
 package share
 
 import (

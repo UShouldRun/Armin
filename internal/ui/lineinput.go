@@ -564,3 +564,25 @@ func inputText(row []rune) string {
 
   return b.String()
 }
+
+// ReadLineUnbuffered reads up to a newline a byte at a time, for a
+// question asked before the REPL starts: a buffered reader would
+// keep keys meant for the prompt that comes next.
+func ReadLineUnbuffered(r io.Reader) (string, error) {
+  var b strings.Builder
+  var c [1]byte
+  for {
+    n, err := r.Read(c[:])
+    if n == 1 {
+      if c[0] == '\n' {
+        return b.String(), nil
+      }
+
+      b.WriteByte(c[0])
+    }
+
+    if err != nil {
+      return b.String(), err
+    }
+  }
+}

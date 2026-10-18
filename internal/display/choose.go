@@ -1,8 +1,11 @@
+// Before connecting: when the chat model is an OpenRouter one, offer
+// the current suggestions (internal/catalog) so the user can start on
+// another model.
+
 package display
 
 import (
   "fmt"
-  "io"
   "os"
   "strings"
 
@@ -10,6 +13,7 @@ import (
   "armin/internal/input"
   "armin/internal/repl"
   "armin/internal/share"
+  "armin/internal/ui"
 )
 
 // ChooseModel asks which OpenRouter model to start on when the
@@ -36,7 +40,7 @@ func ChooseModel(opts *input.Options) {
 
   name := repl.ChooseHosted(info, opts.Model, func(prompt string) (string, error) {
     fmt.Print(prompt)
-    return readLine(os.Stdin)
+    return ui.ReadLineUnbuffered(os.Stdin)
   })
   if name != "" {
     opts.Model = name
@@ -49,25 +53,4 @@ func ChooseModel(opts *input.Options) {
 func terminal() bool {
   info, err := os.Stdin.Stat()
   return err == nil && info.Mode() & os.ModeCharDevice != 0
-}
-
-// readLine reads up to a newline a byte at a time: a buffered reader
-// would keep keys meant for the prompt that starts next.
-func readLine(r io.Reader) (string, error) {
-  var b strings.Builder
-  var c [1]byte
-  for {
-    n, err := r.Read(c[:])
-    if n == 1 {
-      if c[0] == '\n' {
-        return b.String(), nil
-      }
-
-      b.WriteByte(c[0])
-    }
-
-    if err != nil {
-      return b.String(), err
-    }
-  }
 }

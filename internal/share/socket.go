@@ -1,3 +1,7 @@
+// Where a project's instance listens: a socket named by a hash of the
+// project root under armin's data directory (mode 700), and the small
+// instance numbers that tell several projects' instances apart.
+
 package share
 
 import (

@@ -1,3 +1,5 @@
+// A joined armin's connection and its calls waiting for replies.
+
 package share
 
 import (

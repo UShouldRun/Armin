@@ -1,3 +1,8 @@
+// The host's side of the socket. Listen claims the project (or
+// reports ErrHosted); each joined armin gets a goroutine reading its
+// Requests and answering through Host, and Emit fans the conversation's
+// Events out to all of them, dropping any that stop reading.
+
 package share
 
 import (

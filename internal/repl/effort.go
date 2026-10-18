@@ -15,8 +15,8 @@ func (r *REPL) SetEffort(level agent.Effort) {
 }
 
 // turnPlan is this turn's effort and kind of task: a one-off level
-// from /effort, else the session's. The model is asked when effort is
-// auto, or when procedures need the kind; armin shows what it chose.
+// from /effort, else the session's, settled by agent.PlanTurn; when
+// the model chose the effort, armin says what it chose.
 func (r *REPL) turnPlan(
   ctx context.Context, input string,
 ) (agent.Effort, agent.Task) {
@@ -26,13 +26,8 @@ func (r *REPL) turnPlan(
   }
 
   auto := effort == agent.EffortAuto
-  if !auto && !r.Loop.Aids.Has(agent.AidProcedure) {
-    return effort, agent.TaskOther
-  }
-
-  judged, task := agent.Assess(ctx, r.LLM, input)
+  effort, task := agent.PlanTurn(ctx, r.LLM, r.Loop.Aids, effort, input)
   if auto {
-    effort = judged
     fmt.Println(ui.Dim("thinking: " + effort.String() + " (auto), " +
       task.String() + " task"))
   }

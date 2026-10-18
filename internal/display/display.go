@@ -1,6 +1,17 @@
 // Package display is how armin is shown: the terminal chat, the
-// browser chat, nvim over LSP, the tools over MCP — or, when nvim's
-// armin already serves the project, a terminal sharing its chat.
+// browser chat, nvim over LSP, the tools over MCP, or a terminal
+// joining the project's running instance. It's main's last step
+// (input → think → display): Run picks the frontend for the mode and
+// hands it the Mind.
+//
+//   display.go  Join (become part of a running instance instead of
+//               loading models), Run, and the REPL and web setups
+//   lsp.go      -lsp: nvim's frontend, alone or joined to an instance
+//   choose.go   the OpenRouter model picker shown before connecting
+//   library.go  -library-sync and -library-add
+//
+// The frontends themselves live in their own packages: repl, web,
+// lspserver, mcpserver; share connects instances in one project.
 package display
 
 import (

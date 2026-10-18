@@ -1,3 +1,6 @@
+// The wire format (Event, Request, Fill) and Host, what a hosting
+// frontend implements.
+
 package share
 
 import (

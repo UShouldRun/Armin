@@ -1,3 +1,5 @@
+// The host's state: the joined connections and their running jobs.
+
 package share
 
 import (

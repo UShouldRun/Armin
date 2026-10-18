@@ -124,3 +124,23 @@ func parseAssessment(reply string) (Effort, Task) {
 
   return effort, task
 }
+
+// PlanTurn settles a turn's effort and kind of task. The model is
+// asked (Assess) when effort is auto, or when the procedure aid needs
+// the kind; otherwise effort stays as set and the kind is other.
+func PlanTurn(
+  ctx context.Context, c *llm.Client, aids Aids, effort Effort,
+  request string,
+) (Effort, Task) {
+  auto := effort == EffortAuto
+  if !auto && !aids.Has(AidProcedure) {
+    return effort, TaskOther
+  }
+
+  judged, task := Assess(ctx, c, request)
+  if auto {
+    effort = judged
+  }
+
+  return effort, task
+}

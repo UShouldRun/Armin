@@ -1,3 +1,6 @@
+// The server's config and state, and the API's request and reply
+// shapes.
+
 package web
 
 import (

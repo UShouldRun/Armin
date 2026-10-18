@@ -5,7 +5,6 @@ package input
 
 import (
   "fmt"
-  "io"
   "os"
   "path/filepath"
   "strconv"
@@ -34,7 +33,8 @@ func pickSession(root string) (*session.Saved, error) {
   repl.PrintSessions(list, abs, "", true)
   fmt.Print("\nnumber or id, Enter for a new session: ")
 
-  line := strings.TrimSpace(readLine(os.Stdin))
+  answer, _ := ui.ReadLineUnbuffered(os.Stdin)
+  line := strings.TrimSpace(answer)
   if line == "" {
     return nil, nil
   }
@@ -51,27 +51,4 @@ func pickSession(root string) (*session.Saved, error) {
   }
 
   return session.Load(line)
-}
-
-// readLine reads up to a newline one byte at a time: a buffered
-// reader would swallow input meant for the REPL that starts next.
-func readLine(r io.Reader) string {
-  var b strings.Builder
-  var c [1]byte
-  for {
-    n, err := r.Read(c[:])
-    if n == 1 {
-      if c[0] == '\n' {
-        break
-      }
-
-      b.WriteByte(c[0])
-    }
-
-    if err != nil {
-      break
-    }
-  }
-
-  return b.String()
 }

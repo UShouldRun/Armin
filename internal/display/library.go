@@ -1,3 +1,6 @@
+// -library-sync and -library-add: copy files into the library, index
+// it, and have the chat model catalog new books, then exit.
+
 package display
 
 import (

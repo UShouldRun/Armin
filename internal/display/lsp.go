@@ -1,3 +1,7 @@
+// -lsp: nvim's frontend. runLSP serves it from this armin (and lets
+// later terminals join); joinLSP serves it from the project's running
+// instance, keeping only a local symbol index.
+
 package display
 
 import (

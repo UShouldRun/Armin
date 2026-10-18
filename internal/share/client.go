@@ -1,3 +1,7 @@
+// A joined armin's side of the socket: Dial finds the host for the
+// project (or a parent folder), then each method is a Request, and
+// calls wait for the reply matching their sequence number.
+
 package share
 
 import (
