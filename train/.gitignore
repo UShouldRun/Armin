@@ -1,0 +1,9 @@
+/data/
+/out/
+/.venv/
+/.venv-cpu/
+__pycache__/
+/pod/
+/localtest/out/
+/localtest/armin-*
+*.log
