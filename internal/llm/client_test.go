@@ -747,7 +747,7 @@ func TestEffortReachesTheServer(t *testing.T) {
   local.Effort = "none"
   local.Chat(ctx, msgs, nil, nil)
   if got.Reasoning != nil || kw("enable_thinking") != false ||
-    kw("reasoning_effort") != "low" ||
+    kw("reasoning_effort") != nil ||
     got.ThinkBudget == nil || *got.ThinkBudget != 0 {
     t.Fatalf("local off: %+v budget %v", got.TemplateKwargs, got.ThinkBudget)
   }
@@ -755,7 +755,7 @@ func TestEffortReachesTheServer(t *testing.T) {
   // local, high: thinking on, no budget
   local.Effort = "high"
   local.Chat(ctx, msgs, nil, nil)
-  if kw("enable_thinking") != true || kw("reasoning_effort") != "high" ||
+  if kw("enable_thinking") != true || kw("reasoning_effort") != nil ||
     got.ThinkBudget != nil {
     t.Fatalf("local high: %+v budget %v", got.TemplateKwargs, got.ThinkBudget)
   }

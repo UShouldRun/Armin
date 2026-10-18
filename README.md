@@ -727,10 +727,11 @@ needs low, medium or high, and armin shows the choice. The web chat
 takes an `effort` field per message.
 
 A hosted model gets OpenRouter's `reasoning.effort`. A local
-llama-server gets every switch a chat template might know
-(`enable_thinking`, `reasoning_effort` low/medium/high) plus a cap on
-thinking tokens, which works whatever the template: off 0, low 1024,
-medium 4096, high unbounded.
+llama-server gets thinking on or off (`enable_thinking`, for templates
+that switch it) and a cap on thinking tokens, which works whatever the
+template: off 0, low 1024, medium 4096, high unbounded. Not the
+template's own `reasoning_effort`: K2 Horizon's opens a different
+thinking tag per level, which llama.cpp doesn't recognize.
 
 High and low effort also put the line Qwen3.8's chat template uses
 for its xhigh and low efforts at the top of the system prompt ("Reasoning

@@ -97,23 +97,16 @@ var thinkBudgets = map[string]int{
   "medium":  4096,
 }
 
-// localEffort is how an effort reaches llama-server: every template
-// switch a model might know (Qwen's enable_thinking, the
-// reasoning_effort of K2 and gpt-oss, which only take low, medium
-// and high), plus a thinking budget, which works whatever the
-// template.
+// localEffort is how an effort reaches llama-server: thinking on or
+// off for templates that switch it (Qwen's enable_thinking), and a
+// budget of thinking tokens, which works whatever the template.
+//
+// Not the template's own reasoning_effort: K2 Horizon's opens a
+// different thinking tag per level (<ifm|think_fast> for medium), and
+// llama.cpp only knows the high one's, so the reply came back empty.
 func localEffort(effort string) (map[string]any, *int) {
-  level := effort
-  switch effort {
-  case "none", "minimal":
-    level = "low"
-  case "xhigh", "max":
-    level = "high"
-  }
-
   kwargs := map[string]any{
-    "enable_thinking":  effort != "none" && effort != "minimal",
-    "reasoning_effort": level,
+    "enable_thinking": effort != "none" && effort != "minimal",
   }
 
   budget, ok := thinkBudgets[effort]
