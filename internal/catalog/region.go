@@ -1,3 +1,7 @@
+// OpenRouter's regional hosts: Regional picks the one for the user's
+// time zone (EU data stays in the EU), Global is the fallback when
+// a regional host refuses the account.
+
 package catalog
 
 import (

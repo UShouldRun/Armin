@@ -1,3 +1,5 @@
+// A suggestion and OpenRouter's model and credit shapes.
+
 package catalog
 
 // Suggestion is one hosted model worth trying, with what it costs.

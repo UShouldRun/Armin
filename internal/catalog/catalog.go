@@ -3,6 +3,16 @@
 // (tool calling), priced by what a deep session costs. Fetched in
 // the background and cached a day on disk, so no UI ever waits on
 // it.
+//
+//   catalog.go  Warm (fetch in the background), Suggestions and Price
+//               for the pickers, Credits for the balance line, Pick
+//               (which models to suggest)
+//   region.go   Regional and Global: OpenRouter's in-region host for
+//               the user's time zone, and the global one to fall
+//               back to
+//
+// Read by repl's /model and display's picker; llamacpp uses region.go
+// for a hosted model's URL.
 package catalog
 
 import (
@@ -139,7 +149,7 @@ func fetch() ([]byte, error) {
 
   req, err := http.NewRequestWithContext(ctx, http.MethodGet, listURL, nil)
   if err != nil {
-    return nil, err
+    return nil, fmt.Errorf("\n\t... in fetch:\n\t%w", err)
   }
 
   resp, err := http.DefaultClient.Do(req)
@@ -149,7 +159,9 @@ func fetch() ([]byte, error) {
 
   defer resp.Body.Close()
   if resp.StatusCode != http.StatusOK {
-    return nil, fmt.Errorf("\n\t... in fetch:\n\t openrouter returned %d", resp.StatusCode)
+    return nil, fmt.Errorf(
+      "\n\t... in fetch:\n\t openrouter returned %d", resp.StatusCode,
+    )
   }
 
   return io.ReadAll(io.LimitReader(resp.Body, 32 << 20))
@@ -271,21 +283,28 @@ func apiURL(base, path string) string {
 func getJSON(ctx context.Context, url, key string, out any) error {
   req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
   if err != nil {
-    return err
+    return fmt.Errorf("\n\t... in getJSON:\n\t%w", err)
   }
 
   req.Header.Set("Authorization", "Bearer " + key)
   resp, err := http.DefaultClient.Do(req)
   if err != nil {
-    return err
+    return fmt.Errorf("\n\t... in getJSON:\n\t%w", err)
   }
 
   defer resp.Body.Close()
   if resp.StatusCode != http.StatusOK {
-    return fmt.Errorf("openrouter returned %d", resp.StatusCode)
+    return fmt.Errorf(
+      "\n\t... in getJSON:\n\t openrouter returned %d", resp.StatusCode,
+    )
   }
 
-  return json.NewDecoder(io.LimitReader(resp.Body, 1 << 20)).Decode(out)
+  err = json.NewDecoder(io.LimitReader(resp.Body, 1 << 20)).Decode(out)
+  if err != nil {
+    return fmt.Errorf("\n\t... in getJSON:\n\t%w", err)
+  }
+
+  return nil
 }
 
 // Pick chooses the suggestions out of OpenRouter's /models answer.
