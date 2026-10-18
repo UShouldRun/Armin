@@ -7,11 +7,11 @@ import (
   "testing"
 
   "armin/internal/library"
+  "armin/internal/llm"
 )
 
 func TestLibraryTools(t *testing.T) {
-  l := &Loop{}
-  if len(l.libraryDefinitions()) != 0 {
+  if (&Loop{}).offered(toolLibrarySearch) {
     t.Fatal("library tools offered without a library")
   }
 
@@ -29,27 +29,27 @@ func TestLibraryTools(t *testing.T) {
     t.Fatal(err)
   }
 
-  l.Library = lib
-  if len(l.libraryDefinitions()) != 2 {
+  l := &Loop{ Library: lib }
+  if !l.offered(toolLibrarySearch) || !l.offered(toolLibraryTopics) {
     t.Fatal("library tools missing with a library")
   }
 
-  query := []byte(`{"query":"share memory"}`)
-  out, ok := l.executeLibrary(toolLibrarySearch, query)
+  call := func(name string, args map[string]any) any {
+    return l.execute(context.Background(), llm.ToolCall{
+      Function: llm.ToolCallFunction{ Name: name, Arguments: args },
+    }, Hooks{})
+  }
+
+  out := call("library_search", map[string]any{ "query": "share memory" })
   res, _ := out.(map[string][]library.Result)
   found := res["results"]
-  if !ok || len(found) != 1 || found[0].Title != "Effective Go" {
+  if len(found) != 1 || found[0].Title != "Effective Go" {
     t.Fatalf("library_search = %#v", out)
   }
 
-  out, ok = l.executeLibrary(toolLibraryTopics, []byte(`{"topic":"nothing"}`))
+  out = call("library_topics", map[string]any{ "topic": "nothing" })
   m, _ := out.(map[string]string)
-  if !ok || m["error"] == "" {
+  if m["error"] == "" {
     t.Fatalf("library_topics on an empty table = %#v", out)
-  }
-
-  _, ok = l.executeLibrary(toolReadFile, []byte(`{}`))
-  if ok {
-    t.Fatal("executeLibrary claimed read_file")
   }
 }

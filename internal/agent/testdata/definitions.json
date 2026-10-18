@@ -1,0 +1,1833 @@
+[
+ {
+  "type": "function",
+  "function": {
+   "name": "search_code",
+   "description": "Search the codebase for a pattern using ripgrep. Returns matched lines with a couple lines of context, not full files.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "file_type": {
+      "type": "string",
+      "description": "Restrict to a file type, e.g. go, py, js"
+     },
+     "path": {
+      "type": "string",
+      "description": "Directory or file to search under (default: project root)"
+     },
+     "pattern": {
+      "type": "string",
+      "description": "Regex or literal pattern to search for"
+     }
+    },
+    "required": [
+     "pattern"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "read_file",
+   "description": "Read a line range from a file. Files over 400 lines require start_line/end_line — search first to find the range you need.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "end_line": {
+      "type": "integer",
+      "description": "1-indexed end line (inclusive)"
+     },
+     "path": {
+      "type": "string",
+      "description": "File path, relative to project root"
+     },
+     "start_line": {
+      "type": "integer",
+      "description": "1-indexed start line (inclusive)"
+     }
+    },
+    "required": [
+     "path"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "read_pdf",
+   "description": "Extract the text of a PDF (slides, papers, manuals), a page range at a time, with --- page N --- markers. Default: 10 pages from first_page.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "first_page": {
+      "type": "integer",
+      "description": "1-indexed first page (default 1)"
+     },
+     "last_page": {
+      "type": "integer",
+      "description": "Last page (default first_page + 9)"
+     },
+     "path": {
+      "type": "string",
+      "description": "PDF path, relative to the project or absolute in a directory the user added"
+     }
+    },
+    "required": [
+     "path"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "list_directory",
+   "description": "List a directory as an indented tree, up to a given depth. Skips .git, node_modules, vendor, and build output.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "depth": {
+      "type": "integer",
+      "description": "How many levels deep to recurse (default: 2)"
+     },
+     "path": {
+      "type": "string",
+      "description": "Directory to list (default: project root)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "run_command",
+   "description": "Run an allowlisted, read-only binary directly (no shell). args is always an array of separate arguments, never one shell string.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "args": {
+      "type": "array",
+      "description": "Arguments as separate array entries, e.g. [\"log\", \"--oneline\", \"-5\"]",
+      "items": {
+       "type": "string"
+      }
+     },
+     "binary": {
+      "type": "string",
+      "description": "Bare binary name, e.g. git, wc, find"
+     }
+    },
+    "required": [
+     "binary"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "run_program",
+   "description": "Build, compile, test or run code: make, cmake, gcc, g++, clang, mpicc, mpirun, go, cargo, python3, node, npm... or a program the project built (\"./build/app\"). Binary plus an args array, no shell: feed a file as input with stdin, save the output with stdout (then diff it). For pipes, use binary bash with args [\"-c\", \"...\"] — always asked. The user approves each run. Prefer run_tests / build_check when they fit.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "args": {
+      "type": "array",
+      "description": "Arguments as separate entries, e.g. [\"-O2\", \"-o\", \"fox\", \"src/fox.c\"]",
+      "items": {
+       "type": "string"
+      }
+     },
+     "binary": {
+      "type": "string",
+      "description": "Program: a bare name (make, gcc, mpirun) or a relative path inside the project (./fox)"
+     },
+     "dir": {
+      "type": "string",
+      "description": "Working directory inside the project (default: project root), e.g. \"build\""
+     },
+     "stdin": {
+      "type": "string",
+      "description": "Project file to feed as the program's input, like \u003c file, e.g. \"tests/input/input6\""
+     },
+     "stdout": {
+      "type": "string",
+      "description": "Project file to write the program's output to, like \u003e file, e.g. \"build/out6.txt\""
+     }
+    },
+    "required": [
+     "binary"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "edit_file",
+   "description": "Replace an exact string in a file. Read the file first. old_string must match exactly once, whitespace included — add surrounding lines to make it unique, or set replace_all. Prefer this over write_file for changes to existing files.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "new_string": {
+      "type": "string",
+      "description": "Replacement text (empty deletes old_string)"
+     },
+     "old_string": {
+      "type": "string",
+      "description": "Exact text to replace, copied from read_file"
+     },
+     "path": {
+      "type": "string",
+      "description": "File path, relative to project root"
+     },
+     "replace_all": {
+      "type": "boolean",
+      "description": "Replace every occurrence (default false)"
+     }
+    },
+    "required": [
+     "path",
+     "old_string",
+     "new_string"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "write_file",
+   "description": "Create a file, or overwrite one you have already read. Parent directories are created. Use edit_file for partial changes.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "content": {
+      "type": "string",
+      "description": "The complete file content"
+     },
+     "path": {
+      "type": "string",
+      "description": "File path, relative to project root"
+     }
+    },
+    "required": [
+     "path",
+     "content"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "web_search",
+   "description": "Search the web for information not in this codebase — library docs, error messages, current facts. Starts a local search service on first use; returns a short list of title/url/snippet results, not full pages.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "count": {
+      "type": "integer",
+      "description": "Number of results to return (default 5, max 10)"
+     },
+     "query": {
+      "type": "string",
+      "description": "Search query"
+     },
+     "topic": {
+      "type": "string",
+      "description": "general: web pages and docs (default); code: Stack Overflow and GitHub; science: papers (arXiv, Semantic Scholar, OpenAlex)",
+      "enum": [
+       "general",
+       "code",
+       "science"
+      ]
+     }
+    },
+    "required": [
+     "query"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "count_lines",
+   "description": "Count lines of code across the project (or a subdirectory) in one call — total, plus a breakdown by top-level directory.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Directory to count under (default: project root)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "list_languages",
+   "description": "Break the project down by file extension — file and line counts per language, ranked by lines.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Directory to scan (default: project root)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "find_files",
+   "description": "Find files by name using a glob pattern (e.g. \"*.go\", \"*_test.go\") — a name-only complement to search_code's content search.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Directory to search under (default: project root)"
+     },
+     "pattern": {
+      "type": "string",
+      "description": "Glob matched against each file's base name"
+     }
+    },
+    "required": [
+     "pattern"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "file_stat",
+   "description": "Get a file's size, line count, and modification time without reading its content — cheaper than read_file for deciding what to read.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "File path, relative to project root"
+     }
+    },
+    "required": [
+     "path"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "find_todo_fixme",
+   "description": "Find TODO/FIXME/XXX comment markers in the codebase.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Directory or file to search under (default: project root)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "env_info",
+   "description": "Report the toolchain available: Go version, OS/arch, and whether git/ripgrep/docker are installed.",
+   "parameters": {
+    "type": "object",
+    "properties": {}
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "project_manifest",
+   "description": "Get an orientation snapshot of the project: directory tree plus the first README/manifest file found. Useful for \"what kind of project is this\" mid-conversation.",
+   "parameters": {
+    "type": "object",
+    "properties": {}
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "find_definition",
+   "description": "Find where a function, type, or variable is defined — a deterministic index lookup, not a guess.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "from_file": {
+      "type": "string",
+      "description": "File you're currently looking at, to rank same-file/same-dir matches first"
+     },
+     "name": {
+      "type": "string",
+      "description": "Symbol name to look up"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "list_symbols",
+   "description": "Fuzzy-search every known symbol name in the project (functions, types, variables, ...).",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "query": {
+      "type": "string",
+      "description": "Substring to match against symbol names (empty lists everything, capped)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "outline_file",
+   "description": "List a file's known symbols without reading its content — a cheap first look at a large file before deciding what range to read.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "File path, relative to project root"
+     }
+    },
+    "required": [
+     "path"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "find_references",
+   "description": "Find where an identifier is USED (not where it's defined — see find_definition), word-boundary matched.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Identifier to search for"
+     },
+     "path": {
+      "type": "string",
+      "description": "Directory or file to search under (default: project root)"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "git_log",
+   "description": "Get structured commit history (hash, author, date, subject) for the project or one path.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "count": {
+      "type": "integer",
+      "description": "Commits to return (default 20, max 100)"
+     },
+     "path": {
+      "type": "string",
+      "description": "Limit history to this path (default: whole repo)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "git_blame",
+   "description": "Get per-line author/date attribution for a line range in a file.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "end_line": {
+      "type": "integer",
+      "description": "1-indexed end line (default start_line+199)"
+     },
+     "path": {
+      "type": "string",
+      "description": "File path, relative to project root"
+     },
+     "start_line": {
+      "type": "integer",
+      "description": "1-indexed start line (default 1)"
+     }
+    },
+    "required": [
+     "path"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "git_diff",
+   "description": "Diff between two refs (default: HEAD vs. the working tree) for a path or the whole repo.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "from": {
+      "type": "string",
+      "description": "Starting ref (default: HEAD)"
+     },
+     "path": {
+      "type": "string",
+      "description": "Limit the diff to this path (default: whole repo)"
+     },
+     "to": {
+      "type": "string",
+      "description": "Ending ref (default: working tree)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "git_show",
+   "description": "Get one commit's full diff and message by hash.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "hash": {
+      "type": "string",
+      "description": "Commit hash (short or full)"
+     }
+    },
+    "required": [
+     "hash"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "working_tree_diff",
+   "description": "Show uncommitted changes only — what you've edited but not committed, plus untracked files.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Limit to this path (default: whole repo)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "grep_history",
+   "description": "Find when a piece of text was introduced or removed in git history (a \"pickaxe\" search).",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "count": {
+      "type": "integer",
+      "description": "Commits to return (default 10, max 50)"
+     },
+     "path": {
+      "type": "string",
+      "description": "Limit to this path (default: whole repo)"
+     },
+     "term": {
+      "type": "string",
+      "description": "Text to search for across commit history"
+     }
+    },
+    "required": [
+     "term"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "code_owners",
+   "description": "Approximate who owns a path, by commit count per author — a heuristic, not an authoritative CODEOWNERS lookup.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Path to check (default: whole repo)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "commit_stats",
+   "description": "Rank files by how often they've changed — a churn/hotspot signal for what's worth extra scrutiny.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "count": {
+      "type": "integer",
+      "description": "Top-N files to return (default 10, max 50)"
+     },
+     "path": {
+      "type": "string",
+      "description": "Limit to this path (default: whole repo)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "run_tests",
+   "description": "Run the project's test command (detected from Makefile, go.mod, Cargo.toml, package.json, or Python config; or user-configured). Reports pass/fail, a failure summary, and the end of the output.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "args": {
+      "type": "array",
+      "description": "Extra arguments replacing the default target, e.g. [\"./internal/tools\", \"-run\", \"TestX\"] or [\"-k\", \"parser\"]",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "build_check",
+   "description": "Run the project's build or type-check command and report pass/fail plus errors. Run it after editing code.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "args": {
+      "type": "array",
+      "description": "Extra arguments replacing the default target, e.g. [\"./cmd/...\"]",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "lint_check",
+   "description": "Run the project's linter; reports available:false if the project has none.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "args": {
+      "type": "array",
+      "description": "Extra arguments replacing the default target",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "list_dependencies",
+   "description": "List the project's declared dependencies, parsed from whichever manifest exists (go.mod, package.json, requirements.txt, Cargo.toml, pyproject.toml).",
+   "parameters": {
+    "type": "object",
+    "properties": {}
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "module_graph",
+   "description": "Show which of this Go module's own packages import which — internal architecture, not the full stdlib/third-party dependency closure.",
+   "parameters": {
+    "type": "object",
+    "properties": {}
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "read_doc_comment",
+   "description": "Get just a symbol's doc comment, without reading the whole file it's defined in.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "from_file": {
+      "type": "string",
+      "description": "File you're currently looking at, to disambiguate a common name"
+     },
+     "name": {
+      "type": "string",
+      "description": "Symbol name to look up"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "find_callers",
+   "description": "Find syntactic call sites of a Go function/method name — matched by identifier text, not type-checked, so treat results as leads, not certainties.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Function or method name to find call sites of"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "find_dead_code",
+   "description": "Find exported Go functions/methods with no syntactic call sites anywhere in the project — a possibly-unused signal, not proof; can false-positive, notably on exported struct fields (ctags can't distinguish them from methods).",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Limit the scan to this file/directory prefix"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "impact_analysis",
+   "description": "Find functions that transitively call a given Go function, up to a bounded depth — what might need re-checking if it changes.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "depth": {
+      "type": "integer",
+      "description": "How many call levels out to trace (default 2, max 3)"
+     },
+     "name": {
+      "type": "string",
+      "description": "Function or method name to analyze"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "semantic_search",
+   "description": "Keyword/term-frequency relevance search across the codebase — NOT true embedding-based semantic search. Useful when you don't know the exact text to grep for; prefer search_code when you do.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "count": {
+      "type": "integer",
+      "description": "Number of results to return (default 5, max 15)"
+     },
+     "query": {
+      "type": "string",
+      "description": "Natural-language description of what you're looking for"
+     }
+    },
+    "required": [
+     "query"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "memory_save",
+   "description": "Save a durable fact for future sessions: user preferences, project conventions, decisions and their reasons. Not for task progress (use the scratchpad). Overwrites a memory of the same name.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "content": {
+      "type": "string",
+      "description": "The fact, plus why it matters and how to apply it"
+     },
+     "description": {
+      "type": "string",
+      "description": "One line — shown in the index every session"
+     },
+     "name": {
+      "type": "string",
+      "description": "Short kebab-case name"
+     },
+     "scope": {
+      "type": "string",
+      "description": "project (this codebase, default) or user (every project)",
+      "enum": [
+       "project",
+       "user"
+      ]
+     }
+    },
+    "required": [
+     "name",
+     "description",
+     "content"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "memory_read",
+   "description": "Read a memory listed in the index.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Memory name"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "memory_delete",
+   "description": "Delete a memory that's wrong or obsolete.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Memory name"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "scratchpad_write",
+   "description": "Write working notes to a scratch file outside the project: plans, findings, long reasoning, checklists. Keep only the file name in mind afterwards and re-read it when needed — this frees context for the work.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "append": {
+      "type": "boolean",
+      "description": "Append instead of replacing (default false)"
+     },
+     "content": {
+      "type": "string",
+      "description": "Markdown text"
+     },
+     "name": {
+      "type": "string",
+      "description": "File name, e.g. plan or findings"
+     }
+    },
+    "required": [
+     "name",
+     "content"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "scratchpad_read",
+   "description": "Read a scratch file, or a line range of it.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "end_line": {
+      "type": "integer",
+      "description": "1-indexed, inclusive"
+     },
+     "name": {
+      "type": "string",
+      "description": "File name"
+     },
+     "start_line": {
+      "type": "integer",
+      "description": "1-indexed, inclusive"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "scratchpad_list",
+   "description": "List scratch files with their sizes.",
+   "parameters": {
+    "type": "object",
+    "properties": {}
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "request_access",
+   "description": "Ask the user for read access to a directory outside the project (e.g. slides or docs in the parent folder). The user approves or declines; on approval, read tools accept absolute paths in it. Read-only: writes stay inside the project.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "dir": {
+      "type": "string",
+      "description": "Directory: absolute, ~/..., or relative to the project (\"..\")"
+     },
+     "reason": {
+      "type": "string",
+      "description": "One line: why you need it"
+     }
+    },
+    "required": [
+     "dir",
+     "reason"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "use_skill",
+   "description": "Load a skill's instructions (see the skill index) before doing a task it covers. With file, read one of its supporting files instead.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "file": {
+      "type": "string",
+      "description": "Supporting file path, as listed by a previous use_skill"
+     },
+     "name": {
+      "type": "string",
+      "description": "Skill name"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "library_search",
+   "description": "Search the user's reference library (books, official docs, language standards, RFCs, man pages) for passages on a technical question. Returns the best passages with title, file, page or line, and how to read more. Cite what you use as [Title, page N].",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "count": {
+      "type": "integer",
+      "description": "Passages to return (default 5, max 10)"
+     },
+     "query": {
+      "type": "string",
+      "description": "Keywords, e.g. \"happens before channel close\" or \"epoll edge triggered\""
+     },
+     "topic": {
+      "type": "string",
+      "description": "Optional: keep to the books of one topic (see library_topics), e.g. concurrency, sql, linear-algebra"
+     }
+    },
+    "required": [
+     "query"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "library_topics",
+   "description": "Show where the library covers a topic: book, chapters or pages, and what it's good for. With no topic, lists every topic.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "topic": {
+      "type": "string",
+      "description": "Topic name or part of it, e.g. memory, http, calculus"
+     }
+    }
+   }
+  }
+ }
+]
+[
+ {
+  "type": "function",
+  "function": {
+   "name": "search_code",
+   "description": "Search the codebase for a pattern using ripgrep. Returns matched lines with a couple lines of context, not full files.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "file_type": {
+      "type": "string",
+      "description": "Restrict to a file type, e.g. go, py, js"
+     },
+     "path": {
+      "type": "string",
+      "description": "Directory or file to search under (default: project root)"
+     },
+     "pattern": {
+      "type": "string",
+      "description": "Regex or literal pattern to search for"
+     }
+    },
+    "required": [
+     "pattern"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "read_file",
+   "description": "Read a line range from a file. Files over 400 lines require start_line/end_line — search first to find the range you need.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "end_line": {
+      "type": "integer",
+      "description": "1-indexed end line (inclusive)"
+     },
+     "path": {
+      "type": "string",
+      "description": "File path, relative to project root"
+     },
+     "start_line": {
+      "type": "integer",
+      "description": "1-indexed start line (inclusive)"
+     }
+    },
+    "required": [
+     "path"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "read_pdf",
+   "description": "Extract the text of a PDF (slides, papers, manuals), a page range at a time, with --- page N --- markers. Default: 10 pages from first_page.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "first_page": {
+      "type": "integer",
+      "description": "1-indexed first page (default 1)"
+     },
+     "last_page": {
+      "type": "integer",
+      "description": "Last page (default first_page + 9)"
+     },
+     "path": {
+      "type": "string",
+      "description": "PDF path, relative to the project or absolute in a directory the user added"
+     }
+    },
+    "required": [
+     "path"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "list_directory",
+   "description": "List a directory as an indented tree, up to a given depth. Skips .git, node_modules, vendor, and build output.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "depth": {
+      "type": "integer",
+      "description": "How many levels deep to recurse (default: 2)"
+     },
+     "path": {
+      "type": "string",
+      "description": "Directory to list (default: project root)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "run_command",
+   "description": "Run an allowlisted, read-only binary directly (no shell). args is always an array of separate arguments, never one shell string.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "args": {
+      "type": "array",
+      "description": "Arguments as separate array entries, e.g. [\"log\", \"--oneline\", \"-5\"]",
+      "items": {
+       "type": "string"
+      }
+     },
+     "binary": {
+      "type": "string",
+      "description": "Bare binary name, e.g. git, wc, find"
+     }
+    },
+    "required": [
+     "binary"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "run_program",
+   "description": "Build, compile, test or run code: make, cmake, gcc, g++, clang, mpicc, mpirun, go, cargo, python3, node, npm... or a program the project built (\"./build/app\"). Binary plus an args array, no shell: feed a file as input with stdin, save the output with stdout (then diff it). For pipes, use binary bash with args [\"-c\", \"...\"] — always asked. The user approves each run. Prefer run_tests / build_check when they fit.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "args": {
+      "type": "array",
+      "description": "Arguments as separate entries, e.g. [\"-O2\", \"-o\", \"fox\", \"src/fox.c\"]",
+      "items": {
+       "type": "string"
+      }
+     },
+     "binary": {
+      "type": "string",
+      "description": "Program: a bare name (make, gcc, mpirun) or a relative path inside the project (./fox)"
+     },
+     "dir": {
+      "type": "string",
+      "description": "Working directory inside the project (default: project root), e.g. \"build\""
+     },
+     "stdin": {
+      "type": "string",
+      "description": "Project file to feed as the program's input, like \u003c file, e.g. \"tests/input/input6\""
+     },
+     "stdout": {
+      "type": "string",
+      "description": "Project file to write the program's output to, like \u003e file, e.g. \"build/out6.txt\""
+     }
+    },
+    "required": [
+     "binary"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "edit_file",
+   "description": "Replace an exact string in a file. Read the file first. old_string must match exactly once, whitespace included — add surrounding lines to make it unique, or set replace_all. Prefer this over write_file for changes to existing files.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "new_string": {
+      "type": "string",
+      "description": "Replacement text (empty deletes old_string)"
+     },
+     "old_string": {
+      "type": "string",
+      "description": "Exact text to replace, copied from read_file"
+     },
+     "path": {
+      "type": "string",
+      "description": "File path, relative to project root"
+     },
+     "replace_all": {
+      "type": "boolean",
+      "description": "Replace every occurrence (default false)"
+     }
+    },
+    "required": [
+     "path",
+     "old_string",
+     "new_string"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "write_file",
+   "description": "Create a file, or overwrite one you have already read. Parent directories are created. Use edit_file for partial changes.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "content": {
+      "type": "string",
+      "description": "The complete file content"
+     },
+     "path": {
+      "type": "string",
+      "description": "File path, relative to project root"
+     }
+    },
+    "required": [
+     "path",
+     "content"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "web_search",
+   "description": "Search the web for information not in this codebase — library docs, error messages, current facts. Starts a local search service on first use; returns a short list of title/url/snippet results, not full pages.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "count": {
+      "type": "integer",
+      "description": "Number of results to return (default 5, max 10)"
+     },
+     "query": {
+      "type": "string",
+      "description": "Search query"
+     },
+     "topic": {
+      "type": "string",
+      "description": "general: web pages and docs (default); code: Stack Overflow and GitHub; science: papers (arXiv, Semantic Scholar, OpenAlex)",
+      "enum": [
+       "general",
+       "code",
+       "science"
+      ]
+     }
+    },
+    "required": [
+     "query"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "count_lines",
+   "description": "Count lines of code across the project (or a subdirectory) in one call — total, plus a breakdown by top-level directory.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Directory to count under (default: project root)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "list_languages",
+   "description": "Break the project down by file extension — file and line counts per language, ranked by lines.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Directory to scan (default: project root)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "find_files",
+   "description": "Find files by name using a glob pattern (e.g. \"*.go\", \"*_test.go\") — a name-only complement to search_code's content search.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Directory to search under (default: project root)"
+     },
+     "pattern": {
+      "type": "string",
+      "description": "Glob matched against each file's base name"
+     }
+    },
+    "required": [
+     "pattern"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "file_stat",
+   "description": "Get a file's size, line count, and modification time without reading its content — cheaper than read_file for deciding what to read.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "File path, relative to project root"
+     }
+    },
+    "required": [
+     "path"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "find_todo_fixme",
+   "description": "Find TODO/FIXME/XXX comment markers in the codebase.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Directory or file to search under (default: project root)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "env_info",
+   "description": "Report the toolchain available: Go version, OS/arch, and whether git/ripgrep/docker are installed.",
+   "parameters": {
+    "type": "object",
+    "properties": {}
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "project_manifest",
+   "description": "Get an orientation snapshot of the project: directory tree plus the first README/manifest file found. Useful for \"what kind of project is this\" mid-conversation.",
+   "parameters": {
+    "type": "object",
+    "properties": {}
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "find_definition",
+   "description": "Find where a function, type, or variable is defined — a deterministic index lookup, not a guess.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "from_file": {
+      "type": "string",
+      "description": "File you're currently looking at, to rank same-file/same-dir matches first"
+     },
+     "name": {
+      "type": "string",
+      "description": "Symbol name to look up"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "list_symbols",
+   "description": "Fuzzy-search every known symbol name in the project (functions, types, variables, ...).",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "query": {
+      "type": "string",
+      "description": "Substring to match against symbol names (empty lists everything, capped)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "outline_file",
+   "description": "List a file's known symbols without reading its content — a cheap first look at a large file before deciding what range to read.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "File path, relative to project root"
+     }
+    },
+    "required": [
+     "path"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "find_references",
+   "description": "Find where an identifier is USED (not where it's defined — see find_definition), word-boundary matched.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Identifier to search for"
+     },
+     "path": {
+      "type": "string",
+      "description": "Directory or file to search under (default: project root)"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "git_log",
+   "description": "Get structured commit history (hash, author, date, subject) for the project or one path.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "count": {
+      "type": "integer",
+      "description": "Commits to return (default 20, max 100)"
+     },
+     "path": {
+      "type": "string",
+      "description": "Limit history to this path (default: whole repo)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "git_blame",
+   "description": "Get per-line author/date attribution for a line range in a file.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "end_line": {
+      "type": "integer",
+      "description": "1-indexed end line (default start_line+199)"
+     },
+     "path": {
+      "type": "string",
+      "description": "File path, relative to project root"
+     },
+     "start_line": {
+      "type": "integer",
+      "description": "1-indexed start line (default 1)"
+     }
+    },
+    "required": [
+     "path"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "git_diff",
+   "description": "Diff between two refs (default: HEAD vs. the working tree) for a path or the whole repo.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "from": {
+      "type": "string",
+      "description": "Starting ref (default: HEAD)"
+     },
+     "path": {
+      "type": "string",
+      "description": "Limit the diff to this path (default: whole repo)"
+     },
+     "to": {
+      "type": "string",
+      "description": "Ending ref (default: working tree)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "git_show",
+   "description": "Get one commit's full diff and message by hash.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "hash": {
+      "type": "string",
+      "description": "Commit hash (short or full)"
+     }
+    },
+    "required": [
+     "hash"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "working_tree_diff",
+   "description": "Show uncommitted changes only — what you've edited but not committed, plus untracked files.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Limit to this path (default: whole repo)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "grep_history",
+   "description": "Find when a piece of text was introduced or removed in git history (a \"pickaxe\" search).",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "count": {
+      "type": "integer",
+      "description": "Commits to return (default 10, max 50)"
+     },
+     "path": {
+      "type": "string",
+      "description": "Limit to this path (default: whole repo)"
+     },
+     "term": {
+      "type": "string",
+      "description": "Text to search for across commit history"
+     }
+    },
+    "required": [
+     "term"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "code_owners",
+   "description": "Approximate who owns a path, by commit count per author — a heuristic, not an authoritative CODEOWNERS lookup.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Path to check (default: whole repo)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "commit_stats",
+   "description": "Rank files by how often they've changed — a churn/hotspot signal for what's worth extra scrutiny.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "count": {
+      "type": "integer",
+      "description": "Top-N files to return (default 10, max 50)"
+     },
+     "path": {
+      "type": "string",
+      "description": "Limit to this path (default: whole repo)"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "run_tests",
+   "description": "Run the project's test command (detected from Makefile, go.mod, Cargo.toml, package.json, or Python config; or user-configured). Reports pass/fail, a failure summary, and the end of the output.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "args": {
+      "type": "array",
+      "description": "Extra arguments replacing the default target, e.g. [\"./internal/tools\", \"-run\", \"TestX\"] or [\"-k\", \"parser\"]",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "build_check",
+   "description": "Run the project's build or type-check command and report pass/fail plus errors. Run it after editing code.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "args": {
+      "type": "array",
+      "description": "Extra arguments replacing the default target, e.g. [\"./cmd/...\"]",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "lint_check",
+   "description": "Run the project's linter; reports available:false if the project has none.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "args": {
+      "type": "array",
+      "description": "Extra arguments replacing the default target",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "list_dependencies",
+   "description": "List the project's declared dependencies, parsed from whichever manifest exists (go.mod, package.json, requirements.txt, Cargo.toml, pyproject.toml).",
+   "parameters": {
+    "type": "object",
+    "properties": {}
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "module_graph",
+   "description": "Show which of this Go module's own packages import which — internal architecture, not the full stdlib/third-party dependency closure.",
+   "parameters": {
+    "type": "object",
+    "properties": {}
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "read_doc_comment",
+   "description": "Get just a symbol's doc comment, without reading the whole file it's defined in.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "from_file": {
+      "type": "string",
+      "description": "File you're currently looking at, to disambiguate a common name"
+     },
+     "name": {
+      "type": "string",
+      "description": "Symbol name to look up"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "find_callers",
+   "description": "Find syntactic call sites of a Go function/method name — matched by identifier text, not type-checked, so treat results as leads, not certainties.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Function or method name to find call sites of"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "find_dead_code",
+   "description": "Find exported Go functions/methods with no syntactic call sites anywhere in the project — a possibly-unused signal, not proof; can false-positive, notably on exported struct fields (ctags can't distinguish them from methods).",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "path": {
+      "type": "string",
+      "description": "Limit the scan to this file/directory prefix"
+     }
+    }
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "impact_analysis",
+   "description": "Find functions that transitively call a given Go function, up to a bounded depth — what might need re-checking if it changes.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "depth": {
+      "type": "integer",
+      "description": "How many call levels out to trace (default 2, max 3)"
+     },
+     "name": {
+      "type": "string",
+      "description": "Function or method name to analyze"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "semantic_search",
+   "description": "Keyword/term-frequency relevance search across the codebase — NOT true embedding-based semantic search. Useful when you don't know the exact text to grep for; prefer search_code when you do.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "count": {
+      "type": "integer",
+      "description": "Number of results to return (default 5, max 15)"
+     },
+     "query": {
+      "type": "string",
+      "description": "Natural-language description of what you're looking for"
+     }
+    },
+    "required": [
+     "query"
+    ]
+   }
+  }
+ }
+]

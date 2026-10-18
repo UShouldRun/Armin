@@ -1,9 +1,6 @@
-// Package mcpserver exposes the same sandboxed tools the REPL uses
-// directly — search_code, read_file, list_directory, run_command,
-// web_search, and 29 others across repo stats, symbol navigation,
-// git history, build/test, dependencies, docs, call graph, and
-// semantic search (see agent.ToolDefinitions) — over MCP, so other
-// MCP clients (Claude Desktop, etc.) can reuse them. No SDK: MCP-
+// Package mcpserver serves armin's sandboxed tools (the agent's tool
+// table, see agent/tools.go) over MCP, so other MCP clients (Claude
+// Desktop, etc.) can use them. No SDK: MCP-
 // over-stdio is JSON-RPC 2.0 on
 // newline-delimited JSON, and the surface armin actually needs
 // (initialize, tools/list, tools/call) is small enough to implement
@@ -15,6 +12,7 @@ import (
   "bufio"
   "context"
   "encoding/json"
+  "errors"
   "fmt"
   "io"
   "os"
@@ -35,14 +33,20 @@ const serverVersion = "v0.1.0"
 // (no universal-ctags binary found — see cmd/armin/main.go); either
 // way the affected tools are still listed but report a clean
 // "unavailable" error instead of a panic.
-func New(sb *sandbox.Config, ws *searxng.Manager, symbols *ctags.Index) *Server {
-  return &Server{ sandbox: sb, webSearch: ws, symbols: symbols }
+func New(
+  sb *sandbox.Config, ws *searxng.Manager, symbols *ctags.Index,
+) *Server {
+  loop := agent.New(nil, sb)
+  loop.WebSearch, loop.Symbols = ws, symbols
+
+  return &Server{ sandbox: sb, loop: loop }
 }
 
 // Serve is the convenience entry point main.go calls for -mcp: an
 // armin Server wired to a fresh sandbox, talking over stdio.
 func Serve(
-  ctx context.Context, sb *sandbox.Config, ws *searxng.Manager, symbols *ctags.Index,
+  ctx context.Context, sb *sandbox.Config, ws *searxng.Manager,
+  symbols *ctags.Index,
 ) error {
   return New(sb, ws, symbols).Serve(ctx, os.Stdin, os.Stdout)
 }
@@ -127,67 +131,49 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
   }
 }
 
-// toolList builds MCP's tool list straight from
-// agent.ToolDefinitions — the exact schema the model gets for tool
-// calling, reused rather than redefined.
+// toolList is the agent's sandboxed tools that MCP can run: their
+// exact schemas, from the same table the model gets.
 func toolList() []tool {
   defs := agent.ToolDefinitions()
   list := make([]tool, 0, len(defs))
   for _, d := range defs {
+    name := d.Function.Name
+    if !agent.Served(name) && !direct[name] {
+      continue
+    }
+
     list = append(list, tool{
-      Name:        d.Function.Name,
+      Name:        name,
       Description: d.Function.Description,
       InputSchema: d.Function.Parameters,
     })
   }
+
   return list
 }
 
-// callTool dispatches to the same tools.* functions
-// agent.Loop.execute calls for the REPL — duplicated rather than
-// shared, since the two callers need different result shapes
-// (llm.Message's tool_calls shape vs. MCP's CallToolResult) and each
-// dispatch is small enough on its own that sharing it would cost
-// more in indirection than it saves.
+// direct are the writes MCP does itself: straight to disk, with no
+// read-before-write tracking and no approval, which the MCP client
+// owns. Everything else runs through the agent's tool table.
+var direct = map[string]bool{ "write_file": true, "edit_file": true }
+
+// callTool runs one tool call and shapes its result for MCP.
 func (s *Server) callTool(
   ctx context.Context, p callToolParams,
 ) callToolResult {
   switch p.Name {
-  case "search_code":
-    var in tools.SearchCodeInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.SearchCode(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "read_file":
-    var in tools.ReadFileInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.ReadFile(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
   case "write_file":
     var in tools.WriteFileInput
     err := json.Unmarshal(p.Arguments, &in)
     if err != nil {
       return errorResult(err)
     }
-    // No tracker: the MCP client owns read-before-write and approval.
+
     out, err := tools.WriteFile(s.sandbox, nil, in)
     if err != nil {
       return errorResult(err)
     }
+
     return jsonResult(out)
 
   case "edit_file":
@@ -196,413 +182,38 @@ func (s *Server) callTool(
     if err != nil {
       return errorResult(err)
     }
+
     out, err := tools.EditFile(s.sandbox, nil, in)
     if err != nil {
       return errorResult(err)
     }
-    return jsonResult(out)
-
-  case "list_directory":
-    var in tools.ListDirectoryInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.ListDirectory(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "run_command":
-    var in tools.RunCommandInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, cmdErr := tools.RunCommand(ctx, s.sandbox, in)
-    if cmdErr != nil {
-      return jsonErrorResult(cmdErr)
-    }
-    return jsonResult(out)
-
-  case "web_search":
-    var in tools.WebSearchInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.WebSearch(ctx, s.webSearch, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "count_lines":
-    var in tools.CountLinesInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.CountLines(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "list_languages":
-    var in tools.ListLanguagesInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.ListLanguages(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "find_files":
-    var in tools.FindFilesInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.FindFiles(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "file_stat":
-    var in tools.FileStatInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.FileStat(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "find_todo_fixme":
-    var in tools.FindTodoFixmeInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.FindTodoFixme(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "env_info":
-    var in tools.EnvInfoInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.EnvInfo(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "project_manifest":
-    var in tools.ProjectManifestInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.ProjectManifest(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "find_definition":
-    var in tools.FindDefinitionInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.FindDefinition(ctx, s.symbols, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "list_symbols":
-    var in tools.ListSymbolsInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.ListSymbols(ctx, s.symbols, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "outline_file":
-    var in tools.OutlineFileInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.OutlineFile(ctx, s.symbols, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "find_references":
-    var in tools.FindReferencesInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.FindReferences(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "git_log":
-    var in tools.GitLogInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.GitLog(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "git_blame":
-    var in tools.GitBlameInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.GitBlame(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "git_diff":
-    var in tools.GitDiffInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.GitDiff(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "git_show":
-    var in tools.GitShowInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.GitShow(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "working_tree_diff":
-    var in tools.WorkingTreeDiffInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.WorkingTreeDiff(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "grep_history":
-    var in tools.GrepHistoryInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.GrepHistory(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "code_owners":
-    var in tools.CodeOwnersInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.CodeOwners(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "commit_stats":
-    var in tools.CommitStatsInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.CommitStats(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "run_tests":
-    var in tools.RunTestsInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.RunTests(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "build_check":
-    var in tools.BuildCheckInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.BuildCheck(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "lint_check":
-    var in tools.LintCheckInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.LintCheck(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "list_dependencies":
-    var in tools.ListDependenciesInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.ListDependencies(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "module_graph":
-    var in tools.ModuleGraphInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.ModuleGraph(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "read_doc_comment":
-    var in tools.ReadDocCommentInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.ReadDocComment(ctx, s.symbols, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "find_callers":
-    var in tools.FindCallersInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.FindCallers(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "find_dead_code":
-    var in tools.FindDeadCodeInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.FindDeadCode(ctx, s.symbols, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "impact_analysis":
-    var in tools.ImpactAnalysisInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.ImpactAnalysis(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  case "read_pdf":
-    var in tools.ReadPDFInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-
-    out, err := tools.ReadPDF(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
 
     return jsonResult(out)
+  }
 
-  case "semantic_search":
-    var in tools.SemanticSearchInput
-    err := json.Unmarshal(p.Arguments, &in)
-    if err != nil {
-      return errorResult(err)
-    }
-    out, err := tools.SemanticSearch(ctx, s.sandbox, in)
-    if err != nil {
-      return errorResult(err)
-    }
-    return jsonResult(out)
-
-  default:
+  if !agent.Served(p.Name) {
     return errorResult(fmt.Errorf("unknown tool %q", p.Name))
   }
+
+  return toolResult(s.loop.RunTool(ctx, p.Name, p.Arguments))
+}
+
+// toolResult turns a tool's result into MCP's: a plain error as
+// text, a structured one (run_command's, with the allowlist) as JSON,
+// both flagged IsError so the client knows the call failed.
+func toolResult(v any) callToolResult {
+  switch r := v.(type) {
+  case map[string]string:
+    msg, failed := r["error"]
+    if failed && len(r) == 1 {
+      return errorResult(errors.New(msg))
+    }
+
+  case *tools.RunCommandError:
+    return jsonErrorResult(r)
+  }
+
+  return jsonResult(v)
 }
 
 func jsonResult(v any) callToolResult {

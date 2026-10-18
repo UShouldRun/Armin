@@ -4,9 +4,8 @@ import (
   "io"
   "sync"
 
-  "armin/internal/ctags"
+  "armin/internal/agent"
   "armin/internal/sandbox"
-  "armin/internal/searxng"
 )
 
 // Server is a minimal MCP server. Each request is handled in its own
@@ -20,10 +19,9 @@ import (
 // only keeps two responses from interleaving mid-write, and wg lets
 // Serve drain in-flight goroutines before returning at EOF.
 type Server struct {
-  sandbox   *sandbox.Config
-  webSearch *searxng.Manager
-  symbols   *ctags.Index
-  out       io.Writer
+  sandbox *sandbox.Config
+  loop    *agent.Loop // runs the tools: the same table the REPL's agent uses
+  out     io.Writer
   writeMu   sync.Mutex
   wg        sync.WaitGroup
 }

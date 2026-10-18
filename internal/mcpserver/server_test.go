@@ -87,8 +87,16 @@ func TestToolsList(t *testing.T) {
   var result listToolsResult
   remarshal(t, resp.Result, &result)
 
-  if len(result.Tools) != 38 {
-    t.Fatalf("tools/list returned %d tools, want 38", len(result.Tools))
+  // the agent's 38 sandboxed tools minus run_program, which needs
+  // someone to approve each run
+  if len(result.Tools) != 37 {
+    t.Fatalf("tools/list returned %d tools, want 37", len(result.Tools))
+  }
+
+  for _, tl := range result.Tools {
+    if tl.Name == "run_program" {
+      t.Fatal("run_program is listed, but MCP can't run it")
+    }
   }
   // noPropsOK are tools with no meaningful parameters at all
   // (list_directory's only param is optional, the rest take
