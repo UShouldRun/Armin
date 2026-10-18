@@ -2,11 +2,12 @@ package think
 
 import (
   "context"
-  "strings"
   "os"
+  "strings"
   "time"
 
   "armin/internal/catalog"
+  "armin/internal/cloud"
   "armin/internal/config"
   "armin/internal/input"
   "armin/internal/llamacpp"
@@ -26,19 +27,19 @@ func remoteSpec(c config.ModelSpecConfig) *llamacpp.RemoteSpec {
 
   switch {
   case c.AWSInstance != "":
-    r.Provider, r.MachineID = llamacpp.ProviderAWS, c.AWSInstance
+    r.Provider, r.MachineID = cloud.ProviderAWS, c.AWSInstance
     r.Region = firstNonEmpty(
       c.AWSRegion,
       firstNonEmpty(os.Getenv("AWS_REGION"), os.Getenv("AWS_DEFAULT_REGION")),
     )
   case c.StackitServer != "":
-    r.Provider, r.MachineID = llamacpp.ProviderSTACKIT, c.StackitServer
+    r.Provider, r.MachineID = cloud.ProviderSTACKIT, c.StackitServer
     r.ProjectID = firstNonEmpty(c.StackitProject, os.Getenv("STACKIT_PROJECT_ID"))
     r.Region = firstNonEmpty(
       c.StackitRegion, firstNonEmpty(os.Getenv("STACKIT_REGION"), "eu01"),
     )
   case c.ScalewayServer != "":
-    r.Provider, r.MachineID = llamacpp.ProviderScaleway, c.ScalewayServer
+    r.Provider, r.MachineID = cloud.ProviderScaleway, c.ScalewayServer
     r.Region = firstNonEmpty(
       c.ScalewayZone, firstNonEmpty(os.Getenv("SCW_DEFAULT_ZONE"), "fr-par-2"),
     )

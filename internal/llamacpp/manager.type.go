@@ -4,6 +4,8 @@ import (
   "os/exec"
   "sync"
   "time"
+
+  "armin/internal/cloud"
 )
 
 // ModelSpec configures one named model /model (or armin.model) can
@@ -102,7 +104,7 @@ type process struct {
 
 // remoteRun is the cloud side of a remote process.
 type remoteRun struct {
-  machine Machine
+  machine cloud.Machine
   started bool // armin started the machine, so armin stops it
 }
 

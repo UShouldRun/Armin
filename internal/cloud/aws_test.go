@@ -1,4 +1,4 @@
-package aws
+package cloud
 
 import (
   "context"
@@ -11,7 +11,7 @@ import (
   "time"
 )
 
-var testCreds = Credentials{
+var testCreds = awsCredentials{
   AccessKeyID:     "AKIDEXAMPLE",
   SecretAccessKey: "wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY",
 }
@@ -37,7 +37,7 @@ func TestSignMatchesAWSTestSuite(t *testing.T) {
 
   for _, c := range cases {
     req, _ := http.NewRequest(http.MethodGet, c.url, nil)
-    Sign(req, nil, testCreds, "us-east-1", "service", testTime)
+    awsSign(req, nil, testCreds, "us-east-1", "service", testTime)
 
     want := "AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20150830/us-east-1/service/aws4_request, " +
       "SignedHeaders=host;x-amz-date, Signature=" + c.signature
@@ -99,7 +99,7 @@ func TestWaitRunningStartsStoppedInstance(t *testing.T) {
   server := httptest.NewServer(f.handler(t))
   defer server.Close()
 
-  ec2 := NewEC2("eu-west-1", testCreds)
+  ec2 := newEC2("eu-west-1", testCreds)
   ec2.Endpoint = server.URL
 
   var seen []string
@@ -136,7 +136,7 @@ func TestEC2ErrorIsReadable(t *testing.T) {
   }))
   defer server.Close()
 
-  ec2 := NewEC2("eu-west-1", testCreds)
+  ec2 := newEC2("eu-west-1", testCreds)
   ec2.Endpoint = server.URL
   err := ec2.StartInstance(context.Background(), "i-1")
   if err == nil || !strings.Contains(err.Error(), "UnauthorizedOperation: You are not authorized") {

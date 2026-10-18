@@ -1,4 +1,4 @@
-package scaleway
+package cloud
 
 import (
   "context"
@@ -67,7 +67,7 @@ func TestWaitRunningPowersOnAndOff(t *testing.T) {
   defer server.Close()
 
   t.Setenv("SCW_SECRET_KEY", "secret")
-  c, err := EnvClient("fr-par-2")
+  c, err := scalewayEnvClient("fr-par-2")
   if err != nil {
     t.Fatal(err)
   }
@@ -98,17 +98,17 @@ func TestWaitRunningPowersOnAndOff(t *testing.T) {
 func TestErrorsAreReadable(t *testing.T) {
   server := httptest.NewServer(&fakeAPI{ state: "running" })
   defer server.Close()
-  c := &Client{ Zone: "fr-par-2", SecretKey: "wrong", HTTP: http.DefaultClient, Endpoint: server.URL }
+  c := &scalewayClient{ Zone: "fr-par-2", SecretKey: "wrong", HTTP: http.DefaultClient, Endpoint: server.URL }
   _, err := c.GetServer(context.Background(), "srv-1")
   if err == nil || !strings.Contains(err.Error(), "HTTP 401: authentication is denied") {
     t.Fatalf("err = %v", err)
   }
 }
 
-func TestNoCredentials(t *testing.T) {
+func TestScalewayNoCredentials(t *testing.T) {
   t.Setenv("SCW_SECRET_KEY", "")
-  _, err := EnvClient("fr-par-2")
-  if err != ErrNoCredentials {
+  _, err := scalewayEnvClient("fr-par-2")
+  if err != errNoScalewayCredentials {
     t.Fatalf("err = %v", err)
   }
 }

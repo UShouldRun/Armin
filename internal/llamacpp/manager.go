@@ -32,11 +32,9 @@ import (
   "syscall"
   "time"
 
-  "armin/internal/aws"
+  "armin/internal/cloud"
   "armin/internal/catalog"
   "armin/internal/llm"
-  "armin/internal/scaleway"
-  "armin/internal/stackit"
 )
 
 // DefaultIdleTimeout is how long a managed process may sit unused
@@ -223,15 +221,7 @@ func New(specs map[string]ModelSpec) *Manager {
 
   // No child process ever needs cloud credentials: armin makes the
   // API calls itself, and ssh authenticates with its own key.
-  for _, name := range aws.CredentialEnv {
-    scrub[name] = true
-  }
-
-  for _, name := range stackit.CredentialEnv {
-    scrub[name] = true
-  }
-
-  for _, name := range scaleway.CredentialEnv {
+  for _, name := range cloud.CredentialEnv {
     scrub[name] = true
   }
 

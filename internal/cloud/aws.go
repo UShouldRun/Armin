@@ -1,8 +1,14 @@
-// Package aws is the small slice of AWS armin needs to run a model on
-// an EC2 instance it starts and stops itself: Signature V4 request
-// signing and three EC2 actions (describe, start, stop). Hand-rolled
-// on the standard library, not the AWS SDK.
-package aws
+// AWS: the slice armin needs to run a model on an EC2 instance it
+// starts and stops itself: Signature V4 request signing and three EC2
+// actions (describe, start, stop), on the standard library.
+//
+//   awsEnvCredentials  keys from the environment
+//   awsSign            Signature V4 for one request
+//   ec2Client          DescribeInstance, StartInstance, StopInstance,
+//                      WaitRunning
+//   ec2Machine         the Machine (cloud.go) for an instance
+
+package cloud
 
 import (
   "context"
@@ -21,28 +27,28 @@ import (
   "time"
 )
 
-// ErrNoCredentials means neither the environment nor .env had keys.
-var ErrNoCredentials = errors.New(
+// errNoAWSCredentials means neither the environment nor .env had keys.
+var errNoAWSCredentials = errors.New(
   "no AWS credentials: set AWS_ACCESS_KEY_ID and " +
     "AWS_SECRET_ACCESS_KEY (e.g. in ~/.config/armin/.env)",
 )
 
-// CredentialEnv lists the environment variables credentials come
+// awsCredentialEnv lists the environment variables credentials come
 // from — also what a Manager must keep out of spawned processes.
-var CredentialEnv = []string{
+var awsCredentialEnv = []string{
   "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
 }
 
-// EnvCredentials reads the standard AWS environment variables.
-func EnvCredentials() (Credentials, error) {
-  c := Credentials{
+// awsEnvCredentials reads the standard AWS environment variables.
+func awsEnvCredentials() (awsCredentials, error) {
+  c := awsCredentials{
     AccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
     SecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
     SessionToken:    os.Getenv("AWS_SESSION_TOKEN"),
   }
 
   if c.AccessKeyID == "" || c.SecretAccessKey == "" {
-    return Credentials{}, ErrNoCredentials
+    return awsCredentials{}, errNoAWSCredentials
   }
 
   return c, nil
@@ -68,11 +74,11 @@ func hmacSHA256(key []byte, data string) []byte {
   return h.Sum(nil)
 }
 
-// Sign adds x-amz-date (and the session token) and the
+// awsSign adds x-amz-date (and the session token) and the
 // Authorization header to req, signing body for region and service
 // at time now. req.Host must already be set.
-func Sign(
-  req *http.Request, body []byte, creds Credentials,
+func awsSign(
+  req *http.Request, body []byte, creds awsCredentials,
   region, service string, now time.Time,
 ) {
   now = now.UTC()
@@ -175,9 +181,9 @@ func awsEscape(s string) string {
 // against.
 const ec2Version = "2016-11-15"
 
-// NewEC2 returns a client for region.
-func NewEC2(region string, creds Credentials) *EC2 {
-  return &EC2{
+// newEC2 returns a client for region.
+func newEC2(region string, creds awsCredentials) *ec2Client {
+  return &ec2Client{
     Region: region,
     Creds:  creds,
     HTTP:   &http.Client{ Timeout: 30 * time.Second },
@@ -186,7 +192,7 @@ func NewEC2(region string, creds Credentials) *EC2 {
 
 // Host is the address to reach the instance at: public IP, then
 // public DNS, then private IP (over a VPN).
-func (i Instance) Host() string {
+func (i ec2Instance) Host() string {
   switch {
   case i.PublicIP != "":
     return i.PublicIP
@@ -197,7 +203,7 @@ func (i Instance) Host() string {
   return i.PrivateIP
 }
 
-func (e *EC2) call(
+func (e *ec2Client) call(
   ctx context.Context, action string, params url.Values, out any,
 ) error {
   params.Set("Action", action)
@@ -219,7 +225,7 @@ func (e *EC2) call(
   req.Header.Set(
     "Content-Type", "application/x-www-form-urlencoded; charset=utf-8",
   )
-  Sign(req, body, e.Creds, e.Region, "ec2", time.Now())
+  awsSign(req, body, e.Creds, e.Region, "ec2", time.Now())
 
   resp, err := e.HTTP.Do(req)
   if err != nil {
@@ -261,21 +267,21 @@ func (e *EC2) call(
 }
 
 // DescribeInstance reports one instance's state and addresses.
-func (e *EC2) DescribeInstance(
+func (e *ec2Client) DescribeInstance(
   ctx context.Context, id string,
-) (Instance, error) {
+) (ec2Instance, error) {
   var out describeResponse
   err := e.call(
     ctx, "DescribeInstances", url.Values{ "InstanceId.1": { id } }, &out,
   )
   if err != nil {
-    return Instance{}, fmt.Errorf("\n\t... in DescribeInstance:\n\t%w", err)
+    return ec2Instance{}, fmt.Errorf("\n\t... in DescribeInstance:\n\t%w", err)
   }
 
   for _, r := range out.Reservations {
     for _, i := range r.Instances {
       if i.ID == id {
-        return Instance{
+        return ec2Instance{
           ID:        i.ID,
           State:     i.State,
           PublicIP:  i.PublicIP,
@@ -286,14 +292,14 @@ func (e *EC2) DescribeInstance(
     }
   }
 
-  return Instance{}, fmt.Errorf(
+  return ec2Instance{}, fmt.Errorf(
     "\n\t... in DescribeInstance:\n\t instance %s not found in %s",
     id, e.Region,
   )
 }
 
 // StartInstance asks EC2 to start id; it returns before it's running.
-func (e *EC2) StartInstance(ctx context.Context, id string) error {
+func (e *ec2Client) StartInstance(ctx context.Context, id string) error {
   err := e.call(
     ctx, "StartInstances", url.Values{ "InstanceId.1": { id } }, nil,
   )
@@ -305,7 +311,7 @@ func (e *EC2) StartInstance(ctx context.Context, id string) error {
 }
 
 // StopInstance asks EC2 to stop id; it returns before it's stopped.
-func (e *EC2) StopInstance(ctx context.Context, id string) error {
+func (e *ec2Client) StopInstance(ctx context.Context, id string) error {
   err := e.call(
     ctx, "StopInstances", url.Values{ "InstanceId.1": { id } }, nil,
   )
@@ -316,15 +322,12 @@ func (e *EC2) StopInstance(ctx context.Context, id string) error {
   return nil
 }
 
-// StatePoll is how often WaitRunning re-describes (tests shorten it).
-var StatePoll = 3 * time.Second
-
 // WaitRunning polls until id is running with an address, starting it
 // if it's stopped (and waiting out a stop in progress first).
 // started reports whether this call started it.
-func (e *EC2) WaitRunning(
+func (e *ec2Client) WaitRunning(
   ctx context.Context, id string, status func(string),
-) (inst Instance, started bool, err error) {
+) (inst ec2Instance, started bool, err error) {
   last := ""
   for {
     inst, err = e.DescribeInstance(ctx, id)

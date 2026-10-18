@@ -13,9 +13,7 @@ import (
   "testing"
   "time"
 
-  "armin/internal/aws"
-  "armin/internal/scaleway"
-  "armin/internal/stackit"
+  "armin/internal/cloud"
 )
 
 type fakeEC2 struct {
@@ -82,7 +80,7 @@ func awsTestManager(t *testing.T, state string) (*Manager, *fakeEC2, string) {
     t.Skip("python3 needed for the fake ssh")
   }
 
-  aws.StatePoll = 10 * time.Millisecond
+  cloud.StatePoll = 10 * time.Millisecond
 
   dir := t.TempDir()
   ssh := filepath.Join(dir, "ssh")
@@ -102,7 +100,7 @@ func awsTestManager(t *testing.T, state string) (*Manager, *fakeEC2, string) {
       Port:      freePort(t),
       Args:      []string{ "--jinja", "-c", "65536" },
       Remote: &RemoteSpec{
-        Provider:         ProviderAWS,
+        Provider:         cloud.ProviderAWS,
         MachineID:        "i-1",
         Region:           "eu-west-1",
         SSHUser:          "ubuntu",
@@ -249,7 +247,7 @@ func (f *fakeIaaS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func TestSTACKITModelStartsTunnelsAndDeallocates(t *testing.T) {
   m, _, dir := awsTestManager(t, "stopped")
-  stackit.StatePoll = 10 * time.Millisecond
+  cloud.StatePoll = 10 * time.Millisecond
   t.Setenv("STACKIT_SERVICE_ACCOUNT_TOKEN", "tok")
 
   f := &fakeIaaS{ status: "DEALLOCATED" }
@@ -259,7 +257,7 @@ func TestSTACKITModelStartsTunnelsAndDeallocates(t *testing.T) {
 
   spec := m.specs["qwen"]
   spec.Remote = &RemoteSpec{
-    Provider:         ProviderSTACKIT,
+    Provider:         cloud.ProviderSTACKIT,
     MachineID:        "s-1",
     Region:           "eu01",
     ProjectID:        "p-1",
@@ -351,7 +349,7 @@ func (f *fakeScaleway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func TestScalewayModelPowersOnTunnelsAndPowersOff(t *testing.T) {
   m, _, dir := awsTestManager(t, "stopped")
-  scaleway.StatePoll = 10 * time.Millisecond
+  cloud.StatePoll = 10 * time.Millisecond
   t.Setenv("SCW_SECRET_KEY", "secret")
 
   f := &fakeScaleway{ state: "stopped" }
@@ -361,7 +359,7 @@ func TestScalewayModelPowersOnTunnelsAndPowersOff(t *testing.T) {
 
   spec := m.specs["qwen"]
   spec.Remote = &RemoteSpec{
-    Provider:         ProviderScaleway,
+    Provider:         cloud.ProviderScaleway,
     MachineID:        "srv-1",
     Region:           "fr-par-2",
     SSHUser:          "root",

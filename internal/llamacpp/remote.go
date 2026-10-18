@@ -9,111 +9,25 @@ import (
   "strings"
   "time"
 
-  "armin/internal/aws"
-  "armin/internal/scaleway"
-  "armin/internal/stackit"
+  "armin/internal/cloud"
 )
 
-const (
-  ProviderAWS      Provider = 1 << iota // EC2: start / stop
-  ProviderSTACKIT                       // IaaS v2: start / deallocate
-  ProviderScaleway                      // Instance: poweron / poweroff
-  ProviderAll      = ProviderAWS | ProviderSTACKIT | ProviderScaleway
-)
-
-func (p Provider) String() string {
-  switch p {
-  case ProviderAWS:
-    return "EC2 instance"
-  case ProviderSTACKIT:
-    return "STACKIT server"
-  case ProviderScaleway:
-    return "Scaleway instance"
+// machineFor is the cloud machine a remote model runs on; tests point
+// it at fake provider APIs through the endpoint fields.
+func (m *Manager) machineFor(r *RemoteSpec) (cloud.Machine, error) {
+  endpoint := map[cloud.Provider]string{
+    cloud.ProviderAWS:      m.EC2Endpoint,
+    cloud.ProviderSTACKIT:  m.StackitEndpoint,
+    cloud.ProviderScaleway: m.ScalewayEndpoint,
   }
 
-  return "machine"
-}
-
-func (e ec2Machine) ID() string { return e.id }
-
-func (e ec2Machine) WaitRunning(
-  ctx context.Context, status func(string),
-) (string, bool, error) {
-  inst, started, err := e.ec2.WaitRunning(ctx, e.id, status)
-  return inst.Host(), started, err
-}
-
-func (e ec2Machine) Stop(ctx context.Context) error {
-  return e.ec2.StopInstance(ctx, e.id)
-}
-
-func (s stackitMachine) ID() string { return s.id }
-
-func (s stackitMachine) WaitRunning(
-  ctx context.Context, status func(string),
-) (string, bool, error) {
-  srv, started, err := s.client.WaitRunning(ctx, s.id, status)
-  return srv.Host(), started, err
-}
-
-// Stop deallocates: a merely stopped STACKIT server keeps billing.
-func (s stackitMachine) Stop(ctx context.Context) error {
-  return s.client.DeallocateServer(ctx, s.id)
-}
-
-func (s scalewayMachine) ID() string { return s.id }
-
-func (s scalewayMachine) WaitRunning(
-  ctx context.Context, status func(string),
-) (string, bool, error) {
-  srv, started, err := s.client.WaitRunning(ctx, s.id, status)
-  return srv.Host(), started, err
-}
-
-// Stop powers off: stop_in_place would keep the slot reserved.
-func (s scalewayMachine) Stop(ctx context.Context) error {
-  return s.client.PowerOff(ctx, s.id)
-}
-
-// machineFor builds the provider client from environment credentials.
-func (m *Manager) machineFor(r *RemoteSpec) (Machine, error) {
-  switch r.Provider {
-  case ProviderAWS:
-    creds, err := aws.EnvCredentials()
-    if err != nil {
-      return nil, err
-    }
-
-    ec2 := aws.NewEC2(r.Region, creds)
-    ec2.Endpoint = m.EC2Endpoint
-
-    return ec2Machine{ ec2: ec2, id: r.MachineID }, nil
-
-  case ProviderSTACKIT:
-    auth, err := stackit.EnvTokenSource()
-    if err != nil {
-      return nil, err
-    }
-
-    c := stackit.NewClient(r.ProjectID, r.Region, auth)
-    c.Endpoint = m.StackitEndpoint
-
-    return stackitMachine{ client: c, id: r.MachineID }, nil
-
-  case ProviderScaleway:
-    c, err := scaleway.EnvClient(r.Region)
-    if err != nil {
-      return nil, err
-    }
-
-    if m.ScalewayEndpoint != "" {
-      c.Endpoint = m.ScalewayEndpoint
-    }
-
-    return scalewayMachine{ client: c, id: r.MachineID }, nil
-  }
-
-  return nil, fmt.Errorf("unknown provider %d", r.Provider)
+  return cloud.New(cloud.Where{
+    Provider:  r.Provider,
+    MachineID: r.MachineID,
+    Region:    r.Region,
+    ProjectID: r.ProjectID,
+    Endpoint:  endpoint[r.Provider],
+  })
 }
 
 const (

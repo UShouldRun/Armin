@@ -1,25 +1,25 @@
-package aws
+package cloud
 
 import (
   "net/http"
 )
 
-// Credentials are an access key pair, plus a session token for
+// awsCredentials are an access key pair, plus a session token for
 // temporary credentials.
-type Credentials struct {
+type awsCredentials struct {
   AccessKeyID, SecretAccessKey, SessionToken string
 }
 
-// EC2 calls the EC2 Query API in one region.
-type EC2 struct {
+// ec2Client calls the EC2 Query API in one region.
+type ec2Client struct {
   Region   string
-  Creds    Credentials
+  Creds    awsCredentials
   HTTP     *http.Client
   Endpoint string // tests override; default https://ec2.<region>.amazonaws.com
 }
 
-// Instance is what DescribeInstance reports.
-type Instance struct {
+// ec2Instance is what DescribeInstance reports.
+type ec2Instance struct {
   ID, State, PublicIP, PrivateIP, PublicDNS string
 }
 

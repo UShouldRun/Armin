@@ -1,12 +1,18 @@
-// Package stackit is the slice of STACKIT (Schwarz Gruppe's cloud)
-// armin needs to run a model on a server it starts and deallocates
-// itself: service-account authentication and the IaaS v2 server
-// calls (get, start, deallocate). Standard library only.
+// STACKIT (Schwarz Gruppe's cloud): the slice armin needs to run a
+// model on a server it starts and deallocates itself: service-account
+// authentication and the IaaS v2 server calls (get, start,
+// deallocate), on the standard library.
 //
 // Deallocate, not stop: a stopped STACKIT server stays on its
 // hypervisor and keeps billing full price; a deallocated one bills
 // only its volume, and start re-allocates it.
-package stackit
+//
+//   stackitAuth     a short-lived token from a service-account key
+//   stackitClient   GetServer, StartServer, DeallocateServer,
+//                   WaitRunning
+//   stackitMachine  the Machine (cloud.go) for a server
+
+package cloud
 
 import (
   "context"
@@ -29,19 +35,19 @@ import (
 )
 
 const (
-  // DefaultIaaSEndpoint is the global IaaS v2 host; the region is
+  // stackitIaaSEndpoint is the global IaaS v2 host; the region is
   // part of the path.
-  DefaultIaaSEndpoint = "https://iaas.api.stackit.cloud"
+  stackitIaaSEndpoint = "https://iaas.api.stackit.cloud"
   // defaultTokenURL is the SDK's fallback when the key file names
   // no tokenEndpoint.
   defaultTokenURL = "https://service-account.api.stackit.cloud/token"
   jwtBearerGrant  = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 )
 
-// CredentialEnv lists the variables credentials come from — the
+// stackitCredentialEnv lists the variables credentials come from — the
 // same names the STACKIT SDK and CLI use — and what a Manager must
 // keep out of spawned processes.
-var CredentialEnv = []string{
+var stackitCredentialEnv = []string{
   "STACKIT_SERVICE_ACCOUNT_TOKEN",
   "STACKIT_SERVICE_ACCOUNT_KEY",
   "STACKIT_SERVICE_ACCOUNT_KEY_PATH",
@@ -50,8 +56,8 @@ var CredentialEnv = []string{
   "STACKIT_TOKEN_BASEURL",
 }
 
-// ErrNoCredentials means no token and no key were configured.
-var ErrNoCredentials = errors.New(
+// errNoStackitCredentials means no token and no key were configured.
+var errNoStackitCredentials = errors.New(
   "no STACKIT credentials: set STACKIT_SERVICE_ACCOUNT_KEY_PATH to " +
     "a service account key file (or STACKIT_SERVICE_ACCOUNT_TOKEN), " +
     "e.g. in ~/.config/armin/.env",
@@ -88,14 +94,14 @@ func readEnvOrFile(valueEnv, pathEnv string) (string, error) {
   return string(raw), nil
 }
 
-// EnvTokenSource builds a TokenSource from the environment: a
+// stackitEnvAuth builds a TokenSource from the environment: a
 // static STACKIT_SERVICE_ACCOUNT_TOKEN wins; otherwise the key flow
 // with STACKIT_SERVICE_ACCOUNT_KEY(_PATH), whose private key is
 // either inside the key file or in STACKIT_PRIVATE_KEY(_PATH).
-func EnvTokenSource() (*TokenSource, error) {
+func stackitEnvAuth() (*stackitAuth, error) {
   t := os.Getenv("STACKIT_SERVICE_ACCOUNT_TOKEN")
   if t != "" {
-    return &TokenSource{ static: t }, nil
+    return &stackitAuth{ static: t }, nil
   }
 
   raw, err := readEnvOrFile(
@@ -106,7 +112,7 @@ func EnvTokenSource() (*TokenSource, error) {
   }
 
   if raw == "" {
-    return nil, ErrNoCredentials
+    return nil, errNoStackitCredentials
   }
 
   var kf keyFile
@@ -147,7 +153,7 @@ func EnvTokenSource() (*TokenSource, error) {
     tokenURL = defaultTokenURL
   }
 
-  return &TokenSource{
+  return &stackitAuth{
     creds:    *kf.Credentials,
     key:      key,
     tokenURL: tokenURL,
@@ -195,7 +201,7 @@ func uuid4() string {
 }
 
 // assertion is the RS512 self-signed JWT the key flow exchanges.
-func (t *TokenSource) assertion(now time.Time) (string, error) {
+func (t *stackitAuth) assertion(now time.Time) (string, error) {
   header, _ := json.Marshal(map[string]string{
     "alg": "RS512", "typ": "JWT", "kid": t.creds.Kid,
   })
@@ -223,7 +229,7 @@ const tokenSlack = time.Minute
 
 // Token returns a bearer token, exchanging a fresh assertion only
 // when the cached one is about to expire.
-func (t *TokenSource) Token(ctx context.Context) (string, error) {
+func (t *stackitAuth) Token(ctx context.Context) (string, error) {
   if t.static != "" {
     return t.static, nil
   }
@@ -285,9 +291,9 @@ func (t *TokenSource) Token(ctx context.Context) (string, error) {
 
 // --- IaaS v2 servers ---
 
-// NewClient returns a client for project and region (e.g. "eu01").
-func NewClient(projectID, region string, auth *TokenSource) *Client {
-  return &Client{
+// newStackitClient returns a client for project and region (e.g. "eu01").
+func newStackitClient(projectID, region string, auth *stackitAuth) *stackitClient {
+  return &stackitClient{
     ProjectID: projectID,
     Region:    region,
     Auth:      auth,
@@ -297,7 +303,7 @@ func NewClient(projectID, region string, auth *TokenSource) *Client {
 
 // Host is the address to reach the server at: a public IP, else
 // the first private one (over a VPN).
-func (s Server) Host() string {
+func (s stackitServer) Host() string {
   if s.PublicIP != "" {
     return s.PublicIP
   }
@@ -305,10 +311,10 @@ func (s Server) Host() string {
   return s.PrivateIP
 }
 
-func (c *Client) serverURL(id, action string) string {
+func (c *stackitClient) serverURL(id, action string) string {
   endpoint := c.Endpoint
   if endpoint == "" {
-    endpoint = DefaultIaaSEndpoint
+    endpoint = stackitIaaSEndpoint
   }
 
   u := fmt.Sprintf(
@@ -323,7 +329,7 @@ func (c *Client) serverURL(id, action string) string {
   return u
 }
 
-func (c *Client) do(
+func (c *stackitClient) do(
   ctx context.Context, method, u string, out any,
 ) error {
   token, err := c.Auth.Token(ctx)
@@ -376,14 +382,14 @@ func (c *Client) do(
 }
 
 // GetServer reports one server's status and addresses.
-func (c *Client) GetServer(ctx context.Context, id string) (Server, error) {
-  var b serverBody
+func (c *stackitClient) GetServer(ctx context.Context, id string) (stackitServer, error) {
+  var b stackitServerBody
   err := c.do(ctx, http.MethodGet, c.serverURL(id, "") + "?details=true", &b)
   if err != nil {
-    return Server{}, fmt.Errorf("\n\t... in GetServer:\n\t%w", err)
+    return stackitServer{}, fmt.Errorf("\n\t... in GetServer:\n\t%w", err)
   }
 
-  s := Server{ ID: b.ID, Status: b.Status, PowerStatus: b.PowerStatus }
+  s := stackitServer{ ID: b.ID, Status: b.Status, PowerStatus: b.PowerStatus }
   for _, n := range b.Nics {
     if s.PublicIP == "" && n.PublicIP != "" {
       s.PublicIP = n.PublicIP
@@ -399,7 +405,7 @@ func (c *Client) GetServer(ctx context.Context, id string) (Server, error) {
 
 // StartServer starts a stopped server, or re-allocates a
 // deallocated one. It returns before the server is running.
-func (c *Client) StartServer(ctx context.Context, id string) error {
+func (c *stackitClient) StartServer(ctx context.Context, id string) error {
   err := c.do(ctx, http.MethodPost, c.serverURL(id, "start"), nil)
   if err != nil {
     return fmt.Errorf("\n\t... in StartServer:\n\t%w", err)
@@ -410,7 +416,7 @@ func (c *Client) StartServer(ctx context.Context, id string) error {
 
 // DeallocateServer shuts the server down and releases it from its
 // hypervisor, so only the volume keeps billing.
-func (c *Client) DeallocateServer(ctx context.Context, id string) error {
+func (c *stackitClient) DeallocateServer(ctx context.Context, id string) error {
   err := c.do(ctx, http.MethodPost, c.serverURL(id, "deallocate"), nil)
   if err != nil {
     return fmt.Errorf("\n\t... in DeallocateServer:\n\t%w", err)
@@ -419,15 +425,12 @@ func (c *Client) DeallocateServer(ctx context.Context, id string) error {
   return nil
 }
 
-// StatePoll is how often WaitRunning re-reads (tests shorten it).
-var StatePoll = 3 * time.Second
-
 // WaitRunning polls until the server is ACTIVE with an address,
 // starting it if it's INACTIVE or DEALLOCATED. started reports
 // whether this call started it.
-func (c *Client) WaitRunning(
+func (c *stackitClient) WaitRunning(
   ctx context.Context, id string, status func(string),
-) (srv Server, started bool, err error) {
+) (srv stackitServer, started bool, err error) {
   last := ""
   for {
     srv, err = c.GetServer(ctx, id)

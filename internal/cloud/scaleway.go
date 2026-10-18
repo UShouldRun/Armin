@@ -1,10 +1,13 @@
-// Package scaleway is the slice of the Scaleway Instance API armin
-// needs to run a model on a server it powers on and off itself.
-// Standard library only.
+// Scaleway: the slice of the Instance API armin needs to run a model
+// on a server it powers on and off itself, on the standard library.
 //
 // poweroff, not stop_in_place: poweroff releases the hypervisor slot
 // and stops compute billing; stop_in_place keeps the slot reserved.
-package scaleway
+//
+//   scalewayClient   GetServer, Action, PowerOff, WaitRunning
+//   scalewayMachine  the Machine (cloud.go) for a server
+
+package cloud
 
 import (
   "context"
@@ -19,27 +22,27 @@ import (
   "time"
 )
 
-// DefaultEndpoint is the Scaleway API host; the zone is in the path.
-const DefaultEndpoint = "https://api.scaleway.com"
+// scalewayEndpoint is the Scaleway API host; the zone is in the path.
+const scalewayEndpoint = "https://api.scaleway.com"
 
-// CredentialEnv lists where the key comes from (Scaleway's own
+// scalewayCredentialEnv lists where the key comes from (Scaleway's own
 // variable names) and what a Manager keeps out of child processes.
-var CredentialEnv = []string{ "SCW_SECRET_KEY", "SCW_ACCESS_KEY" }
+var scalewayCredentialEnv = []string{ "SCW_SECRET_KEY", "SCW_ACCESS_KEY" }
 
-// ErrNoCredentials means SCW_SECRET_KEY isn't set.
-var ErrNoCredentials = errors.New(
+// errNoScalewayCredentials means SCW_SECRET_KEY isn't set.
+var errNoScalewayCredentials = errors.New(
   "no Scaleway credentials: set SCW_SECRET_KEY (e.g. in " +
     "~/.config/armin/.env)",
 )
 
-// EnvClient builds a client from SCW_SECRET_KEY.
-func EnvClient(zone string) (*Client, error) {
+// scalewayEnvClient builds a client from SCW_SECRET_KEY.
+func scalewayEnvClient(zone string) (*scalewayClient, error) {
   key := os.Getenv("SCW_SECRET_KEY")
   if key == "" {
-    return nil, ErrNoCredentials
+    return nil, errNoScalewayCredentials
   }
 
-  return &Client{
+  return &scalewayClient{
     Zone:      zone,
     SecretKey: key,
     HTTP:      &http.Client{ Timeout: 30 * time.Second },
@@ -47,7 +50,7 @@ func EnvClient(zone string) (*Client, error) {
 }
 
 // Host is the address to reach the server at.
-func (s Server) Host() string {
+func (s scalewayServer) Host() string {
   if s.PublicIP != "" {
     return s.PublicIP
   }
@@ -55,10 +58,10 @@ func (s Server) Host() string {
   return s.PrivateIP
 }
 
-func (c *Client) serverURL(id, suffix string) string {
+func (c *scalewayClient) serverURL(id, suffix string) string {
   endpoint := c.Endpoint
   if endpoint == "" {
-    endpoint = DefaultEndpoint
+    endpoint = scalewayEndpoint
   }
 
   return fmt.Sprintf(
@@ -67,7 +70,7 @@ func (c *Client) serverURL(id, suffix string) string {
   )
 }
 
-func (c *Client) do(
+func (c *scalewayClient) do(
   ctx context.Context, method, u string, body, out any,
 ) error {
   var rd io.Reader
@@ -123,14 +126,14 @@ func (c *Client) do(
 }
 
 // GetServer reports one server's state and addresses.
-func (c *Client) GetServer(ctx context.Context, id string) (Server, error) {
-  var b serverBody
+func (c *scalewayClient) GetServer(ctx context.Context, id string) (scalewayServer, error) {
+  var b scalewayServerBody
   err := c.do(ctx, http.MethodGet, c.serverURL(id, ""), nil, &b)
   if err != nil {
-    return Server{}, fmt.Errorf("\n\t... in GetServer:\n\t%w", err)
+    return scalewayServer{}, fmt.Errorf("\n\t... in GetServer:\n\t%w", err)
   }
 
-  s := Server{ ID: b.Server.ID, State: b.Server.State }
+  s := scalewayServer{ ID: b.Server.ID, State: b.Server.State }
   if b.Server.PublicIP != nil {
     s.PublicIP = b.Server.PublicIP.Address
   }
@@ -149,7 +152,7 @@ func (c *Client) GetServer(ctx context.Context, id string) (Server, error) {
 }
 
 // Action runs a server action: poweron, poweroff, reboot, ...
-func (c *Client) Action(ctx context.Context, id, action string) error {
+func (c *scalewayClient) Action(ctx context.Context, id, action string) error {
   err := c.do(
     ctx, http.MethodPost, c.serverURL(id, "/action"),
     map[string]string{ "action": action }, nil,
@@ -162,19 +165,16 @@ func (c *Client) Action(ctx context.Context, id, action string) error {
 }
 
 // PowerOff stops the server and releases its hypervisor slot.
-func (c *Client) PowerOff(ctx context.Context, id string) error {
+func (c *scalewayClient) PowerOff(ctx context.Context, id string) error {
   return c.Action(ctx, id, "poweroff")
 }
-
-// StatePoll is how often WaitRunning re-reads (tests shorten it).
-var StatePoll = 3 * time.Second
 
 // WaitRunning polls until the server is running with an address,
 // powering it on if it's stopped. started reports whether this call
 // powered it on.
-func (c *Client) WaitRunning(
+func (c *scalewayClient) WaitRunning(
   ctx context.Context, id string, status func(string),
-) (srv Server, started bool, err error) {
+) (srv scalewayServer, started bool, err error) {
   last := ""
   for {
     srv, err = c.GetServer(ctx, id)

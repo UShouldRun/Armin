@@ -1,4 +1,4 @@
-package stackit
+package cloud
 
 import (
   "context"
@@ -109,7 +109,7 @@ func TestKeyFlowSignsVerifiableJWTAndCachesToken(t *testing.T) {
   defer server.Close()
   key = writeKeyFile(t, server.URL)
 
-  ts, err := EnvTokenSource()
+  ts, err := stackitEnvAuth()
   if err != nil {
     t.Fatalf("EnvTokenSource: %v", err)
   }
@@ -129,7 +129,7 @@ func TestKeyFlowSignsVerifiableJWTAndCachesToken(t *testing.T) {
 func TestStaticTokenWins(t *testing.T) {
   t.Setenv("STACKIT_SERVICE_ACCOUNT_TOKEN", "static-tok")
   t.Setenv("STACKIT_SERVICE_ACCOUNT_KEY_PATH", "/nonexistent")
-  ts, err := EnvTokenSource()
+  ts, err := stackitEnvAuth()
   if err != nil {
     t.Fatal(err)
   }
@@ -140,13 +140,13 @@ func TestStaticTokenWins(t *testing.T) {
   }
 }
 
-func TestNoCredentials(t *testing.T) {
-  for _, k := range CredentialEnv {
+func TestStackitNoCredentials(t *testing.T) {
+  for _, k := range stackitCredentialEnv {
     t.Setenv(k, "")
   }
 
-  _, err := EnvTokenSource()
-  if err != ErrNoCredentials {
+  _, err := stackitEnvAuth()
+  if err != errNoStackitCredentials {
     t.Fatalf("err = %v", err)
   }
 }
@@ -200,7 +200,7 @@ func TestWaitRunningStartsDeallocatedServer(t *testing.T) {
   server := httptest.NewServer(f)
   defer server.Close()
 
-  c := NewClient("p-1", "eu01", &TokenSource{ static: "static-tok" })
+  c := newStackitClient("p-1", "eu01", &stackitAuth{ static: "static-tok" })
   c.Endpoint = server.URL
 
   ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
@@ -227,7 +227,7 @@ func TestWaitRunningStartsDeallocatedServer(t *testing.T) {
 func TestAPIErrorIsReadable(t *testing.T) {
   server := httptest.NewServer(&FakeIaaS{ Status: "ACTIVE" })
   defer server.Close()
-  c := NewClient("p-1", "eu01", &TokenSource{ static: "wrong" })
+  c := newStackitClient("p-1", "eu01", &stackitAuth{ static: "wrong" })
   c.Endpoint = server.URL
   _, err := c.GetServer(context.Background(), "s-1")
   if err == nil || !strings.Contains(err.Error(), "HTTP 401: unauthorized") {

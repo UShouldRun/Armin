@@ -1182,9 +1182,11 @@ internal/
   think/       the mind: sandbox, models, agent loop, notes, system prompts
   display/     how it's shown: REPL, -web, -lsp, -mcp, or joining the project's instance
   share/       one armin per project: the socket, the Host interface, joining
-  agent/       tool-calling round trip, approvals, context trimming/compaction
+  agent/       the tool table (one spec per tool), the turn loop, approvals, context management
   llm/         llama-server HTTP client (chat + tool calling, streaming, infill completion)
   llamacpp/    spawns/health-polls/idle-reaps managed llama-server processes, hands out llm.Clients
+  cloud/       starts and stops remote GPU machines: AWS EC2, STACKIT, Scaleway
+  catalog/     OpenRouter's model list and prices, for /model and the pickers
   tools/       the tool implementations (pure functions)
   sandbox/     path jail, allowlist, timeouts, truncation, dry-run
   ctags/       symbol index backing find_definition/list_symbols/etc. and -lsp
@@ -1203,4 +1205,3 @@ editors/nvim/armin.lua    Neovim integration (see docs/nvim.md)
 skills/                   bundled skills, installed by install.sh
 ```
 
-See `plan.md` for the original design rationale and phased build plan.

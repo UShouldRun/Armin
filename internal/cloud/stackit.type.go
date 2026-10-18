@@ -1,4 +1,4 @@
-package stackit
+package cloud
 
 import (
   "crypto/rsa"
@@ -7,9 +7,9 @@ import (
   "time"
 )
 
-// TokenSource hands out bearer tokens: a static one, or short-lived
+// stackitAuth hands out bearer tokens: a static one, or short-lived
 // ones from the key flow, refreshed before they expire.
-type TokenSource struct {
+type stackitAuth struct {
   static string
 
   creds    keyCredentials
@@ -35,21 +35,21 @@ type keyFile struct {
   Credentials *keyCredentials `json:"credentials"`
 }
 
-// Client calls the IaaS v2 API for one project and region.
-type Client struct {
+// stackitClient calls the IaaS v2 API for one project and region.
+type stackitClient struct {
   ProjectID, Region string
-  Auth              *TokenSource
+  Auth              *stackitAuth
   HTTP              *http.Client
   Endpoint          string // tests override; default DefaultIaaSEndpoint
 }
 
-// Server is what GetServer reports.
-type Server struct {
+// stackitServer is what GetServer reports.
+type stackitServer struct {
   ID, Status, PowerStatus string
   PublicIP, PrivateIP     string
 }
 
-type serverBody struct {
+type stackitServerBody struct {
   ID          string `json:"id"`
   Status      string `json:"status"`
   PowerStatus string `json:"powerStatus"`
