@@ -1,3 +1,6 @@
+// The Loop's configuration and state, the Hooks a frontend passes to
+// a turn, a Proposal shown before a write or a run, and a turn's state.
+
 package agent
 
 import (
@@ -149,4 +152,25 @@ type Proposal struct {
   // A run: the command line, where it runs, and the script it
   // runs, if one of its arguments is a file in the project.
   Command, Dir, Script string
+}
+
+// turn is one Turn's state across its rounds.
+type turn struct {
+  l        *Loop
+  hooks    Hooks
+  client   *llm.Client // l.LLM, or a copy at the turn's effort
+  history  *[]llm.Message
+  start    int // where this turn's messages begin in history
+  sources  *turnSources
+
+  // the repeat guard (see run): call key → its error since the last
+  // success, run calls → their last result, the call before
+  failed   map[string]string
+  ran      map[string]string
+  lastCall string
+  blocked  int // repeats refused this turn
+
+  declined map[string]bool // directories the user refused this turn
+  stuck    stall
+  verified bool
 }

@@ -1,3 +1,11 @@
+// Keeping a long session inside the model's window. After each
+// model call manageContext asks Decide (policy.go) what the next
+// request needs: trimming old tool results to stubs (archived to the
+// scratchpad first), saving notes and compacting older history into a
+// summary, or moving to the larger streamed window. endTurn and
+// ElideOld shrink finished turns; hintCompact offers the user a
+// compaction before it becomes urgent.
+
 package agent
 
 import (
@@ -201,7 +209,8 @@ func (l *Loop) elide(msgs []llm.Message, soft bool) (saved int) {
       }
 
       if stub["archived"] == nil {
-        stub["note"] = "old result dropped to save context; call again if needed"
+        stub["note"] = "old result dropped to save context; " +
+          "call again if needed"
       }
 
       raw, _ := json.Marshal(stub)
@@ -472,7 +481,8 @@ func (l *Loop) saveBeforeCompact(
     return
   }
 
-  notice(hooks, "context nearly full — letting the model save notes before compacting")
+  notice(hooks, "context nearly full — letting the model save "+
+    "notes before compacting")
   ask := make([]llm.Message, len(history), len(history) + 1 + saveRounds * 2)
   copy(ask, history)
   ask = append(ask, llm.Message{ Role: "user", Content: saveNote })
@@ -517,7 +527,8 @@ func (l *Loop) compact(
 ) {
   h := *history
   l.elide(h[:keptFrom(h, 1)], false)
-  if convo.Analyze(h).ApproxTokens <= l.window() * DefaultCompactAt / 100 * 2 / 3 {
+  enough := l.window() * DefaultCompactAt / 100 * 2 / 3
+  if convo.Analyze(h).ApproxTokens <= enough {
     return
   }
 

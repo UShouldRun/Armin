@@ -1,3 +1,5 @@
+// Tool identifiers.
+
 package agent
 
 // ToolID identifies a tool internally. The model speaks names (the

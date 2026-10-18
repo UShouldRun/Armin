@@ -1,3 +1,5 @@
+// The tool table's entry, its run function and arguments.
+
 package agent
 
 import (

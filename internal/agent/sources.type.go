@@ -1,3 +1,5 @@
+// A turn's web sources.
+
 package agent
 
 type source struct {

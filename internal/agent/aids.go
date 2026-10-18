@@ -1,3 +1,9 @@
+// Reasoning aids (aids = in config.conf): stall counts failures and
+// asks the model to step back, addProcedure appends steps for the kind
+// of task, verify checks the work before the answer stands; and the
+// effort lines Qwen3.8 is trained on, put at the top of the system
+// prompt.
+
 package agent
 
 import (

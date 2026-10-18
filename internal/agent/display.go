@@ -1,3 +1,7 @@
+// How a tool call and its result read on screen, for every frontend:
+// CallLine (the call, arguments in full), Activity (the short status
+// while it runs), ResultLine (one line on what came back).
+
 package agent
 
 import (
@@ -106,7 +110,8 @@ func CallLine(name string, args map[string]any) string {
     return name + "  " + str("topic")
 
   case toolWriteFile:
-    return fmt.Sprintf("%s  %s (%d lines)", name, str("path"), lines(args["content"]))
+    n := lines(args["content"])
+    return fmt.Sprintf("%s  %s (%d lines)", name, str("path"), n)
 
   case toolEditFile:
     line := fmt.Sprintf(
@@ -130,7 +135,8 @@ func CallLine(name string, args map[string]any) string {
       verb = "append"
     }
 
-    return fmt.Sprintf("%s  %s %s (%d lines)", name, verb, str("name"), lines(args["content"]))
+    n := lines(args["content"])
+    return fmt.Sprintf("%s  %s %s (%d lines)", name, verb, str("name"), n)
   }
 
   // Everything else: name(key=value, ...), sorted, values whole.
@@ -342,7 +348,8 @@ func ResultLine(name, result string) string {
     out := strings.TrimSpace(str("stdout") + str("stderr"))
     line := fmt.Sprintf("exit %d", num("exit_code"))
     if out != "" {
-      line += " · " + plural(strings.Count(out, "\n") + 1, "line") + " of output"
+      n := strings.Count(out, "\n") + 1
+      line += " · " + plural(n, "line") + " of output"
     }
 
     return line
@@ -351,7 +358,8 @@ func ResultLine(name, result string) string {
     out := strings.TrimSpace(str("output"))
     line := fmt.Sprintf("exit %d", num("exit_code"))
     if out != "" {
-      line += " · " + plural(strings.Count(out, "\n") + 1, "line") + " of output"
+      n := strings.Count(out, "\n") + 1
+      line += " · " + plural(n, "line") + " of output"
     }
 
     if num("exit_code") != 0 {
@@ -396,7 +404,8 @@ func ResultLine(name, result string) string {
       return fmt.Sprintf("created, %d lines", num("lines_added"))
     }
 
-    return fmt.Sprintf("+%d −%d lines", num("lines_added"), num("lines_removed"))
+    added, removed := num("lines_added"), num("lines_removed")
+    return fmt.Sprintf("+%d −%d lines", added, removed)
   }
 
   return sizeOf(result)
@@ -487,6 +496,7 @@ func domains(results []any, n int) string {
       seen[host] = true
       out = append(out, host)
     }
+
     if len(out) == n {
       break
     }

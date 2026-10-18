@@ -1,3 +1,7 @@
+// Web citations: number puts one running id on every web_search
+// result in a turn, appendix adds a Sources list when the answer
+// cited ids but didn't list them.
+
 package agent
 
 import (
@@ -42,7 +46,9 @@ func (ts *turnSources) number(out *tools.WebSearchOutput) {
 
 var (
   citeRef       = regexp.MustCompile(`\[(\d{1,3})\]`)
-  sourcesHeader = regexp.MustCompile(`(?im)^\s*(#+\s*)?\**sources\**\s*:?\s*\**\s*$`)
+  sourcesHeader = regexp.MustCompile(
+    `(?im)^\s*(#+\s*)?\**sources\**\s*:?\s*\**\s*$`,
+  )
 )
 
 // appendix is the Sources list an answer lacks, or "" when the

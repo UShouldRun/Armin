@@ -1,7 +1,11 @@
+// The context policy as pure functions of a ContextState: how full
+// the window is and what to do about it, kept apart from the loop so
+// it's easy to read and test.
+
 package agent
 
 const (
-  ActTrim    Action = 1 << iota // stub old tool results (archived to the scratchpad)
+  ActTrim    Action = 1 << iota // stub old tool results (archived first)
   ActSave                       // let the model save notes before compacting
   ActCompact                    // summarize older history
   ActGrow                       // move to the streaming window

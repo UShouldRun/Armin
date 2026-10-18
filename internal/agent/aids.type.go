@@ -1,3 +1,5 @@
+// Reasoning aid flags, task kinds and the stall counter.
+
 package agent
 
 // Aids are the reasoning aids a Loop applies; one bit each.

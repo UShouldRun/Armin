@@ -1,3 +1,5 @@
+// The context policy's inputs and outcomes.
+
 package agent
 
 import (

@@ -1,3 +1,7 @@
+// Effort: how hard the model thinks on a task. ParseEffort and Wire
+// translate levels; Assess asks the model to judge a request (effort
+// and kind of task) and PlanTurn decides when to ask.
+
 package agent
 
 import (
