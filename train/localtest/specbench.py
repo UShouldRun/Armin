@@ -76,9 +76,16 @@ def main():
   q8 = [ "-ctk", "q8_0", "-ctv", "q8_0" ]
   rows = []
   m0 = models[0]
-  for spec in [ "none", "ngram-simple", "ngram-map-k", "ngram-map-k4v", "ngram-mod", "ngram-cache" ]:
+  # SPECS=none,ngram-mod times only those; ONLY_SPEC=1 skips the rest
+  specs = os.environ.get("SPECS", "none,ngram-simple,ngram-map-k,ngram-map-k4v,ngram-mod,ngram-cache")
+  for spec in specs.split(","):
     args = q8 + ([] if spec == "none" else [ "--spec-type", spec ])
     rows.append((os.path.basename(m0), "q8_0", spec, bench(spec, m0, args, [ "edit", "prose" ])))
+
+  if os.environ.get("ONLY_SPEC"):
+    models = models[:1]
+    write(rows, os.environ.get("OUT", "SPEED.md"))
+    return
 
   for kv in [ "q8_0", "q4_0" ]:
     rows.append((os.path.basename(m0), kv, "none", bench("kv-" + kv, m0,
@@ -88,12 +95,16 @@ def main():
     rows.append((os.path.basename(m), "q8_0", "none", bench("model-" + os.path.basename(m), m,
       q8, [ "edit", "prose", "long" ])))
 
-  lines = [ "# Speed of llama-server options (K2 Horizon 7B, RTX 4060 8 GB)", "",
+  write(rows, os.environ.get("OUT", "SPEED.md"))
+
+
+def write(rows, name):
+  lines = [ "# Speed of llama-server options (RTX 4060 8 GB)", "",
     "| model | KV | speculation | edit (copy-heavy) | prose | long context |", "|---|---|---|---|---|---|" ]
   for model, kv, spec, out in rows:
     lines.append(f"| {model} | {kv} | {spec} | {out.get('edit', '')} | {out.get('prose', '')} | {out.get('long', '')} |")
 
-  open(os.path.join(HERE, "out", "SPEED.md"), "w").write("\n".join(lines) + "\n")
+  open(os.path.join(HERE, "out", name), "w").write("\n".join(lines) + "\n")
   print("\n".join(lines))
 
 

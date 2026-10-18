@@ -31,6 +31,7 @@ ARGS = [ "--jinja", "-ngl", os.environ.get("NGL", "999"), "-c", os.environ.get("
   "-np", "1", "-fa", "on", "-ctk", os.environ.get("KV", "q8_0"), "-ctv", os.environ.get("KV", "q8_0"), "-cram", "1024",
   *os.environ.get("EXTRA", "").split() ]
 EFFORT = [ "-effort", os.environ["EFFORT"] ] if os.environ.get("EFFORT") else []
+EFFORT += [ "-aids", os.environ["AIDS"] ] if os.environ.get("AIDS") else []
 
 
 def wait_http(url, secs):
