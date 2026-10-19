@@ -59,6 +59,9 @@ const (
   // host (catalog.Regional): one that falls back to the global host
   // when the region refuses, unlike a regional URL configured as such.
   SpecRegional
+  // SpecPrivate asks OpenRouter for providers that neither keep nor
+  // train on prompts (llm.Client.Private).
+  SpecPrivate
   SpecAll = SpecVision | SpecNoLean
 )
 
@@ -220,7 +223,7 @@ func (m *Manager) Switch(ctx context.Context, client *llm.Client, name string) e
 
   client.BaseURL = url
   client.Model = name
-  client.ID, client.Effort = m.id(name)
+  client.ID, client.Effort, client.Private = m.id(name)
   client.APIKey = m.apiKey(name)
   client.OnRequestStart, client.OnRequestEnd = m.callbacks(name)
   client.Ready = m.ready(name)
@@ -323,7 +326,7 @@ func (m *Manager) ready(name string) func(ctx context.Context) error {
 
 func (m *Manager) newClientFor(name, url string) *llm.Client {
   c := llm.New(url, name)
-  c.ID, c.Effort = m.id(name)
+  c.ID, c.Effort, c.Private = m.id(name)
   c.ReadTimeout = m.ReadTimeout
   c.APIKey = m.apiKey(name)
   c.OnRequestStart, c.OnRequestEnd = m.callbacks(name)
@@ -375,12 +378,14 @@ func (m *Manager) apiKey(name string) string {
   return os.Getenv(envName)
 }
 
-// id is name's hosted-API model id and reasoning effort, if set.
-func (m *Manager) id(name string) (id, effort string) {
+// id is name's hosted-API model id, reasoning effort and privacy.
+func (m *Manager) id(name string) (id, effort string, private bool) {
   m.mu.Lock()
   defer m.mu.Unlock()
 
-  return m.specs[name].ID, m.specs[name].Effort
+  spec := m.specs[name]
+
+  return spec.ID, spec.Effort, spec.Flags & SpecPrivate != 0
 }
 
 func (m *Manager) callbacks(name string) (start, end func()) {

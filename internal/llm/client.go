@@ -254,6 +254,10 @@ func (c *Client) request(
     reqBody.TemplateKwargs, reqBody.ThinkBudget = localEffort(c.Effort)
   }
 
+  if c.Private && hosted {
+    reqBody.Provider = &privateProvider
+  }
+
   if reqBody.Stream {
     reqBody.StreamOptions = &owaiStreamOptions{ IncludeUsage: true }
     // Only for llama-server (no API key): a hosted API may reject a
@@ -264,6 +268,9 @@ func (c *Client) request(
   return reqBody
 }
 
+
+// privateProvider is Client.Private's routing: shared, never written.
+var privateProvider = owaiProvider{ DataCollection: "deny", ZDR: true }
 
 // infillSamplers is llama.vim's chain: top-k/top-p narrow, the
 // infill sampler favors ending cleanly at the suffix.

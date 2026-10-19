@@ -101,6 +101,10 @@ func buildModelSpecs(opts *input.Options) map[string]llamacpp.ModelSpec {
       spec.Flags |= llamacpp.SpecVision
     }
 
+    if c.Private {
+      spec.Flags |= llamacpp.SpecPrivate
+    }
+
     if c.NoLean {
       spec.Flags |= llamacpp.SpecNoLean
     }

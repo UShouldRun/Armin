@@ -27,7 +27,7 @@ Main groups:
 - `model`, `completion_model`: which `models.<name>` to start on
 - `models.<name>.*`: a local llama-server (`binary`, `model_path`,
   `port`, `args`), a hosted API (`url`, `api_key_env`, `id`,
-  `reasoning`, `region`) or a cloud machine (`aws_instance`,
+  `reasoning`, `region`, `private`) or a cloud machine (`aws_instance`,
   `stackit_server`, `scaleway_server`, ...)
 - `effort`, `aids`: how hard models think, the reasoning aids
 - `library`: the reference library's folder

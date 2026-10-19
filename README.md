@@ -604,6 +604,15 @@ for the rest of the session. A URL written as `eu.openrouter.ai` (or
 `us.`) in the config never falls back — it stays in the region or
 fails.
 
+OpenRouter forwards each request to a provider that hosts the model,
+and some providers keep prompts or train on them. `models.<name>.private
+= true` sends only to providers that collect nothing and keep nothing
+(OpenRouter's `data_collection: deny` and zero data retention). A model
+no such provider serves then fails with OpenRouter's "no endpoints"
+error instead of going to one that logs. Off by default; OpenRouter's
+own privacy settings (openrouter.ai/settings/privacy) do the same for
+every request from the key.
+
 `/model planner` (or `:ArminModel planner`) first asks which
 OpenRouter model to use — its own id first, Enter keeps it, a number
 picks a suggestion, any `vendor/model` id works — and the same

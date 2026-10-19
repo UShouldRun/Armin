@@ -374,6 +374,15 @@ func applyModel(cfg *Config, name, field, value string) error {
     }
 
     spec.Vision = b
+  case "private":
+    b, err := strconv.ParseBool(value)
+    if err != nil {
+      return fmt.Errorf(
+        "\n\t... in applyModel:\n\t models.%s.private: %w", name, err,
+      )
+    }
+
+    spec.Private = b
   case "stream_binary":
     spec.StreamBinary = value
   case "stream_context", "stream_arena_mib":

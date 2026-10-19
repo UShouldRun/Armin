@@ -90,6 +90,48 @@ func TestChoreTurnsOffHostedReasoning(t *testing.T) {
   }
 }
 
+func TestPrivateSendsProviderPolicy(t *testing.T) {
+  var got map[string]any
+  path := "/v1/chat/completions"
+  server := serverReturning(t, path, func(w http.ResponseWriter, r *http.Request) {
+    got = nil
+    err := json.NewDecoder(r.Body).Decode(&got)
+    if err != nil {
+      t.Fatal(err)
+    }
+
+    json.NewEncoder(w).Encode(owaiChatResponse{
+      Choices: []owaiChoice{
+        { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
+      },
+    })
+  })
+
+  msgs := []Message{ { Role: "user", Content: "hey" } }
+  client := New(server.URL, "fake-model")
+  client.Private = true
+  _, err := client.Chat(context.Background(), msgs, nil, nil)
+  if err != nil {
+    t.Fatalf("Chat: %v", err)
+  }
+
+  // a local llama-server never gets OpenRouter's field
+  if got["provider"] != nil {
+    t.Fatalf("local request carried provider %v", got["provider"])
+  }
+
+  client.APIKey = "key"
+  _, err = client.Chat(context.Background(), msgs, nil, nil)
+  if err != nil {
+    t.Fatalf("Chat: %v", err)
+  }
+
+  p, _ := got["provider"].(map[string]any)
+  if p["data_collection"] != "deny" || p["zdr"] != true {
+    t.Fatalf("provider = %v, want data_collection deny, zdr true", p)
+  }
+}
+
 func TestChatSendsToolCallArgumentsAsJSONString(t *testing.T) {
   server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
     var raw map[string]any

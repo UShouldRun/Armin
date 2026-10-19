@@ -22,6 +22,9 @@ Every model, local or hosted, speaks the OpenAI-compatible
 - **Effort** reaches a hosted model as OpenRouter's `reasoning.effort`
   and a local one as its chat template's switches plus a thinking
   token budget.
+- **Private** (`models.<name>.private = true`) adds OpenRouter's
+  `provider: {data_collection: deny, zdr: true}`: only providers that
+  keep nothing; with none for the model, the request fails.
 - `Chore()` is the same model with thinking off, for background work
   (summaries, titles, cataloging).
 - `Complete` is inline code completion (llama-server's `/infill`).

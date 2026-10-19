@@ -122,6 +122,12 @@ type Client struct {
   // switches and a thinking budget it maps to (see localEffort).
   Effort string
 
+  // Private, on a hosted API, asks OpenRouter to route only to
+  // providers that don't collect prompts and keep nothing (zero data
+  // retention). With no such provider for the model, the request
+  // fails rather than going to one that logs.
+  Private bool
+
   // APIKey, if set, is sent as "Authorization: Bearer <APIKey>" on
   // every request — for a remote OpenAI-compatible endpoint that
   // needs auth (Claude's, an OpenRouter/LiteLLM proxy, ...), unlike
@@ -306,6 +312,9 @@ type owaiChatRequest struct {
   // Reasoning is OpenRouter's thinking budget, sent only when set.
   Reasoning *owaiReasoning `json:"reasoning,omitempty"`
 
+  // Provider is OpenRouter's routing preferences: Client.Private.
+  Provider *owaiProvider `json:"provider,omitempty"`
+
   // llama-server's: the chat template's own switches
   // (enable_thinking, reasoning_effort) and a hard cap on thinking
   // tokens, for models whose template has no effort levels.
@@ -315,6 +324,11 @@ type owaiChatRequest struct {
 
 type owaiReasoning struct {
   Effort string `json:"effort"`
+}
+
+type owaiProvider struct {
+  DataCollection string `json:"data_collection"` // "deny"
+  ZDR            bool   `json:"zdr"`
 }
 
 type owaiChoice struct {

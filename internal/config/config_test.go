@@ -405,6 +405,29 @@ models.qwen.model_path             = /models/q.gguf
   }
 }
 
+func TestLoadParsesPrivate(t *testing.T) {
+  withConfigDir(t)
+  writeConfig(t, `
+models.planner.url     = https://openrouter.ai/api/v1
+models.planner.private = true
+`)
+
+  cfg, err := Load()
+  if err != nil {
+    t.Fatalf("Load: %v", err)
+  }
+
+  if !cfg.Models["planner"].Private {
+    t.Fatalf("planner = %+v", cfg.Models["planner"])
+  }
+
+  writeConfig(t, "models.planner.private = maybe\n")
+  _, err = Load()
+  if err == nil {
+    t.Fatal("private = maybe was accepted")
+  }
+}
+
 func TestLoadParsesStackitModel(t *testing.T) {
   withConfigDir(t)
   writeConfig(t, `
