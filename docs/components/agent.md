@@ -63,6 +63,9 @@ After every model call (`context.go`, `policy.go`):
 | 50–75% | old tool results become one-line stubs, archived to the scratchpad first |
 | 60–75% | the model offers the user a compaction at a good moment |
 | > 75% | compact older history into a summary, or move to the larger streamed window when most of the history is the current task |
+| still > 50% after that | one long task fills the window alone: its older tool results and reasoning are archived to the scratchpad, the latest exchange stays |
+
+`read_file` returns at most 400 lines or 16 KiB per call, with `next_line` to continue, so one log can't fill a small window.
 
 ## Reasoning aids
 

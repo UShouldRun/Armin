@@ -17,6 +17,11 @@ import (
 // files don't force the model into a pointless round trip.
 const maxWholeFileLines = 400
 
+// maxReadBytes caps one read, range or not: about 4–5k tokens. A
+// longer read ends early and says where to go on (NextLine), so one
+// log or minified file can't fill a small model's window.
+const maxReadBytes = 16 * 1024
+
 // ReadFile reads a line range from a sandboxed file. For files longer
 // than maxWholeFileLines, a range is required — this forces the
 // model to search first, then read narrowly, rather than dumping
@@ -66,10 +71,7 @@ func ReadFile(
         in.Path, s_lines, maxWholeFileLines,
       )
     }
-    return &ReadFileOutput{
-      Content:    strings.Join(lines, "\n"),
-      TotalLines: s_lines,
-    }, nil
+    return capRead(lines, 1, s_lines), nil
   }
 
   start, end := in.StartLine, in.EndLine
@@ -92,11 +94,30 @@ func ReadFile(
     )
   }
 
-  selected := lines[start - 1 : end]
-  return &ReadFileOutput{
-    Content:    strings.Join(selected, "\n"),
-    TotalLines: s_lines,
-  }, nil
+  return capRead(lines[start - 1 : end], start, s_lines), nil
+}
+
+// capRead joins the selected lines, from line first on, stopping at
+// maxWholeFileLines lines or maxReadBytes bytes, whichever comes
+// first. A cut read is Truncated, with NextLine where to resume.
+func capRead(selected []string, first, total int) *ReadFileOutput {
+  out := &ReadFileOutput{ TotalLines: total }
+  n, size := 0, 0
+  for n < len(selected) && n < maxWholeFileLines {
+    size += len(selected[n]) + 1
+    if size > maxReadBytes && n > 0 {
+      break
+    }
+
+    n++
+  }
+
+  out.Content = strings.Join(selected[:n], "\n")
+  if n < len(selected) {
+    out.Truncated, out.NextLine = true, first + n
+  }
+
+  return out
 }
 
 func readLines(f *os.File) ([]string, error) {

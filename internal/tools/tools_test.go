@@ -53,6 +53,33 @@ func TestReadFileWholeSmallFile(t *testing.T) {
   }
 }
 
+func TestReadFileCapsLongReads(t *testing.T) {
+  cfg := newTestSandbox(t, sandbox.Options{})
+
+  // 300 lines of 100 bytes: under the line threshold, over the bytes
+  line := strings.Repeat("x", 99) + "\n"
+  writeFile(t, cfg.Root, "log.txt", strings.Repeat(line, 300))
+
+  // 1-0 is "to the end": the read that once returned a whole log
+  in := ReadFileInput{ Path: "log.txt", StartLine: 1 }
+  out, err := ReadFile(context.Background(), cfg, in)
+  if err != nil {
+    t.Fatalf("ReadFile: %v", err)
+  }
+
+  if !out.Truncated || len(out.Content) > maxReadBytes ||
+    out.NextLine != maxReadBytes / 100 + 1 {
+    t.Fatalf("truncated %v, %d bytes, next_line %d",
+      out.Truncated, len(out.Content), out.NextLine)
+  }
+
+  in.StartLine = out.NextLine
+  out, err = ReadFile(context.Background(), cfg, in)
+  if err != nil || out.Truncated || out.NextLine != 0 {
+    t.Fatalf("resumed read: %+v, %v", out, err)
+  }
+}
+
 func TestReadFileRequiresRangeAboveThreshold(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
 

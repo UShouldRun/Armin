@@ -2,8 +2,9 @@
 // model call manageContext asks Decide (policy.go) what the next
 // request needs: trimming old tool results to stubs (archived to the
 // scratchpad first), saving notes and compacting older history into a
-// summary, or moving to the larger streamed window. endTurn and
-// ElideOld shrink finished turns; hintCompact offers the user a
+// summary, or moving to the larger streamed window; trimTurn is the
+// last resort when one long task fills the window by itself. endTurn
+// and ElideOld shrink finished turns; hintCompact offers the user a
 // compaction before it becomes urgent.
 
 package agent
@@ -197,19 +198,19 @@ func (l *Loop) elide(msgs []llm.Message, soft bool) (saved int) {
       }
 
       what := describeCall(m.ToolName, calls[m.ToolCallID])
-      stub := map[string]any{ "elided": what, "bytes": len(m.Content) }
+      stub := elidedStub{ Elided: what, Bytes: len(m.Content) }
       if l.Scratch != nil {
         name, start, end, err := l.Scratch.Archive(what, m.Content)
         if err == nil {
-          stub["archived"] = fmt.Sprintf(
+          stub.Archived = fmt.Sprintf(
             "scratchpad_read name=%s start_line=%d end_line=%d",
             name, start, end,
           )
         }
       }
 
-      if stub["archived"] == nil {
-        stub["note"] = "old result dropped to save context; " +
+      if stub.Archived == "" {
+        stub.Note = "old result dropped to save context; " +
           "call again if needed"
       }
 
@@ -389,12 +390,69 @@ func (l *Loop) manageContext(
     }
   }
 
+  // One long turn can hold most of the window by itself: earlier
+  // turns are already stubs and compaction keeps the latest messages
+  // verbatim, so the turn's own older results have to go.
+  if act & ActCompact != 0 && l.Estimate(*history) > l.enough() {
+    saved := l.trimTurn(*history)
+    if saved > 0 {
+      notice(hooks,
+        "this task alone fills the context — archived its older tool "+
+          "results and reasoning (~%dk tokens)",
+        saved / 4000,
+      )
+    }
+  }
+
   after = convo.Analyze(*history).ApproxTokens
   if hooks.Compacted != nil && after < before {
     hooks.Compacted(before, after)
   }
 
   return true
+}
+
+// enough is what compacting aims under: two thirds of the compaction
+// threshold, so the next few tool results fit before it comes back.
+func (l *Loop) enough() int {
+  return l.window() * DefaultCompactAt / 100 * 2 / 3
+}
+
+// trimTurn shrinks the current turn: tool results before its latest
+// exchange become stubs (archived to the scratchpad first) and its
+// older reasoning moves to the thinking file. If the latest results
+// alone still don't fit, they go too: the model re-reads the archive
+// in ranges. Costs the prompt cache, but the request fits.
+func (l *Loop) trimTurn(h []llm.Message) (saved int) {
+  from := keptFrom(h, 1)
+  last := len(h) - 1
+  for last > from && h[last].Role != "assistant" {
+    last--
+  }
+
+  var thoughts strings.Builder
+  for i := from; i < last; i++ {
+    if h[i].Reasoning != "" {
+      thoughts.WriteString(strings.TrimSpace(h[i].Reasoning))
+      thoughts.WriteString("\n\n")
+      saved += len(h[i].Reasoning)
+      h[i].Reasoning = ""
+    }
+  }
+
+  if l.Scratch != nil && thoughts.Len() > 0 {
+    label := time.Now().Format("2006-01-02 15:04") + " — " +
+      turnTopic(h, from) + " (trimmed mid-task)"
+    note := "## " + label + "\n" + thoughts.String()
+    l.Scratch.Write(thinkingFile, note, true)
+  }
+
+  saved += l.elide(h[from:last], true)
+  if l.Estimate(h) > l.window() * 90 / 100 {
+    saved += l.elide(h[last:], false)
+  }
+
+  return saved
 }
 
 // compactHint is the note behind SuggestCompact. It goes in as its
@@ -527,8 +585,7 @@ func (l *Loop) compact(
 ) {
   h := *history
   l.elide(h[:keptFrom(h, 1)], false)
-  enough := l.window() * DefaultCompactAt / 100 * 2 / 3
-  if convo.Analyze(h).ApproxTokens <= enough {
+  if convo.Analyze(h).ApproxTokens <= l.enough() {
     return
   }
 

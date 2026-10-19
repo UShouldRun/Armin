@@ -239,3 +239,39 @@ func TestAutoCompactBeforeOverflow(t *testing.T) {
     t.Fatalf("history[1] = %q, want the summary", history[1].Content)
   }
 }
+
+func TestTrimTurnShrinksOneLongTask(t *testing.T) {
+  loop := &Loop{ ContextSize: 16000 } // the tool definitions take ~4.5k
+  big := strings.Repeat("log line\n", 1000) // ~9 KB, ~2k tokens
+  history := []llm.Message{
+    { Role: "system", Content: "sys" },
+    { Role: "user", Content: "count the 5xx clients" },
+  }
+
+  for i, id := range []string{ "a", "b", "c" } {
+    history = append(history,
+      llm.Message{ Role: "assistant", Reasoning: strings.Repeat("hm ", 500),
+        ToolCalls: []llm.ToolCall{ call(id, "read_file",
+          map[string]any{ "path": "access.log", "start_line": i + 1 }) } },
+      llm.Message{ Role: "tool", ToolName: "read_file", ToolCallID: id,
+        Content: big },
+    )
+  }
+
+  saved := loop.trimTurn(history)
+  if saved == 0 || loop.Estimate(history) > loop.enough() {
+    t.Fatalf("saved %d, estimate %d, want under %d",
+      saved, loop.Estimate(history), loop.enough())
+  }
+
+  // older results are stubs; the latest exchange stays whole
+  if !strings.HasPrefix(history[3].Content, elidedPrefix) ||
+    history[2].Reasoning != "" {
+    t.Fatalf("older exchange kept: %.40q", history[3].Content)
+  }
+
+  n := len(history)
+  if history[n - 1].Content != big || history[n - 2].Reasoning == "" {
+    t.Fatal("latest exchange was trimmed")
+  }
+}
