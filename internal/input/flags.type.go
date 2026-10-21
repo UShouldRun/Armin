@@ -20,7 +20,7 @@ type cliFlags struct {
   autoApprove, newInstance                  bool
   librarySync                               bool
   libraryAdd, libraryTo, effort, aids       string
-  install, installTo                        string
+  install, installTo, uninstall             string
 }
 
 // resumeFlag is -resume: a bool flag that can also carry a value.

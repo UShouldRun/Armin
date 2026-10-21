@@ -4,7 +4,8 @@
 // it will load, how fast it will generate and read prompts, and what
 // limits each — the GPU's memory bus, system RAM's, PCIe, compute,
 // the context memory — with the numbers behind it. Then it
-// downloads the model and adds it to config.conf.
+// downloads the model and adds it to config.conf; -uninstall takes
+// one out again.
 //
 //   install.go   Run: resolve → probe → read header → decide →
 //                report → download → configure → benchmark
@@ -16,6 +17,7 @@
 //   hub.go       Hugging Face: listing, header ranges, downloading
 //   llama.go     the llama-server build's architectures, llama-bench
 //   conf.go      the models.<name> block for config.conf
+//   uninstall.go -uninstall: the block and the files, out again
 package install
 
 import (
@@ -90,29 +92,56 @@ func Run(ctx context.Context, req Request) error {
     }
   }
 
-  p := decide(&m, &hw, need(src, dir))
-  known, checked := knowsArch(binary, m.Arch)
-  if checked && !known && m.NoRuntime == "" {
-    p.add(VerdictWontLoad, CauseRuntime, fmt.Sprintf(
-      "%s doesn't know the %q architecture: update llama.cpp first",
-      binary, m.Arch,
-    ))
+  // Decide, show, ask; naming another of the repo's quantizations
+  // at the question reads that one and goes round again.
+  var p Plan
+  for first := true; ; first = false {
+    p = decide(&m, &hw, need(src, dir))
+    known, checked := knowsArch(binary, m.Arch)
+    if checked && !known && m.NoRuntime == "" {
+      p.add(VerdictWontLoad, CauseRuntime, fmt.Sprintf(
+        "%s doesn't know the %q architecture: update llama.cpp first",
+        binary, m.Arch,
+      ))
+    }
+
+    if !first {
+      fmt.Println()
+    }
+
+    printModel(&m, size)
+    if first {
+      printMachine(&hw, dir)
+    }
+
+    printPlan(&m, &p)
+    if len(src.Groups) > 1 {
+      printAlternatives(alternatives(&m, &hw, src))
+    }
+
+    fmt.Println()
+    choice := confirm(in, req.Yes, src, dir, p.Verdict)
+    if choice == choiceNo {
+      if p.Verdict == VerdictWontLoad {
+        return errors.New("not installed: it won't load on this machine")
+      }
+
+      return nil
+    }
+
+    if choice == choiceYes {
+      break
+    }
+
+    src.Pick = choice
+    m, size, err = readSource(ctx, client, src)
+    if err != nil {
+      return fmt.Errorf("\n\t... in Run:\n\t%w", err)
+    }
   }
 
-  printModel(&m, size)
-  printMachine(&hw, dir)
-  printPlan(&m, &p)
-  if len(src.Groups) > 1 {
-    printAlternatives(alternatives(&m, &hw, src))
-  }
-
-  fmt.Println()
-  if p.Verdict == VerdictWontLoad {
-    return errors.New("not installed: it won't load on this machine")
-  }
-
-  path, err := fetchSource(ctx, client, src, dir, p.Verdict, ask)
-  if err != nil || path == "" {
+  path, err := fetchSource(ctx, client, src, dir)
+  if err != nil {
     return err
   }
 
@@ -287,36 +316,101 @@ func wideBit(label string) bool {
   return false
 }
 
-// fetchSource asks, then downloads the picked group into dir; it
-// returns the path config.conf should name (a split model's first
-// part), or "" when the user declined.
-func fetchSource(
-  ctx context.Context, c *http.Client, src *source, dir string,
-  v Verdict, ask func(string, bool) bool,
-) (string, error) {
+const (
+  choiceYes = -1
+  choiceNo  = -2
+)
+
+// confirm asks whether to go ahead with the picked model: yes, no,
+// or, for a repo, the label of another quantization to look at
+// (returned as its index). A model that won't load can't be said
+// yes to, only swapped.
+func confirm(in *bufio.Reader, yes bool, src *source, dir string, v Verdict) int {
+  if yes {
+    if v == VerdictWontLoad {
+      return choiceNo
+    }
+
+    return choiceYes
+  }
+
+  others := len(src.Groups) > 1
+  var q string
+  switch {
+  case v == VerdictWontLoad && !others:
+    return choiceNo
+  case v == VerdictWontLoad:
+    q = "it won't load — another quantization from the list? [name, or Enter to stop] "
+  case src.Local != "":
+    q = "add it to config.conf?"
+  default:
+    g := src.Groups[src.Pick]
+    q = fmt.Sprintf("download %s (%s) to %s?", g.Label, gb(g.Size), dir)
+  }
+
+  if v == VerdictTooSlow {
+    q = "it would be too slow to use — " + q
+  }
+
+  def := v != VerdictTooSlow
+  if v != VerdictWontLoad {
+    hint := " [y/N"
+    if def {
+      hint = " [Y/n"
+    }
+
+    if others {
+      hint += ", or a quantization from the list"
+    }
+
+    q += hint + "] "
+  }
+
+  for {
+    fmt.Print(q)
+    line, err := in.ReadString('\n')
+    answer := strings.TrimSpace(line)
+    switch strings.ToLower(answer) {
+    case "":
+      if def && v != VerdictWontLoad {
+        return choiceYes
+      }
+
+      return choiceNo
+    case "y", "yes":
+      if v != VerdictWontLoad {
+        return choiceYes
+      }
+    case "n", "no":
+      return choiceNo
+    }
+
+    i := findGroup(src.Groups, func(g quantGroup) bool { return strings.EqualFold(g.Label, answer) })
+    if i >= 0 && others {
+      return i
+    }
+
+    if err != nil {
+      return choiceNo
+    }
+
+    fmt.Printf("%q isn't in the list above\n", answer)
+  }
+}
+
+// fetchSource downloads the picked group into dir and returns the
+// path config.conf should name (a split model's first part).
+func fetchSource(ctx context.Context, c *http.Client, src *source, dir string) (string, error) {
   if src.Local != "" {
     abs, err := filepath.Abs(src.Local)
     if err != nil {
       return "", fmt.Errorf("\n\t... in fetchSource:\n\t%w", err)
     }
 
-    if !ask("add it to config.conf?", v != VerdictTooSlow) {
-      return "", nil
-    }
-
     return abs, nil
   }
 
   g := src.Groups[src.Pick]
-  q := fmt.Sprintf("download %s (%s) to %s?", g.Label, gb(g.Size), dir)
-  if v == VerdictTooSlow {
-    q = "it would be too slow to use — " + q
-  }
-
-  if !ask(q, v != VerdictTooSlow) {
-    return "", nil
-  }
-
   err := os.MkdirAll(dir, 0o755)
   if err != nil {
     return "", fmt.Errorf("\n\t... in fetchSource:\n\t%w", err)

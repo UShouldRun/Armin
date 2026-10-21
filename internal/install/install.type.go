@@ -155,6 +155,10 @@ type Request struct {
   Yes     bool   // don't ask
   Models  map[string]Existing // config.conf's models.<name>
   RAMHint string              // config.conf's ram = …
+
+  // config.conf's model and completion_model, which -uninstall won't
+  // leave pointing at nothing.
+  Default, Completion string
 }
 
 // Existing is what Run needs from one models.<name> already
@@ -163,6 +167,7 @@ type Existing struct {
   Binary, ModelPath string
   Port              int
   Remote            bool // runs on a cloud machine: paths aren't local
+  External          bool // a URL: a hosted API or a server run elsewhere
 }
 
 // header is one part's parsed metadata and tensor table.
@@ -231,4 +236,10 @@ type hubRef struct {
 
 type catalogEntry struct {
   Repo, Note string
+}
+
+// sizedFile is a file to delete and its size.
+type sizedFile struct {
+  path string
+  size int64
 }

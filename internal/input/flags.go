@@ -110,6 +110,10 @@ func parseFlags(fileCfg config.Config) cliFlags {
     "size up a model against this machine, then download it and add "+
       "it to config.conf: org/repo[:QUANT] on Hugging Face, "+
       "org/repo/file.gguf, or a .gguf already on disk")
+  flag.StringVar(&f.uninstall, "uninstall", "",
+    "remove a model -install added (any models.<name>): its config.conf "+
+      "lines and its .gguf, unless another model uses it; "+
+      "-uninstall list shows them")
   flag.StringVar(&f.installTo, "install-to", "",
     "the folder -install downloads into (default: where your models "+
       "already are, else ~/models)")

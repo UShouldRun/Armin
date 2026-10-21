@@ -374,6 +374,20 @@ func groupQuants(files []hubFile) []quantGroup {
 
   sort.Slice(out, func(i, j int) bool { return out[i].Size < out[j].Size })
 
+  // Two files with the same quantization (Q4_0 and QAD-Q4_0, say)
+  // go by their file names, so each can be picked by its label.
+  seen := map[string]int{}
+  for _, g := range out {
+    seen[strings.ToUpper(g.Label)]++
+  }
+
+  for i := range out {
+    if seen[strings.ToUpper(out[i].Label)] > 1 {
+      base := splitSuffix.ReplaceAllString(path.Base(out[i].Files[0].Path), ".gguf")
+      out[i].Label = strings.TrimSuffix(base, ".gguf")
+    }
+  }
+
   return out
 }
 

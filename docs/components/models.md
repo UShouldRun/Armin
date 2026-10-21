@@ -93,6 +93,8 @@ it in place of think):
 4. `hub.go` downloads with resume and SHA-256; `conf.go` appends the
    `models.<name>` block; `llama.go` checks the build knows the
    architecture and runs `llama-bench`.
+5. `uninstall.go` is `-uninstall`: the block out of config.conf
+   (rewritten atomically) and the files deleted, unless shared.
 
 Estimates checked on an RTX 4060 Laptop: within ~10% for
 generation and prefill, all in VRAM and with experts in RAM.

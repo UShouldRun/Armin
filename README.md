@@ -191,6 +191,7 @@ scripts get a plain buffered read.
 | `-library-add` | — | comma-separated files or folders to copy into the library (under `-library-to`, default `added`), then index and catalog them, and exit |
 | `-install` | — | size a model up against this machine, then download it and add it to config.conf: `org/repo[:QUANT]`, `org/repo/file.gguf` or a local `.gguf` — see "Installing a model" |
 | `-install-to` | where your models are | the folder `-install` downloads into (else `~/models`) |
+| `-uninstall` | — | remove a model: its `models.<name>` lines and its `.gguf`, unless another model uses it; `-uninstall list` shows every model and its size |
 
 Flag defaults can also come from a config file (see below); explicit
 flags always win.
@@ -592,10 +593,22 @@ machine before downloading it. `<model>` is any of:
    compute, the PCIe copies, free RAM, disk, or a llama-server build
    that doesn't know the architecture. Then fixes, and the same
    verdict for every quantization in the repo.
-5. On your yes it downloads (resumable, SHA-256 checked) and appends a
+5. At the download question you can also type another quantization
+   from the list (`Q4_0`): it reads that one and shows its verdict
+   instead. On your yes it downloads (resumable, SHA-256 checked) and appends a
    `models.<name>` block with the plan's flags (`-ngl`, `-c`,
    `--n-cpu-moe`) to config.conf, then offers a `llama-bench` run to
    set measured speeds beside the estimates.
+
+`armin -uninstall <name>` takes one out again: it shows the
+`models.<name>` lines and the files it would delete (every part of a
+split model, any half-finished `.part`), and on your yes removes the
+lines — with the comment `-install` wrote above them — and deletes
+the files. A file another model also points at is kept; a hosted or
+cloud model only loses its lines; and it refuses to remove your
+`model =` or `completion_model =` until you point those elsewhere.
+`armin -uninstall list` shows every configured model, where it runs
+and what it takes on disk.
 
 With no quantization named, it picks the largest one that runs fine
 (at 3 bits or more). Diffusion models (Dream, LLaDA) are recognized

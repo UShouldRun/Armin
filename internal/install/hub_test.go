@@ -1,6 +1,7 @@
 package install
 
 import (
+  "bufio"
   "bytes"
   "context"
   "crypto/sha256"
@@ -238,5 +239,48 @@ func TestDirectLink(t *testing.T) {
   _, err = resolve(ctx, srv.Client(), srv.URL + "/files/readme.txt")
   if err == nil {
     t.Error("non-gguf link accepted")
+  }
+}
+
+func TestConfirm(t *testing.T) {
+  src := &source{ Repo: "o/r", Pick: 1, Groups: []quantGroup{
+    { Label: "Q4_0", Size: 1 }, { Label: "Q5_K_M", Size: 2 },
+  } }
+
+  for _, c := range []struct {
+    input string
+    v     Verdict
+    want  int
+  }{
+    { "\n", VerdictFine, choiceYes },
+    { "y\n", VerdictSlow, choiceYes },
+    { "n\n", VerdictFine, choiceNo },
+    { "q4_0\n", VerdictFine, 0 },
+    { "Q9_9\nQ4_0\n", VerdictFine, 0 }, // a typo asks again
+    { "\n", VerdictTooSlow, choiceNo },
+    { "y\nQ4_0\n", VerdictWontLoad, 0 }, // yes isn't an answer there
+    { "", VerdictFine, choiceYes }, // no terminal: the default
+  } {
+    in := bufio.NewReader(strings.NewReader(c.input))
+    got := confirm(in, false, src, "/m", c.v)
+    if got != c.want {
+      t.Errorf("confirm(%q, %s) = %d, want %d", c.input, c.v, got, c.want)
+    }
+  }
+
+  if confirm(nil, true, src, "/m", VerdictWontLoad) != choiceNo {
+    t.Error("-yes said yes to a model that won't load")
+  }
+}
+
+func TestGroupQuantsDuplicateLabels(t *testing.T) {
+  gs := groupQuants([]hubFile{
+    { Path: "M-Q4_0.gguf", Size: 10 },
+    { Path: "M-QAD-Q4_0.gguf", Size: 11 },
+    { Path: "M-Q8_0.gguf", Size: 20 },
+  })
+
+  if gs[0].Label != "M-Q4_0" || gs[1].Label != "M-QAD-Q4_0" || gs[2].Label != "Q8_0" {
+    t.Errorf("labels: %s %s %s", gs[0].Label, gs[1].Label, gs[2].Label)
   }
 }

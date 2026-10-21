@@ -25,6 +25,7 @@ type Options struct {
   LibraryAdd                       []string // files to copy in
   LibraryTo                        string   // their topic folder
   Install, InstallTo               string   // -install's model, folder
+  Uninstall                        string   // -uninstall's model
   Effort                           agent.Effort
   Aids                             agent.Aids
   Timeout                          time.Duration

@@ -40,7 +40,7 @@ func run() error {
 
   sig := input.WatchSignals(cancel)
 
-  // -install loads no models: it sizes one up and downloads it.
+  // -install and -uninstall load no models: they add or remove one.
   if opts.Mode == input.ModeInstall {
     return display.Install(ctx, opts)
   }
