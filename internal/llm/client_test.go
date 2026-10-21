@@ -819,3 +819,34 @@ func TestEffortReachesTheServer(t *testing.T) {
       got.Reasoning, got.TemplateKwargs)
   }
 }
+
+func TestMaxTokensSent(t *testing.T) {
+  var got map[string]any
+  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+    json.NewDecoder(r.Body).Decode(&got)
+    json.NewEncoder(w).Encode(owaiChatResponse{
+      Choices: []owaiChoice{ { Message: owaiMessage{ Role: "assistant", Content: "ok" } } },
+    })
+  })
+
+  client := New(server.URL, "m")
+  _, err := client.Chat(context.Background(), nil, nil, nil)
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  _, has := got["max_tokens"]
+  if has {
+    t.Fatalf("max_tokens sent unset: %v", got["max_tokens"])
+  }
+
+  client.MaxTokens = 8192
+  _, err = client.Chat(context.Background(), nil, nil, nil)
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  if got["max_tokens"] != float64(8192) {
+    t.Fatalf("max_tokens = %v, want 8192", got["max_tokens"])
+  }
+}

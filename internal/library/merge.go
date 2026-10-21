@@ -13,6 +13,10 @@ const (
   // has the model fold them together; mergeTarget is what it asks for.
   mergeAbove  = 80
   mergeTarget = 60
+
+  // mergeRounds: a small model often stops short of mergeTarget, so
+  // a second round merges what the first left, if the first helped.
+  mergeRounds = 2
 )
 
 const mergeSystem = `You tidy the topic list of a technical library's index, so that each subject has one name and the list stays short.
@@ -94,17 +98,63 @@ func distinctTopics(rows []Topic) ([]string, map[string]int) {
 }
 
 // NeedsMerge reports whether the topic table has grown past
-// mergeAbove distinct topics.
+// mergeAbove distinct topics and changed since the last merge — one
+// that couldn't get below mergeAbove isn't asked for again until a
+// catalog adds something new.
 func (l *Library) NeedsMerge() bool {
   names, _ := distinctTopics(l.Topics())
-  return len(names) > mergeAbove
+  if len(names) <= mergeAbove {
+    return false
+  }
+
+  last, _ := os.ReadFile(l.dir("merged.txt"))
+
+  return topicList(names) != string(last)
+}
+
+// topicList is names sorted, one per line: what merged.txt keeps.
+func topicList(names []string) string {
+  sorted := append([]string(nil), names...)
+  sort.Strings(sorted)
+
+  return strings.Join(sorted, "\n") + "\n"
 }
 
 // MergeTopics has the model fold the table's topics into about
-// mergeTarget canonical ones: rows are renamed (duplicates dropped)
-// and the mapping is kept in aliases.tsv, so later catalogs use the
-// same names. It returns the topic counts before and after.
+// mergeTarget canonical ones, in up to mergeRounds rounds while each
+// still shrinks the list, then records the topics it left in
+// merged.txt (see NeedsMerge). It returns the counts before and after.
 func (l *Library) MergeTopics(ctx context.Context, ask Ask) (int, int, error) {
+  first, after := -1, 0
+  for round := 0; round < mergeRounds; round++ {
+    before, n, err := l.mergeOnce(ctx, ask)
+    if err != nil {
+      return before, before, fmt.Errorf("\n\t... in MergeTopics:\n\t%w", err)
+    }
+
+    if first < 0 {
+      first = before
+    }
+
+    after = n
+    if after <= mergeAbove || after >= before {
+      break
+    }
+  }
+
+  names, _ := distinctTopics(l.Topics())
+  err := os.WriteFile(l.dir("merged.txt"), []byte(topicList(names)), 0o644)
+  if err != nil {
+    return first, after, fmt.Errorf("\n\t... in MergeTopics:\n\t%w", err)
+  }
+
+  return first, after, nil
+}
+
+// mergeOnce is one round: the model maps every topic to a canonical
+// one; rows are renamed (duplicates dropped) and the mapping is kept
+// in aliases.tsv, so later catalogs use the same names.
+func (l *Library) mergeOnce(ctx context.Context, ask Ask) (int, int, error) {
   rows := l.Topics()
   names, count := distinctTopics(rows)
   if len(names) == 0 {
@@ -122,7 +172,7 @@ func (l *Library) MergeTopics(ctx context.Context, ask Ask) (int, int, error) {
   reply, err := ask(ctx, system, b.String())
   if err != nil {
     n := len(names)
-    return n, n, fmt.Errorf("\n\t... in MergeTopics:\n\t%w", err)
+    return n, n, fmt.Errorf("\n\t... in mergeOnce:\n\t%w", err)
   }
 
   given := make(map[string]bool, len(names))
@@ -147,13 +197,13 @@ func (l *Library) MergeTopics(ctx context.Context, ask Ask) (int, int, error) {
   err = l.saveTopics(merged)
   if err != nil {
     n := len(names)
-    return n, n, fmt.Errorf("\n\t... in MergeTopics:\n\t%w", err)
+    return n, n, fmt.Errorf("\n\t... in mergeOnce:\n\t%w", err)
   }
 
   err = l.saveAliases(aliases)
   if err != nil {
     n := len(names)
-    return n, n, fmt.Errorf("\n\t... in MergeTopics:\n\t%w", err)
+    return n, n, fmt.Errorf("\n\t... in mergeOnce:\n\t%w", err)
   }
 
   after, _ := distinctTopics(merged)

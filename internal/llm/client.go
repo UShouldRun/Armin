@@ -241,8 +241,9 @@ func (c *Client) request(
   reqBody := owaiChatRequest{
     Model:    model,
     Messages: toWireMessages(messages),
-    Tools:    wireTools,
-    Stream:   h.streaming(),
+    Tools:     wireTools,
+    Stream:    h.streaming(),
+    MaxTokens: c.MaxTokens,
   }
 
   // A hosted API (an id or a key of its own) takes OpenRouter's

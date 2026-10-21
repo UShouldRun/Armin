@@ -8,12 +8,19 @@ import (
   "armin/internal/llm"
 )
 
-// AskWith adapts a chat client to Ask. Cataloging is chore work: a
-// hosted reasoning model answers with its thinking off.
+// choreTokens caps one reply: a merge of ~150 topics is about 3k
+// tokens, a book's catalog far less.
+const choreTokens = 8192
+
+// AskWith adapts a chat client to Ask. Cataloging is list work that
+// thinking doesn't improve, so every model answers with it off, local
+// ones too (Chore leaves those as they are), and with a cap: a small
+// model thinking unbounded over 150 topics ran past 10k tokens.
 func AskWith(c *llm.Client) Ask {
   // one copy for the whole run, so what it learns (a regional
   // endpoint refusing it) sticks
-  chore := c.Chore()
+  chore := *c.Chore()
+  chore.Effort, chore.MaxTokens = "none", choreTokens
 
   return func(ctx context.Context, system, user string) (string, error) {
     msg, err := chore.Chat(ctx, []llm.Message{

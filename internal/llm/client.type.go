@@ -122,6 +122,10 @@ type Client struct {
   // switches and a thinking budget it maps to (see localEffort).
   Effort string
 
+  // MaxTokens, if set, caps the reply (thinking included), so a model
+  // that loops can't run on to the end of its window.
+  MaxTokens int
+
   // Private, on a hosted API, asks OpenRouter to route only to
   // providers that don't collect prompts and keep nothing (zero data
   // retention). With no such provider for the model, the request
@@ -305,6 +309,7 @@ type owaiChatRequest struct {
   Tools         []owaiTool         `json:"tools,omitempty"`
   Stream        bool               `json:"stream"`
   StreamOptions *owaiStreamOptions `json:"stream_options,omitempty"`
+  MaxTokens     int                `json:"max_tokens,omitempty"`
 
   // ReturnProgress is llama-server's: stream prompt_progress chunks.
   ReturnProgress bool `json:"return_progress,omitempty"`

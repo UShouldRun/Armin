@@ -469,3 +469,73 @@ func TestMergeTopics(t *testing.T) {
     t.Fatalf("a catalog wrote the merged name back: %+v", r)
   }
 }
+
+// manyTopics is n distinct topics, one row each.
+func manyTopics(n int) []Topic {
+  rows := make([]Topic, n)
+  for i := range rows {
+    rows[i] = Topic{ Topic: fmt.Sprintf("topic-%03d", i), Book: "b", Where: "§ 1" }
+  }
+
+  return rows
+}
+
+func TestMergeRoundsAndMemo(t *testing.T) {
+  l := testLibrary(t)
+  ctx := context.Background()
+  err := l.Build(ctx, nil)
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  // Each round folds pairs: 120 → 60 needs one round.
+  calls := 0
+  halve := func(_ context.Context, _, user string) (string, error) {
+    calls++
+    var b strings.Builder
+    for i := 0; i < 200; i++ {
+      fmt.Fprintf(&b, "topic-%03d -> topic-%03d\n", i, i / 2 * 2)
+    }
+
+    return b.String(), nil
+  }
+
+  l.saveTopics(manyTopics(120))
+  before, after, err := l.MergeTopics(ctx, halve)
+  if err != nil || before != 120 || after != 60 || calls != 1 {
+    t.Fatalf("MergeTopics = %d → %d, %v in %d calls", before, after, err, calls)
+  }
+
+  // A model that merges nothing: one round, and no merge asked for
+  // again until the topics change.
+  l2 := testLibrary(t)
+  err = l2.Build(ctx, nil)
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  calls = 0
+  none := func(context.Context, string, string) (string, error) {
+    calls++
+    return "", nil
+  }
+
+  l2.saveTopics(manyTopics(100))
+  if !l2.NeedsMerge() {
+    t.Fatal("100 topics don't need a merge")
+  }
+
+  _, after, err = l2.MergeTopics(ctx, none)
+  if err != nil || after != 100 || calls != 1 {
+    t.Fatalf("no-op merge: after %d, %v, %d calls", after, err, calls)
+  }
+
+  if l2.NeedsMerge() {
+    t.Error("an unchanged table asks for the same merge again")
+  }
+
+  l2.saveTopics(manyTopics(101))
+  if !l2.NeedsMerge() {
+    t.Error("a new topic doesn't ask for a merge")
+  }
+}
