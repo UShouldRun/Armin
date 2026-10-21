@@ -9,6 +9,7 @@
 //   lsp.go      -lsp: nvim's frontend, alone or joined to an instance
 //   choose.go   the OpenRouter model picker shown before connecting
 //   library.go  -library-sync and -library-add
+//   install.go  -install, which needs no Mind
 //
 // The frontends themselves live in their own packages: repl, web,
 // lspserver, mcpserver; share connects instances in one project.

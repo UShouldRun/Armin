@@ -11,7 +11,7 @@
 # Usage: ./install.sh [--prefix DIR] [--no-config] [--no-skills]
 #                     [--update-skills] [--install-deps | --no-deps]
 #                     [--library-sync | --no-library-sync]
-#                     [--library-model NAME]
+#                     [--library-model NAME] [--ram TYPE-SPEED]
 #
 #   --prefix DIR      install the binary here (default: ~/.local/bin)
 #   --no-config       skip writing a starter config.conf
@@ -20,6 +20,9 @@
 #   --install-deps    install missing commands without asking
 #   --no-deps         only report missing commands, never offer to
 #                     install them
+#   --ram TYPE-SPEED  the system RAM, e.g. ddr5-5600, for armin
+#                     -install's estimates (default: read it with
+#                     dmidecode, which needs sudo, or ask)
 
 set -eu
 
@@ -30,6 +33,7 @@ update_skills=0
 deps=ask
 library_sync=ask
 library_model=""
+ram=""
 
 usage() {
   echo "Usage: ./install.sh [--prefix DIR] [--no-config] [--no-skills] [--update-skills]"
@@ -42,6 +46,7 @@ usage() {
   echo "  --no-deps         only report missing commands, never offer to install them"
   echo "  --library-sync    catalog new library books without asking (--no-library-sync: never)"
   echo "  --library-model M the model that catalogs them (default: config.conf's model)"
+  echo "  --ram TYPE-SPEED  the system RAM, e.g. ddr5-5600 or ddr4-3200 1ch (default: detect or ask)"
 }
 
 while [ $# -gt 0 ]; do
@@ -87,6 +92,15 @@ while [ $# -gt 0 ]; do
       [ $# -ge 2 ] || { echo "install.sh: --library-model needs a value" >&2; exit 1; }
       library_model="$2"
       shift 2
+      ;;
+    --ram)
+      [ $# -ge 2 ] || { echo "install.sh: --ram needs a value" >&2; exit 1; }
+      ram="$2"
+      shift 2
+      ;;
+    --ram=*)
+      ram="${1#--ram=}"
+      shift
       ;;
     -h|--help)
       usage
@@ -393,6 +407,84 @@ EOF
 EOF
     chmod 600 "$env_path"
     ok "wrote an empty .env template to $env_path (mode 600)"
+  fi
+fi
+
+# --- System RAM ----------------------------------------------------------
+# ram = <type>-<speed> in config.conf: armin -install estimates how
+# fast a model generates from the RAM's bandwidth when weights don't
+# all fit in VRAM. Linux only shows the type and speed to root
+# (SMBIOS), so it's read here once with dmidecode — via sudo when
+# you agree — or asked for, and kept in config.conf.
+
+# ram_from_dmidecode prints "ddr5-5600", "ddr4-3200 1ch", … from
+# dmidecode -t 17 on stdin, or nothing.
+ram_from_dmidecode() {
+  awk '
+    /^Memory Device/ { size = ""; type = ""; speed = "" }
+    /^[[:space:]]+Size:/ { size = $2 }
+    /^[[:space:]]+Type:/ { type = $2 }
+    /^[[:space:]]+Configured Memory Speed:/ && $4 ~ /^[0-9]+$/ { speed = $4 }
+    /^[[:space:]]+Speed:/ && speed == "" && $2 ~ /^[0-9]+$/ { speed = $2 }
+    function flush() {
+      if (size ~ /^[0-9]+$/ && type != "" && type != "Unknown" && speed != "") {
+        n++; t = type
+        if (s == "" || speed + 0 < s + 0) s = speed
+      }
+      size = ""
+    }
+    /^$/ { flush() }
+    END {
+      flush()
+      if (n == 0) exit
+      out = tolower(t) "-" s
+      if (n == 1 && t !~ /^LP/) out = out " 1ch"
+      print out
+    }
+  '
+}
+
+valid_ram() {
+  printf '%s\n' "$1" | grep -Eiq '^(lp)?ddr[0-9]+x?-[0-9]{3,5}( [0-9]+ch)?$'
+}
+
+echo
+echo "system RAM (for armin -install):"
+have_ram=$(sed -n 's/^[[:space:]]*ram[[:space:]]*=[[:space:]]*//p' "$config_path" 2> /dev/null | tail -1)
+
+if [ -n "$have_ram" ] && [ -z "$ram" ]; then
+  ok "ram = $have_ram in config.conf"
+else
+  if [ -z "$ram" ] && command -v dmidecode >/dev/null 2>&1; then
+    if [ "$(id -u)" -eq 0 ]; then
+      ram=$(dmidecode -t 17 2> /dev/null | ram_from_dmidecode)
+    elif [ -t 0 ]; then
+      printf '  read the RAM type and speed with sudo dmidecode? [Y/n] '
+      read -r answer
+      case "$answer" in
+        n|N|no) ;;
+        *) ram=$(sudo dmidecode -t 17 2> /dev/null | ram_from_dmidecode) ;;
+      esac
+    fi
+  fi
+
+  if [ -z "$ram" ] && [ -t 0 ]; then
+    printf '  RAM type and speed, e.g. ddr5-5600, lpddr5x-7500, ddr4-3200 1ch (Enter to skip): '
+    read -r ram
+  fi
+
+  if [ -z "$ram" ]; then
+    warn "not set — armin -install will assume a speed; add ram = ddr5-5600 (yours) to $config_path"
+  elif ! valid_ram "$ram"; then
+    warn "\"$ram\" isn't TYPE-SPEED like ddr5-5600 — not saved"
+  else
+    mkdir -p "$config_dir"
+    if [ -n "$have_ram" ]; then
+      sed -i.bak "s/^[[:space:]]*ram[[:space:]]*=.*/ram = $ram/" "$config_path" && rm -f "$config_path.bak"
+    else
+      printf '\n# system RAM, for armin -install'"'"'s speed estimates\nram = %s\n' "$ram" >> "$config_path"
+    fi
+    ok "ram = $ram saved to $config_path"
   fi
 fi
 

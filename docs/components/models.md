@@ -1,6 +1,7 @@
 # Models
 
-How armin talks to models and keeps them running. Four packages:
+How armin talks to models and keeps them running. Four packages,
+plus `install` for getting one onto the machine:
 
 | package | job |
 |---|---|
@@ -8,6 +9,7 @@ How armin talks to models and keeps them running. Four packages:
 | `internal/llamacpp` | runs the models: starts, health-checks, reaps servers |
 | `internal/cloud` | boots and stops the GPU machines remote models run on |
 | `internal/catalog` | OpenRouter's model list and prices, for the pickers |
+| `internal/install` | `-install`: will a model run here, and why not |
 
 ## The client (`llm`)
 
@@ -71,6 +73,29 @@ in the background and cached a day, so no picker waits on it.
 `region.go` picks OpenRouter's in-region host for your time zone and
 falls back to the global one — or, under
 `models.<name>.region = eu|us|off`, the host the config forces.
+
+## Installing (`install`)
+
+`armin -install <model>` runs before anything loads (main.go calls
+it in place of think):
+
+1. `gguf.go` reads the header, locally or by HTTP range: layers,
+   experts, which layers keep a KV cache, and bytes by role, sized
+   from the gaps between tensor offsets so unknown quant types work.
+2. `machine.go` reads sysfs and /proc: GPUs (nvidia-smi for NVIDIA
+   memory, `llamacpp.GPUWarning` for a broken driver), PCIe link,
+   RAM and its SMBIOS type and speed, CPU, disk.
+3. `plan.go` is the decision tree: placement (all in VRAM, MoE
+   experts in RAM, layers split, CPU), then estimates: generation =
+   bytes read per token over each side's bandwidth; prefill = FLOPs
+   over the GPU's (or CPU's) compute plus PCIe copies of weights in
+   RAM. Each limit becomes a finding with its numbers.
+4. `hub.go` downloads with resume and SHA-256; `conf.go` appends the
+   `models.<name>` block; `llama.go` checks the build knows the
+   architecture and runs `llama-bench`.
+
+Estimates checked on an RTX 4060 Laptop: within ~10% for
+generation and prefill, all in VRAM and with experts in RAM.
 
 ## Connections
 

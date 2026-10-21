@@ -27,6 +27,7 @@ const (
   ModeLSP              // -lsp: nvim's hover, completion and :ArminAsk
   ModeMCP              // -mcp: the tools alone, for another agent
   ModeLibrary          // -library-sync/-add: index, catalog, exit
+  ModeInstall          // -install: size up, download, configure, exit
 )
 
 const (
@@ -133,6 +134,9 @@ func Parse() (*Options, error) {
   }
 
   switch {
+  case f.install != "":
+    o.Mode = ModeInstall
+    o.Install, o.InstallTo = f.install, f.installTo
   case f.librarySync || f.libraryAdd != "":
     o.Mode = ModeLibrary
     o.LibraryAdd = splitList(f.libraryAdd)

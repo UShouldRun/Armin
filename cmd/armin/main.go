@@ -40,6 +40,11 @@ func run() error {
 
   sig := input.WatchSignals(cancel)
 
+  // -install loads no models: it sizes one up and downloads it.
+  if opts.Mode == input.ModeInstall {
+    return display.Install(ctx, opts)
+  }
+
   // nvim's armin already thinks for this project: share its chat
   // instead of loading a second set of models on the same GPU.
   joined, err := display.Join(ctx, opts, sig)

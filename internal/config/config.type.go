@@ -99,6 +99,11 @@ type Config struct {
   // judges each request), off, low, medium or high.
   Effort string
 
+  // RAM is the system RAM's type and speed ("ddr5-5600", "lpddr5x-
+  // 7500", "ddr4-3200 1ch"), for -install's estimates when reading
+  // it needs root.
+  RAM string
+
   // Aids are the reasoning aids: all, none, or a list of stuck,
   // procedure, verify.
   Aids string

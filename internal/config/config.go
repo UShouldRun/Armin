@@ -277,6 +277,8 @@ func apply(cfg *Config, key, value string) error {
     cfg.Effort = value
   case "library":
     cfg.Library = value
+  case "ram":
+    cfg.RAM = value
   case "test_cmd":
     cfg.TestCmd = strings.Fields(value)
   case "build_cmd":

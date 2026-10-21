@@ -106,6 +106,13 @@ func parseFlags(fileCfg config.Config) cliFlags {
       "then index and catalog them, and exit")
   flag.StringVar(&f.libraryTo, "library-to", "added",
     "the library folder (topic) -library-add copies into, e.g. go, math")
+  flag.StringVar(&f.install, "install", "",
+    "size up a model against this machine, then download it and add "+
+      "it to config.conf: org/repo[:QUANT] on Hugging Face, "+
+      "org/repo/file.gguf, or a .gguf already on disk")
+  flag.StringVar(&f.installTo, "install-to", "",
+    "the folder -install downloads into (default: where your models "+
+      "already are, else ~/models)")
 
   flag.Usage = func() {
     fmt.Fprintln(os.Stderr, "Usage: armin [path] [flags]")

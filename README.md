@@ -189,6 +189,8 @@ scripts get a plain buffered read.
 | `-effort` | `auto` | how hard the model thinks: `auto` (it judges each request), `off`, `low`, `medium` or `high` |
 | `-library-sync` | off | index the reference library and have `-model` catalog the books the topic table lacks, then exit |
 | `-library-add` | — | comma-separated files or folders to copy into the library (under `-library-to`, default `added`), then index and catalog them, and exit |
+| `-install` | — | size a model up against this machine, then download it and add it to config.conf: `org/repo[:QUANT]`, `org/repo/file.gguf` or a local `.gguf` — see "Installing a model" |
+| `-install-to` | where your models are | the folder `-install` downloads into (else `~/models`) |
 
 Flag defaults can also come from a config file (see below); explicit
 flags always win.
@@ -549,6 +551,55 @@ model". Two kinds of `models.<name>` entry:
 fall back to an external, unmanaged spec at `-llama-url`/
 `-completion-llama-url` — the zero-config path, for "I already
 started a `llama-server`, just talk to it".
+
+### Installing a model
+
+`armin -install <model>` checks whether a model will run well on this
+machine before downloading it. `<model>` is any of:
+
+- a name from the built-in table of popular models (`qwen3.5-9b`,
+  `gemma-4-26b-a4b`, `lfm2.5-8b-a1b`, …; `armin -install list` shows
+  them all), optionally with `:Q4_K_M`;
+- a Hugging Face repo, `unsloth/Qwen3-30B-A3B-GGUF[:Q4_K_M]`, or a
+  file in one, `org/repo/file.gguf`;
+- a Hugging Face link as the site gives it: the repo page, a
+  `/tree/<branch>/<folder>`, `/blob/…` or `/resolve/…` file link,
+  `hf.co` short links;
+- a direct link to a `.gguf` on any other server (ModelScope, a
+  GitHub release, your own) — it must serve byte ranges;
+- a `.gguf` already on disk.
+
+1. It reads the model's `.gguf` header (a few MB by HTTP range, not
+   the weights): dense or MoE, layers, experts, which layers keep a
+   KV cache (hybrid and sliding-window models keep less), bytes by
+   role.
+2. It reads the machine: dedicated and integrated GPUs, VRAM,
+   memory bandwidth and prefill TFLOPS (from a table of known GPUs),
+   PCIe link, RAM size and free RAM, RAM type and speed (from
+   config.conf's `ram = <type>-<speed>`, e.g. `ram = ddr5-5600` or
+   `ram = ddr4-3200 1ch`, which `./install.sh` sets up with `sudo
+   dmidecode` or by asking; else from SMBIOS when armin runs as
+   root; else assumed), CPU cores and AVX2/AVX-512, free disk.
+3. A decision tree places the weights — all in VRAM at the largest
+   window that fits; for a MoE, the experts of the fewest layers in
+   RAM; for a dense model, as many layers in VRAM as fit; or all on
+   the CPU — and estimates generation (bound by memory bandwidth)
+   and prompt reading (bound by compute, or by PCIe when weights live
+   in RAM).
+4. It prints the verdict — fine, slow, too slow or won't load — with
+   what limits each and the numbers: the GPU's memory bus, system
+   RAM's bus, the context memory read every token, GPU or CPU
+   compute, the PCIe copies, free RAM, disk, or a llama-server build
+   that doesn't know the architecture. Then fixes, and the same
+   verdict for every quantization in the repo.
+5. On your yes it downloads (resumable, SHA-256 checked) and appends a
+   `models.<name>` block with the plan's flags (`-ngl`, `-c`,
+   `--n-cpu-moe`) to config.conf, then offers a `llama-bench` run to
+   set measured speeds beside the estimates.
+
+With no quantization named, it picks the largest one that runs fine
+(at 3 bits or more). Diffusion models (Dream, LLaDA) are recognized
+and refused: llama-server can't serve them.
 
 ### Authenticated / remote models (e.g. Claude)
 
@@ -1203,6 +1254,7 @@ internal/
   agent/       the tool table (one spec per tool), the turn loop, approvals, context management
   llm/         llama-server HTTP client (chat + tool calling, streaming, infill completion)
   llamacpp/    spawns/health-polls/idle-reaps managed llama-server processes, hands out llm.Clients
+  install/     -install: GGUF header, hardware probe, the fit decision tree, download, config block
   cloud/       starts and stops remote GPU machines: AWS EC2, STACKIT, Scaleway
   catalog/     OpenRouter's model list and prices, for /model and the pickers
   tools/       the tool implementations (pure functions)

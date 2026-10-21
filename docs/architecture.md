@@ -66,6 +66,7 @@ you type ─▶ repl (or web, or nvim)
 | `share` | one armin per project: host and joiners |
 | `agent` | turns, the tool table, context management, reasoning aids |
 | `llm`, `llamacpp`, `cloud`, `catalog` | models: client, servers, cloud machines, OpenRouter's list |
+| `install` | `-install`: sizes a model up against the machine, downloads and configures it |
 | `tools`, `sandbox` | what tools do, and their boundaries |
 | `ctags`, `searxng` | the symbol index, the local web search |
 | `library` | the reference library |

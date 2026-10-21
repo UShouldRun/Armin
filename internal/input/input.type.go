@@ -24,6 +24,7 @@ type Options struct {
   AddDirs                          []string
   LibraryAdd                       []string // files to copy in
   LibraryTo                        string   // their topic folder
+  Install, InstallTo               string   // -install's model, folder
   Effort                           agent.Effort
   Aids                             agent.Aids
   Timeout                          time.Duration
