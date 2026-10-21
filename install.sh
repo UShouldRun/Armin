@@ -522,7 +522,9 @@ fi
 echo
 echo "reference library:"
 library_dir=$(sed -n 's/^[[:space:]]*library[[:space:]]*=[[:space:]]*//p' "$config_path" 2> /dev/null | tail -1)
-library_dir=${library_dir/#\~/$HOME}
+case "$library_dir" in
+  "~"|"~/"*) library_dir="$HOME${library_dir#\~}" ;;
+esac
 
 if [ -z "$library_dir" ]; then
   warn "none configured — add library = <folder> to $config_path"
