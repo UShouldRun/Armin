@@ -57,7 +57,8 @@ hand-rolled against the standard library.
 ```
 
 Builds the binary and installs it to `~/.local/bin` (override with
-`--prefix DIR`), then reports on every dependency above — what it
+`--prefix DIR`), and its manual page to `~/.local/share/man/man1`
+(`man armin`; `man ./docs/armin.1` reads it in place), then reports on every dependency above — what it
 found, what's missing, and exactly what to do about each one. Writes
 a starter `config.conf` (skip with `--no-config`) only if you don't
 already have one; never overwrites an existing one. Installs the
@@ -595,7 +596,11 @@ machine before downloading it. `<model>` is any of:
    verdict for every quantization in the repo.
 5. At the download question you can also type another quantization
    from the list (`Q4_0`): it reads that one and shows its verdict
-   instead. On your yes it downloads (resumable, SHA-256 checked) and appends a
+   instead. On your yes it downloads (SHA-256 checked; a dropped or
+   stalled connection — 30 s without data — is retried from where it
+   stopped, waiting 5 s doubling to 60 s, for up to 30 minutes
+   without progress; after that, or after Ctrl-C, running the same
+   command resumes from the `.part` file) and appends a
    `models.<name>` block with the plan's flags (`-ngl`, `-c`,
    `--n-cpu-moe`) to config.conf, then offers a `llama-bench` run to
    set measured speeds beside the estimates.
