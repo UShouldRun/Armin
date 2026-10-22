@@ -13,6 +13,7 @@ import (
   "path/filepath"
   "strings"
   "time"
+  "unicode/utf8"
 
   "armin/internal/agent"
   "armin/internal/config"
@@ -118,14 +119,7 @@ func parseFlags(fileCfg config.Config) cliFlags {
     "the folder -install downloads into (default: where your models "+
       "already are, else ~/models)")
 
-  flag.Usage = func() {
-    fmt.Fprintln(os.Stderr, "Usage: armin [path] [flags]")
-    fmt.Fprintln(os.Stderr)
-    fmt.Fprintln(os.Stderr, "path is shorthand for -root "+
-      "(\"armin .\" == \"armin -root .\"); giving both is an error.")
-    fmt.Fprintln(os.Stderr)
-    flag.PrintDefaults()
-  }
+  flag.Usage = printUsage
 
   // Go's flag package stops parsing flags at the first non-flag
   // argument, so "armin . -lsp" would otherwise silently treat
@@ -166,6 +160,72 @@ func parseFlags(fileCfg config.Config) cliFlags {
   }
 
   return f
+}
+
+// usageWidth caps every line of armin -h, indent included.
+const usageWidth = 60
+
+// printUsage is flag.PrintDefaults, but word-wrapped to usageWidth:
+// PrintDefaults puts each usage string on one line, however long.
+func printUsage() {
+  w := os.Stderr
+
+  fmt.Fprintln(w, "Usage: armin [path] [flags]")
+  fmt.Fprintln(w)
+  printWrapped(w, "", "path is shorthand for -root "+
+    "(\"armin .\" == \"armin -root .\"); giving both is an error.")
+  fmt.Fprintln(w)
+
+  flag.VisitAll(func(fl *flag.Flag) {
+    kind, usage := flag.UnquoteUsage(fl)
+
+    head := "  -" + fl.Name
+    if kind != "" {
+      head += " " + kind
+    }
+    fmt.Fprintln(w, head)
+
+    switch fl.DefValue {
+    case "", "false", "0", "0s":
+    default:
+      def := fl.DefValue
+      if kind == "string" {
+        def = fmt.Sprintf("%q", def)
+      }
+      usage += " (default " + def + ")"
+    }
+
+    printWrapped(w, "      ", usage)
+  })
+}
+
+// printWrapped prints text greedily word-wrapped so no line, indent
+// included, passes usageWidth (a single longer word gets its own line).
+func printWrapped(w *os.File, indent, text string) {
+  line  := indent
+  width := utf8.RuneCountInString(indent)
+  empty := true
+
+  for _, word := range strings.Fields(text) {
+    n := utf8.RuneCountInString(word)
+
+    if !empty && width + 1 + n > usageWidth {
+      fmt.Fprintln(w, line)
+      line, width, empty = indent, utf8.RuneCountInString(indent), true
+    }
+
+    if !empty {
+      line += " "
+      width++
+    }
+    line  += word
+    width += n
+    empty  = false
+  }
+
+  if !empty {
+    fmt.Fprintln(w, line)
+  }
 }
 
 func (f *resumeFlag) String() string   { return string(*f) }
