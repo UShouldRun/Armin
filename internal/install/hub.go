@@ -19,6 +19,7 @@ import (
   "net/url"
   "os"
   "path"
+  "path/filepath"
   "regexp"
   "sort"
   "strings"
@@ -469,12 +470,28 @@ func (r *rangeReader) Read(p []byte) (int, error) {
   return n, nil
 }
 
+// Retrying a download: a connection that sends nothing for
+// stallTimeout is dropped; each retry waits twice as long as the last,
+// from retryFirst up to retryMax; after giveUpAfter with no new byte,
+// it stops. Variables so tests can shorten them.
+var (
+  stallTimeout = 30 * time.Second
+  retryFirst   = 5 * time.Second
+  retryMax     = 60 * time.Second
+  giveUpAfter  = 30 * time.Minute
+)
+
 // download fetches u into dest, resuming dest.part if a previous run
-// left one, and checks the size and, when known, the SHA-256.
-// progress is called about every half second with bytes done.
+// left one, and checks the size and, when known, the SHA-256. A
+// dropped or stalled connection is retried from where it stopped
+// until the server answers again or giveUpAfter passes without
+// progress. progress is called about every half second with the
+// bytes done and how many of them this run fetched; retry, before
+// each wait, with what failed and how long it waits.
 func download(
   ctx context.Context, c *http.Client, u, dest string, size int64,
-  sum string, progress func(done int64),
+  sum string, progress func(done, fresh int64),
+  retry func(err error, wait time.Duration),
 ) error {
   partPath := dest + ".part"
   f, err := os.OpenFile(partPath, os.O_RDWR | os.O_CREATE, 0o644)
@@ -505,11 +522,51 @@ func download(
     }
   }
 
-  if have < size {
-    err = fetch(ctx, c, u, f, h, have, progress)
-    if err != nil {
+  w := &progressWriter{ w: io.MultiWriter(f, h), done: have, start: have, report: progress }
+  wait, progressed := retryFirst, time.Now()
+  for w.done < size {
+    before := w.done
+    err = fetch(ctx, c, u, w)
+    if ctx.Err() != nil {
+      return errors.New("\n\t... in download:\n\t interrupted — run it again to resume")
+    }
+
+    if w.done >= size {
+      break
+    }
+
+    if err == nil {
+      err = errors.New("the server closed the connection early")
+    }
+
+    var status *statusError
+    if errors.As(err, &status) && !status.retryable() {
       return fmt.Errorf("\n\t... in download:\n\t%w", err)
     }
+
+    if w.done > before {
+      wait, progressed = retryFirst, time.Now()
+    }
+
+    if time.Since(progressed) > giveUpAfter {
+      return fmt.Errorf(
+        "\n\t... in download:\n\t no progress for %s (%v) — %s kept; "+
+          "run it again to resume",
+        giveUpAfter, err, filepath.Base(partPath),
+      )
+    }
+
+    if retry != nil {
+      retry(err, wait)
+    }
+
+    select {
+    case <-ctx.Done():
+      return errors.New("\n\t... in download:\n\t interrupted — run it again to resume")
+    case <-time.After(wait):
+    }
+
+    wait = min(wait * 2, retryMax)
   }
 
   info, err := f.Stat()
@@ -537,19 +594,20 @@ func download(
   return os.Rename(partPath, dest)
 }
 
-// fetch appends u from byte have on to f, hashing as it goes.
-func fetch(
-  ctx context.Context, c *http.Client, u string, f *os.File,
-  h io.Writer, have int64, progress func(int64),
-) error {
+// fetch appends u from byte w.done on through w, dropping the
+// connection when nothing arrives for stallTimeout.
+func fetch(ctx context.Context, c *http.Client, u string, w *progressWriter) error {
+  ctx, cancel := context.WithCancel(ctx)
+  defer cancel()
+
   req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
   if err != nil {
     return err
   }
 
   authorize(req)
-  if have > 0 {
-    req.Header.Set("Range", fmt.Sprintf("bytes=%d-", have))
+  if w.done > 0 {
+    req.Header.Set("Range", fmt.Sprintf("bytes=%d-", w.done))
   }
 
   resp, err := c.Do(req)
@@ -560,27 +618,47 @@ func fetch(
   defer resp.Body.Close()
 
   switch {
-  case have > 0 && resp.StatusCode == http.StatusPartialContent:
-  case have == 0 && resp.StatusCode == http.StatusOK:
+  case w.done > 0 && resp.StatusCode == http.StatusPartialContent:
+  case w.done == 0 && resp.StatusCode == http.StatusOK:
+  case w.done > 0 && resp.StatusCode == http.StatusOK:
+    // The whole file again: appending it would corrupt the part.
+    return &statusError{ code: resp.StatusCode, msg: u + ": the server ignores Range, so it can't resume" }
   default:
-    return fmt.Errorf("%s: %s", u, resp.Status)
+    return &statusError{ code: resp.StatusCode, msg: u + ": " + resp.Status }
   }
 
-  w := &progressWriter{ w: io.MultiWriter(f, h), done: have, report: progress }
+  stall := time.AfterFunc(stallTimeout, cancel)
+  defer stall.Stop()
+
+  w.stall = stall
   _, err = io.CopyBuffer(w, resp.Body, make([]byte, 1 << 20))
-  if errors.Is(ctx.Err(), context.Canceled) {
-    return errors.New("interrupted — run it again to resume")
+  w.stall = nil
+  if err != nil && ctx.Err() != nil && !stall.Stop() {
+    return fmt.Errorf("no data for %s", stallTimeout)
   }
 
   return err
 }
 
+func (e *statusError) Error() string { return e.msg }
+
+// retryable: the server's trouble, or rate limiting, may pass; a
+// missing file or a refusal won't.
+func (e *statusError) retryable() bool {
+  return e.code >= 500 || e.code == http.StatusRequestTimeout ||
+    e.code == http.StatusTooManyRequests
+}
+
 func (p *progressWriter) Write(b []byte) (int, error) {
+  if p.stall != nil {
+    p.stall.Reset(stallTimeout)
+  }
+
   n, err := p.w.Write(b)
   p.done += int64(n)
   if p.report != nil && time.Since(p.last) > 500 * time.Millisecond {
     p.last = time.Now()
-    p.report(p.done)
+    p.report(p.done, p.done - p.start)
   }
 
   return n, err

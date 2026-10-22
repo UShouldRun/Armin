@@ -136,7 +136,7 @@ func TestDownloadResumes(t *testing.T) {
   }
 
   u := (&source{ Repo: "org/repo", Rev: "main" }).fileURL(hubFile{ Path: "m.gguf" })
-  err = download(context.Background(), srv.Client(), u, dest, int64(len(data)), hex.EncodeToString(sum[:]), nil)
+  err = download(context.Background(), srv.Client(), u, dest, int64(len(data)), hex.EncodeToString(sum[:]), nil, nil)
   if err != nil {
     t.Fatal(err)
   }
@@ -153,7 +153,7 @@ func TestDownloadResumes(t *testing.T) {
 
   // A wrong checksum deletes the file instead of keeping it.
   dest2 := dest + "2"
-  err = download(context.Background(), srv.Client(), u, dest2, int64(len(data)), strings.Repeat("0", 64), nil)
+  err = download(context.Background(), srv.Client(), u, dest2, int64(len(data)), strings.Repeat("0", 64), nil, nil)
   if err == nil || !strings.Contains(err.Error(), "SHA-256") {
     t.Errorf("bad checksum: %v", err)
   }
@@ -282,5 +282,115 @@ func TestGroupQuantsDuplicateLabels(t *testing.T) {
 
   if gs[0].Label != "M-Q4_0" || gs[1].Label != "M-QAD-Q4_0" || gs[2].Label != "Q8_0" {
     t.Errorf("labels: %s %s %s", gs[0].Label, gs[1].Label, gs[2].Label)
+  }
+}
+
+// shortRetries makes the retry timing fast for a test.
+func shortRetries(t *testing.T) {
+  s, f, m, g := stallTimeout, retryFirst, retryMax, giveUpAfter
+  stallTimeout, retryFirst, retryMax, giveUpAfter = 200 * time.Millisecond, 10 * time.Millisecond, 40 * time.Millisecond, 2 * time.Second
+  t.Cleanup(func() { stallTimeout, retryFirst, retryMax, giveUpAfter = s, f, m, g })
+}
+
+// flaky serves data with Range, but the first few requests break:
+// "drop" closes the connection after a chunk, "stall" sends a chunk
+// and then goes quiet, as a dead Wi-Fi link does.
+func flaky(t *testing.T, data []byte, mode string, failures int) (*httptest.Server, *int) {
+  calls := 0
+  srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    calls++
+    if calls > failures {
+      http.ServeContent(w, r, "m.gguf", time.Time{}, bytes.NewReader(data))
+      return
+    }
+
+    start := 0
+    fmt.Sscanf(r.Header.Get("Range"), "bytes=%d-", &start)
+    w.Header().Set("Content-Length", fmt.Sprint(len(data) - start))
+    if start > 0 {
+      w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, len(data) - 1, len(data)))
+      w.WriteHeader(http.StatusPartialContent)
+    }
+
+    w.Write(data[start:start + 1000])
+    w.(http.Flusher).Flush()
+    if mode == "stall" {
+      select {
+      case <-r.Context().Done():
+      case <-time.After(5 * time.Second):
+      }
+    }
+
+    // Returning short of Content-Length drops the connection.
+  }))
+  t.Cleanup(srv.Close)
+
+  return srv, &calls
+}
+
+func TestDownloadRetries(t *testing.T) {
+  shortRetries(t)
+  data := bytes.Repeat([]byte("abcdefghij"), 10000)
+  sum := sha256.Sum256(data)
+
+  for _, mode := range []string{ "drop", "stall" } {
+    srv, calls := flaky(t, data, mode, 3)
+    dest := filepath.Join(t.TempDir(), "m.gguf")
+    retries := 0
+    err := download(
+      context.Background(), srv.Client(), srv.URL, dest, int64(len(data)),
+      hex.EncodeToString(sum[:]), nil,
+      func(error, time.Duration) { retries++ },
+    )
+    if err != nil {
+      t.Fatalf("%s: %v", mode, err)
+    }
+
+    got, _ := os.ReadFile(dest)
+    if !bytes.Equal(got, data) || retries != 3 || *calls != 4 {
+      t.Errorf("%s: %d bytes, %d retries, %d calls", mode, len(got), retries, *calls)
+    }
+  }
+}
+
+func TestDownloadGivesUp(t *testing.T) {
+  shortRetries(t)
+  data := bytes.Repeat([]byte("x"), 5000)
+
+  // A missing file isn't retried.
+  missing := httptest.NewServer(http.NotFoundHandler())
+  defer missing.Close()
+  retries := 0
+  count := func(error, time.Duration) { retries++ }
+  err := download(context.Background(), missing.Client(), missing.URL, filepath.Join(t.TempDir(), "m"), 5000, "", nil, count)
+  if err == nil || retries != 0 {
+    t.Errorf("404: %v after %d retries", err, retries)
+  }
+
+  // A server that's down keeps failing until giveUpAfter, keeping
+  // what arrived.
+  down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+    w.WriteHeader(http.StatusBadGateway)
+  }))
+  defer down.Close()
+  dest := filepath.Join(t.TempDir(), "m")
+  os.WriteFile(dest + ".part", data[:100], 0o644)
+  err = download(context.Background(), down.Client(), down.URL, dest, int64(len(data)), "", nil, nil)
+  if err == nil || !strings.Contains(err.Error(), "no progress") {
+    t.Errorf("down: %v", err)
+  }
+
+  info, _ := os.Stat(dest + ".part")
+  if info == nil || info.Size() != 100 {
+    t.Error(".part not kept")
+  }
+
+  // Ctrl-C during a wait stops at once.
+  ctx, cancel := context.WithCancel(context.Background())
+  go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+  start := time.Now()
+  err = download(ctx, down.Client(), down.URL, dest, int64(len(data)), "", nil, nil)
+  if err == nil || !strings.Contains(err.Error(), "interrupted") || time.Since(start) > time.Second {
+    t.Errorf("cancel: %v after %s", err, time.Since(start))
   }
 }

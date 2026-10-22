@@ -223,10 +223,11 @@ type benchResult struct {
 
 // progressWriter counts bytes and reports at most twice a second.
 type progressWriter struct {
-  w      io.Writer
-  done   int64
-  last   time.Time
-  report func(int64)
+  w           io.Writer
+  done, start int64 // bytes in the file; at the start of this run
+  last        time.Time
+  stall       *time.Timer // reset by every write while fetching
+  report      func(done, fresh int64)
 }
 
 // hubRef is a Hugging Face reference taken apart.
@@ -242,4 +243,10 @@ type catalogEntry struct {
 type sizedFile struct {
   path string
   size int64
+}
+
+// statusError is a server's answer other than the content.
+type statusError struct {
+  code int
+  msg  string
 }

@@ -431,9 +431,14 @@ func fetchSource(ctx context.Context, c *http.Client, src *source, dir string) (
 
     start := time.Now()
     label := filepath.Base(f.Path)
-    err = download(ctx, c, src.fileURL(f), dest, f.Size, f.SHA256, func(done int64) {
-      progressLine(label, done, f.Size, start)
-    })
+    err = download(
+      ctx, c, src.fileURL(f), dest, f.Size, f.SHA256,
+      func(done, fresh int64) { progressLine(label, done, fresh, f.Size, start) },
+      func(err error, wait time.Duration) {
+        ui.ClearLine()
+        fmt.Printf("%s  %s — retrying in %s (Ctrl-C stops; it resumes later)", label, shortErr(err), wait)
+      },
+    )
     ui.ClearLine()
     if err != nil {
       return "", fmt.Errorf("\n\t... in fetchSource:\n\t%w", err)
@@ -445,9 +450,11 @@ func fetchSource(ctx context.Context, c *http.Client, src *source, dir string) (
   return first, nil
 }
 
-func progressLine(label string, done, size int64, start time.Time) {
+// progressLine is one download's line: the rate counts only what
+// this run fetched, not what a previous one left.
+func progressLine(label string, done, fresh, size int64, start time.Time) {
   secs := time.Since(start).Seconds()
-  rate := float64(done) / secs
+  rate := float64(fresh) / secs
   eta := ""
   if rate > 0 {
     eta = duration(float64(size - done) / rate)
@@ -458,6 +465,21 @@ func progressLine(label string, done, size int64, start time.Time) {
     "%s  %s / %s  %.0f MB/s  %s left",
     label, gb(done), gb(size), rate / 1e6, eta,
   )
+}
+
+// shortErr is an error's last line: the cause, without the trace.
+func shortErr(err error) string {
+  msg := strings.TrimSpace(err.Error())
+  i := strings.LastIndex(msg, "\n")
+  if i >= 0 {
+    msg = strings.TrimSpace(msg[i + 1:])
+  }
+
+  if len(msg) > 60 {
+    msg = msg[:57] + "…"
+  }
+
+  return "connection lost: " + msg
 }
 
 // ramSpeed fills the RAM's type and speed when SMBIOS couldn't (it
