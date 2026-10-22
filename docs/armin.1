@@ -1,0 +1,470 @@
+.\" armin(1): the manual page. install.sh copies it to
+.\" ~/.local/share/man/man1; read it in place with: man ./docs/armin.1
+.TH ARMIN 1 2026-10-22 armin "User Commands"
+.SH NAME
+armin \- a terminal coding assistant backed by llama.cpp models
+.SH SYNOPSIS
+.B armin
+.RI [ path ]
+.RI [ flags ]
+.br
+.B armin
+.B \-web
+.I addr
+.RI [ path ]
+.RI [ flags ]
+.br
+.B armin
+.BR \-lsp " | " \-mcp
+.RI [ path ]
+.RI [ flags ]
+.br
+.B armin
+.B \-install
+.IR org/repo [: QUANT ]
+|
+.I org/repo/file.gguf
+|
+.I file.gguf
+.br
+.B armin
+.B \-uninstall
+.IR name " | " list
+.br
+.B armin
+.B \-library\-sync
+|
+.B \-library\-add
+.IR path ,...
+.SH DESCRIPTION
+.B armin
+reads, searches and edits a codebase, runs its build and tests, and
+grounds every answer in what is actually there. It talks to a
+.BR llama-server (1)
+model, local or on a remote box, or to a hosted API, and gives it a
+set of narrow, structured tools \(em never a free\-form shell string
+\(em jailed to the project root.
+.PP
+.I path
+is shorthand for
+.BR \-root :
+.B "armin .\&"
+and
+.B "armin \-root .\&"
+are the same, and the path may go anywhere among the flags. Giving
+both is an error. With neither, the root is the current directory.
+.PP
+The same tool layer is served four ways:
+.TP
+.B REPL
+The default: a chat in the terminal.
+.TP
+.BI \-web " addr"
+The same chat in a browser on localhost, with previews for PDFs,
+Markdown and code.
+.TP
+.B \-lsp
+A Language Server on stdio, run alongside your real one: hover
+explanations, ctags\-backed definitions and workspace symbols,
+fill\-in\-the\-middle inline completion, and an
+.B armin.ask
+command. See
+.I docs/nvim.md
+for the Neovim client.
+.TP
+.B \-mcp
+The tools alone, over MCP stdio, for another agent to use.
+.PP
+One armin serves each project: a terminal armin started where nvim's
+armin already runs joins its chat instead of loading a second set of
+models. Pass
+.B \-new
+to start a separate one.
+.SH OPTIONS
+Every flag's default can come from
+.IR config.conf ;
+a flag given on the command line wins. Flags take one dash or two.
+.SS Project and model
+.TP
+.BI \-root " dir"
+Project root; every path a tool touches is jailed to it. Default
+.IR . .
+.TP
+.BI \-add\-dir " dir" ,...
+Directories outside the project armin may read, never write, e.g.
+.BR "\-add\-dir .." .
+.TP
+.BI \-model " name"
+The chat model: a
+.BI models. name
+entry in
+.IR config.conf ,
+or, with no such entry, a label for whatever runs at
+.BR \-llama\-url .
+Default
+.BR chat .
+.TP
+.BI \-llama\-url " url"
+llama\-server used for a
+.B \-model
+with no
+.BI models. name
+entry. Default
+.BR http://localhost:8080 .
+.TP
+.BI \-completion\-model " name"
+The model for
+.BR \-lsp 's
+inline completion; should be a fill\-in\-the\-middle code model.
+Default: the
+.B \-model
+itself.
+.TP
+.BI \-completion\-llama\-url " url"
+Like
+.BR \-llama\-url ,
+for
+.BR \-completion\-model .
+Default: reuse
+.BR \-llama\-url .
+.TP
+.BI \-ctags\-bin " path"
+Universal Ctags binary for
+.BR \-lsp 's
+definitions, symbols and hover grounding. Default:
+.B universal\-ctags
+on
+.BR PATH ,
+else
+.IR ~/.local/bin/universal\-ctags .
+Empty disables those features.
+.SS Thinking
+.TP
+.BI \-effort " level"
+How hard the model thinks:
+.B auto
+(it judges each request),
+.BR off ,
+.BR low ,
+.B medium
+or
+.BR high .
+Default
+.BR auto .
+.TP
+.BI \-aids " list"
+Reasoning aids:
+.BR all ,
+.BR none ,
+or a comma\-separated list of
+.B stuck
+(step back after repeated failures),
+.B procedure
+(steps per kind of task) and
+.B verify
+(check the work before answering). Default
+.BR all .
+.TP
+.BI \-max\-rounds " n"
+Tool\-call rounds per turn before the model must report back.
+Default 50.
+.SS Tools and safety
+.TP
+.B \-yes
+Apply file writes and approve
+.B run_program
+runs without asking.
+.BR rm ,
+.BR cp ,
+.BR mv ,
+.B scp
+and
+.B rsync
+are still asked every time.
+.TP
+.B \-dry\-run
+.B run_command
+describes what it would execute instead of running it.
+.TP
+.BI \-timeout " duration"
+Per\-subprocess timeout. Default
+.BR 20s .
+.TP
+.BI \-max\-output " bytes"
+Tool output kept before truncation. Default 4000.
+.SS Frontends
+.TP
+.BI \-web " addr"
+Serve the chat in a browser at this localhost address, e.g.
+.BR 127.0.0.1:7777 .
+.TP
+.B \-lsp
+Serve hover, completion and an ask command over LSP stdio.
+.TP
+.B \-mcp
+Serve the sandboxed tools over MCP stdio.
+.TP
+.B \-new
+Start a separate armin even when one already serves this project.
+.TP
+.B \-no\-color
+Disable ANSI styling.
+.SS Sessions
+.TP
+.BR \-resume " [\fIid\fR]"
+Resume a saved session: alone, pick from a menu; with an id, or a
+unique prefix of one, that session, in its own project directory and
+on its own model.
+.TP
+.B \-no\-save
+Don't write the session to disk.
+.SS Models
+These add or remove a model, then exit; they load none.
+.TP
+.BI \-install " model"
+Size a model up against this machine (VRAM, RAM, the context it
+leaves room for), then download it and add a
+.BI models. name
+block to
+.IR config.conf .
+.I model
+is
+.IR org/repo [: QUANT ]
+on Hugging Face,
+.IR org/repo/file.gguf ,
+or a
+.I .gguf
+already on disk.
+.TP
+.BI \-install\-to " dir"
+Where
+.B \-install
+downloads. Default: where your models already are, else
+.IR ~/models .
+.TP
+.BI \-uninstall " name"
+Remove a model's
+.I config.conf
+lines and its
+.IR .gguf ,
+unless another model uses the file.
+.B "\-uninstall list"
+shows every model and its size.
+.SS Reference library
+These work on the folder named by
+.B library
+in
+.IR config.conf ,
+then exit.
+.TP
+.B \-library\-sync
+Index the library and have
+.B \-model
+catalog the books the topic table lacks.
+.TP
+.BI \-library\-add " path" ,...
+Copy files or folders into the library, then index and catalog them.
+.TP
+.BI \-library\-to " folder"
+The library folder (topic)
+.B \-library\-add
+copies into. Default
+.BR added .
+.SH SLASH COMMANDS
+Typed at the REPL prompt.
+.TP
+.BR /help ", " /?
+List commands.
+.TP
+.BR /quit ", " /exit ", " /q
+Leave.
+.TP
+.B /clear
+Reset the conversation to the system prompt.
+.TP
+.BR /model " [\fIname\fR]"
+Show the active and configured models, or switch.
+.TP
+.BR /effort " [\fIlevel\fR] [\fItask\fR]"
+Show or set how hard the model thinks; with a task, for that task
+alone.
+.TP
+.BR /context ", " /ctx
+Messages, tool calls and an estimate of the tokens used.
+.TP
+.BR /compact " [\fIn\fR]"
+Summarize everything but the last
+.I n
+messages to free context.
+.TP
+.B /tools
+List the model's tools.
+.TP
+.B /root
+Show the project root, timeout, allowlist and dry\-run state.
+.TP
+.B /history
+Dump the raw conversation.
+.TP
+.BR /add\-dir " [\fIdir\fR]"
+Let armin read a directory outside the project; alone, list them.
+.TP
+.BR /sessions " [rm \fIid\fR]"
+List sessions, or delete one and its scratchpad.
+.TP
+.BI /resume " id"
+Switch to another session of this directory.
+.TP
+.BI /title " text"
+Rename this session.
+.TP
+.B /save
+Save the session now.
+.TP
+.B /suggest
+Toggle numbered follow\-up questions after each answer.
+.TP
+.B /ghosttext
+Toggle ghost\-text completion while typing; Tab accepts.
+.TP
+.B /thinking
+Toggle showing the model's thinking as it streams.
+.TP
+.B /approve
+Toggle asking before each file write.
+.TP
+.BR /memory " [show|rm \fIname\fR]"
+List, show or delete memories.
+.TP
+.BI /remember " text"
+Ask the model to save something to memory.
+.TP
+.B /skills
+List skills.
+.TP
+.BI /skill " name" " \fR[\fItask\fR]"
+.TQ
+.BI / name " \fR[\fItask\fR]"
+Run a skill.
+.TP
+.BR /scratch " [show \fIname\fR|clear]"
+List, show or clear the scratchpad.
+.TP
+.BR /library " [index|catalog|merge|add|topics] ..."
+The reference library: status, reindex, catalog new books, copy files
+in, show the topic table.
+.SH LINE EDITING
+On a terminal the prompt is edited in raw mode: Backspace, Ctrl\-U
+clears the line, Ctrl\-W deletes a word, Ctrl\-C interrupts a running
+turn, Ctrl\-D leaves. There is no cursor movement or history. Piped
+input is read line by line.
+.SH FILES
+.TP
+.I ~/.config/armin/config.conf
+.B key = value
+lines and
+.B #
+comments. Holds every flag's default, the
+.BI models. name .*
+blocks (a local llama\-server to spawn and reap, a hosted API, or a
+cloud machine), and agent and sandbox keys such as
+.BR allow ,
+.BR allow_exec ,
+.BR context_size ,
+.BR test_cmd ,
+.B build_cmd
+and
+.BR library .
+.TP
+.I ~/.config/armin/.env
+.B KEY=value
+lines for API keys and cloud credentials, which
+.I config.conf
+names with
+.B api_key_env
+but never holds. armin refuses to read it when anyone but you can.
+.TP
+.I ~/.config/armin/skills/
+.TQ
+.IB project /.armin/skills/
+Skills: folders holding a
+.I SKILL.md
+and its files.
+.TP
+.I ~/.local/share/armin/sessions/
+Saved sessions, one append\-only file per session, readable by you
+alone.
+.TP
+.I ~/.local/share/armin/memory/
+Memories the model saved, per project and for every project.
+.TP
+.IB ~/.local/share/armin/scratch/ project / session /
+Each session's scratchpad: plans, findings, archived tool results.
+.SH ENVIRONMENT
+.TP
+.B XDG_CONFIG_HOME
+Replaces
+.I ~/.config
+above.
+.TP
+.B XDG_DATA_HOME
+Replaces
+.I ~/.local/share
+above.
+.TP
+.B NO_COLOR
+When set, disables ANSI styling, as
+.B \-no\-color
+does.
+.PP
+A variable exported in the environment wins over the same key in
+.IR .env .
+Every command armin runs gets an environment with API keys and cloud
+credentials removed.
+.SH EXIT STATUS
+0 on success, 1 when armin fails, 2 for a command\-line error.
+.SH EXAMPLES
+Chat about the project in the current directory:
+.PP
+.RS
+.B armin .\&
+.RE
+.PP
+Use the
+.B coder
+model from
+.IR config.conf ,
+writing files without asking:
+.PP
+.RS
+.B armin ~/code/fox \-model coder \-yes
+.RE
+.PP
+Pick up where you left off:
+.PP
+.RS
+.B armin \-resume 999cd437
+.RE
+.PP
+See whether a model fits before downloading it:
+.PP
+.RS
+.B armin \-install Qwen/Qwen3\-8B\-GGUF:Q4_K_M
+.RE
+.PP
+The chat in a browser:
+.PP
+.RS
+.B armin . \-web 127.0.0.1:7777
+.RE
+.SH SEE ALSO
+.BR llama-server (1),
+.BR rg (1),
+.BR universal-ctags (1),
+.BR nvim (1)
+.PP
+.I README.md
+covers the tools, the safety model, every config key and the model
+lifecycle;
+.I docs/architecture.md
+the code.

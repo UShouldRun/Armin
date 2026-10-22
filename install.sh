@@ -164,6 +164,14 @@ case ":$PATH:" in
     ;;
 esac
 
+# --- Manual page ----------------------------------------------------------
+# man finds ~/.local/share/man on its own when ~/.local/bin is on PATH.
+
+man_dir="${XDG_DATA_HOME:-$HOME/.local/share}/man/man1"
+mkdir -p "$man_dir"
+cp docs/armin.1 "$man_dir/armin.1"
+ok "manual page installed: man armin"
+
 # --- Neovim plugin ------------------------------------------------------
 # A symlink, not a copy: a copy goes stale on the next git pull while
 # the binary it talks to moves on.
