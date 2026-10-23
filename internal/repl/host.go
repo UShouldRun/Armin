@@ -139,7 +139,7 @@ func (h host) Ask(_ context.Context, question, file, origin string) error {
   r.post(func() {
     fmt.Println()
     fmt.Println(ui.Dim("  " + origin + " asked:"))
-    fmt.Println(ui.Prompt() + question)
+    fmt.Println(ui.UserLine(question))
 
     err := r.turnAs(r.runCtx, share.Question(question, file), question, origin)
     if err != nil {

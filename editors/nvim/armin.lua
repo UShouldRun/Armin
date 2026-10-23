@@ -59,6 +59,17 @@ local function not_attached()
   vim.notify("armin: not attached — run :ArminLsp first", vim.log.levels.WARN)
 end
 
+-- user_lines is a question as chat lines: the prompt on the first,
+-- the rest under it (a buffer line can't hold a newline).
+local function user_lines(text)
+  local lines = vim.split(text or "", "\n", { plain = true })
+  for i, l in ipairs(lines) do
+    lines[i] = (i == 1 and "❯ " or "  ") .. l
+  end
+
+  return lines
+end
+
 -- wrap_text hard-wraps each paragraph of text to width columns,
 -- preserving existing blank-line paragraph breaks.
 local function wrap_text(text, width)
@@ -692,7 +703,9 @@ function M._on_event(e)
   local t = e.type
   if t == "user" then
     if e.origin ~= "nvim" then
-      chat_insert({ "  " .. (e.origin or "terminal") .. " asked:", "❯ " .. (e.delta or "") })
+      local lines = user_lines(e.delta)
+      table.insert(lines, 1, "  " .. (e.origin or "terminal") .. " asked:")
+      chat_insert(lines)
     end
 
     chat.busy, chat.origin, chat.answer_start = true, e.origin, nil
@@ -979,7 +992,7 @@ local function load_history()
     local out = {}
     for _, l in ipairs(lines) do
       if l.role == "user" then
-        out[#out + 1] = "❯ " .. l.text
+        vim.list_extend(out, user_lines(l.text))
       elseif l.role == "tool" then
         out[#out + 1] = "  ✓ " .. l.text
       else
@@ -1157,7 +1170,7 @@ function M.ask(question)
 
   if question then
     -- Typed questions stay on the prompt line; show this one too.
-    chat_insert({ "❯ " .. question })
+    chat_insert(user_lines(question))
     M._chat_submit(question)
   end
 end

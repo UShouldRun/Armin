@@ -80,6 +80,12 @@ func Prompt() string {
   return Bold(Cyan("❯")) + " "
 }
 
+// UserLine is a message the user sent, after the prompt: its later
+// lines go under its first, so it reads as one message.
+func UserLine(text string) string {
+  return Prompt() + strings.ReplaceAll(text, "\n", "\n  ")
+}
+
 // Banner prints the startup summary line: binary name, project
 // root, active model — the orientation a "uv"-style tool gives you
 // up front instead of silence.

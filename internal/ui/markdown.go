@@ -152,8 +152,9 @@ func RenderLine(line string, inCode *bool, width int) []string {
     return []string{ Dim("└─") }
   }
 
+  // No gutter: a code line copied from the terminal is the code.
   if *inCode {
-    return []string{ Dim("│ ") + Cyan(line) }
+    return []string{ Cyan(line) }
   }
 
   if trimmed == "" {

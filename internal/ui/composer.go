@@ -40,7 +40,7 @@ func StartComposer(pump *KeyPump, hint string, send func(string)) *Composer {
 
   // Make room: if the cursor is on the last row, the region would
   // leave it outside, where output would overwrite the bar.
-  fmt.Print("\n\x1b[1A" + pasteOn)
+  fmt.Print("\n\x1b[1A" + pasteOn + kittyOn)
   c.layout()
   pump.start()
   go c.run()
@@ -145,6 +145,15 @@ func (c *Composer) key(k key) {
 
   c.mu.Unlock()
 
+  // With the kitty protocol on, Ctrl-C comes as a key, not as the
+  // signal the terminal would send: send it ourselves.
+  if out.interrupted {
+    p, err := os.FindProcess(os.Getpid())
+    if err == nil {
+      p.Signal(os.Interrupt)
+    }
+  }
+
   if out.submit && line != "" {
     c.mu.Lock()
     c.queued++
@@ -203,7 +212,7 @@ func (c *Composer) Stop() string {
   close(c.stop)
   <-c.done
 
-  fmt.Printf("\x1b7\x1b[%d;1H\x1b[2K\x1b[r\x1b8" + pasteOff, c.rows)
+  fmt.Printf("\x1b7\x1b[%d;1H\x1b[2K\x1b[r\x1b8" + kittyOff + pasteOff, c.rows)
   restoreMode(int(os.Stdin.Fd()), c.mode)
 
   c.mu.Lock()

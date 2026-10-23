@@ -32,7 +32,7 @@ func TestRenderMarkdown(t *testing.T) {
     "Roadmap review\n",
     "Overall: well gated, see schema.sql and the doc (https://x.dev).",
     "• first point", "  • nested point", "1. numbered", "✓ done task",
-    "│ a quote", "┌─ go", "│ x := **not bold**", "└─",
+    "│ a quote", "┌─ go", "x := **not bold**", "└─",
     "a │ b", "c │ d",
     "snake_case_name and a*b stay as they are",
   } {

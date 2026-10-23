@@ -160,7 +160,9 @@ window takes effect. Piped output is never wrapped.
 The input line wraps at the same width, continuation rows lined up
 under the text. To do that, armin edits the line itself in raw
 mode: typing, Backspace, Ctrl-U (clear), Ctrl-W (delete word),
-Ctrl-C, Ctrl-D; no arrow-key movement or history. `/ghosttext`
+Ctrl-C, Ctrl-D, and Shift-Enter or Alt-Enter for a new line
+(Shift-Enter needs a terminal with the kitty keyboard protocol:
+Ghostty, kitty, WezTerm, foot); no arrow-key movement or history. `/ghosttext`
 adds dim inline suggestions that Tab accepts. Piped input and
 scripts get a plain buffered read.
 

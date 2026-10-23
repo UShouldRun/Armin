@@ -40,6 +40,27 @@ func TestDecodeKeyControlKeys(t *testing.T) {
   }
 }
 
+func TestDecodeKeyModified(t *testing.T) {
+  cases := map[string]key{
+    "\x1b[13;2u":    { control: keyNewline },   // kitty Shift-Enter
+    "\x1b[13;3u":    { control: keyNewline },   // kitty Alt-Enter
+    "\x1b\r":        { control: keyNewline },   // legacy Alt-Enter
+    "\x1b[27;2;13~": { control: keyNewline },   // modifyOtherKeys Shift-Enter
+    "\x1b[106;5u":   { control: keyNewline },   // kitty Ctrl-J
+    "\x1b[99;5u":    { control: keyInterrupt }, // kitty Ctrl-C
+    "\x1b[119;5u":   { control: keyKillWord },  // kitty Ctrl-W
+    "\x1b[27u":      { control: keyIgnored },   // kitty Escape
+    "\x1b[1;5A":     { control: keyIgnored },   // Ctrl-Up
+    "\x1b[233u":     { r: 'é' },
+  }
+  for input, want := range cases {
+    k := decode(t, input)
+    if k.control != want.control || k.r != want.r {
+      t.Errorf("decodeKey(%q) = %+v, want %+v", input, k, want)
+    }
+  }
+}
+
 func TestDecodeKeyMultiByteUTF8(t *testing.T) {
   // "é" is U+00E9, encoded as two UTF-8 bytes.
   k := decode(t, "é")

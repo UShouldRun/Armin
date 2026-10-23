@@ -178,7 +178,7 @@ func (a *Attached) follow(origin string) bool {
         origin = e.Origin
         v.stopSpinner()
         fmt.Println(ui.Dim("  " + e.Origin + " asked:"))
-        fmt.Println(ui.Prompt() + e.Delta)
+        fmt.Println(ui.UserLine(e.Delta))
         v.startSpinner()
 
         continue
@@ -346,7 +346,7 @@ func printHistory(h []share.ChatLine) {
   for _, l := range h {
     switch l.Role {
     case "user":
-      fmt.Println("\n" + ui.Prompt() + l.Text)
+      fmt.Println("\n" + ui.UserLine(l.Text))
     case "tool":
       ui.ToolLine(l.Text)
     default:

@@ -116,6 +116,12 @@ func (s *lineState) apply(k key) outcome {
   case keyIgnored:
     return outcome{}
 
+  case keyNewline:
+    s.buf = append(s.buf, '\n')
+    s.suggestion = nil
+
+    return outcome{ changed: true }
+
   case keyPaste:
     if len(k.paste) == 0 {
       return outcome{}
@@ -234,8 +240,9 @@ func (s *lineState) render(prompt string) (visible, ghost string) {
 
 // ReadLineWithGhostText reads one line from stdin. On a terminal it
 // edits the line in raw mode — linear typing, Backspace, Ctrl-U,
-// Ctrl-W, no arrow-key movement or history, pastes taken whole with
-// their newlines — wrapping it at
+// Ctrl-W, Shift-Enter or Alt-Enter for a newline, no arrow-key
+// movement or history, pastes taken whole with their newlines —
+// wrapping it at
 // TextWidth, and, when suggest is non-nil, shows a dim inline
 // suggestion that Tab accepts. Without a terminal (piped input,
 // scripts, tests) it falls back to a plain buffered read.
@@ -257,8 +264,8 @@ func ReadLineWithGhostText(
 
   defer restoreMode(fd, state)
 
-  fmt.Print(pasteOn)
-  defer fmt.Print(pasteOff)
+  fmt.Print(pasteOn + kittyOn)
+  defer fmt.Print(kittyOff + pasteOff)
 
   read := func() (key, error) { return decodeKey(reader) }
 
@@ -307,8 +314,8 @@ func ReadLineWake(
 
   defer restoreMode(fd, state)
 
-  fmt.Print(pasteOn)
-  defer fmt.Print(pasteOff)
+  fmt.Print(pasteOn + kittyOn)
+  defer fmt.Print(kittyOff + pasteOff)
 
   pump.start()
   read := func() (key, error) {

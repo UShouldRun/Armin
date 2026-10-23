@@ -4,6 +4,8 @@ package ui
 
 import (
   "bufio"
+  "strconv"
+  "strings"
   "unicode/utf8"
 )
 
@@ -18,6 +20,7 @@ const (
   keyKillWord  // Ctrl-W
   keyIgnored   // a recognized-but-unsupported sequence (arrow keys)
   keyPaste     // a bracketed paste, its text in key.paste
+  keyNewline   // Shift-Enter, Alt-Enter, Ctrl-J: a newline in the text
 )
 
 // Bracketed paste: with it on, the terminal wraps pasted text in
@@ -27,6 +30,22 @@ const (
   pasteOff   = "\x1b[?2004l"
   pasteEnd   = "\x1b[201~"
   pasteLimit = 1 << 20 // bytes kept from one paste
+)
+
+// The kitty keyboard protocol, its first level: a terminal that has
+// it sends Shift-Enter as CSI 13;2u, not as a bare Enter, and Ctrl
+// keys as CSI u too (decodeCSI maps them back). One without it
+// ignores both.
+const (
+  kittyOn  = "\x1b[>1u"
+  kittyOff = "\x1b[<u"
+)
+
+// Modifier bits in a CSI u key, after subtracting 1.
+const (
+  modShift = 1
+  modAlt   = 2
+  modCtrl  = 4
 )
 
 // decodeKey reads one logical keypress from r: a single rune (ASCII
@@ -41,34 +60,41 @@ func decodeKey(r *bufio.Reader) (key, error) {
     return key{}, err
   }
 
-  switch b {
-  case '\r', '\n':
-    return key{ control: keyEnter }, nil
-  case 127, 8: // DEL, Backspace
-    return key{ control: keyBackspace }, nil
-  case '\t':
-    return key{ control: keyTab }, nil
-  case 3: // Ctrl-C
-    return key{ control: keyInterrupt }, nil
-  case 4: // Ctrl-D
-    return key{ control: keyEOF }, nil
-  case 21: // Ctrl-U
-    return key{ control: keyKillLine }, nil
-  case 23: // Ctrl-W
-    return key{ control: keyKillWord }, nil
-  case 0x1b: // ESC
+  if b == 0x1b {
     return decodeEscape(r)
   }
 
+  if b >= 0x80 {
+    return decodeUTF8Rest(r, b)
+  }
+
+  return byteKey(b), nil
+}
+
+// byteKey is the key an ASCII byte other than ESC stands for.
+func byteKey(b byte) key {
+  switch b {
+  case '\r', '\n':
+    return key{ control: keyEnter }
+  case 127, 8: // DEL, Backspace
+    return key{ control: keyBackspace }
+  case '\t':
+    return key{ control: keyTab }
+  case 3: // Ctrl-C
+    return key{ control: keyInterrupt }
+  case 4: // Ctrl-D
+    return key{ control: keyEOF }
+  case 21: // Ctrl-U
+    return key{ control: keyKillLine }
+  case 23: // Ctrl-W
+    return key{ control: keyKillWord }
+  }
+
   if b < 0x20 {
-    return key{ control: keyIgnored }, nil // other control bytes
+    return key{ control: keyIgnored } // other control bytes
   }
 
-  if b < 0x80 {
-    return key{ r: rune(b) }, nil
-  }
-
-  return decodeUTF8Rest(r, b)
+  return key{ r: rune(b) }
 }
 
 func decodeUTF8Rest(r *bufio.Reader, first byte) (key, error) {
@@ -112,11 +138,16 @@ func decodeEscape(r *bufio.Reader) (key, error) {
     return key{ control: keyIgnored }, nil
   }
 
+  // Alt-Enter: ESC, then Enter.
+  if b1 == '\r' {
+    return key{ control: keyNewline }, nil
+  }
+
   if b1 != '[' && b1 != 'O' {
     return key{ control: keyIgnored }, nil
   }
 
-  var params [8]byte
+  var params [16]byte
   n := 0
   for {
     b2, err := r.ReadByte()
@@ -129,6 +160,10 @@ func decodeEscape(r *bufio.Reader) (key, error) {
         return decodePaste(r)
       }
 
+      if b1 == '[' {
+        return decodeCSI(string(params[:n]), b2), nil
+      }
+
       return key{ control: keyIgnored }, nil
     }
 
@@ -137,6 +172,56 @@ func decodeEscape(r *bufio.Reader) (key, error) {
       n++
     }
   }
+}
+
+// decodeCSI reads a key with modifiers: the kitty protocol's
+// "code;mods u", or xterm's modifyOtherKeys "27;mods;code ~". Enter
+// with any modifier is a newline; Ctrl with a letter is that
+// letter's control byte, so Ctrl-C still interrupts. Anything else
+// (arrows, F-keys) is keyIgnored.
+func decodeCSI(params string, final byte) key {
+  f := strings.Split(params, ";")
+  code, mods := "", "1"
+  switch {
+  case final == 'u' && len(f) <= 2:
+    code = f[0]
+    if len(f) == 2 {
+      mods = f[1]
+    }
+  case final == '~' && len(f) == 3 && f[0] == "27":
+    code, mods = f[2], f[1]
+  default:
+    return key{ control: keyIgnored }
+  }
+
+  // A key's alternate codes follow its own after a ':'.
+  code, _, _ = strings.Cut(code, ":")
+  mods, _, _ = strings.Cut(mods, ":")
+  c, err1 := strconv.Atoi(code)
+  m, err2 := strconv.Atoi(mods)
+  if err1 != nil || err2 != nil || m < 1 {
+    return key{ control: keyIgnored }
+  }
+
+  m--
+  switch {
+  case c == '\r':
+    if m & (modShift | modAlt | modCtrl) != 0 {
+      return key{ control: keyNewline }
+    }
+
+    return key{ control: keyEnter }
+  case c == 'j' && m == modCtrl:
+    return key{ control: keyNewline }
+  case m & modCtrl != 0 && c >= 'a' && c <= 'z':
+    return byteKey(byte(c) & 0x1f)
+  case c == '\t' || c == 127:
+    return byteKey(byte(c))
+  case m & (modAlt | modCtrl) == 0 && c >= 0x20 && c != 127 && c <= utf8.MaxRune:
+    return key{ r: rune(c) }
+  }
+
+  return key{ control: keyIgnored }
 }
 
 // decodePaste reads up to the paste's end marker. Line endings come

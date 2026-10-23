@@ -196,7 +196,7 @@ func (r *REPL) turnHooks(
     v.stopSpinner()
     v.endLine()
     for _, m := range msgs {
-      fmt.Println(ui.Prompt() + m)
+      fmt.Println(ui.UserLine(m))
       r.emit(share.Event{ Type: "user", Delta: m, Origin: origin })
     }
 
