@@ -96,9 +96,10 @@ Where notes go:
 | what is true about the code or topic | the tree (the only store checked for staleness) |
 | what's being done right now | scratchpad |
 
-At each start armin checks the tree against the code: files changed
-since the last session (from git, or every cited file outside git) are
-re-hashed where evidence cites them. Code that only moved within its
+At each start armin checks the tree against the code, with or without
+version control: each cited file's size, inode, modification and change
+time are compared with the last check's, and only the files that
+changed are re-hashed where evidence cites them. Code that only moved within its
 file is followed; a claim whose lines changed is marked STALE, and
 whatever needs it or was derived from it SUSPECT, until the model
 re-reads it. A `requires` loop (A needs B needs A) gets a question

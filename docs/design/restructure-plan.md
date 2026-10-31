@@ -125,7 +125,8 @@ graph.snap  header (magic "ARMK", version, counts, section offsets)
 graph.log   "ARML" + generation, then append-only ops:
             [op u8][len uvarint][payload][crc32]
 lock        flock'd by the armin that writes; others open read-only
-seen        the HEAD the last staleness check saw
+stamps      size, inode, mtime and ctime of each cited file at the last
+            staleness check
 events      (learner) raw 12-byte Event records, append-only
 ```
 
@@ -177,8 +178,10 @@ procedure aid, and enforced in code where they can be:
   carries the logic and not only the facts.
 
 **c) Staleness at session start**:
-1. changed files from `git diff --name-only <last seen commit>` +
-   `git status --porcelain` (mtimes outside git)
+1. changed files: each cited file's stamp (size, inode, mtime, ctime)
+   against the last check's, so no version control is needed (git,
+   Mercurial, Jujutsu, Subversion, Fossil or none); ctime can't be
+   set by tools, so a replaced file with the old mtime is still caught
 2. a path → evidence index finds the evidence touching them
 3. each changed file is read once and hashed per line (FNV); a
    range's hash is a polynomial rolling hash over its line hashes
