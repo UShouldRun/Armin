@@ -36,6 +36,7 @@ Everything below is why, and what the next tries are.
 | 5 (642f3a3) | pointers, at-refs, current, find guidance | +21.0% | +17% | +27% |
 | 6 (f751386) | none: round 5 scored in dollars (H1) | +5.3% tok, **−0.4% $** | +25% $ | −19% $ |
 | 7 (d8cf528) | recall: armin searches, model only writes | +15% $ ‡ | +53% $ ‡ | −17% $ |
+| 8 (1491052) | H3: three sessions, recall on | **−17.7% $** | +9% $ | −29% $, s3 −35% $ |
 
 Input tokens, 3 runs summed, tree vs no-tree. Accuracy held
 throughout (scattered 3–5/5, never systematically worse; the two
@@ -373,4 +374,38 @@ tools; it didn't make session 2 cheaper. Session 1 swings with the
 no-tree baseline ($0.078 here, $0.093 in round 6): two sessions on
 five pairs is still noise-sized for s1. The honest next measurement
 is H3, three sessions per pair, with recall on.
+
+## Round 8: H3, three sessions per pair (2026-10-31)
+
+Recall on, a third "week later" question per pair (the `third` field),
+the tree kept across a pair's three sessions. Traces reports/treebench8/,
+logs reports/treebench8-run*.log. About $0.58 for 90 sessions.
+
+| | no tree | tree | delta | rounds |
+|---|---|---|---|---|
+| s1 | $0.114 | $0.124 | +9% | 100 vs 104 |
+| s2 | $0.101 | $0.072 | **−29%** | 77 vs 65 |
+| s3 | $0.105 | $0.068 | **−35%** | 99 vs 76 |
+| all three | $0.320 | $0.263 | **−17.7%** | 276 vs 245 |
+
+Accuracy: tree 44/45, no tree 45/45. Each run on its own: −15.0%,
+−23.7%, −13.3% — the first round where every run agrees on the sign.
+Recall attached on 27 of 45 tree turns (every s2 and s3, no s1: the
+tree is empty there) and was used in 16 of 27.
+
+**H3 confirmed: the tree compounds.** Session 1's recording (+9%) is
+paid back in session 2, and session 3 saves more than session 2 did:
+fewer rounds (76 vs 99), not cheaper rounds. Two-session pairs were too
+short to show it; the "+21% pair" of rounds 2-5 was measuring the
+cost of a tree before it had anything to give back.
+
+What this settles and what it doesn't:
+- **Settled:** with recall, the tree pays for itself in chat from the
+  second session in an area, and pays more the more sessions land
+  there. Recall stays on as the design.
+- **Not settled:** a static repo map (aider-style) as the baseline, to
+  bound how much of this is "any map in the prompt"; and consolidation
+  between sessions, which should lift s1's recording quality and the
+  27-of-45 attach rate. Both are refinements now, not the question of
+  whether the tree pays.
 
