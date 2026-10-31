@@ -1,9 +1,10 @@
 # Restructure plan: roles and knowledge trees
 
 Status: **steps 1-9 built** on branch `restructure`; step 10 (teaching)
-and 11 (end-to-end check) remain, plus the open tree-economics question
-in "Does the tree pay?" (section 5). Section 9 says exactly where
-things stand and what's left.
+and 11 (end-to-end check) remain. The settled design lives here; the
+open tree-economics question, with its rounds and hypotheses, lives
+in **restructure-tree-economics.md** (same directory). Section 9
+says exactly where things stand and what's left.
 
 Inspired by LearnHarness (amosblomqvist/learnharness): a persistent
 knowledge graph of what the learner knows, built from teaching
@@ -386,113 +387,19 @@ evidence); no `decision` nodes; no verifying; no resolving cycles
 The main saving is input tokens and tool rounds (no re-reading what's
 understood); output shrinks mostly through references.
 
-### Does the tree pay? (measured 2026-10-31)
+### Does the tree pay?
 
-`internal/think/treebench_test.go` measures it: five pairs of real
-questions about armin's own code (repeat-guard, golden-tools,
-staleness, roles, project-dirs), two fresh sessions per pair, run
-concurrently per condition. Session 1 asks about an area; session 2
-follows up on it, where the tree should spare the model from
-exploring again. Answers checked by regex; tokens from the usage
-hook. Qwen 3.8 27B via OpenRouter, effort medium, read-only, no
-memories or skills. `ARMIN_TREEBENCH_DUMP` writes per-session traces
-(paths are package-relative: pass an absolute path). The key loads
-from `~/.config/armin/.env` (0471735).
-
-Four rounds, three runs each, input tokens summed over runs:
-
-| round | s1 no tree | s1 tree | s2 no tree | s2 tree | pair |
-|---|---|---|---|---|---|
-| 6 tools, no auto-record (0471735) | 293k* | 463k (+58%) | 325k* | 259k (−20%) | 722k vs 619k |
-| 3 tools, no auto-record (28d53c5) | 1061k | 1383k (+30%) | 900k | 969k (+8%) | +19.9% |
-| 3 tools, auto-record never fired† | 1005k | 1562k (+55%) | 900k | 1150k (+28%) | +42.4% |
-| 3 tools, auto-record live (6af79a5) | 1202k | 1790k (+49%) | 869k | 1134k (+31%) | +41.2% |
-| trust design (642f3a3, round 5 below) | 1351k | 1585k (+17%) | 842k | 1068k (+27%) | +21.0% |
-
-\* single runs, no repetition. † recordTurn read a nonexistent
-argument key (`file`; read_file's is `path`), so this round silently
-re-measured the 3-tool state; kept as a lesson: a feature whose
-effect is "nothing changed" must be proven on before its cost is
-believed. All tree-condition accuracy was 3–5/5 per session-1 and
-4–5/5 per session-2, scattered, never systematically worse.
-
-**Findings, from the traces (reports/treebench*/)**:
-
-1. **The tree pays exactly where the model wrote a real claim.**
-   golden-tools tree s2 with a recorded node: 4 rounds, 35k input,
-   answered from the tree. Without a recorded node the model calls
-   `know_find`, gets nothing useful, and explores anyway.
-2. **Three tools didn't lower the s1 cost** (recording + description
-   overhead sits on every request; +30% with descriptions alone).
-   But the merged `know_write` roughly doubled how often the model
-   records (about one write per session-1 now, 2 calls in 5 runs
-   before) — the easier surface is real, just not cheap enough.
-3. **Auto-recording Q/A pairs does not pay.** A cut question plus a
-   cut answer (`Q: … A: …`) under `sessions/` filled the tree (all
-   15 session-1s recorded), s2 searched and found them (1–4
-   `know_find` calls), and still explored the code: +31% s2, the
-   worst yet. The model doesn't trust a blob it can't weigh; a
-   claim it wrote itself, with evidence it chose, it reuses.
-4. **Run-to-run noise is large** (no-tree s1 ranged 317k–497k in
-   one round); three runs is the minimum, and only pair deltas mean
-   anything.
-
-**Where this leaves the tree (open, not settled)**: recording is
-the model's job (`know_write` with a real claim), and armin's
-auto-record should at most note *where to look* (a `file`-kind node
-with the ranges read, no Q/A text), so s2's first read is cheap and
-targeted instead of a search. The next measurement: strip the Q/A
-claim to the ranges alone, keep everything else, and see whether s2
-drops below no-tree. If it does, the tree's value is navigation, not
-prose; if it doesn't, the tree only pays in long chains (three-plus
-sessions) and the benchmark should grow a third session to show it.
-Costs so far: about $1.50 in OpenRouter across 12 clean runs.
-
-**Round 5 (642f3a3), the trust design** — four changes aimed at the
-misses above, all in `line.go`, `tools_know.go`, `prompt.go`:
-
-- **Pointers, not prose**: `recordTurn` records a `file`-kind node
-  whose claim is the answer's own citations (regex over `x.go:12-34`
-  patterns), falling back to the ranges read. No Q/A text.
-- **`at`-ref on the line**: every short node line carries its first
-  file evidence (`at tcp/conn.go:10-20`), so find → read is one
-  round; a node's evidence no longer costs a second call to see.
-- **`current` mark**: a node with file evidence that is neither
-  STALE nor SUSPECT says `current` — it provably passed the
-  staleness check. The one thing a re-read can't beat.
-- **The rule at the point of decision**: `knowRules` states the
-  current/STALE contract and the at-ref's meaning, and every
-  `know_find` with hits ends with "answer from these where none is
-  STALE or SUSPECT (current = passed today's file check); read code
-  only for what they don't cover, starting at their at-lines".
-
-Results (3 runs, tokens summed):
-
-| round | s1 no tree | s1 tree | s2 no tree | s2 tree | pair |
-|---|---|---|---|---|---|
-| 5: trust design | 1351k | 1585k (+17%) | 842k | 1068k (+27%) | +21.0% |
-
-The best round yet — s1's overhead halved (+49% → +17%), accuracy
-held (two s2 misses in one run, both borderline regex checks on
-correct-looking answers, not tree-induced), and the traces show the
-intended flow working: s2 finds the s1 node, reads its `at`-ref
-range, and answers in four calls (staleness-tree-2:
-find → find ids → one 106-line read → done). But s2 still spends
-more than no-tree: the pointer nodes under `sessions/` mostly
-weren't what s2 used — the model's own s1 nodes carried the saving;
-where s1 wrote nothing, s2 explored as before. And the +27% s2 gap
-says the description overhead still rides on every s2 request
-whether the tree helps or not.
-
-**What round 5 settles**: the read side is done — `at`-refs,
-`current`, find-with-hits guidance all work and cost almost
-nothing. The remaining gap is standing overhead (descriptions +
-outline on every request) and s1's recording. The levers left:
-slim the tool descriptions and the tree section (move the how-to
-into the cached prefix), measure with the cached/uncached token
-split (OpenRouter bills cached prefix at a discount; the +17% may
-be nearly free in dollars), and try three-session pairs — the
-standing cost is per session, the tree compounds across them.
+Measured, five rounds so far, and still open: the pair costs +21%
+input tokens, the read side works, and the gap is standing overhead
+plus amortization. The full experiment log — rounds, postmortems,
+hypotheses H1–H4 and their order — lives in
+**docs/design/restructure-tree-economics.md**. What the rounds
+settled for this plan: three tools not six (`know_find` with `ids`,
+`know_write` doing all writes, `know_trace`), auto-record as
+pointers (the answer's own citations, `file`-kind, no Q/A prose),
+the `at`-ref and `current` mark on node lines, and the trust rule on
+find results. What they left open: whether the tree pays for chat at
+all, or only in the advisor/teaching flow.
 
 ## 6. The advisor flow — settled
 
@@ -698,13 +605,13 @@ its own commit (one per package where it spans several).
    `/advisor`. Works with no tree at all; the golden files prove each
    role's tool list is byte-stable.
 4. **Trees in context**: `tools_know.go` (find, get, add, link,
-   edit; since merged into find, write, trace — see section 5) with
+   edit; since merged into find, write, trace) with
    the node line format and writing rules, the frozen outline in the
    system prompt, the procedure aid line, `memory_save` refusing
    code facts, `-know dump | edit | import-memories`. Then the
    **format measurement** (~200-node fixture, ~20 questions, minion
    and copilot models), and the **benchmark** ("Does the tree pay?",
-   section 5).
+   restructure-tree-economics.md).
 5. **Staleness**: evidence hashing, git diff + status at session
    start, same-file re-anchoring, suspect pass; the cycle pass and
    the turn-end reminder for open cycles. Tests replay real edits
@@ -747,17 +654,17 @@ pass (`go test ./...`, the know and learner packages also under
 | 8 speech | done in the REPL (/voice, learn_explained) | 1adc4fe |
 | 9 web UI split + redesign | done | c38a8cf, e47a868 |
 | style pass (80 columns, no if-init) | done | 2faca9c |
-| tree benchmark + answer rule | done, results in section 5 | 0471735 |
+| tree benchmark + answer rule | done, results in restructure-tree-economics.md | 0471735 |
 | six know tools into three | done (find reads full, write does all writes) | 28d53c5 |
-| auto-record turn into tree | built; Q/A claims measured unhelpful, rethink pending (section 5) | 6af79a5 |
+| auto-record turn into tree | done; Q/A claims out, pointers in (round 5) | 6af79a5, 642f3a3 |
 | benchmark loads .env key | done | e4a7178 |
 
 ### Left to do
 
-**Tree economics** (the open question in section 5, before more is
-built on the tree): strip auto-record to a `file`-kind node with the
-ranges read (no Q/A text), measure; if s2 still doesn't beat no-tree,
-add a third session to the pairs and measure long chains.
+**Tree economics** (open; see restructure-tree-economics.md): the
+pointer recording from round 5 is built and measured — what remains
+is H1 (cached-token scoring), then H3 (three-session pairs), H2
+(description slimming) only if H1 says the gap is real dollars.
 
 **Step 10, teaching** (the big one; section 6 has every decision):
 - `tools_teach.go` beyond `learn_explained`: the probe (self-report on
