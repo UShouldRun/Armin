@@ -80,7 +80,9 @@ func Open(dir string) (*Learner, error) {
     os.Truncate(path, int64(whole))
   }
 
-  l.file, err = os.OpenFile(path, os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0o600)
+  l.file, err = os.OpenFile(
+    path, os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0o600,
+  )
   if err != nil {
     tree.Close()
     return nil, fmt.Errorf("\n\t... in Open:\n\t%w", err)

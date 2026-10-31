@@ -41,7 +41,9 @@ var knowTools = []toolSpec{
       map[string]llm.ToolProperty{
         "query": stringProp("Words to look for; a word's start matches too"),
         "under": stringProp("Only below this node: a path or an id (n42)"),
-        "count": { Type: "integer", Description: "How many, up to 20 (default 10)" },
+        "count": {
+          Type: "integer", Description: "How many, up to 20 (default 10)",
+        },
       },
       "query",
     ),
@@ -80,7 +82,15 @@ var knowTools = []toolSpec{
         "kind": {
           Type:        "string",
           Description: "What it is",
-          Enum:        []string{ "topic", "concept", "fact", "decision", "file", "symbol", "question" },
+          Enum:        []string{
+            "topic",
+            "concept",
+            "fact",
+            "decision",
+            "file",
+            "symbol",
+            "question",
+          },
         },
         "claim": stringProp("What is true, in a sentence or two; a concept's " +
           "definition"),
@@ -129,7 +139,9 @@ var knowTools = []toolSpec{
           Description: "requires: from needs to before it makes sense; " +
             "derived-from: from was concluded from to; explains; " +
             "implements (project code → a general concept); contradicts",
-          Enum:        []string{ "requires", "implements", "explains", "contradicts", "derived-from" },
+          Enum:        []string{
+            "requires", "implements", "explains", "contradicts", "derived-from",
+          },
         },
         "remove": { Type: "boolean", Description: "Remove the edge instead" },
       },
@@ -151,9 +163,15 @@ var knowTools = []toolSpec{
         "kind":       stringProp("The new kind"),
         "confidence": stringProp("guess, inferred, checked or tested"),
         "move_to":    stringProp("New path"),
-        "verified":   { Type: "boolean", Description: "You checked a minion's claim" },
-        "current":    { Type: "boolean", Description: "Clear STALE and SUSPECT" },
-        "delete":     { Type: "boolean", Description: "Delete it (no children)" },
+        "verified":   {
+          Type: "boolean", Description: "You checked a minion's claim",
+        },
+        "current":    {
+          Type: "boolean", Description: "Clear STALE and SUSPECT",
+        },
+        "delete":     {
+          Type: "boolean", Description: "Delete it (no children)",
+        },
       },
       "id",
     ),
@@ -331,7 +349,9 @@ func runKnowFind(_ context.Context, l *Loop, c toolCall) any {
 
   hits := l.Know.Find(in.Query, under, count)
   if len(hits) == 0 {
-    return map[string]string{ "found": "nothing; explore the code, then know_add what you establish" }
+    return map[string]string{
+      "found": "nothing; explore the code, then know_add what you establish",
+    }
   }
 
   ids := make([]know.NodeID, len(hits))
@@ -537,7 +557,9 @@ func (l *Loop) minionLimits(kind know.Kind, conf *know.Conf) (string, error) {
 }
 
 // ensurePath returns the node at path, adding missing levels as topics.
-func (l *Loop) ensurePath(path string, author know.AuthorID) (know.NodeID, error) {
+func (l *Loop) ensurePath(
+  path string, author know.AuthorID,
+) (know.NodeID, error) {
   id := know.NodeID(0)
   if path == "" {
     return id, nil
@@ -547,7 +569,9 @@ func (l *Loop) ensurePath(path string, author know.AuthorID) (know.NodeID, error
     next, ok := l.Know.Child(id, part)
     if !ok {
       var err error
-      next, err = l.Know.AddNode(id, part, "", know.KindTopic, know.ConfInferred, author)
+      next, err = l.Know.AddNode(
+        id, part, "", know.KindTopic, know.ConfInferred, author,
+      )
       if err != nil {
         return 0, err
       }
@@ -737,7 +761,9 @@ func runKnowUpdate(_ context.Context, l *Loop, c toolCall) any {
   if in.Claim != nil {
     claim := strings.TrimSpace(*in.Claim)
     if kind == know.KindConcept && claim == "" {
-      return errResult(fmt.Errorf("a concept needs its definition as the claim"))
+      return errResult(
+        fmt.Errorf("a concept needs its definition as the claim"),
+      )
     }
 
     err = l.Know.SetClaim(id, claim)

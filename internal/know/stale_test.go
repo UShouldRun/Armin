@@ -12,13 +12,18 @@ func TestCheckFile(t *testing.T) {
   g := New()
   a := need(g.AddNode(0, "a", "", KindFact, ConfChecked, 0))
   b := need(g.AddNode(0, "b", "", KindFact, ConfChecked, 0))
-  old := []byte("one\ntwo\nfunc f() {\n  return 1\n}\nthree\nfunc g() {\n  return 2\n}\n")
+  old := []byte(
+    "one\ntwo\nfunc f() {\n  return 1\n}\nthree\nfunc g() {\n  return 2\n}\n",
+  )
   hs := LineHashes(old, nil)
   ea := need(g.AddEvidence(a, RefFile, "x.go:3-5", RangeHash(hs[2:5])))
   need(g.AddEvidence(b, RefFile, "x.go:7-9", RangeHash(hs[6:9])))
 
   // f moves down two lines, g's body changes
-  now := []byte("new\nnew\none\ntwo\nfunc f() {\n  return 1\n}\nthree\nfunc g() {\n  return 3\n}\n")
+  now := []byte(
+    "new\nnew\none\ntwo\nfunc f() {\n  return 1\n}\nthree\nfunc g() {\n  " +
+      "return 3\n}\n",
+  )
   stale, moved, err := g.CheckFile("x.go", now, false, g.CitedFiles()["x.go"])
   if err != nil {
     t.Fatal(err)
@@ -43,7 +48,9 @@ func TestMarkSuspect(t *testing.T) {
   g := New()
   n := make([]NodeID, 6)
   for i := range n {
-    n[i] = need(g.AddNode(0, fmt.Sprintf("c%d", i), "", KindFact, ConfChecked, 0))
+    n[i] = need(
+      g.AddNode(0, fmt.Sprintf("c%d", i), "", KindFact, ConfChecked, 0),
+    )
   }
 
   // 1 requires 0, 2 derived from 1, 3 requires 2, 4 explains 0 (not a
@@ -112,9 +119,12 @@ func TestCheckFileOnRealEdits(t *testing.T) {
   pairs := 0
   for _, path := range []string{
     "internal/config/config.go", "internal/agent/loop.go", "cmd/armin/main.go",
-    "internal/llm/client.go", "internal/tools/runcommand.go", "internal/sandbox/sandbox.go",
+    "internal/llm/client.go", "internal/tools/runcommand.go",
+    "internal/sandbox/sandbox.go",
   } {
-    out, err := exec.Command("git", "log", "--format=%H", "-n", "13", "--", "../../" + path).Output()
+    out, err := exec.Command(
+      "git", "log", "--format=%H", "-n", "13", "--", "../../" + path,
+    ).Output()
     revs := strings.Fields(string(out))
     if err != nil || len(revs) < 2 {
       t.Skip("no git history here")
@@ -153,10 +163,21 @@ func replayFile(t *testing.T, path string, revs []string) {
 
     var ws []window
     for start := 0; start + 10 <= len(hs); start += 7 {
-      id := need(g.AddNode(0, fmt.Sprintf("w%d", start), "", KindFact, ConfChecked, 0))
+      id := need(
+        g.AddNode(0, fmt.Sprintf("w%d", start), "", KindFact, ConfChecked, 0),
+      )
       ref := fmt.Sprintf("%s:%d-%d", path, start + 1, start + 10)
-      ev := need(g.AddEvidence(id, RefFile, ref, RangeHash(hs[start:start + 10])))
-      ws = append(ws, window{ ev: ev, text: string(bytes.Join(oldLines[start:start + 10], nil)), start: start })
+      ev := need(
+        g.AddEvidence(id, RefFile, ref, RangeHash(hs[start:start + 10])),
+      )
+      ws = append(
+        ws,
+        window{
+          ev: ev,
+          text: string(bytes.Join(oldLines[start:start + 10], nil)),
+          start: start,
+        },
+      )
     }
 
     _, moved, err := g.CheckFile(path, now, false, g.CitedFiles()[path])
@@ -188,7 +209,9 @@ func replayFile(t *testing.T, path string, revs []string) {
         _, s, end, _ := ParseRange(g.Str(e.Ref))
         got := string(bytes.Join(nowLines[s - 1:end], nil))
         if strings.TrimSuffix(got, "\n") != strings.TrimSuffix(w.text, "\n") {
-          t.Fatalf("window at %d points at other text after the check", w.start + 1)
+          t.Fatalf(
+            "window at %d points at other text after the check", w.start + 1,
+          )
         }
       }
     }

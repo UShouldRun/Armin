@@ -489,7 +489,8 @@ func TestLoadRoleModels(t *testing.T) {
     t.Fatal(err)
   }
 
-  if cfg.Minion != "qwen3.5-9b" || cfg.Copilot != "glm" || cfg.Advisor != "planner" {
+  if cfg.Minion != "qwen3.5-9b" || cfg.Copilot != "glm" ||
+      cfg.Advisor != "planner" {
     t.Fatalf("roles = %q %q %q", cfg.Minion, cfg.Copilot, cfg.Advisor)
   }
 }

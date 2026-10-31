@@ -17,7 +17,9 @@ import (
 const maxNodes = 1 << 29
 
 var (
-  ErrReadOnly = errors.New("the tree is open read-only (another armin holds it)")
+  ErrReadOnly = errors.New(
+    "the tree is open read-only (another armin holds it)",
+  )
   ErrNoNode   = errors.New("no such node")
 )
 
@@ -241,7 +243,9 @@ func (g *Graph) AddNode(
   parent NodeID, name, claim string, kind Kind, conf Conf, author AuthorID,
 ) (NodeID, error) {
   if !g.live(parent) {
-    return 0, fmt.Errorf("\n\t... in AddNode:\n\tparent %d: %w", parent, ErrNoNode)
+    return 0, fmt.Errorf(
+      "\n\t... in AddNode:\n\tparent %d: %w", parent, ErrNoNode,
+    )
   }
 
   err := validName(name)

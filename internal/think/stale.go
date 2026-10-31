@@ -106,7 +106,9 @@ func refreshKnow(root string, g *know.Graph) (string, error) {
     what string
   }{
     { len(stale), "stale" }, { suspect, "suspect" },
-    { moved, "references followed moved code" }, { len(loops), "open requires loops" },
+    {
+      moved, "references followed moved code",
+    }, { len(loops), "open requires loops" },
   } {
     if p.n > 0 {
       parts = append(parts, fmt.Sprintf("%d %s", p.n, p.what))

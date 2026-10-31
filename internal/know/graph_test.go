@@ -45,9 +45,17 @@ func sample(t *testing.T, g *Graph) {
   t.Helper()
   m := need(g.Intern(RoleMinion, "qwen3.5-9b", "s1", 7))
   tcp := need(g.AddNode(0, "tcp", "", KindTopic, ConfChecked, 0))
-  hs := need(g.AddNode(tcp, "handshake", "SYN, SYN-ACK, ACK", KindFact, ConfChecked, 0))
-  seq := need(g.AddNode(tcp, "seqnum", "bytes are numbered", KindConcept, ConfInferred, m))
-  win := need(g.AddNode(tcp, "window", "flow control", KindConcept, ConfGuess, m))
+  hs := need(
+    g.AddNode(tcp, "handshake", "SYN, SYN-ACK, ACK", KindFact, ConfChecked, 0),
+  )
+  seq := need(
+    g.AddNode(
+      tcp, "seqnum", "bytes are numbered", KindConcept, ConfInferred, m,
+    ),
+  )
+  win := need(
+    g.AddNode(tcp, "window", "flow control", KindConcept, ConfGuess, m),
+  )
   mustDo(t, g.AddEdge(hs, seq, EdgeRequires))
   mustDo(t, g.AddEdge(win, seq, EdgeRequires))
   mustDo(t, g.AddEdge(win, hs, EdgeDerivedFrom))
@@ -60,7 +68,8 @@ func TestNodesAndPaths(t *testing.T) {
   sample(t, g)
 
   hs, ok := g.Lookup("tcp/handshake")
-  if !ok || g.Path(hs) != "tcp/handshake" || g.Claim(hs) != "SYN, SYN-ACK, ACK" {
+  if !ok || g.Path(hs) != "tcp/handshake" ||
+      g.Claim(hs) != "SYN, SYN-ACK, ACK" {
     t.Fatalf("lookup: %d %v %q", hs, ok, g.Path(hs))
   }
 
@@ -69,7 +78,9 @@ func TestNodesAndPaths(t *testing.T) {
     t.Fatalf("node: %+v", n)
   }
 
-  _, err := g.AddNode(g.Node(hs).Parent, "handshake", "", KindFact, ConfGuess, 0)
+  _, err := g.AddNode(
+    g.Node(hs).Parent, "handshake", "", KindFact, ConfGuess, 0,
+  )
   if err == nil {
     t.Fatal("a duplicate sibling name should be refused")
   }
@@ -154,7 +165,9 @@ func TestFold(t *testing.T) {
   g := New()
   ids := make([]NodeID, 60)
   for i := range ids {
-    ids[i] = need(g.AddNode(0, fmt.Sprintf("c%d", i), "", KindConcept, ConfGuess, 0))
+    ids[i] = need(
+      g.AddNode(0, fmt.Sprintf("c%d", i), "", KindConcept, ConfGuess, 0),
+    )
   }
 
   n := 0

@@ -35,7 +35,9 @@ func (r *REPL) switchRole(ctx context.Context, role agent.Role) {
 
   r.Loop.SetRole(role)
   if model == "" {
-    ui.Info("now the %s, on %s (no %s = in config.conf)", role, r.modelName(), role)
+    ui.Info(
+      "now the %s, on %s (no %s = in config.conf)", role, r.modelName(), role,
+    )
     return
   }
 

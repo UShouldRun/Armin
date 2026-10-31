@@ -65,8 +65,12 @@ func (s Status) implied() bool   { return s & impliedBit != 0 }
 func (s Status) has() bool       { return s & hasBit != 0 }
 
 func (s Status) withBox(b int) Status      { return s &^ boxMask | Status(b) }
-func (s Status) withDay(d uint16) Status   { return s &^ dayMask | Status(d) << dayShift }
-func (s Status) withScore(v int) Status    { return s &^ scoreMask | Status(v) << scoreShift }
+func (s Status) withDay(d uint16) Status   {
+  return s &^ dayMask | Status(d) << dayShift
+}
+func (s Status) withScore(v int) Status    {
+  return s &^ scoreMask | Status(v) << scoreShift
+}
 
 // moveScore moves s toward target by an eighth of the gap, rounded
 // away from zero so an answer always counts: a plain average with
@@ -99,13 +103,16 @@ func (l *Learner) apply(e Event) {
   next := (old | hasBit) &^ impliedBit
   switch e.Kind() {
   case EventSelfReport:
-    box := map[Result]int{ ReportNever: 0, ReportHeard: 0, ReportUsed: 3, ReportExplain: 5 }[e.Result()]
+    box := map[Result]int{
+      ReportNever: 0, ReportHeard: 0, ReportUsed: 3, ReportExplain: 5,
+    }[e.Result()]
     if old.has() && !old.implied() {
       box = max(box, old.box())
     }
 
     next = next.withBox(box).withDay(day)
-    if e.Result() == ReportExplain && e.Sure() == SureCertain && !next.crystal() {
+    if e.Result() == ReportExplain && e.Sure() == SureCertain &&
+        !next.crystal() {
       next = (next | crystalBit).withScore(maxScore)
     }
 
@@ -246,7 +253,8 @@ func (l *Learner) Box(id know.NodeID) int {
 func (l *Learner) Refreshers() []know.NodeID {
   var out []know.NodeID
   for id, s := range l.status {
-    if s.crystal() && s.score() < RefresherBelow && l.Tree.Live(know.NodeID(id)) {
+    if s.crystal() && s.score() < RefresherBelow &&
+        l.Tree.Live(know.NodeID(id)) {
       out = append(out, know.NodeID(id))
     }
   }

@@ -69,7 +69,9 @@ func ParseRange(ref string) (string, int, int, bool) {
 // the same is fine; one whose lines moved within the file is pointed
 // at their new place; the rest make their nodes stale. It returns the
 // nodes newly marked stale and how many references moved.
-func (g *Graph) CheckFile(path string, data []byte, gone bool, evs []EvidenceID) ([]NodeID, int, error) {
+func (g *Graph) CheckFile(
+  path string, data []byte, gone bool, evs []EvidenceID,
+) ([]NodeID, int, error) {
   var lines []uint32
   if !gone {
     lines = LineHashes(data, nil)
@@ -215,7 +217,8 @@ func (g *Graph) FlagCycles(author AuthorID) ([][]NodeID, error) {
 
     if !ok {
       var err error
-      dir, err = g.AddNode(0, cyclesPath, "requires loops waiting to be resolved",
+      dir,
+      err = g.AddNode(0, cyclesPath, "requires loops waiting to be resolved",
         KindTopic, ConfChecked, author)
       if err != nil {
         return loops, err
@@ -229,7 +232,9 @@ func (g *Graph) FlagCycles(author AuthorID) ([][]NodeID, error) {
       paths = append(paths, fmt.Sprintf("n%d %s", id, g.Path(id)))
     }
 
-    claim := "these require each other in a loop: " + strings.Join(paths, ", ") +
+    claim := "these require each other in a loop: " + strings.Join(
+      paths, ", ",
+    ) +
       ". Resolve it: merge them into one node, flip the wrong edge, or " +
       "make a mutual dependency explains"
     q, err := g.AddNode(dir, name, claim, KindQuestion, ConfChecked, author)

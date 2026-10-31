@@ -43,7 +43,8 @@ func TestCompactRoundTrip(t *testing.T) {
     t.Fatal("compaction should reload from the snapshot")
   }
 
-  if got := dumpAll(t, g); got != want {
+  got := dumpAll(t, g)
+  if got != want {
     t.Fatalf("after compaction:\n%s\nwant:\n%s", got, want)
   }
 
@@ -58,7 +59,8 @@ func TestCompactRoundTrip(t *testing.T) {
 
   g = need(Open(dir))
   defer g.Close()
-  if got := dumpAll(t, g); got != want {
+  got = dumpAll(t, g)
+  if got != want {
     t.Fatalf("after reopening:\n%s\nwant:\n%s", got, want)
   }
 
@@ -82,7 +84,8 @@ func TestTornLog(t *testing.T) {
   mustDo(t, os.Truncate(path, st.Size() - 5))
 
   g = need(Open(dir))
-  if got := dumpAll(t, g); got != want {
+  got := dumpAll(t, g)
+  if got != want {
     t.Fatalf("after a torn write:\n%s\nwant:\n%s", got, want)
   }
 
@@ -114,7 +117,8 @@ func TestCorruptRecordStopsReplay(t *testing.T) {
 
   g = need(Open(dir))
   defer g.Close()
-  if got := dumpAll(t, g); got != want {
+  got := dumpAll(t, g)
+  if got != want {
     t.Fatalf("a bad CRC should end replay:\n%s", got)
   }
 }
@@ -158,7 +162,8 @@ func TestStaleLogAfterCrashedCompaction(t *testing.T) {
   mustDo(t, os.WriteFile(filepath.Join(dir, "graph.log"), oldLog, 0o600))
   g = need(Open(dir))
   defer g.Close()
-  if got := dumpAll(t, g); got != want {
+  got := dumpAll(t, g)
+  if got != want {
     t.Fatalf("stale log applied:\n%s", got)
   }
 }

@@ -16,14 +16,17 @@ func TestLine(t *testing.T) {
 
   var b strings.Builder
   g.Line(&b, hs, false)
-  want := `n2 tcp/handshake fact checked needs n3 used-by n4 "SYN, SYN-ACK, ACK" STALE`
+  want := `n2 tcp/handshake fact checked needs n3 used-by n4 ` +
+    `"SYN, SYN-ACK, ACK" STALE`
   if b.String() != want {
     t.Fatalf("line:\n%s\nwant:\n%s", b.String(), want)
   }
 
   b.Reset()
   g.Line(&b, seq, false)
-  if !strings.Contains(b.String(), "concept inferred minion-unverified used-by n2 n4") {
+  if !strings.Contains(
+    b.String(), "concept inferred minion-unverified used-by n2 n4",
+  ) {
     t.Fatalf("minion line: %s", b.String())
   }
 
@@ -70,7 +73,11 @@ func TestOutline(t *testing.T) {
 
   got = g.Outline(200)
   if len(got) > 200 || !strings.Contains(got, "more\n") {
-    t.Fatalf("outline over the cap or missing the rest count (%d bytes):\n%s", len(got), got)
+    t.Fatalf(
+      "outline over the cap or missing the rest count (%d bytes):\n%s",
+      len(got),
+      got,
+    )
   }
 }
 

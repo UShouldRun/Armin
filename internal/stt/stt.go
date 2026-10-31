@@ -154,7 +154,9 @@ func Flat(wav []byte) bool {
 }
 
 // tags are whisper's non-speech markers: [BLANK_AUDIO], [MUSIC] ...
-var tags = regexp.MustCompile(`\[[A-Z_ ]*\]|\([A-Za-z ]*(music|silence|noise)[A-Za-z ]*\)`)
+var tags = regexp.MustCompile(
+  `\[[A-Z_ ]*\]|\([A-Za-z ]*(music|silence|noise)[A-Za-z ]*\)`,
+)
 
 // Clean joins what a transcriber printed into one line without its
 // non-speech markers.
@@ -168,8 +170,10 @@ func Clean(text string) string {
 // cleaned text.
 func Transcribe(ctx context.Context, command, wav string) (string, error) {
   if strings.TrimSpace(command) == "" {
-    return "", errors.New("\n\t... in Transcribe:\n\tno stt command: set stt in " +
-      "config.conf, e.g. stt = whisper-cli -m ggml-large-v3-turbo.bin -f {wav} -nt -np")
+    return "", errors.New("\n\t... in Transcribe:\n\tno stt command: set stt " +
+      "in " +
+      "config.conf, e.g. stt = whisper-cli -m ggml-large-v3-turbo.bin -f " +
+        "{wav} -nt -np")
   }
 
   data, err := os.ReadFile(wav)
@@ -178,7 +182,8 @@ func Transcribe(ctx context.Context, command, wav string) (string, error) {
   }
 
   if Flat(data) {
-    return "", errors.New("\n\t... in Transcribe:\n\tthe microphone recorded a flat " +
+    return "", errors.New("\n\t... in Transcribe:\n\tthe microphone recorded " +
+      "a flat " +
       "signal (no sound); check the input device, or reload its driver")
   }
 
@@ -197,7 +202,9 @@ func Transcribe(ctx context.Context, command, wav string) (string, error) {
       tail = tail[len(tail) - 400:]
     }
 
-    return "", fmt.Errorf("\n\t... in Transcribe:\n\t%s: %w: %s", args[0], err, tail)
+    return "", fmt.Errorf(
+      "\n\t... in Transcribe:\n\t%s: %w: %s", args[0], err, tail,
+    )
   }
 
   text := Clean(string(out))

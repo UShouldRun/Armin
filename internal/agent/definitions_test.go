@@ -15,7 +15,9 @@ import (
   "armin/internal/notes"
 )
 
-var update = flag.Bool("update", false, "rewrite the testdata/definitions*.json files")
+var update = flag.Bool(
+  "update", false, "rewrite the testdata/definitions*.json files",
+)
 
 // TestDefinitionsGolden pins what the model is told about its tools,
 // byte for byte: an accidental change to a description or a schema

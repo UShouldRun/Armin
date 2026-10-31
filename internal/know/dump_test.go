@@ -112,7 +112,8 @@ func TestDumpSubtree(t *testing.T) {
 
   var b bytes.Buffer
   mustDo(t, g.Dump(&b, tcp))
-  if strings.Contains(b.String(), "udp") || !strings.Contains(b.String(), "tcp/window") {
+  if strings.Contains(b.String(), "udp") ||
+      !strings.Contains(b.String(), "tcp/window") {
     t.Fatalf("subtree dump:\n%s", b.String())
   }
 }

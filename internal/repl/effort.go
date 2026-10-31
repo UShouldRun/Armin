@@ -28,7 +28,9 @@ func (r *REPL) turnPlan(
   }
 
   auto := effort == agent.EffortAuto
-  effort, task := agent.PlanTurn(ctx, r.Loop.ChoreClient(ctx), r.Loop.Aids, effort, input)
+  effort, task := agent.PlanTurn(
+    ctx, r.Loop.ChoreClient(ctx), r.Loop.Aids, effort, input,
+  )
   if auto {
     fmt.Println(ui.Dim("thinking: " + effort.String() + " (auto), " +
       task.String() + " task"))

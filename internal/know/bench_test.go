@@ -15,11 +15,14 @@ func bigTree(tb testing.TB, dir string) {
 
   var ids []NodeID
   for i := 0; i < 100; i++ {
-    top := need(g.AddNode(0, fmt.Sprintf("topic%d", i), "", KindTopic, ConfChecked, 0))
+    top := need(
+      g.AddNode(0, fmt.Sprintf("topic%d", i), "", KindTopic, ConfChecked, 0),
+    )
     for j := 0; j < 99; j++ {
       id := need(g.AddNode(
         top, fmt.Sprintf("concept%d", j),
-        "a claim of about the usual length, saying what this concept is and why",
+        "a claim of about the usual length, saying what this concept " +
+          "is and why",
         KindConcept, ConfInferred, 0,
       ))
       ids = append(ids, id)
@@ -39,7 +42,9 @@ func bigTree(tb testing.TB, dir string) {
 
   for i := 0; i < 15000; i++ {
     need(g.AddEvidence(ids[i % len(ids)], RefFile,
-      fmt.Sprintf("internal/pkg%d/file.go:%d-%d", i % 50, i, i + 40), uint32(i)))
+      fmt.Sprintf(
+        "internal/pkg%d/file.go:%d-%d", i % 50, i, i + 40,
+      ), uint32(i)))
   }
 
   err := g.Compact()
@@ -56,7 +61,9 @@ func TestBigTreeSize(t *testing.T) {
   dir := t.TempDir()
   bigTree(t, dir)
   st := need(os.Stat(filepath.Join(dir, "graph.snap")))
-  t.Logf("snapshot at 10k nodes, 20k edges, 15k evidence: %d KiB", st.Size() / 1024)
+  t.Logf(
+    "snapshot at 10k nodes, 20k edges, 15k evidence: %d KiB", st.Size() / 1024,
+  )
   if st.Size() > 2 << 20 {
     t.Fatalf("snapshot is %d bytes, over the planned ~1.8 MB", st.Size())
   }

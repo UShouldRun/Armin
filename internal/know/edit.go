@@ -41,11 +41,15 @@ func (g *Graph) Edit(r io.Reader, author AuthorID) (EditResult, error) {
     }
 
     if !g.live(b.id) || b.id == 0 {
-      return res, fmt.Errorf("\n\t... in Edit:\n\tline %d: no node n%d", b.line, b.id)
+      return res, fmt.Errorf(
+        "\n\t... in Edit:\n\tline %d: no node n%d", b.line, b.id,
+      )
     }
 
     if seen[b.id] {
-      return res, fmt.Errorf("\n\t... in Edit:\n\tline %d: n%d appears twice", b.line, b.id)
+      return res, fmt.Errorf(
+        "\n\t... in Edit:\n\tline %d: n%d appears twice", b.line, b.id,
+      )
     }
 
     seen[b.id] = true
@@ -60,7 +64,8 @@ func (g *Graph) Edit(r io.Reader, author AuthorID) (EditResult, error) {
     p, ok := g.Lookup(parent)
     if !ok {
       return res, fmt.Errorf(
-        "\n\t... in Edit:\n\tline %d: no parent %q for a new node", b.line, parent,
+        "\n\t... in Edit:\n\tline %d: no parent %q for a new node", b.line,
+        parent,
       )
     }
 
@@ -330,13 +335,16 @@ func parseHeader(f []string, line int) (*editBlock, error) {
   } else {
     id, ok := parseID(f[0])
     if !ok {
-      return nil, fmt.Errorf("line %d: %q is not a node ID or \"new\"", line, f[0])
+      return nil, fmt.Errorf(
+        "line %d: %q is not a node ID or \"new\"", line, f[0],
+      )
     }
 
     b.id = id
   }
 
-  if b.path == "" || strings.HasPrefix(b.path, "/") || strings.HasSuffix(b.path, "/") {
+  if b.path == "" || strings.HasPrefix(b.path, "/") ||
+      strings.HasSuffix(b.path, "/") {
     return nil, fmt.Errorf("line %d: bad path %q", line, b.path)
   }
 

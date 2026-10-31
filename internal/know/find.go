@@ -333,7 +333,8 @@ func (g *Graph) Find(query string, under NodeID, k int) []Hit {
     }
 
     j := min(n, k - 1)
-    for j > 0 && (top[j - 1].Score < s || top[j - 1].Score == s && top[j - 1].ID > id) {
+    for j > 0 &&
+        (top[j - 1].Score < s || top[j - 1].Score == s && top[j - 1].ID > id) {
       top[j] = top[j - 1]
       j--
     }

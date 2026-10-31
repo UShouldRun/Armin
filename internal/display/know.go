@@ -35,7 +35,10 @@ func Know(opts *input.Options) error {
 
   cmd, arg, _ := strings.Cut(opts.Know, "=")
   if cmd != "dump" && g.ReadOnly() {
-    return fmt.Errorf("\n\t... in Know:\n\tanother armin holds this project's tree; close it first")
+    return fmt.Errorf(
+      "\n\t... in Know:\n\tanother armin holds this project's tree; close it " +
+        "first",
+    )
   }
 
   switch cmd {
@@ -66,7 +69,8 @@ func Know(opts *input.Options) error {
 
   default:
     return fmt.Errorf(
-      "\n\t... in Know:\n\t-know %q: want dump[=path], edit[=path] or import-memories",
+      "\n\t... in Know:\n\t-know %q: want dump[=path], edit[=path] or " +
+        "import-memories",
       opts.Know,
     )
   }
@@ -132,7 +136,9 @@ func editKnow(g *know.Graph, id know.NodeID) error {
     res, err := g.Edit(text, 0) // author 0 is the user
     text.Close()
     if err == nil {
-      ui.Info("%d added, %d changed, %d deleted", res.Added, res.Changed, res.Deleted)
+      ui.Info(
+        "%d added, %d changed, %d deleted", res.Added, res.Changed, res.Deleted,
+      )
       return nil
     }
 
@@ -158,7 +164,9 @@ func importMemories(g *know.Graph, root string) error {
     return fmt.Errorf("\n\t... in importMemories:\n\t%w", err)
   }
 
-  mem := &notes.Memories{ ProjectDir: dir, UserDir: filepath.Join(data, "memory", "user") }
+  mem := &notes.Memories{
+    ProjectDir: dir, UserDir: filepath.Join(data, "memory", "user"),
+  }
   all, err := mem.List()
   if err != nil {
     return fmt.Errorf("\n\t... in importMemories:\n\t%w", err)
@@ -178,7 +186,12 @@ func importMemories(g *know.Graph, root string) error {
 
     offered++
     path := "memories/" + m.Name
-    fmt.Printf("\n%s — %s\n%s\n", ui.Bold(m.Name), m.Description, ui.Dim(strings.TrimSpace(body)))
+    fmt.Printf(
+      "\n%s — %s\n%s\n",
+      ui.Bold(m.Name),
+      m.Description,
+      ui.Dim(strings.TrimSpace(body)),
+    )
     fmt.Printf("as fact node [%s], another path, or s to skip: ", path)
     answer, _ := in.ReadString('\n')
     answer = strings.TrimSpace(answer)
@@ -228,7 +241,9 @@ func addFact(g *know.Graph, path, claim string) error {
     id = next
   }
 
-  _, err := g.AddNode(id, parts[len(parts) - 1], claim, know.KindFact, know.ConfInferred, 0)
+  _, err := g.AddNode(
+    id, parts[len(parts) - 1], claim, know.KindFact, know.ConfInferred, 0,
+  )
 
   return err
 }

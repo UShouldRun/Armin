@@ -14,9 +14,13 @@ var start = time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
 
 func days(n int) time.Time { return start.AddDate(0, 0, n) }
 
-func concept(t *testing.T, l *Learner, parent know.NodeID, name string) know.NodeID {
+func concept(
+  t *testing.T, l *Learner, parent know.NodeID, name string,
+) know.NodeID {
   t.Helper()
-  id, err := l.Tree.AddNode(parent, name, name + " is a thing", know.KindConcept, know.ConfChecked, 0)
+  id, err := l.Tree.AddNode(
+    parent, name, name + " is a thing", know.KindConcept, know.ConfChecked, 0,
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -24,7 +28,9 @@ func concept(t *testing.T, l *Learner, parent know.NodeID, name string) know.Nod
   return id
 }
 
-func answer(t *testing.T, l *Learner, id know.NodeID, r Result, when time.Time) {
+func answer(
+  t *testing.T, l *Learner, id know.NodeID, r Result, when time.Time,
+) {
   t.Helper()
   err := l.Record(id, EventQuiz, r, SureMostly, when)
   if err != nil {
@@ -48,7 +54,8 @@ func TestLeitnerAndFading(t *testing.T) {
   }
 
   // box 3 is trusted 8 days after the last answer
-  if l.State(c, Day(days(10))) != Known || l.State(c, Day(days(11))) != NotSure {
+  if l.State(c, Day(days(10))) != Known ||
+      l.State(c, Day(days(11))) != NotSure {
     t.Fatal("fading at 2^box days")
   }
 
@@ -67,8 +74,11 @@ func TestPrerequisitesByImplicationAndUse(t *testing.T) {
   l.Tree.AddEdge(exp, mul, know.EdgeRequires)
 
   answer(t, l, exp, Right, days(0))
-  if l.State(mul, Day(days(0))) != Implied || l.State(add, Day(days(0))) != Implied {
-    t.Fatal("prerequisites of a right answer are known by implication, at any depth")
+  if l.State(mul, Day(days(0))) != Implied ||
+      l.State(add, Day(days(0))) != Implied {
+    t.Fatal(
+      "prerequisites of a right answer are known by implication, at any depth",
+    )
   }
 
   // addition answered on its own, then left alone: using it in a
@@ -112,13 +122,15 @@ func TestCrystallizedDeclaredAndScore(t *testing.T) {
 
   answer(t, l, c, Right, days(6)) // 28 + ceil(22 / 8) = 31
   score, _ = l.Score(c)
-  if score != 31 || l.State(c, Day(days(6))) != Known || len(l.Refreshers()) != 0 {
+  if score != 31 || l.State(c, Day(days(6))) != Known ||
+      len(l.Refreshers()) != 0 {
     t.Fatalf("after the refresher: %d", score)
   }
 }
 
 func TestMoveScoreNeverSticks(t *testing.T) {
-  if moveScore(49, 50) != 50 || moveScore(1, 0) != 0 || moveScore(50, 50) != 50 {
+  if moveScore(49, 50) != 50 || moveScore(1, 0) != 0 ||
+      moveScore(50, 50) != 50 {
     t.Fatal("the score must reach its ends")
   }
 
@@ -142,7 +154,8 @@ func TestCrystallizedEarned(t *testing.T) {
   }
 
   answer(t, l, c, Right, days(7 + 100)) // too early
-  if _, ok := l.Score(c); ok {
+  _, ok := l.Score(c)
+  if ok {
     t.Fatal("crystallized before the full 128 days")
   }
 
@@ -157,7 +170,8 @@ func TestCrystallizedEarned(t *testing.T) {
 func TestSelfReportLevels(t *testing.T) {
   l := New()
   for level, want := range map[Result]State{
-    ReportNever: Unknown, ReportHeard: Unknown, ReportUsed: Known, ReportExplain: Known,
+    ReportNever: Unknown, ReportHeard: Unknown, ReportUsed: Known,
+    ReportExplain: Known,
   } {
     c := concept(t, l, 0, fmt.Sprintf("c%d", level))
     l.Record(c, EventSelfReport, level, SureMostly, days(0))
@@ -165,7 +179,8 @@ func TestSelfReportLevels(t *testing.T) {
       t.Errorf("level %d: %v, want %v", level, l.State(c, Day(days(0))), want)
     }
 
-    if _, crystal := l.Score(c); crystal {
+    _, crystal := l.Score(c)
+    if crystal {
       t.Errorf("level %d crystallized without certainty", level)
     }
   }
@@ -186,7 +201,9 @@ func TestPersistence(t *testing.T) {
   l.Close()
 
   // a torn record at the end is dropped
-  f, _ := os.OpenFile(filepath.Join(dir, "events"), os.O_WRONLY | os.O_APPEND, 0)
+  f, _ := os.OpenFile(
+    filepath.Join(dir, "events"), os.O_WRONLY | os.O_APPEND, 0,
+  )
   f.Write([]byte{ 1, 2, 3 })
   f.Close()
 
@@ -254,7 +271,9 @@ func TestProbeDAG(t *testing.T) {
   buf := concept(t, l, 0, "buffers")
   win := concept(t, l, 0, "window")
   goal := concept(t, l, 0, "congestion")
-  for _, e := range [][2]know.NodeID{ { seq, base }, { buf, base }, { win, seq }, { win, buf }, { goal, win } } {
+  for _, e := range [][2]know.NodeID{
+    { seq, base }, { buf, base }, { win, seq }, { win, buf }, { goal, win },
+  } {
     l.Tree.AddEdge(e[0], e[1], know.EdgeRequires)
   }
 
@@ -295,7 +314,8 @@ func TestAreaReport(t *testing.T) {
     t.Fatal(err)
   }
 
-  if l.State(a, Day(days(0))) != Implied || l.State(b, Day(days(0))) != Implied {
+  if l.State(a, Day(days(0))) != Implied ||
+      l.State(b, Day(days(0))) != Implied {
     t.Fatal("could explain: the area's concepts are known by implication")
   }
 

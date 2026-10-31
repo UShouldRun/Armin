@@ -12,12 +12,16 @@ import (
 
 func teachLoop(t *testing.T) (*Loop, func(map[string]any) map[string]string) {
   t.Helper()
-  l := &Loop{ Learner: learner.New(), Session: "s1", LLM: &llm.Client{ Model: "m" } }
+  l := &Loop{
+    Learner: learner.New(), Session: "s1", LLM: &llm.Client{ Model: "m" },
+  }
   l.SetRole(RoleAdvisor)
   call := func(args map[string]any) map[string]string {
     t.Helper()
     out := l.execute(context.Background(), llm.ToolCall{
-      Function: llm.ToolCallFunction{ Name: "learn_explained", Arguments: args },
+      Function: llm.ToolCallFunction{
+        Name: "learn_explained", Arguments: args,
+      },
     }, Hooks{})
     m, ok := out.(map[string]string)
     if !ok {
@@ -39,12 +43,16 @@ func TestLearnExplained(t *testing.T) {
       "tcp/window: how much the receiver can take",
     },
     "correct":        []any{ "tcp/handshake" },
-    "misconceptions": []any{ "tcp/seqnum: thinks segments are numbered, not bytes" },
+    "misconceptions": []any{
+      "tcp/seqnum: thinks segments are numbered, not bytes",
+    },
     "gaps":           []any{ "tcp/window" },
   })
 
   if out["recorded"] != "1 correct, 1 misconceptions, 1 gaps" ||
-    !strings.Contains(out["misconceptions"], "tcp/seqnum/misconception-1 question") {
+    !strings.Contains(
+      out["misconceptions"], "tcp/seqnum/misconception-1 question",
+    ) {
     t.Fatalf("result: %v", out)
   }
 
@@ -53,9 +61,12 @@ func TestLearnExplained(t *testing.T) {
   hs, _ := tree.Lookup("tcp/handshake")
   seq, _ := tree.Lookup("tcp/seqnum")
   win, _ := tree.Lookup("tcp/window")
-  if l.Learner.State(hs, today) != learner.Known || l.Learner.State(seq, today) != learner.Unknown ||
+  if l.Learner.State(hs, today) != learner.Known ||
+      l.Learner.State(seq, today) != learner.Unknown ||
     l.Learner.State(win, today) != learner.NotSure {
-    t.Fatalf("states: %v %v %v", l.Learner.State(hs, today), l.Learner.State(seq, today),
+    t.Fatalf("states: %v %v %v", l.Learner.State(hs, today), l.Learner.State(
+      seq, today,
+    ),
       l.Learner.State(win, today))
   }
 

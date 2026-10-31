@@ -76,7 +76,9 @@ func runLearnExplained(_ context.Context, l *Loop, c toolCall) any {
 
   for _, d := range in.Define {
     path, def, ok := strings.Cut(d, ":")
-    path, def = strings.Trim(strings.TrimSpace(path), "/"), strings.TrimSpace(def)
+    path, def = strings.Trim(
+      strings.TrimSpace(path), "/",
+    ), strings.TrimSpace(def)
     if !ok || path == "" || def == "" {
       return errResult(fmt.Errorf("define %q: want \"path: definition\"", d))
     }
@@ -96,7 +98,9 @@ func runLearnExplained(_ context.Context, l *Loop, c toolCall) any {
   find := func(path string) (know.NodeID, error) {
     id, ok := tree.Lookup(strings.Trim(strings.TrimSpace(path), "/"))
     if !ok {
-      return 0, fmt.Errorf("%q isn't in the learner tree: add it with define", path)
+      return 0, fmt.Errorf(
+        "%q isn't in the learner tree: add it with define", path,
+      )
     }
 
     return id, nil
@@ -121,7 +125,11 @@ func runLearnExplained(_ context.Context, l *Loop, c toolCall) any {
   for _, m := range in.Misconceptions {
     path, what, ok := strings.Cut(m, ":")
     if !ok || strings.TrimSpace(what) == "" {
-      return errResult(fmt.Errorf("misconception %q: want \"concept: what was misunderstood\"", m))
+      return errResult(
+        fmt.Errorf(
+          "misconception %q: want \"concept: what was misunderstood\"", m,
+        ),
+      )
     }
 
     id, err := find(path)
@@ -129,7 +137,10 @@ func runLearnExplained(_ context.Context, l *Loop, c toolCall) any {
       return errResult(err)
     }
 
-    marks = append(marks, mark{ id: id, result: learner.Wrong, note: strings.TrimSpace(what) })
+    marks = append(
+      marks,
+      mark{ id: id, result: learner.Wrong, note: strings.TrimSpace(what) },
+    )
   }
 
   for _, p := range in.Gaps {
@@ -144,7 +155,9 @@ func runLearnExplained(_ context.Context, l *Loop, c toolCall) any {
   now := time.Now()
   var questions []know.NodeID
   for _, m := range marks {
-    err = l.Learner.Record(m.id, learner.EventExplanation, m.result, learner.SureMostly, now)
+    err = l.Learner.Record(
+      m.id, learner.EventExplanation, m.result, learner.SureMostly, now,
+    )
     if err != nil {
       return knowErr(err)
     }
@@ -192,14 +205,18 @@ func (l *Loop) model() string {
 }
 
 // addConcept adds a concept at path, missing levels as topics.
-func addConcept(tree *know.Graph, path, def string, author know.AuthorID) error {
+func addConcept(
+  tree *know.Graph, path, def string, author know.AuthorID,
+) error {
   parts := strings.Split(path, "/")
   id := know.NodeID(0)
   for _, part := range parts[:len(parts) - 1] {
     next, ok := tree.Child(id, part)
     if !ok {
       var err error
-      next, err = tree.AddNode(id, part, "", know.KindTopic, know.ConfChecked, author)
+      next, err = tree.AddNode(
+        id, part, "", know.KindTopic, know.ConfChecked, author,
+      )
       if err != nil {
         return err
       }
@@ -208,14 +225,18 @@ func addConcept(tree *know.Graph, path, def string, author know.AuthorID) error 
     id = next
   }
 
-  _, err := tree.AddNode(id, parts[len(parts) - 1], def, know.KindConcept, know.ConfChecked, author)
+  _, err := tree.AddNode(
+    id, parts[len(parts) - 1], def, know.KindConcept, know.ConfChecked, author,
+  )
 
   return err
 }
 
 // misconception adds a question node under the concept naming what
 // was misunderstood.
-func misconception(tree *know.Graph, concept know.NodeID, what string, author know.AuthorID) (know.NodeID, error) {
+func misconception(
+  tree *know.Graph, concept know.NodeID, what string, author know.AuthorID,
+) (know.NodeID, error) {
   name := ""
   for i := 1; ; i++ {
     name = fmt.Sprintf("misconception-%d", i)
@@ -225,7 +246,9 @@ func misconception(tree *know.Graph, concept know.NodeID, what string, author kn
     }
   }
 
-  q, err := tree.AddNode(concept, name, what, know.KindQuestion, know.ConfChecked, author)
+  q, err := tree.AddNode(
+    concept, name, what, know.KindQuestion, know.ConfChecked, author,
+  )
   if err != nil {
     return 0, err
   }

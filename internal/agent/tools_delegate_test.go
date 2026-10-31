@@ -19,7 +19,9 @@ func minionServer(t *testing.T, offered *[]string) *llm.Client {
   t.Helper()
   round := 0
   mux := http.NewServeMux()
-  mux.HandleFunc("/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
+  mux.HandleFunc("/v1/chat/completions", func(
+    w http.ResponseWriter, r *http.Request,
+  ) {
     body, _ := io.ReadAll(r.Body)
     var req struct {
       Tools []llm.ToolDefinition `json:"tools"`
@@ -32,14 +34,17 @@ func minionServer(t *testing.T, offered *[]string) *llm.Client {
     }
 
     round++
-    reply := llm.Message{ Role: "assistant", Content: "the retry count is 2, in f.txt" }
+    reply := llm.Message{
+      Role: "assistant", Content: "the retry count is 2, in f.txt",
+    }
     if round == 1 {
       reply = llm.Message{
         Role: "assistant",
         ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
           Name: "know_add",
           Arguments: map[string]any{
-            "path": "loop/retries", "kind": "fact", "claim": "the loop retries twice",
+            "path": "loop/retries", "kind": "fact",
+            "claim": "the loop retries twice",
             "confidence": "tested",
           },
         } } },
@@ -84,7 +89,9 @@ func TestDelegatePassingCheck(t *testing.T) {
   var offered []string
   l := delegateLoop(t, &offered)
   out := delegate(t, l, map[string]any{
-    "task": "find the retry count", "check": "command", "check_args": []any{ "ls", "f.txt" },
+    "task": "find the retry count", "check": "command", "check_args": []any{
+      "ls", "f.txt",
+    },
   })
 
   if out["delegation"] != "1" || out["confidence"] != "checked" ||
@@ -100,7 +107,8 @@ func TestDelegatePassingCheck(t *testing.T) {
 
   n := l.Know.Node(id)
   a := l.Know.Author(n.Author)
-  if n.Conf() != know.ConfChecked || a.Role != know.RoleMinion || a.Delegation != 1 ||
+  if n.Conf() != know.ConfChecked || a.Role != know.RoleMinion ||
+      a.Delegation != 1 ||
     n.Flags & know.FlagVerified != 0 {
     t.Fatalf("node: conf %v, author %+v, flags %b", n.Conf(), a, n.Flags)
   }
@@ -110,11 +118,13 @@ func TestDelegatePassingCheck(t *testing.T) {
     t.Fatal("the passing check should be the node's evidence")
   }
 
-  if !strings.Contains(out["nodes"], "minion-unverified") || !strings.Contains(out["next"], "verified") {
+  if !strings.Contains(out["nodes"], "minion-unverified") ||
+      !strings.Contains(out["next"], "verified") {
     t.Fatalf("the delegator should be told to verify: %v", out)
   }
 
-  if !contains(offered, "know_add") || contains(offered, "edit_file") || contains(offered, "delegate") {
+  if !contains(offered, "know_add") || contains(offered, "edit_file") ||
+      contains(offered, "delegate") {
     t.Fatalf("minion offered %v", offered)
   }
 }
@@ -127,7 +137,8 @@ func TestDelegateFailingCheck(t *testing.T) {
     "check_args": []any{ "ls", "no-such-file" },
   })
 
-  if out["confidence"] != "inferred" || !strings.HasPrefix(out["check"], "failed") {
+  if out["confidence"] != "inferred" ||
+      !strings.HasPrefix(out["check"], "failed") {
     t.Fatalf("result: %v", out)
   }
 
@@ -140,13 +151,17 @@ func TestDelegateFailingCheck(t *testing.T) {
 func TestDelegateEditsAndRoles(t *testing.T) {
   var offered []string
   l := delegateLoop(t, &offered)
-  delegate(t, l, map[string]any{ "task": "fix it", "check": "none", "edits": true })
+  delegate(
+    t, l, map[string]any{ "task": "fix it", "check": "none", "edits": true },
+  )
   if !contains(offered, "edit_file") {
     t.Fatalf("a copilot's minion with edits: %v", offered)
   }
 
   l.SetRole(RoleAdvisor)
-  delegate(t, l, map[string]any{ "task": "fix it", "check": "none", "edits": true })
+  delegate(
+    t, l, map[string]any{ "task": "fix it", "check": "none", "edits": true },
+  )
   if contains(offered, "edit_file") {
     t.Fatal("an advisor's minion must not edit")
   }
@@ -173,7 +188,10 @@ func TestDelegateOfferedOnlyWithAMinion(t *testing.T) {
 func TestChoreClient(t *testing.T) {
   local := llm.New("http://local", "chat")
   minion := llm.New("http://minion", "small")
-  l := &Loop{ LLM: local, Minion: func(context.Context) (*llm.Client, error) { return minion, nil } }
+  l := &Loop{
+    LLM: local,
+    Minion: func(context.Context) (*llm.Client, error) { return minion, nil },
+  }
   if l.ChoreClient(context.Background()).Model != "chat" {
     t.Fatal("a local chat model keeps its own chores")
   }

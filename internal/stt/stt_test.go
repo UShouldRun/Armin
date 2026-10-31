@@ -30,7 +30,9 @@ func TestFlat(t *testing.T) {
 }
 
 func TestClean(t *testing.T) {
-  got := Clean(" [BLANK_AUDIO]\n Hello there.\n (soft music) How are you? [MUSIC]\n")
+  got := Clean(
+    " [BLANK_AUDIO]\n Hello there.\n (soft music) How are you? [MUSIC]\n",
+  )
   if got != "Hello there. How are you?" {
     t.Fatalf("Clean = %q", got)
   }
@@ -52,9 +54,17 @@ func TestExpand(t *testing.T) {
 func TestTranscribe(t *testing.T) {
   dir := t.TempDir()
   script := filepath.Join(dir, "fake-whisper")
-  os.WriteFile(script, []byte("#!/bin/sh\necho '[BLANK_AUDIO]'\necho \"heard $2\"\n"), 0o755)
+  os.WriteFile(
+    script,
+    []byte("#!/bin/sh\necho '[BLANK_AUDIO]'\necho \"heard $2\"\n"),
+    0o755,
+  )
   speech := filepath.Join(dir, "s.wav")
-  os.WriteFile(speech, wav(func(i int) int16 { return int16(i * 37 % 5000) }, 32000), 0o644)
+  os.WriteFile(
+    speech,
+    wav(func(i int) int16 { return int16(i * 37 % 5000) }, 32000),
+    0o644,
+  )
 
   got, err := Transcribe(context.Background(), script + " -f {wav}", speech)
   if err != nil || got != "heard " + speech {
@@ -79,7 +89,14 @@ func TestTranscribe(t *testing.T) {
 func TestRecorder(t *testing.T) {
   dir := t.TempDir()
   script := filepath.Join(dir, "fake-rec")
-  os.WriteFile(script, []byte("#!/bin/sh\ntrap 'exit 0' INT\nhead -c 4000 /dev/urandom > \"$1\"\nwhile :; do sleep 0.05; done\n"), 0o755)
+  os.WriteFile(
+    script,
+    []byte(
+      "#!/bin/sh\ntrap 'exit 0' INT\nhead -c 4000 /dev/urandom > " +
+        "\"$1\"\nwhile :; do sleep 0.05; done\n",
+    ),
+    0o755,
+  )
 
   r, err := Start(script + " {wav}", dir)
   if err != nil {
@@ -99,7 +116,9 @@ func TestRecorder(t *testing.T) {
   }
 
   silent := filepath.Join(dir, "silent-rec")
-  os.WriteFile(silent, []byte("#!/bin/sh\necho 'no such device' >&2\nexit 1\n"), 0o755)
+  os.WriteFile(
+    silent, []byte("#!/bin/sh\necho 'no such device' >&2\nexit 1\n"), 0o755,
+  )
   r, err = Start(silent, dir)
   if err != nil {
     t.Fatal(err)

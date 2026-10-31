@@ -30,7 +30,8 @@ import (
 )
 
 var evalTopics = []string{
-  "tcp", "udp", "ip", "tls", "dns", "http", "quic", "ethernet", "routing", "sockets",
+  "tcp", "udp", "ip", "tls", "dns", "http", "quic", "ethernet", "routing",
+  "sockets",
 }
 
 var evalNouns = []string{
@@ -76,7 +77,11 @@ func evalTree() (*Graph, []NodeID) {
 
       for e := r.Intn(4); e > 0 && len(all) > 0; e-- {
         to := all[r.Intn(len(all))]
-        g.AddEdge(id, to, []EdgeKind{ EdgeRequires, EdgeRequires, EdgeDerivedFrom }[r.Intn(3)])
+        g.AddEdge(
+          id,
+          to,
+          []EdgeKind{ EdgeRequires, EdgeRequires, EdgeDerivedFrom }[r.Intn(3)],
+        )
       }
 
       all = append(all, id)
@@ -90,7 +95,9 @@ func evalTree() (*Graph, []NodeID) {
 // an unverified minion claim, ← what it needs, → what uses it.
 func codedLine(g *Graph, b *strings.Builder, id NodeID) {
   n := g.node(id)
-  fmt.Fprintf(b, "%d %s %c:%c", id, g.Path(id), "TCFDLSQ"[n.Kind()], "gict"[n.Conf()])
+  fmt.Fprintf(
+    b, "%d %s %c:%c", id, g.Path(id), "TCFDLSQ"[n.Kind()], "gict"[n.Conf()],
+  )
   if g.authors[n.Author].Role == RoleMinion && n.Flags & FlagVerified == 0 {
     b.WriteString(" m?")
   }
@@ -174,7 +181,8 @@ func evalQuestions(g *Graph, all []NodeID) []evalQuestion {
     }
 
     for _, e := range edges {
-      if (e.Kind == EdgeRequires || e.Kind == EdgeDerivedFrom) && !slices.Contains(out, e.To) {
+      if (e.Kind == EdgeRequires || e.Kind == EdgeDerivedFrom) &&
+          !slices.Contains(out, e.To) {
         out = append(out, e.To)
       }
     }
@@ -219,13 +227,25 @@ func evalQuestions(g *Graph, all []NodeID) []evalQuestion {
     switch kind {
     case 1:
       id := pick(func(id NodeID) bool { return len(deps(id, false)) >= 2 })
-      q = evalQuestion{ text: fmt.Sprintf("Which nodes does node %d depend on?", id), shown: context(id), want: idsAnswer(deps(id, false)) }
+      q = evalQuestion{
+        text: fmt.Sprintf("Which nodes does node %d depend on?", id),
+        shown: context(id),
+        want: idsAnswer(deps(id, false)),
+      }
     case 2:
       id := pick(func(id NodeID) bool { return len(deps(id, true)) >= 2 })
-      q = evalQuestion{ text: fmt.Sprintf("Which nodes depend on node %d?", id), shown: context(id), want: idsAnswer(deps(id, true)) }
+      q = evalQuestion{
+        text: fmt.Sprintf("Which nodes depend on node %d?", id),
+        shown: context(id),
+        want: idsAnswer(deps(id, true)),
+      }
     case 3:
       id := pick(func(NodeID) bool { return true })
-      q = evalQuestion{ text: "Which of the nodes shown are a small model's claims that nobody has checked yet?", shown: context(id) }
+      q = evalQuestion{
+        text: "Which of the nodes shown are a small model's claims that " +
+          "nobody has checked yet?",
+        shown: context(id),
+      }
       var ans []NodeID
       for _, s := range q.shown {
         if unverified(s) {
@@ -236,7 +256,10 @@ func evalQuestions(g *Graph, all []NodeID) []evalQuestion {
       q.want = idsAnswer(ans)
     case 4:
       id := pick(func(NodeID) bool { return true })
-      q = evalQuestion{ text: "Which of the nodes shown are stale or suspect?", shown: context(id) }
+      q = evalQuestion{
+        text: "Which of the nodes shown are stale or suspect?",
+        shown: context(id),
+      }
       var ans []NodeID
       for _, s := range q.shown {
         if g.node(s).Flags & (FlagStale | FlagSuspect) != 0 {
@@ -247,14 +270,29 @@ func evalQuestions(g *Graph, all []NodeID) []evalQuestion {
       q.want = idsAnswer(ans)
     case 5:
       id := pick(func(NodeID) bool { return true })
-      q = evalQuestion{ text: fmt.Sprintf("What is node %d's confidence: guess, inferred, checked or tested?", id), shown: context(id), want: g.node(id).Conf().String() }
+      q = evalQuestion{
+        text: fmt.Sprintf(
+          "What is node %d's confidence: guess, inferred, checked or tested?",
+          id,
+        ),
+        shown: context(id),
+        want: g.node(id).Conf().String(),
+      }
     case 6:
       id := pick(func(NodeID) bool { return true })
       n := g.node(id)
-      ok := n.Conf() >= ConfChecked && n.Flags & (FlagStale | FlagSuspect) == 0 && !unverified(id)
+      ok := n.Conf() >= ConfChecked &&
+        n.Flags & (FlagStale | FlagSuspect) == 0 && !unverified(id)
       q = evalQuestion{
-        text:  fmt.Sprintf("Can node %d be trusted as it is: confidence checked or tested, not stale or suspect, and not an unchecked small-model claim? yes or no.", id),
-        shown: context(id), want: map[bool]string{ true: "yes", false: "no" }[ok],
+        text:  fmt.Sprintf(
+          "Can node %d be trusted as it is: confidence checked or tested, " +
+            "not stale or suspect, and not an unchecked small-model claim? " +
+              "yes or no.",
+          id,
+        ),
+        shown: context(id), want: map[bool]string{
+          true: "yes", false: "no",
+        }[ok],
       }
     case 7:
       id := pick(func(id NodeID) bool { return len(deps(id, false)) >= 2 })
@@ -265,10 +303,24 @@ func evalQuestions(g *Graph, all []NodeID) []evalQuestion {
         }
       }
 
-      q = evalQuestion{ text: fmt.Sprintf("Which of the nodes that node %d depends on are a small model's claims nobody has checked yet?", id), shown: context(id), want: idsAnswer(ans) }
+      q = evalQuestion{
+        text: fmt.Sprintf(
+          "Which of the nodes that node %d depends on are a small model's " +
+            "claims nobody has checked yet?",
+          id,
+        ),
+        shown: context(id),
+        want: idsAnswer(ans),
+      }
     case 8:
       id := pick(func(id NodeID) bool { return len(deps(id, true)) >= 1 })
-      q = evalQuestion{ text: fmt.Sprintf("If node %d turned out wrong, which nodes directly rest on it?", id), shown: context(id), want: idsAnswer(deps(id, true)) }
+      q = evalQuestion{
+        text: fmt.Sprintf(
+          "If node %d turned out wrong, which nodes directly rest on it?", id,
+        ),
+        shown: context(id),
+        want: idsAnswer(deps(id, true)),
+      }
     }
 
     qs = append(qs, q)
@@ -292,7 +344,9 @@ func normalize(reply string) string {
   ans, _, _ = strings.Cut(ans, "\n")
   ans = strings.ToLower(strings.Trim(ans, " .*`"))
   var ids []int
-  for _, f := range strings.FieldsFunc(ans, func(r rune) bool { return r == ' ' || r == ',' }) {
+  for _, f := range strings.FieldsFunc(
+    ans, func(r rune) bool { return r == ' ' || r == ',' },
+  ) {
     var v int
     _, err := fmt.Sscanf(strings.TrimPrefix(f, "n"), "%d", &v)
     if err != nil {
@@ -334,7 +388,10 @@ type evalReply struct {
 func ask(base, model, key, system, user string) (evalReply, error) {
   body := map[string]any{
     "model":       model,
-    "messages":    []map[string]string{ { "role": "system", "content": system }, { "role": "user", "content": user } },
+    "messages":    []map[string]string{
+      { "role": "system", "content": system },
+      { "role": "user", "content": user },
+    },
     "max_tokens":  8000,
     "temperature": 0.2,
   }
@@ -344,7 +401,11 @@ func ask(base, model, key, system, user string) (evalReply, error) {
   }
 
   raw, _ := json.Marshal(body)
-  req, _ := http.NewRequest("POST", strings.TrimSuffix(base, "/") + "/chat/completions", bytes.NewReader(raw))
+  req, _ := http.NewRequest(
+    "POST",
+    strings.TrimSuffix(base, "/") + "/chat/completions",
+    bytes.NewReader(raw),
+  )
   req.Header.Set("Content-Type", "application/json")
   if key != "" {
     req.Header.Set("Authorization", "Bearer " + key)
@@ -426,7 +487,9 @@ func TestFormatEval(t *testing.T) {
         system = codedSystem
       }
 
-      reply, err := ask(base, model, key, system + answerRule, b.String() + "\n" + q.text)
+      reply, err := ask(
+        base, model, key, system + answerRule, b.String() + "\n" + q.text,
+      )
       if err != nil {
         t.Fatalf("q%d: %v", qi + 1, err)
       }
@@ -440,9 +503,16 @@ func TestFormatEval(t *testing.T) {
       }
 
       if dump != "" {
-        name := fmt.Sprintf("%s/q%02d-%s-%d.txt", dump, qi + 1, []string{ "plain", "coded" }[f], rep)
+        name := fmt.Sprintf(
+          "%s/q%02d-%s-%d.txt",
+          dump,
+          qi + 1,
+          []string{ "plain", "coded" }[f],
+          rep,
+        )
         os.WriteFile(name, []byte(fmt.Sprintf(
-          "want %s, got %q, %v, finish %s, %d completion tokens\n\n=== reasoning\n%s%s\n\n=== content\n%s\n",
+          "want %s, got %q, %v, finish %s, %d completion tokens\n\n=== " +
+            "reasoning\n%s%s\n\n=== content\n%s\n",
           q.want, got, ok, ch.Finish, reply.Usage.Completion,
           ch.Message.Reasoning, ch.Message.ReasoningContent, ch.Message.Content,
         )), 0o644)
@@ -450,7 +520,14 @@ func TestFormatEval(t *testing.T) {
 
       res[f].prompt += reply.Usage.Prompt
       res[f].completion += reply.Usage.Completion
-      t.Logf("q%-2d %-5s %-5v want %-14q got %q", qi + 1, []string{ "plain", "coded" }[f], ok, q.want, got)
+      t.Logf(
+        "q%-2d %-5s %-5v want %-14q got %q",
+        qi + 1,
+        []string{ "plain", "coded" }[f],
+        ok,
+        q.want,
+        got,
+      )
     }
   }
 
@@ -505,7 +582,8 @@ func TestFormatEvalFixture(t *testing.T) {
     t.Fatal("a misspelled label")
   }
 
-  if normalize("thinking...\nANSWER: n12, n3") != "3 12" || normalize("ANSWER: Yes.") != "yes" {
+  if normalize("thinking...\nANSWER: n12, n3") != "3 12" ||
+      normalize("ANSWER: Yes.") != "yes" {
     t.Fatal("normalize")
   }
 }
@@ -520,7 +598,9 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
     return g.authors[n.Author].Role == RoleMinion && n.Flags & FlagVerified == 0
   }
 
-  flagged := func(id NodeID) bool { return g.node(id).Flags & (FlagStale | FlagSuspect) != 0 }
+  flagged := func(id NodeID) bool {
+    return g.node(id).Flags & (FlagStale | FlagSuspect) != 0
+  }
   trusted := func(id NodeID) bool {
     return g.node(id).Conf() >= ConfChecked && !flagged(id) && !unverified(id)
   }
@@ -533,7 +613,8 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
     }
 
     for _, e := range edges {
-      if (e.Kind == EdgeRequires || e.Kind == EdgeDerivedFrom) && !slices.Contains(out, e.To) {
+      if (e.Kind == EdgeRequires || e.Kind == EdgeDerivedFrom) &&
+          !slices.Contains(out, e.To) {
         out = append(out, e.To)
       }
     }
@@ -620,23 +701,39 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
     }
 
     qs = append(qs, evalQuestion{
-      text:  fmt.Sprintf("Which nodes does node %d depend on, directly or through exactly one node in between?", id),
+      text:  fmt.Sprintf(
+        "Which nodes does node %d depend on, directly or through exactly one " +
+          "node in between?",
+        id,
+      ),
       shown: context(append([]NodeID{ id }, two...)...), want: idsAnswer(two),
     })
 
     // 2. everything resting on a node, at any depth
-    id = pick(func(id NodeID) bool { n := len(closure(id, true)); return n >= 3 && n <= 8 })
+    id = pick(
+      func(id NodeID) bool {
+        n := len(closure(id, true))
+        return n >= 3 && n <= 8
+      },
+    )
     up := closure(id, true)
     qs = append(qs, evalQuestion{
-      text:  fmt.Sprintf("If node %d turned out wrong, which nodes rest on it, directly or indirectly at any depth?", id),
+      text:  fmt.Sprintf(
+        "If node %d turned out wrong, which nodes rest on it, directly or " +
+          "indirectly at any depth?",
+        id,
+      ),
       shown: context(append([]NodeID{ id }, up...)...), want: idsAnswer(up),
     })
 
     // 3. trusted direct dependencies
     id = pick(func(id NodeID) bool { return len(deps(id, false)) >= 3 })
     qs = append(qs, evalQuestion{
-      text: fmt.Sprintf("Of the nodes node %d depends on directly, which can be trusted as they are: "+
-        "confidence checked or tested, not stale or suspect, not an unchecked small-model claim?", id),
+      text: fmt.Sprintf("Of the nodes node %d depends on directly, which can " +
+        "be trusted as they are: "+
+        "confidence checked or tested, not stale or suspect, not an " +
+          "unchecked small-model claim?",
+        id),
       shown: context(id), want: idsAnswer(filter(deps(id, false), trusted)),
     })
 
@@ -656,7 +753,8 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
       return false
     })
     qs = append(qs, evalQuestion{
-      text:  "Which of the nodes shown are unchecked small-model claims that at least one other node shown depends on?",
+      text:  "Which of the nodes shown are unchecked small-model claims that " +
+        "at least one other node shown depends on?",
       shown: shown, want: idsAnswer(q4),
     })
 
@@ -679,17 +777,20 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
       return false
     })
     qs = append(qs, evalQuestion{
-      text:  "Which facts shown, with confidence checked or tested, directly depend on a node shown that is stale or suspect?",
+      text:  "Which facts shown, with confidence checked or tested, directly " +
+        "depend on a node shown that is stale or suspect?",
       shown: shown, want: idsAnswer(q5),
     })
 
     // 6. a count
     shown = context(pick(func(NodeID) bool { return true }))
     count := len(filter(shown, func(s NodeID) bool {
-      return g.node(s).Kind() == KindDecision && g.node(s).Conf() <= ConfInferred
+      return g.node(s).Kind() == KindDecision &&
+        g.node(s).Conf() <= ConfInferred
     }))
     qs = append(qs, evalQuestion{
-      text:  "How many of the nodes shown are decisions with confidence guess or inferred? Answer with a number.",
+      text:  "How many of the nodes shown are decisions with confidence " +
+        "guess or inferred? Answer with a number.",
       shown: shown, want: fmt.Sprint(count),
     })
 
@@ -709,7 +810,9 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
 
       if !tie {
         qs = append(qs, evalQuestion{
-          text:  "Which node shown has the most nodes depending on it directly (count every dependent listed in its line)? Answer with one id.",
+          text:  "Which node shown has the most nodes depending on it " +
+            "directly (count every dependent listed in its line)? Answer " +
+              "with one id.",
           shown: shown, want: fmt.Sprint(best),
         })
         break
@@ -730,7 +833,11 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
       return false
     })
     qs = append(qs, evalQuestion{
-      text:  fmt.Sprintf("Which nodes under %s/ depend directly on a node outside %s/?", topic, topic),
+      text:  fmt.Sprintf(
+        "Which nodes under %s/ depend directly on a node outside %s/?",
+        topic,
+        topic,
+      ),
       shown: context(kids...), want: idsAnswer(q8),
     })
 
@@ -756,7 +863,8 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
     }
 
     qs = append(qs, evalQuestion{
-      text: fmt.Sprintf("Of the nodes node %d depends on directly, which are stale or suspect themselves, "+
+      text: fmt.Sprintf("Of the nodes node %d depends on directly, which are " +
+        "stale or suspect themselves, "+
         "or directly depend on a node that is stale or suspect?", id),
       shown: context(need...), want: idsAnswer(q9),
     })
@@ -773,11 +881,19 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
       }
 
       b = dd[r.Intn(len(dd))]
-      mid = filter(deps(a, false), func(m NodeID) bool { return slices.Contains(deps(m, false), b) })
+      mid = filter(
+        deps(a, false),
+        func(m NodeID) bool { return slices.Contains(deps(m, false), b) },
+      )
     }
 
     qs = append(qs, evalQuestion{
-      text:  fmt.Sprintf("Which nodes does node %d depend on directly that in turn depend directly on node %d?", a, b),
+      text:  fmt.Sprintf(
+        "Which nodes does node %d depend on directly that in turn depend " +
+          "directly on node %d?",
+        a,
+        b,
+      ),
       shown: context(append([]NodeID{ a, b }, mid...)...), want: idsAnswer(mid),
     })
   }
@@ -795,7 +911,9 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
     return g.authors[n.Author].Role == RoleMinion && n.Flags & FlagVerified == 0
   }
 
-  flagged := func(id NodeID) bool { return g.node(id).Flags & (FlagStale | FlagSuspect) != 0 }
+  flagged := func(id NodeID) bool {
+    return g.node(id).Flags & (FlagStale | FlagSuspect) != 0
+  }
   trusted := func(id NodeID) bool {
     return g.node(id).Conf() >= ConfChecked && !flagged(id) && !unverified(id)
   }
@@ -808,7 +926,8 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
     }
 
     for _, e := range edges {
-      if (e.Kind == EdgeRequires || e.Kind == EdgeDerivedFrom) && !slices.Contains(out, e.To) {
+      if (e.Kind == EdgeRequires || e.Kind == EdgeDerivedFrom) &&
+          !slices.Contains(out, e.To) {
         out = append(out, e.To)
       }
     }
@@ -889,12 +1008,17 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
   }
 
   sized := func(in bool, lo, hi int) func(NodeID) bool {
-    return func(id NodeID) bool { n := len(closure(id, in)); return n >= lo && n <= hi }
+    return func(id NodeID) bool {
+      n := len(closure(id, in))
+      return n >= lo && n <= hi
+    }
   }
 
   var qs []evalQuestion
   add := func(text string, want string, need ...NodeID) {
-    qs = append(qs, evalQuestion{ text: text, shown: context(need...), want: want })
+    qs = append(
+      qs, evalQuestion{ text: text, shown: context(need...), want: want },
+    )
   }
 
   for round := 0; round < 2; round++ {
@@ -907,12 +1031,20 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
       }
     }
 
-    add(fmt.Sprintf("Which nodes does node %d depend on within three steps (directly, or through one or two nodes in between)?", id),
+    add(fmt.Sprintf(
+      "Which nodes does node %d depend on within three steps (directly, or " +
+        "through one or two nodes in between)?",
+      id,
+    ),
       idsAnswer(within), append(closure(id, false), id)...)
 
     // 2. every prerequisite at any depth
     id = pick(sized(false, 5, 12))
-    add(fmt.Sprintf("Which nodes does node %d depend on, directly or indirectly at any depth?", id),
+    add(fmt.Sprintf(
+      "Which nodes does node %d depend on, directly or indirectly " +
+        "at any depth?",
+      id,
+    ),
       idsAnswer(closure(id, false)), append(closure(id, false), id)...)
 
     // 3. unverified claims among everything resting on a node
@@ -921,7 +1053,11 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
       return len(up) >= 4 && len(up) <= 12 && len(filter(up, unverified)) >= 1
     })
     up := closure(id, true)
-    add(fmt.Sprintf("Of all the nodes that rest on node %d, directly or indirectly at any depth, which are unchecked small-model claims?", id),
+    add(fmt.Sprintf(
+      "Of all the nodes that rest on node %d, directly or indirectly at any " +
+        "depth, which are unchecked small-model claims?",
+      id,
+    ),
       idsAnswer(filter(up, unverified)), append(up, id)...)
 
     // 4. prerequisites two nodes share, at any depth
@@ -935,11 +1071,21 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
       }
 
       cb := closure(b, false)
-      both = filter(closure(a, false), func(n NodeID) bool { return slices.Contains(cb, n) })
+      both = filter(
+        closure(a, false),
+        func(n NodeID) bool { return slices.Contains(cb, n) },
+      )
     }
 
-    add(fmt.Sprintf("Which nodes do both node %d and node %d depend on, directly or indirectly at any depth?", a, b),
-      idsAnswer(both), append(append(closure(a, false), closure(b, false)...), a, b)...)
+    add(fmt.Sprintf(
+      "Which nodes do both node %d and node %d depend on, directly or " +
+        "indirectly at any depth?",
+      a,
+      b,
+    ),
+      idsAnswer(both), append(
+        append(closure(a, false), closure(b, false)...), a, b,
+      )...)
 
     // 5. does one depend on the other at any depth: one yes, one no
     id = pick(sized(false, 5, 12))
@@ -947,30 +1093,47 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
     target := down[r.Intn(len(down))]
     want := "yes"
     if round == 1 {
-      target = pick(func(n NodeID) bool { return n != id && !slices.Contains(down, n) && len(deps(n, true)) > 0 })
+      target = pick(
+        func(n NodeID) bool {
+          return n != id && !slices.Contains(down, n) && len(deps(n, true)) > 0
+        },
+      )
       want = "no"
     }
 
-    add(fmt.Sprintf("Does node %d depend on node %d, directly or indirectly at any depth? yes or no.", id, target),
+    add(fmt.Sprintf(
+      "Does node %d depend on node %d, directly or indirectly at any depth? " +
+        "yes or no.",
+      id,
+      target,
+    ),
       want, append(down, id, target)...)
 
     // 6. trustworthy among what rests on a node
     id = pick(sized(true, 4, 12))
     up = closure(id, true)
-    add(fmt.Sprintf("Of all the nodes that rest on node %d, directly or indirectly at any depth, which can be trusted as they are: "+
-      "confidence checked or tested, not stale or suspect, not an unchecked small-model claim?", id),
+    add(fmt.Sprintf("Of all the nodes that rest on node %d, directly or " +
+      "indirectly at any depth, which can be trusted as they are: "+
+      "confidence checked or tested, not stale or suspect, not an unchecked " +
+        "small-model claim?",
+      id),
       idsAnswer(filter(up, trusted)), append(up, id)...)
 
     // 7. a count over a closure
     id = pick(sized(false, 6, 14))
     down = closure(id, false)
-    add(fmt.Sprintf("How many of the nodes node %d depends on, directly or indirectly at any depth, are stale or suspect? Answer with a number.", id),
+    add(fmt.Sprintf(
+      "How many of the nodes node %d depends on, directly or indirectly at " +
+        "any depth, are stale or suspect? Answer with a number.",
+      id,
+    ),
       fmt.Sprint(len(filter(down, flagged))), append(down, id)...)
 
     // 8. where the shakiness starts
     id = pick(func(id NodeID) bool {
       down := closure(id, false)
-      return len(down) >= 5 && len(down) <= 14 && len(filter(down, flagged)) >= 1
+      return len(down) >= 5 && len(down) <= 14 &&
+        len(filter(down, flagged)) >= 1
     })
     down = closure(id, false)
     roots := filter(down, func(n NodeID) bool {
@@ -986,7 +1149,12 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
 
       return true
     })
-    add(fmt.Sprintf("Among the nodes node %d depends on at any depth, which are stale or suspect while depending on nothing stale or suspect themselves, at any depth?", id),
+    add(fmt.Sprintf(
+      "Among the nodes node %d depends on at any depth, which are stale or " +
+        "suspect while depending on nothing stale or suspect themselves, at " +
+          "any depth?",
+      id,
+    ),
       idsAnswer(roots), append(down, id)...)
 
     // 9. shortest path
@@ -999,11 +1167,21 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
       }
     }
 
-    add(fmt.Sprintf("What is the fewest number of steps from node %d down to node %d, following what each node depends on? Answer with a number.", id, far),
+    add(fmt.Sprintf(
+      "What is the fewest number of steps from node %d down to node %d, " +
+        "following what each node depends on? Answer with a number.",
+      id,
+      far,
+    ),
       fmt.Sprint(d[far]), append(closure(id, false), id)...)
 
     // 10. affected but still trusted, two levels up
-    id = pick(func(id NodeID) bool { n := len(closure(id, true)); return n >= 3 && n <= 10 })
+    id = pick(
+      func(id NodeID) bool {
+        n := len(closure(id, true))
+        return n >= 3 && n <= 10
+      },
+    )
     var two []NodeID
     for n, k := range dist(id, true) {
       if k >= 1 && k <= 2 && trusted(n) {
@@ -1011,8 +1189,11 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
       }
     }
 
-    add(fmt.Sprintf("If node %d turned out wrong, which trusted nodes (confidence checked or tested, not stale or suspect, "+
-      "not an unchecked small-model claim) would be affected within two steps: resting on it directly, or through one node in between?", id),
+    add(fmt.Sprintf("If node %d turned out wrong, which trusted nodes " +
+      "(confidence checked or tested, not stale or suspect, "+
+      "not an unchecked small-model claim) would be affected within two " +
+        "steps: resting on it directly, or through one node in between?",
+      id),
       idsAnswer(two), append(closure(id, true), id)...)
   }
 

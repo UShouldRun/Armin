@@ -262,7 +262,9 @@ func (g *Graph) Trace(id NodeID, depth int) []TraceStep {
 }
 
 func (e *CycleError) Error() string {
-  return fmt.Sprintf("the prerequisites loop through %v; resolve the cycle first", e.Nodes)
+  return fmt.Sprintf(
+    "the prerequisites loop through %v; resolve the cycle first", e.Nodes,
+  )
 }
 
 // Plan lists what must be learned for goal, prerequisites first: the
@@ -272,7 +274,9 @@ func (e *CycleError) Error() string {
 // directly or not), then the one with fewest prerequisites, then the
 // lowest ID. frontier is how many were ready at the start: what can be
 // taught now.
-func (g *Graph) Plan(goal NodeID, known func(NodeID) bool) (order []NodeID, frontier int, err error) {
+func (g *Graph) Plan(goal NodeID, known func(NodeID) bool) (
+  order []NodeID, frontier int, err error,
+) {
   if !g.live(goal) {
     return nil, 0, fmt.Errorf("\n\t... in Plan:\n\t%d: %w", goal, ErrNoNode)
   }
@@ -421,7 +425,9 @@ func (h *readyHeap) Less(a, b int) bool {
   return h.nodes[i] < h.nodes[j]
 }
 
-func (h *readyHeap) Swap(a, b int) { h.items[a], h.items[b] = h.items[b], h.items[a] }
+func (h *readyHeap) Swap(a, b int) {
+  h.items[a], h.items[b] = h.items[b], h.items[a]
+}
 func (h *readyHeap) Push(x any)    { h.items = append(h.items, x.(int)) }
 
 func (h *readyHeap) Pop() any {

@@ -39,7 +39,9 @@ func TestRefreshKnow(t *testing.T) {
   }
 
   node := func(name string) know.NodeID {
-    id, _ := g.AddNode(0, name, name + " holds", know.KindFact, know.ConfChecked, 0)
+    id, _ := g.AddNode(
+      0, name, name + " holds", know.KindFact, know.ConfChecked, 0,
+    )
     return id
   }
 
@@ -80,8 +82,11 @@ func TestRefreshKnow(t *testing.T) {
     t.Fatalf("second refresh: %q", msg)
   }
 
-  if g.Str(g.Ev(ef).Ref) != "a.go:5-7" || g.Node(gn).Flags & know.FlagStale == 0 ||
-    g.Node(user).Flags & know.FlagSuspect == 0 || g.Node(k).Flags & know.FlagStale == 0 {
+  if g.Str(g.Ev(ef).Ref) != "a.go:5-7" ||
+      g.Node(gn).Flags & know.FlagStale == 0 ||
+    g.Node(
+      user,
+    ).Flags & know.FlagSuspect == 0 || g.Node(k).Flags & know.FlagStale == 0 {
     t.Fatal("flags or reference wrong")
   }
 
@@ -95,7 +100,8 @@ func TestRefreshKnow(t *testing.T) {
   g.AddEdge(user, h, know.EdgeRequires)
   msg, _ = refreshKnow(root, g)
   _, ok := g.Lookup("cycles")
-  if !strings.Contains(msg, "1 stale") || !strings.Contains(msg, "1 open requires loops") || !ok {
+  if !strings.Contains(msg, "1 stale") ||
+      !strings.Contains(msg, "1 open requires loops") || !ok {
     t.Fatalf("third refresh: %q", msg)
   }
 }

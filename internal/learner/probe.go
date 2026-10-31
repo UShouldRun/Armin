@@ -142,7 +142,9 @@ func (p *Probe) Known(id know.NodeID) (bool, bool) {
 // two ends settle the area at once: "never heard" leaves its concepts
 // unknown, "could explain" makes them known by implication. The middle
 // ones return the area's concepts, for a Probe.
-func (l *Learner) AreaReport(area know.NodeID, level Result, sure Sure, when time.Time) ([]know.NodeID, error) {
+func (l *Learner) AreaReport(
+  area know.NodeID, level Result, sure Sure, when time.Time,
+) ([]know.NodeID, error) {
   err := l.Record(area, EventSelfReport, level, sure, when)
   if err != nil {
     return nil, err

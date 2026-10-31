@@ -128,7 +128,8 @@ func checkSnap(m []byte) (snapHeader, error) {
     return h, errors.New("checksum mismatch")
   }
 
-  if h.Nodes == 0 || h.Nodes > maxNodes || h.Authors == 0 || h.Authors > 1 << 16 {
+  if h.Nodes == 0 || h.Nodes > maxNodes || h.Authors == 0 ||
+      h.Authors > 1 << 16 {
     return h, errors.New("bad counts")
   }
 

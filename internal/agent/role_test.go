@@ -36,7 +36,11 @@ func TestRoleToolMasks(t *testing.T) {
   l.SetRole(RoleMinion)
   min := toolNames(l)
   if min["run_program"] || !min["edit_file"] {
-    t.Errorf("minion: run_program %v, edit_file %v", min["run_program"], min["edit_file"])
+    t.Errorf(
+      "minion: run_program %v, edit_file %v",
+      min["run_program"],
+      min["edit_file"],
+    )
   }
 
   l.SetRole(RoleCopilot)
@@ -55,7 +59,8 @@ func TestRoleRefusesAtExecute(t *testing.T) {
   call.Function.Name = "write_file"
   call.Function.Arguments = map[string]any{ "path": "x", "content": "y" }
   res, ok := l.execute(context.Background(), call, Hooks{}).(map[string]string)
-  if !ok || !strings.Contains(res["error"], "advisor role can't use write_file") {
+  if !ok ||
+      !strings.Contains(res["error"], "advisor role can't use write_file") {
     t.Fatalf("result = %v", res)
   }
 }

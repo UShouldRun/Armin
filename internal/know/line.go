@@ -1,7 +1,8 @@
 // What models read: one line per node, and the outline frozen into
 // the system prompt.
 //
-//   n42 tcp/handshake fact checked minion-unverified needs n17 n23 used-by n8 "three segments: SYN, SYN-ACK, ACK; the server…" STALE
+// n42 tcp/handshake fact checked minion-unverified needs n17 n23 used-by
+// n8 "three segments: SYN, SYN-ACK, ACK; the server…" STALE
 //
 // Plain words, no legend needed; unset fields are left out; the claim
 // is cut at ClaimCut characters (know_get returns it whole).
@@ -35,7 +36,9 @@ func (g *Graph) Line(b *strings.Builder, id NodeID, full bool) {
     return k == EdgeRequires || k == EdgeDerivedFrom
   })
 
-  for _, k := range []EdgeKind{ EdgeImplements, EdgeExplains, EdgeContradicts } {
+  for _, k := range []EdgeKind{
+    EdgeImplements, EdgeExplains, EdgeContradicts,
+  } {
     g.edgeWords(b, out, k.String(), func(e EdgeKind) bool { return e == k })
   }
 

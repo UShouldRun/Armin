@@ -19,7 +19,16 @@ func TestFindRanksAndFilters(t *testing.T) {
   g := New()
   sample(t, g)
   udp := need(g.AddNode(0, "udp", "", KindTopic, ConfGuess, 0))
-  mention := need(g.AddNode(udp, "nohandshake", "udp skips the handshake entirely", KindFact, ConfGuess, 0))
+  mention := need(
+    g.AddNode(
+      udp,
+      "nohandshake",
+      "udp skips the handshake entirely",
+      KindFact,
+      ConfGuess,
+      0,
+    ),
+  )
   hs, _ := g.Lookup("tcp/handshake")
   tcp, _ := g.Lookup("tcp")
 
@@ -53,7 +62,11 @@ func TestFindSeesChangesBetweenRebuilds(t *testing.T) {
   built := g.index.built
 
   seq, _ := g.Lookup("tcp/seqnum")
-  added := need(g.AddNode(0, "congestion", "cwnd grows by slow start", KindConcept, ConfGuess, 0))
+  added := need(
+    g.AddNode(
+      0, "congestion", "cwnd grows by slow start", KindConcept, ConfGuess, 0,
+    ),
+  )
   mustDo(t, g.SetClaim(seq, "every byte has an ordinal"))
   win, _ := g.Lookup("tcp/window")
   udp := need(g.AddNode(0, "udp", "", KindTopic, ConfGuess, 0))
@@ -65,28 +78,34 @@ func TestFindSeesChangesBetweenRebuilds(t *testing.T) {
     t.Fatal("small changes should not rebuild the index")
   }
 
-  if got := g.Find("slow start", 0, 5); len(got) == 0 || got[0].ID != added {
+  got := g.Find("slow start", 0, 5)
+  if len(got) == 0 || got[0].ID != added {
     t.Fatalf("added node: %v", got)
   }
 
-  if got := g.Find("ordinal", 0, 5); len(got) == 0 || got[0].ID != seq {
+  got = g.Find("ordinal", 0, 5)
+  if len(got) == 0 || got[0].ID != seq {
     t.Fatalf("rewritten claim: %v", got)
   }
 
-  if got := g.Find("numbered", 0, 5); len(got) != 0 {
+  got = g.Find("numbered", 0, 5)
+  if len(got) != 0 {
     t.Fatalf("old claim text still matches: %v", got)
   }
 
-  if got := g.Find("flow control", udp, 5); len(got) == 0 || got[0].ID != win {
+  got = g.Find("flow control", udp, 5)
+  if len(got) == 0 || got[0].ID != win {
     t.Fatalf("moved node under its new parent: %v", got)
   }
 
   tcp, _ := g.Lookup("tcp")
-  if got := g.Find("flow control", tcp, 5); len(got) != 0 {
+  got = g.Find("flow control", tcp, 5)
+  if len(got) != 0 {
     t.Fatalf("moved node still under its old parent: %v", got)
   }
 
-  if got := g.Find("SYN", 0, 5); len(got) != 0 {
+  got = g.Find("SYN", 0, 5)
+  if len(got) != 0 {
     t.Fatalf("deleted node found: %v", got)
   }
 }
@@ -139,13 +158,24 @@ func TestSimilar(t *testing.T) {
     t.Fatalf("near-duplicate missed: %v", got)
   }
 
-  if len(g.Similar(tcp, "teardown", "FIN and FIN-ACK close a connection")) != 0 {
+  if len(
+    g.Similar(tcp, "teardown", "FIN and FIN-ACK close a connection"),
+  ) != 0 {
     t.Fatal("an unrelated node was called similar")
   }
 
   // word overlap can't tell these apart: it is held for the model,
   // never merged
-  a := need(g.AddNode(tcp, "accept", "the server accepts the connection after ACK", KindFact, ConfGuess, 0))
+  a := need(
+    g.AddNode(
+      tcp,
+      "accept",
+      "the server accepts the connection after ACK",
+      KindFact,
+      ConfGuess,
+      0,
+    ),
+  )
   got = g.Similar(tcp, "reject", "the server rejects the connection after ACK")
   if len(got) == 0 || got[0].ID != a {
     t.Fatalf("one-word difference should be flagged for the model: %v", got)
@@ -156,7 +186,9 @@ func TestCycles(t *testing.T) {
   g := New()
   n := make([]NodeID, 7)
   for i := range n {
-    n[i] = need(g.AddNode(0, fmt.Sprintf("c%d", i), "", KindConcept, ConfGuess, 0))
+    n[i] = need(
+      g.AddNode(0, fmt.Sprintf("c%d", i), "", KindConcept, ConfGuess, 0),
+    )
   }
 
   edge := func(a, b int) { mustDo(t, g.AddEdge(n[a], n[b], EdgeRequires)) }
@@ -179,7 +211,8 @@ func TestCycles(t *testing.T) {
   // reframing one edge resolves the loop
   mustDo(t, g.RemoveEdge(n[1], n[0], EdgeRequires))
   mustDo(t, g.AddEdge(n[1], n[0], EdgeExplains))
-  if got := g.Cycles(); len(got) != 1 {
+  got = g.Cycles()
+  if len(got) != 1 {
     t.Fatalf("after reframing: %v", got)
   }
 }
@@ -189,7 +222,9 @@ func TestCyclesLongChainNoRecursion(t *testing.T) {
   prev := need(g.AddNode(0, "c0", "", KindConcept, ConfGuess, 0))
   first := prev
   for i := 1; i < 50000; i++ {
-    id := need(g.AddNode(0, fmt.Sprintf("c%d", i), "", KindConcept, ConfGuess, 0))
+    id := need(
+      g.AddNode(0, fmt.Sprintf("c%d", i), "", KindConcept, ConfGuess, 0),
+    )
     mustDo(t, g.AddEdge(prev, id, EdgeRequires))
     prev = id
   }
@@ -274,7 +309,13 @@ func TestPlan(t *testing.T) {
     pos[id] = i
   }
 
-  for _, e := range [][2]NodeID{ { goal, window }, { goal, hs }, { window, seq }, { hs, seq }, { window, buffers } } {
+  for _, e := range [][2]NodeID{
+    { goal, window },
+    { goal, hs },
+    { window, seq },
+    { hs, seq },
+    { window, buffers },
+  } {
     if pos[e[0]] < pos[e[1]] {
       t.Fatalf("%d taught before its prerequisite %d", e[0], e[1])
     }

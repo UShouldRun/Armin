@@ -53,8 +53,8 @@ var delegateTools = []toolSpec{
         "the result has to pass. What it adds to the tree stays marked as "+
         "the minion's until you verify it.",
       map[string]llm.ToolProperty{
-        "task": stringProp("What to do, precisely: files, names, the expected " +
-          "shape of the answer"),
+        "task": stringProp("What to do, precisely: files, names, the " +
+          "expected shape of the answer"),
         "check": {
           Type:        "string",
           Description: "The acceptance check run afterwards: tests, build, " +
@@ -215,7 +215,9 @@ func runDelegate(ctx context.Context, l *Loop, c toolCall) any {
 
 // acceptance runs the delegation's check and reports it.
 func (l *Loop) acceptance(ctx context.Context, in delegateArgs) (bool, string) {
-  var run func(context.Context, *sandbox.Config, tools.ProjectRunInput) (*tools.ProjectRunOutput, error)
+  var run func(
+    context.Context, *sandbox.Config, tools.ProjectRunInput,
+  ) (*tools.ProjectRunOutput, error)
   switch in.Check {
   case "tests":
     run = tools.RunTests
@@ -266,7 +268,9 @@ func (l *Loop) acceptance(ctx context.Context, in delegateArgs) (bool, string) {
 // settleDelegation finds what the minion wrote in delegation id and,
 // when its check passed, raises those nodes to checked with the check
 // as evidence. It returns their lines.
-func (l *Loop) settleDelegation(id uint32, passed bool, report string) (string, error) {
+func (l *Loop) settleDelegation(
+  id uint32, passed bool, report string,
+) (string, error) {
   var ids []know.NodeID
   for n := 1; n < l.Know.Len(); n++ {
     nid := know.NodeID(n)

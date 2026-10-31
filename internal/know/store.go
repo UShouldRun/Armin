@@ -53,7 +53,9 @@ func (g *Graph) root() error {
 // mutation returns ErrReadOnly.
 func Open(dir string) (*Graph, error) {
   if !littleEndian() {
-    return nil, errors.New("\n\t... in Open:\n\tknow needs a little-endian machine")
+    return nil, errors.New(
+      "\n\t... in Open:\n\tknow needs a little-endian machine",
+    )
   }
 
   err := os.MkdirAll(dir, 0o700)
@@ -138,7 +140,8 @@ func (g *Graph) openLog() error {
 
     if gen > g.logGen {
       return fmt.Errorf(
-        "graph.log generation %d is newer than the snapshot's %d", gen, g.logGen,
+        "graph.log generation %d is newer than the snapshot's %d", gen,
+        g.logGen,
       )
     }
   }

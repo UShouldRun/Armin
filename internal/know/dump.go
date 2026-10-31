@@ -29,8 +29,12 @@ func (g *Graph) Dump(w io.Writer, id NodeID) error {
 
   b := bufio.NewWriter(w)
   b.WriteString("# armin know v1\n")
-  b.WriteString("# edit claims, kinds, flags, paths and edges; add nodes with\n")
-  b.WriteString("# \"new <path> <kind> <conf>\" blocks; evidence lines are read-only\n")
+  b.WriteString(
+    "# edit claims, kinds, flags, paths and edges; add nodes with\n",
+  )
+  b.WriteString(
+    "# \"new <path> <kind> <conf>\" blocks; evidence lines are read-only\n",
+  )
 
   order := g.preorder(id, nil)
   used := make([]bool, len(g.authors))
