@@ -127,6 +127,7 @@ type Graph struct {
 
   edges edges
   paths paths
+  index index
 
   log    *os.File
   logGen uint64

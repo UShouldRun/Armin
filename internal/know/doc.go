@@ -18,6 +18,9 @@
 //   store.go     Open and Close: lock, load the snapshot, replay the log
 //   dump.go      the text form of a subtree (armin -know dump)
 //   edit.go      loading an edited dump back (armin -know edit)
+//   names.go     the words for kinds, levels, flags and edge kinds
+//   find.go      BM25 search with prefix expansion and a subtree filter
+//   algo.go      Similar (dedup), Cycles (Tarjan), Trace, Plan (Kahn)
 //
 // On disk, per tree: graph.snap (header + the arrays exactly as in
 // memory, little-endian) and graph.log ([op][len][payload][crc32]

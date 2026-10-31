@@ -146,6 +146,7 @@ func (g *Graph) apply(op opCode, payload []byte) error {
     }
 
     g.node(NodeID(id)).Claim = g.intern(claim)
+    g.index.changed(NodeID(id))
 
   case opMeta:
     id := NodeID(d.u32(uint64(g.Len())))
@@ -163,6 +164,10 @@ func (g *Graph) apply(op opCode, payload []byte) error {
     }
 
     n.KindConf, n.Flags, n.Seen = kc, flags, seen
+    if was != flags & FlagDeleted {
+      g.index.changed(id)
+      g.index.eulerDirty = true
+    }
     if id != 0 && was != 0 && flags & FlagDeleted == 0 {
       g.pathInsert(id)
     }
@@ -183,6 +188,8 @@ func (g *Graph) apply(op opCode, payload []byte) error {
 
     n.Parent = parent
     n.Name = g.intern(name)
+    g.index.changed(id)
+    g.index.eulerDirty = true
     if live {
       g.pathInsert(id)
     }
