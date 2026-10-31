@@ -17,13 +17,25 @@ func TestLine(t *testing.T) {
   var b strings.Builder
   g.Line(&b, hs, false)
   want := `n2 tcp/handshake fact checked needs n3 used-by n4 ` +
-    `"SYN, SYN-ACK, ACK" STALE`
+    `"SYN, SYN-ACK, ACK" at tcp/conn.go:10-20 STALE`
   if b.String() != want {
     t.Fatalf("line:\n%s\nwant:\n%s", b.String(), want)
   }
 
+  // stale nodes never say current; a fresh one does
+  mustDo(t, g.SetFlags(hs, 0, FlagStale))
+  b.Reset()
+  g.Line(&b, hs, false)
+  if !strings.Contains(b.String(), " at tcp/conn.go:10-20 current") {
+    t.Fatalf("current missing: %s", b.String())
+  }
+
   b.Reset()
   g.Line(&b, seq, false)
+  if strings.Contains(b.String(), " at ") {
+    t.Fatalf("a URL-only node carries an at-ref: %s", b.String())
+  }
+
   if !strings.Contains(
     b.String(), "concept inferred minion-unverified used-by n2 n4",
   ) {

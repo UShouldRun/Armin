@@ -1,11 +1,16 @@
 // What models read: one line per node, and the outline frozen into
 // the system prompt.
 //
-// n42 tcp/handshake fact checked minion-unverified needs n17 n23 used-by
-// n8 "three segments: SYN, SYN-ACK, ACK; the server…" STALE
+// n42 tcp/handshake fact checked needs n17 n23 used-by n8 "three
+// segments: SYN, SYN-ACK, ACK; the server…" at tcp/conn.go:10-20
+// current STALE
 //
 // Plain words, no legend needed; unset fields are left out; the claim
 // is cut at ClaimCut characters (know_find with ids returns it whole).
+// A short line carries the first file evidence ("at <ref>") so the
+// model knows where to read next without a second call, and marks it
+// current when the file evidence passed the staleness check (a node
+// marked STALE or SUSPECT never says current).
 
 package know
 
@@ -57,6 +62,18 @@ func (g *Graph) Line(b *strings.Builder, id NodeID, full bool) {
     b.WriteString(strconv.Quote(claim))
   }
 
+  // the first file evidence on a short line: what to read next,
+  // without a second call. A node with file evidence that is neither
+  // STALE nor SUSPECT passed the staleness check: current.
+  fileEv, hasFile := g.firstFileEvidence(id)
+  if !full && hasFile {
+    fmt.Fprintf(b, " at %s", g.Str(fileEv.Ref))
+
+    if n.Flags&(FlagStale|FlagSuspect) == 0 {
+      b.WriteString(" current")
+    }
+  }
+
   for _, f := range []struct {
     flag NodeFlags
     word string
@@ -69,6 +86,17 @@ func (g *Graph) Line(b *strings.Builder, id NodeID, full bool) {
       b.WriteString(f.word)
     }
   }
+}
+
+// firstFileEvidence returns the node's first file-kind evidence.
+func (g *Graph) firstFileEvidence(id NodeID) (Evidence, bool) {
+  for _, e := range g.EvidenceOf(id, nil) {
+    if ev := g.Ev(e); ev.Kind == RefFile {
+      return ev, true
+    }
+  }
+
+  return Evidence{}, false
 }
 
 // edgeWords writes " word nA nB" for the live edges keep accepts, each

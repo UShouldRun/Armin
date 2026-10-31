@@ -370,10 +370,11 @@ func turnHistory(question, answer string, reads ...[2]int) []llm.Message {
 func TestRecordTurn(t *testing.T) {
   l, _ := knowLoop(t)
 
-  // a turn that read a file: one fact node under sessions/, with the
-  // range as evidence and the question in the claim
+  // a turn that read a file: one file-kind node under sessions/,
+  // pointing at where the answer lives, with the range as evidence
   l.recordTurn(
-    turnHistory("How does the handshake work?", "SYN, then ACK",
+    turnHistory("How does the handshake work?",
+      "The handshake is SYN, then ACK, in conn.go:3-6",
       [2]int{ 3, 6 }), 0,
   )
   id, ok := l.Know.Lookup("sessions/how-does-the-handshake")
@@ -386,8 +387,14 @@ func TestRecordTurn(t *testing.T) {
   }
 
   n := l.Know.Node(id)
-  if n.Kind() != know.KindFact || n.Conf() != know.ConfChecked {
+  if n.Kind() != know.KindFile || n.Conf() != know.ConfChecked {
     t.Fatalf("node: %s", l.lines([]know.NodeID{ id }, true))
+  }
+
+  // the claim points where the answer lives: the answer's own
+  // citation beats the read ranges
+  if claim := l.Know.Claim(id); claim != "conn.go:3-6" {
+    t.Fatalf("claim: %q", l.Know.Claim(id))
   }
 
   evs := l.Know.EvidenceOf(id, nil)
@@ -397,8 +404,14 @@ func TestRecordTurn(t *testing.T) {
     t.Fatalf("evidence: %v", evs)
   }
 
-  if !strings.Contains(l.Know.Claim(id), "SYN, then ACK") {
-    t.Fatalf("claim: %q", l.Know.Claim(id))
+  // no citation in the answer: the claim falls back to the ranges
+  l.recordTurn(
+    turnHistory("How does retransmit work?", "SYN, then ACK",
+      [2]int{ 3, 6 }), 0,
+  )
+  rt, ok := l.Know.Lookup("sessions/how-does-retransmit-work")
+  if !ok || l.Know.Claim(rt) != "conn.go:3-6" {
+    t.Fatalf("fallback claim: %q", l.Know.Claim(rt))
   }
 
   // the same question again: linked to the same node, not a duplicate
@@ -406,7 +419,7 @@ func TestRecordTurn(t *testing.T) {
     turnHistory("How does the handshake work?", "SYN, then ACK again",
       [2]int{ 3, 6 }), 0,
   )
-  if got := len(l.Know.Children(mustLookup(t, l, "sessions"), nil)); got != 1 {
+  if got := len(l.Know.Children(mustLookup(t, l, "sessions"), nil)); got != 2 {
     t.Fatalf("a similar turn added a node; sessions has %d", got)
   }
 

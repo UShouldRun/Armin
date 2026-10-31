@@ -22,6 +22,7 @@ import (
   "context"
   "fmt"
   "os"
+  "regexp"
   "slices"
   "strconv"
   "strings"
@@ -335,7 +336,12 @@ func runKnowFind(_ context.Context, l *Loop, c toolCall) any {
     ids[i] = h.ID
   }
 
-  return map[string]string{ "found": l.lines(ids, false) }
+  return map[string]string{
+    "found": l.lines(ids, false) +
+      "\nanswer from these where none is STALE or SUSPECT (current = " +
+      "passed today's file check); read code only for what they don't " +
+      "cover, starting at their at-lines",
+  }
 }
 
 // knowGet renders nodes in full: the whole claim, the evidence and
@@ -910,14 +916,22 @@ func (l *Loop) recordTurn(h []llm.Message, from int) {
     return
   }
 
-  claim := "Q: " + cut(question, 200) + " A: " + cut(answer, 300)
+  // a pointer, not prose: the claim is where the answer lives — the
+  // citations the answer itself gave, else the ranges read. Q/A text
+  // measured useless (the model re-explored anyway; see the
+  // benchmark in docs/design/restructure-plan.md).
+  claim := strings.Join(answerCites(answer), " ")
+  if claim == "" {
+    claim = strings.Join(refs, " ")
+  }
+
   parent, err := l.ensurePath("sessions", author)
   if err != nil {
     return
   }
 
   // a similar turn already recorded: link this turn's evidence to it
-  for _, hit := range l.Know.Similar(parent, "", claim) {
+  for _, hit := range l.Know.Similar(parent, turnSlug(question), claim) {
     for _, ref := range refs {
       l.addEvidence(hit.ID, ref)
     }
@@ -927,7 +941,7 @@ func (l *Loop) recordTurn(h []llm.Message, from int) {
   }
 
   id, err := l.Know.AddNode(
-    parent, turnSlug(question), claim, know.KindFact, know.ConfChecked,
+    parent, turnSlug(question), claim, know.KindFile, know.ConfChecked,
     author,
   )
   if err != nil {
@@ -937,6 +951,29 @@ func (l *Loop) recordTurn(h []llm.Message, from int) {
   for _, ref := range refs {
     l.addEvidence(id, ref)
   }
+}
+
+// citeRe matches the citations answers carry: a path with a Go-ish
+// extension and a line or line range, like internal/agent/turn.go:33
+// or conn.go:10-20.
+var citeRe = regexp.MustCompile(
+  `[\w\-./]+\.go:\d+(-\d+)?` +
+    `|[\w\-./]+\.(?:md|json|typ|c|h|py|rs):\d+(-\d+)?`,
+)
+
+// answerCites lists where an answer points, in order, each once:
+// what the model itself said backs its claims.
+func answerCites(answer string) []string {
+  var out []string
+  seen := map[string]bool{}
+  for _, m := range citeRe.FindAllString(answer, -1) {
+    if !seen[m] {
+      seen[m] = true
+      out = append(out, m)
+    }
+  }
+
+  return out
 }
 
 // turnSlug is a node name for a recorded turn: its first few

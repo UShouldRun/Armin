@@ -104,15 +104,18 @@ const outlineBytes = 1200
 
 // knowRules is how the model should use the tree.
 const knowRules = "Check it before exploring: know_find first; when nodes " +
-  "answer the question and none is STALE, answer from them, and read " +
-  "code only for what they don't cover. The tree is your notes, never " +
-  "the answer: your reply to the user stands on its own, with files and " +
-  "lines, and a citation like [n42] goes beside a statement, not in " +
-  "place of it. Record only what will be worth knowing next time, a " +
-  "few nodes per task: search first, and update or link a node instead " +
-  "of repeating it; give every concept its definition; put reasoning in " +
-  "edges (needs, derived_from), not prose. In the scratchpad, plans and " +
-  "summaries, cite nodes as [n42] instead of restating them."
+  "answer the question, answer from them. A node that says current " +
+  "passed today's check that its cited lines are unchanged — trust it " +
+  "without re-reading; STALE and SUSPECT say re-check. Each line's " +
+  "at-ref is where to read next when you do need code. The tree is " +
+  "your notes, never the answer: your reply to the user stands on " +
+  "its own, with files and lines, and a citation like [n42] goes " +
+  "beside a statement, not in place of it. Record only what will be " +
+  "worth knowing next time, a few nodes per task: search first, and " +
+  "update or link a node instead of repeating it; give every concept " +
+  "its definition; put reasoning in edges (needs, derived_from), not " +
+  "prose. In the scratchpad, plans and summaries, cite nodes as [n42] " +
+  "instead of restating them."
 
 // knowSection is the tree's part of the system prompt: the outline,
 // frozen at session start, and the rules.
