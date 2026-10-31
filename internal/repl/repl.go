@@ -35,6 +35,7 @@ import (
   "armin/internal/convo"
   "armin/internal/llamacpp"
   "armin/internal/llm"
+  "armin/internal/metrics"
   "armin/internal/sandbox"
   "armin/internal/session"
   "armin/internal/tools"
@@ -396,12 +397,19 @@ func (r *REPL) suggestContinuation(ctx context.Context, partial string) string {
 // stays O(1) amortized instead of re-writing the whole, ever-growing
 // history each time.
 func (r *REPL) maybeAutosave() {
+  // the turn's metrics too, so -metrics shows a session still running
+  // (a merge into the cumulative file; nothing is counted twice)
+  err := metrics.Flush()
+  if err != nil {
+    ui.Error("failed to save metrics: %s", err)
+  }
+
   if r.state & flagAutosave == 0 {
     return
   }
 
   r.Meta.Model = r.LLM.Model
-  err := session.Append(&r.Meta, r.History, &r.persisted)
+  err = session.Append(&r.Meta, r.History, &r.persisted)
   if err != nil {
     ui.Error("failed to save session: %s", err)
   }
