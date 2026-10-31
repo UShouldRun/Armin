@@ -57,5 +57,13 @@ const (
   toolLibrarySearch
   toolLibraryTopics
 
+  // offered only with the project's knowledge tree (flagKnow)
+  toolKnowFind
+  toolKnowGet
+  toolKnowAdd
+  toolKnowLink
+  toolKnowUpdate
+  toolKnowTrace
+
   toolCount
 )

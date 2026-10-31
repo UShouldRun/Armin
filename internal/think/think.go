@@ -238,6 +238,15 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
   loop.Memories, loop.Skills, loop.Scratch = m.Memories, m.Skills, m.Scratch
   m.Loop = loop
 
+  // The project's knowledge tree; without one, the know tools are
+  // simply not offered.
+  m.Know, err = openKnow(m.Sandbox.Root)
+  if err != nil {
+    ui.Warn("knowledge tree: %s", err)
+  } else {
+    loop.Know = m.Know
+  }
+
   loop.Aids = opts.Aids
   confDir, err := config.Dir()
   if err == nil {
@@ -286,7 +295,7 @@ func (m *Mind) SystemPrompt(readOnly bool) string {
   }
 
   return buildSystemPrompt(
-    base, m.Sandbox.Root, m.Memories, m.Skills, m.Library,
+    base, m.Sandbox.Root, m.Memories, m.Skills, m.Library, m.Know,
   )
 }
 
@@ -319,6 +328,8 @@ func (m *Mind) refreshLibrary(ctx context.Context) {
 func (m *Mind) Shutdown() {
   ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
   defer cancel()
+
+  m.closeKnow()
 
   if m.Models != nil {
     err := m.Models.Shutdown(ctx)

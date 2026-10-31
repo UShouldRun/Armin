@@ -147,7 +147,7 @@ var noteTools = []toolSpec{
   },
 }
 
-func runMemorySave(_ context.Context, l *Loop, c toolCall) any {
+func runMemorySave(ctx context.Context, l *Loop, c toolCall) any {
   in, bad := decode[noteArgs](c)
   if bad != nil {
     return bad
@@ -156,6 +156,16 @@ func runMemorySave(_ context.Context, l *Loop, c toolCall) any {
   scope, err := notes.ParseScope(in.Scope)
   if err != nil {
     return errResult(err)
+  }
+
+  // facts about the code go to the tree, the only store checked for
+  // staleness; memories hold how the user wants things done
+  if l.Know != nil && l.citesCode(ctx, in.Content) {
+    return map[string]string{
+      "error": "this is a fact about the code (it cites a file, line " +
+        "or symbol): add it with know_add, where it is checked for " +
+        "staleness. Memories are for how the user wants things done.",
+    }
   }
 
   mem, err := l.Memories.Save(in.Name, in.Description, in.Content, scope)
@@ -347,4 +357,54 @@ func (l *Loop) requestAccess(raw []byte, hooks Hooks) any {
     "note":     "read tools accept absolute paths under " + resolved + " " +
       "now (e.g. " + filepath.Join(resolved, "<file>") + ")",
   }
+}
+
+// citesCode reports whether text points into the project's code: a
+// file with a line (turn.go:120), or a backquoted qualified name
+// (`agent.Loop`) the symbol index finds defined in the project. A
+// path alone or a library name doesn't count: "keep tests in test/"
+// and "prefer `strings.Builder`" are conventions, not code facts.
+func (l *Loop) citesCode(ctx context.Context, text string) bool {
+  if CitesFileLine(text) {
+    return true
+  }
+
+  if l.Symbols == nil {
+    return false
+  }
+
+  for rest := text; ; {
+    a := strings.IndexByte(rest, '`')
+    if a < 0 {
+      return false
+    }
+
+    b := strings.IndexByte(rest[a + 1:], '`')
+    if b < 0 {
+      return false
+    }
+
+    sym := strings.TrimSuffix(rest[a + 1:a + 1 + b], "()")
+    rest = rest[a + b + 2:]
+    _, name, ok := strings.Cut(sym, ".")
+    if ok && name != "" && !strings.ContainsAny(sym, " /") &&
+      len(l.Symbols.Lookup(ctx, name, "")) > 0 {
+      return true
+    }
+  }
+}
+
+// CitesFileLine reports whether text names a file with a line, like
+// turn.go:120 or internal/agent/turn.go:120-160.
+func CitesFileLine(text string) bool {
+  for _, w := range strings.Fields(text) {
+    w = strings.Trim(w, "`'\"(),;")
+    i := strings.LastIndexByte(w, ':')
+    if i > 0 && strings.Contains(w[:i], ".") && i + 1 < len(w) &&
+      w[i + 1] >= '0' && w[i + 1] <= '9' {
+      return true
+    }
+  }
+
+  return false
 }

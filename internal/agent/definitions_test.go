@@ -8,6 +8,7 @@ import (
   "path/filepath"
   "testing"
 
+  "armin/internal/know"
   "armin/internal/library"
   "armin/internal/notes"
 )
@@ -35,6 +36,7 @@ func TestDefinitionsGolden(t *testing.T) {
     Scratch:  &notes.Scratchpad{},
     Skills:   notes.LoadSkills(filepath.Join(dir, "skills"), ""),
     Library:  lib,
+    Know:     know.New(),
   }
 
   all, _ := json.MarshalIndent(l.Definitions(), "", " ")

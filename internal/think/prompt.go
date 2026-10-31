@@ -11,6 +11,7 @@ import (
   "strings"
 
   "armin/internal/config"
+  "armin/internal/know"
   "armin/internal/library"
   "armin/internal/notes"
   "armin/internal/session"
@@ -63,7 +64,7 @@ Keep answers concise.`
 // are a tool call away.
 func buildSystemPrompt(
   base, root string, mem *notes.Memories, skills *notes.Skills,
-  lib *library.Library,
+  lib *library.Library, tree *know.Graph,
 ) string {
   var b strings.Builder
   b.WriteString(base)
@@ -88,6 +89,43 @@ func buildSystemPrompt(
     b.WriteString("\n\n# Library (library_search, library_topics)\n")
     b.WriteString(lib.PromptIndex())
   }
+
+  if tree != nil {
+    b.WriteString(knowSection(tree))
+  }
+
+  return b.String()
+}
+
+// outlineBytes caps the tree's outline in the system prompt (~300
+// tokens). It is built once per session, so the prompt stays
+// byte-stable while the tree grows.
+const outlineBytes = 1200
+
+// knowRules is how the model should use the tree.
+const knowRules = "Check it before exploring: know_find first; read code " +
+  "only for what it doesn't cover or marks STALE. When you establish " +
+  "something, know_add it: search first, and update or link a node " +
+  "instead of repeating it; give every concept its definition; put " +
+  "reasoning in edges (needs, derived_from), not prose. In the " +
+  "scratchpad, plans and summaries, cite nodes as [n42] instead of " +
+  "restating them; to the user, say it briefly and cite [n42]."
+
+// knowSection is the tree's part of the system prompt: the outline,
+// frozen at session start, and the rules.
+func knowSection(tree *know.Graph) string {
+  var b strings.Builder
+  b.WriteString("\n\n# Knowledge tree (know_find, know_get, know_add)\n")
+  outline := tree.Outline(outlineBytes)
+  if outline == "" {
+    b.WriteString("Empty so far: know_add what you establish as you work.\n")
+  } else {
+    b.WriteString("What is established about this project, top two " +
+      "levels with node counts:\n")
+    b.WriteString(outline)
+  }
+
+  b.WriteString(knowRules)
 
   return b.String()
 }

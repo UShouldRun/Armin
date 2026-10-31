@@ -28,6 +28,7 @@ const (
   ModeMCP              // -mcp: the tools alone, for another agent
   ModeLibrary          // -library-sync/-add: index, catalog, exit
   ModeInstall          // -install/-uninstall: add or remove a model, exit
+  ModeKnow             // -know: dump, edit or import into the tree, exit
 )
 
 const (
@@ -134,6 +135,9 @@ func Parse() (*Options, error) {
   }
 
   switch {
+  case f.know != "":
+    o.Mode = ModeKnow
+    o.Know = f.know
   case f.install != "" || f.uninstall != "":
     o.Mode = ModeInstall
     o.Install, o.InstallTo, o.Uninstall = f.install, f.installTo, f.uninstall

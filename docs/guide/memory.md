@@ -71,6 +71,36 @@ keeps only the file names in mind, and re-reads with
 context at once. Compaction summaries point at these files.
 `/scratch` lists them, `/scratch clear` empties it.
 
+## The knowledge tree
+
+What armin establishes about a project, kept between sessions in
+`~/.local/share/armin/know/<project>-<hash>/`: nodes (topics,
+concepts, facts, decisions, files, symbols, questions) in a tree of
+paths like `tcp/handshake`, each with a claim, a confidence (guess,
+inferred, checked, tested), evidence (file ranges, URLs, commits) and
+who wrote it, plus edges for what a node needs or was derived from.
+
+The system prompt carries the top two levels, frozen at session
+start. The model searches with `know_find` before exploring, records
+what it finds with `know_add`, and cites nodes as `[n42]` instead of
+restating them. A minion's claims stay marked unverified until the
+copilot or advisor checks them, so a wrong conclusion can be traced
+back (`know_trace`).
+
+Where notes go:
+
+| About | Store |
+|---|---|
+| how you want things done | memory |
+| how to do a task | skill |
+| what is true about the code or topic | the tree (the only store checked for staleness) |
+| what's being done right now | scratchpad |
+
+`memory_save` refuses a note that cites a file and line and points to
+`know_add`. To read or change the tree yourself: `armin -know dump`,
+`armin -know edit` (or `=tcp` for a subtree), and once, `armin -know
+import-memories` to move older code-fact memories into it.
+
 ## Sessions
 
 Every conversation is saved as its own session: a file named by a

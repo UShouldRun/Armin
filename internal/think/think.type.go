@@ -3,8 +3,11 @@
 package think
 
 import (
+  "sync"
+
   "armin/internal/agent"
   "armin/internal/ctags"
+  "armin/internal/know"
   "armin/internal/library"
   "armin/internal/llamacpp"
   "armin/internal/llm"
@@ -31,6 +34,8 @@ type Mind struct {
   follows    bool
 
   Loop     *agent.Loop
+  Know     *know.Graph // the project's knowledge tree; nil if it can't open
+  knowOnce sync.Once
   Memories *notes.Memories
   Skills   *notes.Skills
   Scratch  *notes.Scratchpad

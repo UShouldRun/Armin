@@ -29,22 +29,25 @@ import (
 // Write: changes files, so read-only sessions drop it. Run: runs a
 // program, so the same result twice is a loop. Agent: needs approvals
 // or state, so MCP doesn't serve it. Session: needs a Loop's stores,
-// so ToolDefinitions leaves it out. The rest say which store.
+// so ToolDefinitions leaves it out. The rest say which store (Know:
+// the project's knowledge tree).
 const (
-  flagWrite    toolFlags = 0b00000001
-  flagRun      toolFlags = 0b00000010
-  flagAgent    toolFlags = 0b00000100
-  flagSession  toolFlags = 0b00001000
-  flagMemories toolFlags = 0b00010000
-  flagScratch  toolFlags = 0b00100000
-  flagSkills   toolFlags = 0b01000000
-  flagLibrary  toolFlags = 0b10000000
-  flagAll      toolFlags = 0b11111111
+  flagWrite    toolFlags = 0b0000000000000001
+  flagRun      toolFlags = 0b0000000000000010
+  flagAgent    toolFlags = 0b0000000000000100
+  flagSession  toolFlags = 0b0000000000001000
+  flagMemories toolFlags = 0b0000000000010000
+  flagScratch  toolFlags = 0b0000000000100000
+  flagSkills   toolFlags = 0b0000000001000000
+  flagLibrary  toolFlags = 0b0000000010000000
+  flagKnow     toolFlags = 0b0000000100000000
+  flagAll      toolFlags = 0b1111111111111111
 )
 
 // specs is the table, built once from the topic files' lists.
 var specs = index(
   fileTools, searchTools, codeTools, gitTools, runTools, noteTools,
+  knowTools,
 )
 
 // toolIDs maps wire names to IDs. A miss yields toolUnknown.
@@ -121,6 +124,8 @@ func (l *Loop) offered(id ToolID) bool {
     return l.Skills != nil && l.Skills.Len() > 0
   case id.has(flagLibrary):
     return l.Library != nil
+  case id.has(flagKnow):
+    return l.Know != nil
   }
 
   return true

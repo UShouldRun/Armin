@@ -933,5 +933,237 @@
     }
    }
   }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "know_find",
+   "description": "Search the knowledge tree before exploring code: what is already known about the project, as one line per node (id, path, kind, confidence, what it needs and what uses it, the claim). Read code only for what it doesn't cover or marks STALE.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "count": {
+      "type": "integer",
+      "description": "How many, up to 20 (default 10)"
+     },
+     "query": {
+      "type": "string",
+      "description": "Words to look for; a word's start matches too"
+     },
+     "under": {
+      "type": "string",
+      "description": "Only below this node: a path or an id (n42)"
+     }
+    },
+    "required": [
+     "query"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "know_get",
+   "description": "Read nodes in full: the whole claim, the evidence and who wrote it.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "ids": {
+      "type": "array",
+      "description": "Node ids (n42) or paths",
+      "items": {
+       "type": "string"
+      }
+     }
+    },
+    "required": [
+     "ids"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "know_add",
+   "description": "Add what you established to the knowledge tree, so it isn't rediscovered. Search first: don't add what a node already says, update or link it instead. Every concept needs a definition as its claim. Put reasoning in edges: needs (what it requires), derived_from (what you concluded it from).",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "claim": {
+      "type": "string",
+      "description": "What is true, in a sentence or two; a concept's definition"
+     },
+     "confidence": {
+      "type": "string",
+      "description": "guess, inferred (default), checked (you read it), tested (a test or run showed it)",
+      "enum": [
+       "guess",
+       "inferred",
+       "checked",
+       "tested"
+      ]
+     },
+     "derived_from": {
+      "type": "array",
+      "description": "Nodes it was concluded from (ids or paths)",
+      "items": {
+       "type": "string"
+      }
+     },
+     "evidence": {
+      "type": "array",
+      "description": "What supports it: file ranges (path:12-40), URLs, commits",
+      "items": {
+       "type": "string"
+      }
+     },
+     "force": {
+      "type": "boolean",
+      "description": "Add even though a similar node exists"
+     },
+     "kind": {
+      "type": "string",
+      "description": "What it is",
+      "enum": [
+       "topic",
+       "concept",
+       "fact",
+       "decision",
+       "file",
+       "symbol",
+       "question"
+      ]
+     },
+     "needs": {
+      "type": "array",
+      "description": "Nodes it requires (ids or paths)",
+      "items": {
+       "type": "string"
+      }
+     },
+     "path": {
+      "type": "string",
+      "description": "Where it goes, e.g. agent/loop/retries; missing parents are added as topics"
+     }
+    },
+    "required": [
+     "path",
+     "kind",
+     "claim"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "know_link",
+   "description": "Add (or remove) an edge between two nodes.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "from": {
+      "type": "string",
+      "description": "Node id or path"
+     },
+     "kind": {
+      "type": "string",
+      "description": "requires: from needs to before it makes sense; derived-from: from was concluded from to; explains; implements (project code → a general concept); contradicts",
+      "enum": [
+       "requires",
+       "implements",
+       "explains",
+       "contradicts",
+       "derived-from"
+      ]
+     },
+     "remove": {
+      "type": "boolean",
+      "description": "Remove the edge instead"
+     },
+     "to": {
+      "type": "string",
+      "description": "Node id or path"
+     }
+    },
+    "required": [
+     "from",
+     "to",
+     "kind"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "know_update",
+   "description": "Change a node: its claim, kind, confidence or place; mark it verified (a minion's claim you checked), current again (after re-reading STALE evidence), or delete it.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "claim": {
+      "type": "string",
+      "description": "The new claim"
+     },
+     "confidence": {
+      "type": "string",
+      "description": "guess, inferred, checked or tested"
+     },
+     "current": {
+      "type": "boolean",
+      "description": "Clear STALE and SUSPECT"
+     },
+     "delete": {
+      "type": "boolean",
+      "description": "Delete it (no children)"
+     },
+     "id": {
+      "type": "string",
+      "description": "Node id or path"
+     },
+     "kind": {
+      "type": "string",
+      "description": "The new kind"
+     },
+     "move_to": {
+      "type": "string",
+      "description": "New path"
+     },
+     "verified": {
+      "type": "boolean",
+      "description": "You checked a minion's claim"
+     }
+    },
+    "required": [
+     "id"
+    ]
+   }
+  }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "know_trace",
+   "description": "When a conclusion looks wrong: follow what it was derived from, weakest first (unverified minion claims, low confidence, stale).",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "depth": {
+      "type": "integer",
+      "description": "How far back (default 5)"
+     },
+     "id": {
+      "type": "string",
+      "description": "Node id or path"
+     }
+    },
+    "required": [
+     "id"
+    ]
+   }
+  }
  }
 ]

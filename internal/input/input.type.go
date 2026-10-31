@@ -26,6 +26,7 @@ type Options struct {
   LibraryTo                        string   // their topic folder
   Install, InstallTo               string   // -install's model, folder
   Uninstall                        string   // -uninstall's model
+  Know                             string   // -know's command
   Effort                           agent.Effort
   Aids                             agent.Aids
   Timeout                          time.Duration

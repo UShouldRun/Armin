@@ -233,6 +233,17 @@ func (g *Graph) Compact() error {
   return nil
 }
 
+// Changed reports whether the log holds anything since the snapshot.
+func (g *Graph) Changed() bool {
+  if g.log == nil {
+    return false
+  }
+
+  st, err := g.log.Stat()
+
+  return err == nil && st.Size() > int64(len(logMagic) + 8)
+}
+
 // Sync flushes the log to disk.
 func (g *Graph) Sync() error {
   if g.log == nil {

@@ -119,6 +119,11 @@ func parseFlags(fileCfg config.Config) cliFlags {
     "the folder -install downloads into (default: where your models "+
       "already are, else ~/models)")
 
+  flag.StringVar(&f.know, "know", "",
+    "show or change the project's knowledge tree, then exit: "+
+      "dump[=path] prints it, edit[=path] opens it in $EDITOR, "+
+      "import-memories moves memories that are code facts into it")
+
   flag.Usage = printUsage
 
   // Go's flag package stops parsing flags at the first non-flag

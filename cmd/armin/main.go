@@ -45,6 +45,11 @@ func run() error {
     return display.Install(ctx, opts)
   }
 
+  // -know works on the knowledge tree alone.
+  if opts.Mode == input.ModeKnow {
+    return display.Know(opts)
+  }
+
   // nvim's armin already thinks for this project: share its chat
   // instead of loading a second set of models on the same GPU.
   joined, err := display.Join(ctx, opts, sig)
