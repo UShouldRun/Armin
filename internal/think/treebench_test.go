@@ -95,6 +95,36 @@ type benchRun struct {
   tree                              string   // the tree after it, as text
 }
 
+// benchKey resolves the key: the env var it names, falling back to
+// the same ~/.config/armin/.env armin itself loads (KEY = value, the
+// spaces around = included), so the bench runs without a shell dance.
+func benchKey(envName string) string {
+  if v := os.Getenv(envName); v != "" {
+    return v
+  }
+
+  if envName == "" {
+    return ""
+  }
+
+  dir, err := os.UserConfigDir()
+  if err != nil {
+    return ""
+  }
+
+  data, err := os.ReadFile(filepath.Join(dir, "armin", ".env"))
+  if err != nil {
+    return ""
+  }
+
+  re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(envName) + `\s*=\s*(.+)$`)
+  if m := re.FindStringSubmatch(string(data)); m != nil {
+    return strings.TrimSpace(m[1])
+  }
+
+  return ""
+}
+
 func TestTreeBench(t *testing.T) {
   model := os.Getenv("ARMIN_TREEBENCH_MODEL")
   if model == "" {
@@ -118,7 +148,7 @@ func TestTreeBench(t *testing.T) {
   client := func() *llm.Client {
     c := llm.New(os.Getenv("ARMIN_TREEBENCH_URL"), "bench")
     c.ID = model
-    c.APIKey = os.Getenv(os.Getenv("ARMIN_TREEBENCH_KEY"))
+    c.APIKey = benchKey(os.Getenv("ARMIN_TREEBENCH_KEY"))
     c.Effort = "medium"
     c.Private = true
 
@@ -126,6 +156,10 @@ func TestTreeBench(t *testing.T) {
   }
 
   dump := os.Getenv("ARMIN_TREEBENCH_DUMP")
+  if dump != "" {
+    os.MkdirAll(dump, 0o755)
+  }
+
   results := make([][2][2]benchRun, len(benchPairs)) // pair, tree?, session
   var wg sync.WaitGroup
   for pi, pair := range benchPairs {
