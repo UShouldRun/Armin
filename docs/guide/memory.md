@@ -96,6 +96,14 @@ Where notes go:
 | what is true about the code or topic | the tree (the only store checked for staleness) |
 | what's being done right now | scratchpad |
 
+At each start armin checks the tree against the code: files changed
+since the last session (from git, or every cited file outside git) are
+re-hashed where evidence cites them. Code that only moved within its
+file is followed; a claim whose lines changed is marked STALE, and
+whatever needs it or was derived from it SUSPECT, until the model
+re-reads it. A `requires` loop (A needs B needs A) gets a question
+under `cycles/` that the copilot or advisor must resolve.
+
 `memory_save` refuses a note that cites a file and line and points to
 `know_add`. To read or change the tree yourself: `armin -know dump`,
 `armin -know edit` (or `=tcp` for a subtree), and once, `armin -know

@@ -14,7 +14,7 @@ var (
   refNames = [...]string{
     "file", "commit", "library", "url", "session", "check", "symbol",
   }
-  roleNames = [...]string{ "user", "minion", "copilot", "advisor" }
+  roleNames = [...]string{ "user", "minion", "copilot", "advisor", "armin" }
   flagNames = [...]string{
     "stale", "suspect", "pinned", "user-edited",
     "verified", "deleted", "chosen", "cycle",

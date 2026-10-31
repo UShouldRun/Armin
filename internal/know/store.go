@@ -182,6 +182,11 @@ func (g *Graph) newLog() error {
   return err
 }
 
+// Dir is the tree's directory ("" for an in-memory tree).
+func (g *Graph) Dir() string {
+  return g.dir
+}
+
 // ReadOnly reports whether another process holds the tree.
 func (g *Graph) ReadOnly() bool {
   return g.ro

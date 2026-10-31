@@ -19,6 +19,7 @@ import (
   "context"
   "fmt"
   "os"
+  "slices"
   "strconv"
   "strings"
 
@@ -178,6 +179,65 @@ var knowTools = []toolSpec{
 // tree while a turn may still run.
 func (l *Loop) LockKnow()   { l.knowMu.Lock() }
 func (l *Loop) UnlockKnow() { l.knowMu.Unlock() }
+
+// checkCycles runs the cycle pass after a write added a requires
+// edge from id. A loop through id is reported in the result now, and
+// remembered so the turn doesn't end with it open (see cycleCheck).
+func (l *Loop) checkCycles(id know.NodeID, out map[string]string) {
+  author, err := l.Know.Intern(know.RoleArmin, "", "", 0)
+  if err != nil {
+    return
+  }
+
+  loops, err := l.Know.FlagCycles(author)
+  if err != nil {
+    return
+  }
+
+  for _, loop := range loops {
+    if !slices.Contains(loop, id) {
+      continue
+    }
+
+    var ids []string
+    for _, n := range loop {
+      ids = append(ids, fmt.Sprintf("n%d", n))
+    }
+
+    out["cycle"] = "this closes a requires loop: " + strings.Join(ids, " → ") +
+      ". " + cycleFix(l.Role)
+    l.cyclesOpen = true
+    return
+  }
+}
+
+// cycleFix is how a role should deal with a loop: the minion leaves
+// it to the copilot or advisor.
+func cycleFix(r Role) string {
+  if r == RoleMinion {
+    return "Leave it: the copilot or advisor resolves loops."
+  }
+
+  return "Resolve it: merge the members into one node, flip the wrong " +
+    "edge (know_link remove), or make a mutual dependency explains."
+}
+
+// OpenCycles lists the open requires loops' question nodes, as lines.
+func (l *Loop) OpenCycles() string {
+  dir, ok := l.Know.Lookup("cycles")
+  if !ok {
+    return ""
+  }
+
+  var ids []know.NodeID
+  for _, q := range l.Know.Children(dir, nil) {
+    if l.Know.Node(q).Flags & know.FlagCycle != 0 {
+      ids = append(ids, q)
+    }
+  }
+
+  return l.lines(ids, true)
+}
 
 // knowErr is the last line of a know error: its wrapping is for logs,
 // not for the model.
@@ -449,6 +509,10 @@ func runKnowAdd(_ context.Context, l *Loop, c toolCall) any {
     out["note"] = note
   }
 
+  if len(needs) > 0 {
+    l.checkCycles(id, out)
+  }
+
   return out
 }
 
@@ -507,7 +571,7 @@ func (l *Loop) addEvidence(id know.NodeID, ref string) error {
   case isCommit(ref):
     kind = know.RefCommit
   default:
-    path, start, end, ok := splitRange(ref)
+    path, start, end, ok := know.ParseRange(ref)
     if ok {
       kind = know.RefFile
       h, err := l.rangeHash(path, start, end)
@@ -536,28 +600,6 @@ func isCommit(s string) bool {
   }
 
   return true
-}
-
-// splitRange reads "path:12-40" (or "path:12").
-func splitRange(ref string) (string, int, int, bool) {
-  i := strings.LastIndexByte(ref, ':')
-  if i <= 0 {
-    return "", 0, 0, false
-  }
-
-  span := ref[i + 1:]
-  a, b, found := strings.Cut(span, "-")
-  if !found {
-    b = a
-  }
-
-  start, err1 := strconv.Atoi(a)
-  end, err2 := strconv.Atoi(b)
-  if err1 != nil || err2 != nil || start < 1 || end < start {
-    return "", 0, 0, false
-  }
-
-  return ref[:i], start, end, true
 }
 
 // rangeHash hashes lines start..end (1-based, inclusive) of a project
@@ -615,7 +657,22 @@ func runKnowLink(_ context.Context, l *Loop, c toolCall) any {
     return knowErr(err)
   }
 
-  return map[string]string{ "now": l.lines([]know.NodeID{ from }, false) }
+  out := map[string]string{ "now": l.lines([]know.NodeID{ from }, false) }
+  if kind == know.EdgeRequires && !in.Remove {
+    l.checkCycles(from, out)
+  } else if l.cyclesOpen {
+    // a removal or reframing may have resolved one
+    author, err := l.Know.Intern(know.RoleArmin, "", "", 0)
+    if err == nil {
+      loops, err := l.Know.FlagCycles(author)
+      if err == nil && len(loops) == 0 {
+        l.cyclesOpen = false
+        out["cycle"] = "no requires loops are open now"
+      }
+    }
+  }
+
+  return out
 }
 
 func runKnowUpdate(_ context.Context, l *Loop, c toolCall) any {

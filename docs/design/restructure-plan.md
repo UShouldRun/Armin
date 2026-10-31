@@ -125,6 +125,7 @@ graph.snap  header (magic "ARMK", version, counts, section offsets)
 graph.log   "ARML" + generation, then append-only ops:
             [op u8][len uvarint][payload][crc32]
 lock        flock'd by the armin that writes; others open read-only
+seen        the HEAD the last staleness check saw
 events      (learner) raw 12-byte Event records, append-only
 ```
 

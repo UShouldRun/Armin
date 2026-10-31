@@ -87,7 +87,7 @@ func (l *Loop) Turn(
     *history = append(*history, *reply)
 
     if len(reply.ToolCalls) == 0 {
-      if t.recheck(ctx) {
+      if t.recheck(ctx) || t.cycleCheck() {
         continue
       }
 
@@ -189,6 +189,38 @@ func (t *turn) recheck(ctx context.Context) bool {
   note(t.hooks, "checking the work: " + issue)
   *t.history = append(*t.history, llm.Message{
     Role: "user", Content: fmt.Sprintf(verifyNote, issue),
+  })
+
+  return true
+}
+
+// cycleNote asks the model to resolve the loops it opened before it
+// finishes the turn.
+const cycleNote = "[armin] Before you finish: these requires loops are " +
+  "open, and a learning plan can't be built through them. Resolve " +
+  "each: merge the members into one node, flip the wrong edge " +
+  "(know_link remove), or make a mutual dependency explains.\n%s"
+
+// cycleCheck reminds the model, once per turn, of loops its know
+// writes opened; the minion leaves them to the copilot or advisor.
+func (t *turn) cycleCheck() bool {
+  l := t.l
+  if t.cyclesNoted || l.Know == nil || !l.cyclesOpen || l.Role == RoleMinion {
+    return false
+  }
+
+  t.cyclesNoted = true
+  l.knowMu.Lock()
+  open := l.OpenCycles()
+  l.knowMu.Unlock()
+  if open == "" {
+    l.cyclesOpen = false
+    return false
+  }
+
+  note(t.hooks, "asking to resolve open requires loops")
+  *t.history = append(*t.history, llm.Message{
+    Role: "user", Content: fmt.Sprintf(cycleNote, open),
   })
 
   return true

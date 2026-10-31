@@ -245,6 +245,12 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
     ui.Warn("knowledge tree: %s", err)
   } else {
     loop.Know = m.Know
+    msg, err := refreshKnow(ctx, m.Sandbox.Root, m.Know)
+    if err != nil {
+      ui.Warn("knowledge tree: %s", err)
+    } else if msg != "" {
+      ui.Info("%s", msg)
+    }
   }
 
   loop.Aids = opts.Aids

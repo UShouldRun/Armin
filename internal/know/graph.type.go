@@ -75,6 +75,7 @@ const (
   RoleMinion
   RoleCopilot
   RoleAdvisor
+  RoleArmin // armin itself: staleness and cycle bookkeeping
 )
 
 // Author is one interned (role, model, session, delegation): 16

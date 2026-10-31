@@ -21,6 +21,10 @@
 //   names.go     the words for kinds, levels, flags and edge kinds
 //   find.go      BM25 search with prefix expansion and a subtree filter
 //   algo.go      Similar (dedup), Cycles (Tarjan), Trace, Plan (Kahn)
+//   line.go      the node lines models read, and the outline
+//   hash.go      the line and range hashes evidence keeps, and Roll
+//   stale.go     CheckFile, MarkSuspect, FlagCycles: keeping the tree
+//                honest when the code changes
 //
 // On disk, per tree: graph.snap (header + the arrays exactly as in
 // memory, little-endian) and graph.log ([op][len][payload][crc32]

@@ -194,14 +194,14 @@ func TestKnowLinkUpdateTrace(t *testing.T) {
   }
 }
 
-func TestSplitRange(t *testing.T) {
+func TestParseRange(t *testing.T) {
   for ref, want := range map[string]bool{
     "a/b.go:12-40": true, "a/b.go:7": true, "a.go:0-3": false,
     "a.go:9-3": false, "https://x.org/a:b": false, "a.go": false,
   } {
-    _, _, _, ok := splitRange(ref)
+    _, _, _, ok := know.ParseRange(ref)
     if ok != want {
-      t.Errorf("splitRange(%q) = %v", ref, ok)
+      t.Errorf("ParseRange(%q) = %v", ref, ok)
     }
   }
 }
@@ -239,5 +239,57 @@ func TestMemorySaveRefusesCodeFacts(t *testing.T) {
   })
   if out["saved"] != "indent" {
     t.Fatalf("a preference was refused: %v", out)
+  }
+}
+
+func TestKnowLoopReportedAndReminded(t *testing.T) {
+  l, call := knowLoop(t)
+  call("know_add", map[string]any{ "path": "a", "kind": "concept", "claim": "alpha thing" })
+  call("know_add", map[string]any{
+    "path": "b", "kind": "concept", "claim": "beta thing", "needs": []any{ "a" },
+  })
+
+  out := call("know_link", map[string]any{ "from": "a", "to": "b", "kind": "requires" })
+  if !strings.Contains(out["cycle"], "n1 → n2") || !strings.Contains(out["cycle"], "merge") {
+    t.Fatalf("loop not reported: %v", out)
+  }
+
+  history := []llm.Message{ { Role: "user", Content: "x" } }
+  tn := &turn{ l: l, history: &history }
+  if !tn.cycleCheck() || !strings.Contains(history[1].Content, "cycles/loop-1-2") {
+    t.Fatalf("no reminder: %v", history)
+  }
+
+  if tn.cycleCheck() {
+    t.Fatal("the reminder comes once per turn")
+  }
+
+  out = call("know_link", map[string]any{ "from": "a", "to": "b", "kind": "requires", "remove": true })
+  if out["cycle"] != "no requires loops are open now" {
+    t.Fatalf("resolution not seen: %v", out)
+  }
+
+  tn = &turn{ l: l, history: &history }
+  if tn.cycleCheck() {
+    t.Fatal("reminded with nothing open")
+  }
+}
+
+func TestMinionLeavesLoops(t *testing.T) {
+  l, call := knowLoop(t)
+  l.SetRole(RoleMinion)
+  call("know_add", map[string]any{ "path": "a", "kind": "concept", "claim": "alpha thing" })
+  call("know_add", map[string]any{
+    "path": "b", "kind": "concept", "claim": "beta thing", "needs": []any{ "a" },
+  })
+
+  out := call("know_link", map[string]any{ "from": "a", "to": "b", "kind": "requires" })
+  if !strings.Contains(out["cycle"], "Leave it") {
+    t.Fatalf("minion told to resolve: %v", out)
+  }
+
+  history := []llm.Message{ { Role: "user", Content: "x" } }
+  if (&turn{ l: l, history: &history }).cycleCheck() {
+    t.Fatal("the minion was asked to resolve a loop")
   }
 }

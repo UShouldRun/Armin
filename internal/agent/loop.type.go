@@ -54,6 +54,7 @@ type Loop struct {
   Session    string
   Delegation uint32
   knowMu     sync.Mutex
+  cyclesOpen bool // a know write opened a requires loop this session
 
   // Aids are the reasoning aids turns get (see AidAll); Procedures
   // the steps per kind of task (DefaultProcedures when nil).
@@ -184,6 +185,7 @@ type turn struct {
   blocked  int // repeats refused this turn
 
   declined map[string]bool // directories the user refused this turn
-  stuck    stall
-  verified bool
+  stuck       stall
+  verified    bool
+  cyclesNoted bool // cycleCheck has spoken this turn
 }

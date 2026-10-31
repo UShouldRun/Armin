@@ -240,7 +240,7 @@ func (g *Graph) apply(op opCode, payload []byte) error {
     g.ev(id).Kind = refDeleted
 
   case opAuthor:
-    a := Author{ Role: Role(d.u32(uint64(RoleAdvisor) + 1)) }
+    a := Author{ Role: Role(d.u32(uint64(RoleArmin) + 1)) }
     a.Delegation = d.u32(1 << 32)
     model := d.bytes()
     session := d.bytes()
