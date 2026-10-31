@@ -21,8 +21,9 @@ func TestHelpColumns(t *testing.T) {
 
   for _, line := range strings.Split(string(out), "\n") {
     usage, summary, found := strings.Cut(strings.TrimSpace(line), "  ")
-    if found && strings.HasPrefix(usage, "/") &&
-      len(line) - len(strings.TrimLeft(summary, " ")) > 2 + helpWidth + 2 + len(summary) {
+    summary = strings.TrimLeft(summary, " ")
+    column := len(line) - len(summary)
+    if found && strings.HasPrefix(usage, "/") && column > 2 + helpWidth + 2 {
       t.Fatalf("summary pushed right: %q", line)
     }
   }
