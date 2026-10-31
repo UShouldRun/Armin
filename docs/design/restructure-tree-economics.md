@@ -138,3 +138,156 @@ surfaces before step 10 (teaching) builds on it.
 
 About $2 across 15 clean runs (12 through round 4, 3 in round 5),
 plus one early 401 round and one silent no-op round, both free.
+
+## What the literature and other builders found (2026-10-31)
+
+A research pass over what others doing similar things have learned.
+Sources are web results; where a claim matters to a decision, the
+paper's own numbers are cited below.
+
+### The memory-systems line (Mem0, Letta/MemGPT, Zep)
+
+The closest neighbors to our tree: persistent memory layers for
+agents, evaluated on long-conversation benchmarks (LOCOMO, DMR,
+LongMemEval) instead of token cost.
+
+- **Mem0** (arXiv 2504.19413): extract salient facts from
+  conversations, consolidate, retrieve on demand. Their LOCOMO
+  numbers: ~26% better answer accuracy than OpenAI's memory, with
+  ~91% lower p95 latency than stuffing full conversation history
+  into context, and large token savings — the selective-retrieval
+  trade on LOCOMO was 66.9% accuracy at 1.44s with ~90% fewer
+  tokens, vs 72.9% at 17.12s for full context (atlan's summary of
+  the paper). The graph variant (Mem0g) beat the flat variant by
+  ~2-4% on multi-hop questions — structure helps, a little.
+- **Zep / Graphiti** (arXiv 2501.13956): memory as a temporally
+  aware knowledge graph; beats MemGPT on the Deep Memory Retrieval
+  benchmark and on latency. Their argument matches our design:
+  episodes (what happened) plus entity-relation graphs (what's
+  true now), with edges invalidated by time rather than deleted.
+  Our staleness-by-hash is the code-native version of their
+  temporal invalidation.
+- **Letta / MemGPT sleep-time compute**: consolidation happens
+  *asynchronously, while the user is away* — memory formation is
+  incremental and gets messy, so a background agent reorganizes it
+  off the critical path. This is the literature's version of our
+  "armin records at end of turn, model writes when it chooses":
+  move the cost out of the turn. Their reported gain: async
+  consolidation improves next-session accuracy without touching
+  in-turn latency or tokens.
+
+**What this line says for us**: nobody evaluates memory by
+*per-session input-token delta on a two-session pair* — our
+benchmark is unusually harsh. The standard metrics are accuracy on
+multi-session questions (which our tree condition mostly matched)
+plus latency plus total token cost over a whole workload. Also:
+the systems that work all do *extraction and consolidation outside
+the turn* (Mem0's pipeline, Letta's sleep-time, Zep's async graph
+updates). Our round-4 mistake — Q/A blobs recorded in-turn — is
+what happens without a consolidation step; Mem0's answer is an
+extract-then-consolidate pipeline, not better in-turn recording.
+
+### The coding-agent line (what actually got measured on code)
+
+- **AGENTS.md evaluation** (arXiv 2602.11988): a controlled study of
+  repository-level context files — the productized cousin of our
+  frozen outline. Finding: context files *encourage broader
+  exploration* (more files traversed, more thorough testing) and
+  mixed-to-positive accuracy effects; they do not reliably reduce
+  tokens, and can increase them, because a guided agent explores
+  *more confidently*. A companion ablation (realm-1.5 workshop)
+  found effectiveness "contradictory" across setups. This is
+  precisely our s2 result: give the model a map and it still walks
+  the terrain — sometimes more of it.
+- **SWE-Explore** (arXiv 2606.07297): a benchmark isolating *how*
+  agents explore repos (navigation, localization), independent of
+  patching. It exists because exploration is the unmeasured cost —
+  the same gap our benchmark targets. Their framing supports our
+  benchmark design: exploration efficiency is a capability to
+  measure in isolation, and binary resolved/not-resolved hides it.
+- **aider's repo map** (tree-sitter): the practical proof that a
+  *compact structural map* (like our outline, but static and
+  syntax-derived) is the sweet spot for coding agents — aider
+  ships a map computed with graph ranking, not accumulated from
+  sessions. Static, recomputed cheaply, no trust question.
+- **Agent KB** (arXiv 2507.06229) and **XferAgent**: cross-task,
+  cross-agent *experience reuse* — capture execution traces,
+  abstract them into reusable strategies, retrieve at planning
+  time. Agent KB's key result: retrieving *abstracted lessons*
+  (named strategies) at plan time works; retrieving raw traces
+  doesn't. This is the strongest external support for our round-5
+  finding — pointers/lessons the model can weigh beat blobs of
+  transcript.
+
+### The skill/experience line
+
+- **Voyager** (arXiv 2305.16291): the classic result — a *skill
+  library* (verified, reusable, executable code) is the memory that
+  compounds. Skills are validated by execution before being stored,
+  which is why the agent trusts them. Our `tested` confidence level
+  and delegation's acceptance-check evidence are the same idea:
+  verified-at-write beats trusted-at-read.
+- **Case-based reasoning, old and new**: the CBR cycle
+  (retrieve-reuse-revise-retain) is the classical formulation of
+  what we're building; 2025-26 work re-brands it with LLMs. The
+  CBR literature's settled lesson applies directly: **the retrieval
+  step is where value lives or dies**, and cases need an index as
+  good as the cases themselves. Our BM25+outline is the index;
+  round 4 was a case-store with cases nobody wanted.
+
+### Synthesis: five things they found that we can use
+
+1. **Measure like the memory line does** (supports H4, reframes the
+   whole table): accuracy over multi-session workloads + latency +
+   total-cost-per-workload, not per-pair input tokens. Our benchmark
+   shows the tree matching accuracy at +21% pair tokens; Mem0's
+   LOCOMO table would call that "competitive on accuracy, cost TBD
+   until amortized" — their own wins are amortized over hundreds of
+   interactions.
+2. **Consolidate outside the turn** (Letta's sleep-time, Mem0's
+   pipeline): a background pass — on session start, on the local
+   GPU (our minion!), or on close — that distills the sessions/
+   pointers into the model-written tree: merge duplicates, promote
+   oft-read pointers to proper claims with evidence, delete what
+   nothing cited. This replaces "hope the model records well" with
+   a scheduled digestion step, and it costs no chat tokens.
+3. **Store what's verified, not what's said** (Voyager, our `tested`
+   level): pointer nodes with hash-backed `current` are the right
+   primitive — the at-ref staleness design is stronger than most of
+   the literature, which timestamps facts but doesn't verify them
+   against the source. Keep leaning on it.
+4. **Abstracted lessons, not traces** (Agent KB): when the
+   consolidation pass promotes a pointer to a claim, the claim
+   should be a named strategy ("the repeat guard refuses identical
+   failed calls in t.run"), not a transcript. Agent KB measured
+   exactly this difference.
+5. **Static maps are the competition** (aider, AGENTS.md): before
+   claiming the tree beats no-tree, compare against the cheap
+   alternative — a recomputed repo map in the system prompt, no
+   session state at all. If a static map gets most of s2's value,
+   the tree's remaining job is the *cross-session* delta, which is
+   H3's three-session measurement.
+
+And one cautionary thread: **memory poisoning** (arXiv 2606.24322
+and the GraphRAG extraction-attack line) — persistent memory
+inherits wrong or hostile content across sessions. Our authorship
+bits and minion-verification caps are already the right shape; the
+learner tree (user's own knowledge) is the sensitive one.
+
+### What this changes in our plan
+
+- H4 is promoted: the field's currency is accuracy-then-amortized-
+  cost, and our two-session pair may be measuring the wrong thing
+  *by the field's own standards*. H1 (cached-token scoring) plus H3
+  (three sessions) together are the honest measurement.
+- New experiment, from Letta: **sleep-time consolidation** — at
+  session start (or on the minion between sessions), a cheap pass
+  over `sessions/` that merges, promotes and prunes. This is
+  plausibly where round 4's failure gets fixed without touching
+  the in-turn path: the in-turn recording stays dumb (pointers),
+  and the digestion happens off the critical path, on the free
+  local GPU.
+- The static repo-map baseline (aider-style) is worth one round:
+  it bounds how much of the tree's value is just "map present in
+  the prompt".
+
