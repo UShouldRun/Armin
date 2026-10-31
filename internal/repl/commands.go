@@ -255,14 +255,24 @@ func cmdQuit(r *REPL, _ context.Context, _ []string) {
 func cmdHelp(r *REPL, _ context.Context, _ []string) {
   fmt.Println(ui.Bold("commands"))
 
+  // the column fits the usages up to helpWidth; a longer one gets its
+  // own line, with its summary under it, so one long usage (/library)
+  // doesn't push every summary off to the right
   list := commandList()
   width := 0
   for _, c := range list {
-    width = max(width, len(usageOf(c)))
+    if len(usageOf(c)) <= helpWidth {
+      width = max(width, len(usageOf(c)))
+    }
   }
 
   for _, c := range list {
-    fmt.Printf("  %-*s  %s\n", width, usageOf(c), ui.Dim(c.summary))
+    usage := usageOf(c)
+    if len(usage) > width {
+      fmt.Printf("  %s\n  %-*s  %s\n", usage, width, "", ui.Dim(c.summary))
+    } else {
+      fmt.Printf("  %-*s  %s\n", width, usage, ui.Dim(c.summary))
+    }
 
     if len(c.names) > 1 {
       aliases := "aliases: /" + strings.Join(c.names[1:], ", /")
@@ -270,6 +280,9 @@ func cmdHelp(r *REPL, _ context.Context, _ []string) {
     }
   }
 }
+
+// helpWidth caps /help's command column.
+const helpWidth = 24
 
 func usageOf(c command) string {
   if c.usage != "" {
