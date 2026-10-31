@@ -20,8 +20,11 @@ func TestFormatDebug(t *testing.T) {
   i, _ := strconv.Atoi(n)
   g, all := evalTree()
   qs := evalQuestions(g, all)
-  if set == "hard" {
+  switch set {
+  case "hard":
     qs = evalHardQuestions(g, all)
+  case "harder":
+    qs = evalHarderQuestions(g, all)
   }
 
   q := qs[i - 1]

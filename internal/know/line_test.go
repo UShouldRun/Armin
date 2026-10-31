@@ -73,3 +73,17 @@ func TestOutline(t *testing.T) {
     t.Fatalf("outline over the cap or missing the rest count (%d bytes):\n%s", len(got), got)
   }
 }
+
+func TestLineListsEachNodeOnce(t *testing.T) {
+  g := New()
+  a := need(g.AddNode(0, "a", "", KindFact, ConfChecked, 0))
+  b := need(g.AddNode(0, "b", "", KindFact, ConfChecked, 0))
+  mustDo(t, g.AddEdge(b, a, EdgeRequires))
+  mustDo(t, g.AddEdge(b, a, EdgeDerivedFrom))
+
+  var line strings.Builder
+  g.Line(&line, a, false)
+  if !strings.HasSuffix(line.String(), "used-by n2") {
+    t.Fatalf("duplicate in used-by: %s", line.String())
+  }
+}

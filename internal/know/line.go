@@ -68,13 +68,14 @@ func (g *Graph) Line(b *strings.Builder, id NodeID, full bool) {
   }
 }
 
-// edgeWords writes " word nA nB" for the live edges keep accepts.
+// edgeWords writes " word nA nB" for the live edges keep accepts, each
+// node once (requires and derived-from to the same node are one entry).
 func (g *Graph) edgeWords(
   b *strings.Builder, edges []Edge, word string, keep func(EdgeKind) bool,
 ) {
   first := true
-  for _, e := range edges {
-    if !keep(e.Kind) || !g.live(e.To) {
+  for i, e := range edges {
+    if !keep(e.Kind) || !g.live(e.To) || seenBefore(edges[:i], e.To, keep) {
       continue
     }
 
@@ -86,6 +87,17 @@ func (g *Graph) edgeWords(
 
     fmt.Fprintf(b, " n%d", e.To)
   }
+}
+
+// seenBefore reports whether an earlier kept edge reaches the same node.
+func seenBefore(edges []Edge, to NodeID, keep func(EdgeKind) bool) bool {
+  for _, e := range edges {
+    if e.To == to && keep(e.Kind) {
+      return true
+    }
+  }
+
+  return false
 }
 
 // cut shortens s to at most n runes, ending with "…" when cut, at a
