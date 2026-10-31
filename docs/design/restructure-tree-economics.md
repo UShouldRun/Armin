@@ -422,3 +422,19 @@ the next experiment at recording quality: consolidation that promotes
 pointers to claims, not recall's knobs. The node kind already tells
 the two apart, so the split can be measured per round.
 
+**Checked across all 15 sessions** (the armin-test copilot, from the
+traces): session 1 left a model-written claim in 4 of 15 and only an
+auto-recorded pointer in 11. Session 3 saved −56% where s1 left a
+claim, −30% where it left a pointer (range −83% to +65%). The direction
+holds, with two qualifiers, the second found checking its reading:
+- s3's saving tracks how much the no-tree s3 explores; where that's
+  already cheap (≤ $0.0032) there's little to save either way.
+- **project-dirs' third question is off-area.** Sessions 1 and 2 are
+  about chat sessions (internal/session); the third asks where the
+  knowledge tree's files live (internal/know). The s1 pointer covers
+  internal/session correctly and has nothing on internal/know, so that
+  pair doesn't test compounding; its +65% run is noise on a question
+  the tree couldn't cover. The question should move to the same area
+  before the next round (e.g. "what is the session file's first line
+  and what does it hold").
+
