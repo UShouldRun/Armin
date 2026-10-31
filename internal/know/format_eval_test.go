@@ -312,8 +312,12 @@ func normalize(reply string) string {
 type evalReply struct {
   Choices []struct {
     Message struct {
-      Content string `json:"content"`
+      Content   string `json:"content"`
+      Reasoning string `json:"reasoning"`
+      // llama-server's name for it
+      ReasoningContent string `json:"reasoning_content"`
     } `json:"message"`
+    Finish string `json:"finish_reason"`
   } `json:"choices"`
   Usage struct {
     Prompt     int `json:"prompt_tokens"`
@@ -371,10 +375,32 @@ func TestFormatEval(t *testing.T) {
   }
   t.Logf("fixture: %d nodes, %d edges", g.Len(), g.edges.count())
 
-  type tally struct{ right, prompt, completion int }
+  // ARMIN_FORMAT_EVAL_ONLY=10,24 runs those questions only;
+  // ARMIN_FORMAT_EVAL_REPEAT=3 asks each that many times;
+  // ARMIN_FORMAT_EVAL_DUMP=dir saves every reply with its reasoning
+  only := map[int]bool{}
+  for _, f := range strings.Split(os.Getenv("ARMIN_FORMAT_EVAL_ONLY"), ",") {
+    var n int
+    _, err := fmt.Sscanf(strings.TrimSpace(f), "%d", &n)
+    if err == nil {
+      only[n] = true
+    }
+  }
+
+  repeat := 1
+  fmt.Sscanf(os.Getenv("ARMIN_FORMAT_EVAL_REPEAT"), "%d", &repeat)
+  dump := os.Getenv("ARMIN_FORMAT_EVAL_DUMP")
+
+  type tally struct{ right, asked, prompt, completion int }
   var res [2]tally
   for qi, q := range qs {
-    for f := 0; f < 2; f++ {
+    if len(only) > 0 && !only[qi + 1] {
+      continue
+    }
+
+    for f := 0; f < 2 * repeat; f++ {
+      rep := f / 2
+      f := f % 2
       var b strings.Builder
       system := plainSystem
       for _, id := range q.shown {
@@ -396,10 +422,21 @@ func TestFormatEval(t *testing.T) {
         t.Fatalf("q%d: %v", qi + 1, err)
       }
 
-      got := normalize(reply.Choices[0].Message.Content)
+      ch := reply.Choices[0]
+      got := normalize(ch.Message.Content)
       ok := got == q.want
+      res[f].asked++
       if ok {
         res[f].right++
+      }
+
+      if dump != "" {
+        name := fmt.Sprintf("%s/q%02d-%s-%d.txt", dump, qi + 1, []string{ "plain", "coded" }[f], rep)
+        os.WriteFile(name, []byte(fmt.Sprintf(
+          "want %s, got %q, %v, finish %s, %d completion tokens\n\n=== reasoning\n%s%s\n\n=== content\n%s\n",
+          q.want, got, ok, ch.Finish, reply.Usage.Completion,
+          ch.Message.Reasoning, ch.Message.ReasoningContent, ch.Message.Content,
+        )), 0o644)
       }
 
       res[f].prompt += reply.Usage.Prompt
@@ -410,7 +447,7 @@ func TestFormatEval(t *testing.T) {
 
   for f, name := range []string{ "plain", "coded" } {
     t.Logf("%s: %d/%d right, %d prompt tokens, %d completion tokens",
-      name, res[f].right, len(qs), res[f].prompt, res[f].completion)
+      name, res[f].right, res[f].asked, res[f].prompt, res[f].completion)
   }
 }
 

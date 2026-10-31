@@ -323,10 +323,26 @@ n42 tcp/handshake fact checked minion-unverified needs n17 n23 used-by n8 "three
 ```
 
 IDs in the same `n42` form the model cites. Claims cut at ~100
-characters; `know_get` returns the full node. Build step: measure
-this against a coded format on a ~200-node fixture with ~20
-questions, on the minion and copilot models; switch only if the
-coded one is as accurate.
+characters; `know_get` returns the full node.
+
+Measured (internal/know/format_eval_test.go, 190-node fixture) against
+a coded format (`142 path F:t m? ←103,91 →199`):
+
+| model | set | plain | coded |
+|---|---|---|---|
+| Qwen 3.8 27B | 20 basic | 20/20 | 20/20 |
+| Qwen 3.8 27B | 28 moderate | 28/28 | 25/28 |
+| Qwen 3.8 27B | 3 misses × 3 reruns | 9/9 | 6/9 |
+| Qwen3.5-9B | 20 basic | 20/20 | 19/20 |
+
+Coded saves 5-7% of input but cost the 9B 10% more thinking. Its
+misses, read from the replies: the model's own reading of an arrow
+("A →B": A points to B) beat the legend (B depends on A); directions
+mixed mid-traversal (down a ← edge, then up a → one); and a list
+bound to the adjacent line with a near-identical bare number (125's
+→146 read as 126's). Plain words keep their meaning on every line
+and `n42` plus a word before each list keeps lists on their line.
+Plain stays.
 
 **References (decided)**: in internal text (scratchpad plans,
 compaction summaries, `delegate` tasks) the model writes `[n42]`
