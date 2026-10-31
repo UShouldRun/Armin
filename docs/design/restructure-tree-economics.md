@@ -409,3 +409,16 @@ What this settles and what it doesn't:
   27-of-45 attach rate. Both are refinements now, not the question of
   whether the tree pays.
 
+**Claims compound, pointers don't** (found by the armin-test copilot,
+Qwen 3.8 27B, reading run 1's s3 traces; one run, to be checked across
+all three). The s3 saving tracks what session 1 left in the tree:
+where the model wrote a claim (`decision`, `fact`), s3 answered from it
+in 1–3 tool calls (golden-tools $0.0007 vs $0.0025, staleness $0.0026
+vs $0.0054); where session 1 left only armin's auto-recorded pointer (a
+`file` node listing file:line refs), s3 re-explored with 7–10 tools and
+saved little (project-dirs ~10%). The round 5 lesson, that the model
+reuses what it wrote itself, extended to the third session. It points
+the next experiment at recording quality: consolidation that promotes
+pointers to claims, not recall's knobs. The node kind already tells
+the two apart, so the split can be measured per round.
+
