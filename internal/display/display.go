@@ -18,6 +18,8 @@ package display
 import (
   "context"
   "fmt"
+  "os"
+  "sync/atomic"
 
   "armin/internal/agent"
   "armin/internal/input"
@@ -69,6 +71,14 @@ func Run(
   ctx context.Context, opts *input.Options, mind *think.Mind,
   sig *input.Signals,
 ) error {
+  if os.Getenv("ARMIN_STARTUP") != "" {
+    mind.PrintStartup(os.Stderr)
+  }
+
+  // background work's messages: the REPL takes them over (runREPL);
+  // until then, and in the other modes, they go to stderr
+  go printNotices(mind)
+
   switch opts.Mode {
   case input.ModeMCP:
     return mcpserver.Serve(ctx, mind.Sandbox, mind.WebSearch, mind.Symbols)
@@ -117,6 +127,7 @@ func runREPL(
   )
 
   r.Completion, r.Follower = mind.Completion, mind.Follower()
+  notices.Store(r)
   mind.Loop.Session = r.Meta.ID // who writes to the knowledge tree
   r.STT, r.STTRecord = opts.Config.STT, opts.Config.STTRecord
   r.RoleModels = map[agent.Role]string{
@@ -178,3 +189,22 @@ func runREPL(
 
   return nil
 }
+
+// notices is the REPL that shows background notices, once there is
+// one; nil until then.
+var notices atomic.Pointer[repl.REPL]
+
+// printNotices shows each background notice: at the REPL's prompt when
+// it runs, else on stderr.
+func printNotices(mind *think.Mind) {
+  for msg := range mind.Notices {
+    r := notices.Load()
+    if r != nil {
+      r.Notice(msg)
+      continue
+    }
+
+    fmt.Fprintln(os.Stderr, ui.Dim("  " + msg))
+  }
+}
+

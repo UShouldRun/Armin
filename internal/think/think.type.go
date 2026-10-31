@@ -39,6 +39,14 @@ type Mind struct {
   Know     *know.Graph // the project's knowledge tree; nil if it can't open
   knowOnce sync.Once
 
+  // Startup is how long each step of starting took (startup.go).
+  Startup []Stage
+
+  // Notices are one-line messages from work running in the background
+  // (the chat model loading, the library scan), for the frontend to
+  // show when it can; buffered, and dropped when nobody reads.
+  Notices chan string
+
   // the background consolidation pass (know.go): stopped and waited
   // for at shutdown, before the tree closes
   consolidating sync.WaitGroup

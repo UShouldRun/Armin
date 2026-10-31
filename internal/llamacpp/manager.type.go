@@ -126,6 +126,11 @@ type Manager struct {
   specs map[string]ModelSpec
   procs map[string]*process // only entries for currently-running managed specs
 
+  // loading is each model being started right now, closed when its
+  // start ends: a second caller waits on it instead of spawning a
+  // duplicate, or sending to a server still loading its model.
+  loading map[string]chan struct{}
+
   // scrubEnvNames is every APIKeyEnv name configured across all
   // specs — computed once, at New, since specs never change after
   // construction. Spawned processes never see these regardless of

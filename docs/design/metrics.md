@@ -111,6 +111,24 @@ Rate: checks passed of run (does the minion get handed tasks it can do?).
 Per-tool error rates and result sizes show which tools models misuse
 and which flood the context.
 
+### Startup (`internal/think/startup.go`)
+
+The chat model, when armin runs it on this machine, loads in the
+background: the prompt shows at once, a first message waits for the
+model only if sent before it's ready, and armin says
+"model ready: local loaded in 4.5s" when it is. The library scan runs
+in the background too. `ARMIN_STARTUP=1` prints every step.
+
+| metric | meaning |
+|---|---|
+| `startup.<step>.ms` | each step: `senses.symbols`, `senses.library`, `models.gpu-check`, `models.chat-ready` (a hosted or already-running model), `models.catalog`, `loop.context-size`, `loop.notes`, `loop.learner`, `loop.know-open`, `loop.know-refresh` |
+| `startup.models.chat-load.ms` | loading a local chat model onto the GPU, in the background |
+| `startup.library-scan.ms` | the library's change scan, in the background |
+
+Measured on this machine: the prompt went from 3.1–5.0 s to under 5 ms;
+the 9B loads in 2.7–4.6 s behind it, and the library scan took 0.42 s
+of every start.
+
 ### Speech (`internal/stt/stt.go`)
 
 | metric | meaning |

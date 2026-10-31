@@ -41,6 +41,12 @@ func (r *REPL) post(f func()) {
   }
 }
 
+// Notice shows a one-line message from background work at the next
+// prompt (the chat model being ready, say), waking the prompt for it.
+func (r *REPL) Notice(msg string) {
+  r.post(func() { ui.Info("%s", msg) })
+}
+
 // runInbox runs what other frontends posted, on the REPL goroutine.
 func (r *REPL) runInbox() {
   for {

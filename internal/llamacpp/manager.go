@@ -397,6 +397,20 @@ func (m *Manager) callbacks(name string) (start, end func()) {
 func (m *Manager) ensure(ctx context.Context, name string) (string, error) {
   m.adopt(name)
   m.mu.Lock()
+
+  // another caller is starting it: wait for that start, then look again
+  wait, starting := m.loading[name]
+  if starting {
+    m.mu.Unlock()
+    select {
+    case <-wait:
+    case <-ctx.Done():
+      return "", ctx.Err()
+    }
+
+    return m.ensure(ctx, name)
+  }
+
   spec, ok := m.specs[name]
   if !ok {
     m.mu.Unlock()
@@ -425,9 +439,19 @@ func (m *Manager) ensure(ctx context.Context, name string) (string, error) {
     }
   }
 
+  if m.loading == nil {
+    m.loading = map[string]chan struct{}{}
+  }
+
+  done := make(chan struct{})
+  m.loading[name] = done
   m.mu.Unlock()
 
   err := m.spawn(ctx, name, spec)
+  m.mu.Lock()
+  delete(m.loading, name)
+  m.mu.Unlock()
+  close(done)
   if err != nil {
     return "", err
   }

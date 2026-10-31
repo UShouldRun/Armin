@@ -9,6 +9,9 @@ import (
   "os"
   "os/exec"
   "path/filepath"
+  "strconv"
+  "strings"
+  "sync"
   "testing"
   "time"
 )
@@ -240,6 +243,22 @@ func TestHelperProcess(t *testing.T) {
   for i, a := range os.Args {
     if a == "--port" && i + 1 < len(os.Args) {
       port = os.Args[i + 1]
+    }
+
+    // --fake-load-ms N stands for a model taking N ms to load, and
+    // --fake-starts FILE records each start, for the concurrency test
+    if a == "--fake-load-ms" && i + 1 < len(os.Args) {
+      ms, _ := strconv.Atoi(os.Args[i + 1])
+      time.Sleep(time.Duration(ms) * time.Millisecond)
+    }
+
+    if a == "--fake-starts" && i + 1 < len(os.Args) {
+      f, err := os.OpenFile(os.Args[i + 1],
+        os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0o644)
+      if err == nil {
+        f.WriteString("start\n")
+        f.Close()
+      }
     }
   }
   if port == "" {
@@ -629,3 +648,61 @@ func TestSwitchToHostedIDOnTheFly(t *testing.T) {
     t.Fatalf("label = %q", m.Label("planner:deepseek/deepseek-v4-pro-0813"))
   }
 }
+
+// TestConcurrentStartsSpawnOnce: callers asking for a model while it
+// loads (armin loads the chat model in the background, and a first
+// message can arrive mid-load) wait for that one start: one process,
+// and none of them returns before the server answers.
+func TestConcurrentStartsSpawnOnce(t *testing.T) {
+  if testing.Short() {
+    t.Skip("spawns a real subprocess")
+  }
+
+  starts := filepath.Join(t.TempDir(), "starts")
+  m := New(map[string]ModelSpec{
+    "chat": {
+      Binary: fakeLlamaServerBinary(t), ModelPath: "unused.gguf",
+      Port: freePort(t), Flags: SpecNoLean,
+      Args: []string{ "--fake-starts", starts, "--fake-load-ms", "400" },
+    },
+  })
+  defer m.Shutdown(context.Background())
+
+  client, err := m.LazyClient("chat")
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  ctx, cancel := context.WithTimeout(context.Background(), 15 * time.Second)
+  defer cancel()
+
+  var wg sync.WaitGroup
+  errs := make(chan error, 5)
+  for i := 0; i < 5; i++ {
+    wg.Add(1)
+    go func() {
+      defer wg.Done()
+      err := client.Ready(ctx)
+      if err == nil {
+        err = client.Health(ctx) // up the moment Ready returns
+      }
+
+      errs <- err
+    }()
+  }
+
+  wg.Wait()
+  close(errs)
+  for err := range errs {
+    if err != nil {
+      t.Fatalf("a concurrent caller: %v", err)
+    }
+  }
+
+  data, _ := os.ReadFile(starts)
+  n := strings.Count(string(data), "start")
+  if n != 1 {
+    t.Fatalf("%d starts, want 1", n)
+  }
+}
+

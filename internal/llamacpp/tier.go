@@ -119,3 +119,19 @@ func (w *Window) Shrink(ctx context.Context) (int, error) {
 
   return w.resident, nil
 }
+
+// ContextOf is the context size name's args set (-c, --ctx-size), or 0
+// when they don't set one: known without asking a server that may not
+// be up yet.
+func (m *Manager) ContextOf(name string) int {
+  m.mu.Lock()
+  defer m.mu.Unlock()
+
+  spec, ok := m.specs[name]
+  if !ok {
+    return 0
+  }
+
+  return contextOf(spec.Args)
+}
+

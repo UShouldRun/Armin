@@ -93,7 +93,7 @@ func NewSenses(opts *input.Options) (*Mind, error) {
     return nil, fmt.Errorf("\n\t... in New:\n\t setting up sandbox: %w", err)
   }
 
-  m := &Mind{ Sandbox: sb }
+  m := &Mind{ Sandbox: sb, Notices: make(chan string, 16) }
 
   // what the deterministic systems did, kept with armin's data
   data, err := session.DataDir()
@@ -110,12 +110,16 @@ func NewSenses(opts *input.Options) (*Mind, error) {
 
   // One ctags index for the agent's symbol tools, -lsp's definition
   // and workspace/symbol, and -mcp — the repo is scanned once.
+  t0 := time.Now()
   m.Symbols = ctags.New(sb.Root, opts.CtagsBin)
+  m.took("senses.symbols", t0)
 
   // The reference library: its folder is readable like the project,
   // so read_pdf and read_file can follow a citation.
   if cfg.Library != "" {
+    t0 := time.Now()
     lib, err := library.Open(cfg.Library)
+    m.took("senses.library", t0)
     if err != nil {
       ui.Warn("library: %s", err)
     } else {
@@ -162,7 +166,9 @@ func (m *Mind) startModels(ctx context.Context, opts *input.Options) error {
 
   // Before the chat model loads: on the CPU that takes minutes.
   if m.Models.FirstLocal() != "" {
+    t0 := time.Now()
     m.Models.Warning = llamacpp.GPUWarning()
+    m.took("models.gpu-check", t0)
     if m.Models.Warning != "" {
       ui.Warn("%s", m.Models.Warning)
     }
@@ -174,7 +180,7 @@ func (m *Mind) startModels(ctx context.Context, opts *input.Options) error {
     m.Models.KnownHostsFile = filepath.Join(data, "remote_known_hosts")
   }
 
-  client, err := m.Models.Client(ctx, opts.Model)
+  client, err := m.chatClient(ctx, opts.Model)
   if err != nil {
     return fmt.Errorf(
       "\n\t... in startModels:\n\t starting model %q: %w", opts.Model, err,
@@ -187,8 +193,10 @@ func (m *Mind) startModels(ctx context.Context, opts *input.Options) error {
   // user gets going.
   hosted := m.Models.OpenRouter()
   if hosted != "" {
+    t0 := time.Now()
     catalog.Warm()
     catalog.CachedCredits(m.Models.Endpoint(hosted))
+    m.took("models.catalog", t0)
   }
 
   // Lazy: an explicit completion_model loads on its first use, not
@@ -226,7 +234,15 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
   loop.KeepTurns = cfg.KeepTurns
   loop.ContextSize = cfg.ContextSize
   if loop.ContextSize == 0 {
+    loop.ContextSize = m.Models.ContextOf(opts.Model)
+  }
+
+  // asking the server: only when its args don't say, since the chat
+  // model may still be loading
+  if loop.ContextSize == 0 {
+    t0 := time.Now()
     loop.ContextSize = queryContextSize(ctx, client)
+    m.took("loop.context-size", t0)
   }
 
   // A model with a stream tier moves between its fast resident
@@ -237,7 +253,9 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
   }
 
   var err error
+  t0 := time.Now()
   m.Memories, m.Skills, m.Scratch, err = openNotes(m.Sandbox.Root)
+  m.took("loop.notes", t0)
   if err != nil {
     return fmt.Errorf("\n\t... in buildLoop:\n\t%w", err)
   }
@@ -246,7 +264,9 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
   m.Loop = loop
 
   // What the user knows: one learner tree per user, for the advisor.
+  t0 = time.Now()
   m.Learner, err = openLearner()
+  m.took("loop.learner", t0)
   if err != nil {
     ui.Warn("learner tree: %s", err)
   } else {
@@ -264,13 +284,17 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
 
   // The project's knowledge tree; without one, the know tools are
   // simply not offered.
+  t0 = time.Now()
   m.Know, err = openKnow(m.Sandbox.Root)
+  m.took("loop.know-open", t0)
   if err != nil {
     ui.Warn("knowledge tree: %s", err)
   } else {
     loop.Know = m.Know
     loop.Recall = !cfg.NoRecall
+    t0 = time.Now()
     msg, err := refreshKnow(m.Sandbox.Root, m.Know)
+    m.took("loop.know-refresh", t0)
     if err != nil {
       ui.Warn("knowledge tree: %s", err)
     } else if msg != "" {
@@ -292,7 +316,7 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
   if m.Library != nil {
     loop.Library = m.Library
     if opts.Mode != input.ModeLibrary {
-      m.refreshLibrary(ctx)
+      go m.refreshLibrary(ctx) // a scan of the library: off the start
     }
   }
 
@@ -340,11 +364,12 @@ func (m *Mind) SystemPrompt(readOnly bool) string {
 // meanwhile), and points at books the topic table lacks.
 func (m *Mind) refreshLibrary(ctx context.Context) {
   lib := m.Library
+  t0 := time.Now()
   pending := len(lib.Pending(nil))
+  metrics.Since("startup.library-scan.ms", t0)
   if pending > 0 {
-    msg := fmt.Sprintf("  library: %d books aren't in the topic "+
-      "table yet — /library catalog", pending)
-    fmt.Fprintln(os.Stderr, ui.Dim(msg))
+    m.notice(fmt.Sprintf("library: %d books aren't in the topic "+
+      "table yet — /library catalog", pending))
   }
 
   if !lib.Stale() {
@@ -354,8 +379,7 @@ func (m *Mind) refreshLibrary(ctx context.Context) {
   go func() {
     err := lib.Build(ctx, nil)
     if err != nil && ctx.Err() == nil {
-      msg := "  library: indexing failed: " + err.Error()
-      fmt.Fprintln(os.Stderr, ui.Dim(msg))
+      m.notice("library: indexing failed: " + err.Error())
     }
   }()
 }
