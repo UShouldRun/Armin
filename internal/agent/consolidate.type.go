@@ -7,3 +7,8 @@ type excerpt struct {
   header string // path:start-end, as the claim must cite it
   text   string
 }
+
+// claim is one consolidated fact and the excerpt it rests on.
+type claim struct {
+  text, ref string
+}

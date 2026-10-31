@@ -37,6 +37,7 @@ func minionServer(t *testing.T, offered *[]string) *llm.Client {
     reply := llm.Message{
       Role: "assistant", Content: "the retry count is 2, in f.txt",
     }
+
     if round == 1 {
       reply = llm.Message{
         Role: "assistant",
@@ -192,6 +193,7 @@ func TestChoreClient(t *testing.T) {
     LLM: local,
     Minion: func(context.Context) (*llm.Client, error) { return minion, nil },
   }
+
   if l.ChoreClient(context.Background()).Model != "chat" {
     t.Fatal("a local chat model keeps its own chores")
   }

@@ -129,7 +129,8 @@ type benchRun struct {
 // the same ~/.config/armin/.env armin itself loads (KEY = value, the
 // spaces around = included), so the bench runs without a shell dance.
 func benchKey(envName string) string {
-  if v := os.Getenv(envName); v != "" {
+  v := os.Getenv(envName)
+  if v != "" {
     return v
   }
 
@@ -147,8 +148,11 @@ func benchKey(envName string) string {
     return ""
   }
 
-  re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(envName) + `\s*=\s*(.+)$`)
-  if m := re.FindStringSubmatch(string(data)); m != nil {
+  re := regexp.MustCompile(
+    `(?m)^` + regexp.QuoteMeta(envName) + `\s*=\s*(.+)$`,
+  )
+  m := re.FindStringSubmatch(string(data))
+  if m != nil {
     return strings.TrimSpace(m[1])
   }
 
@@ -384,6 +388,7 @@ func benchSession(
   if strings.TrimSpace(run.answer) == "" {
     run.answer = answer // a server that didn't stream
   }
+
   if tree != nil {
     var b strings.Builder
     tree.Dump(&b, 0)

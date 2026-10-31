@@ -459,7 +459,9 @@ func knowAdd(l *Loop, in knowArgs) any {
     if exists {
       _, taken := l.Know.Child(parent, name)
       if taken {
-        return errResult(fmt.Errorf("%s exists; know_write it with its id instead", path))
+        return errResult(fmt.Errorf(
+          "%s exists; know_write it with its id instead", path,
+        ))
       }
     }
 
@@ -903,12 +905,13 @@ func (l *Loop) recordTurn(h []llm.Message, from int) {
       }
 
       ref := path
-      if s, ok := call.Function.Arguments["start_line"].(float64); ok && s > 0 {
-        if e, ok := call.Function.Arguments["end_line"].(float64); ok {
-          ref = fmt.Sprintf("%s:%d-%d", path, int(s), int(e))
-        } else {
-          ref = fmt.Sprintf("%s:%d", path, int(s))
-        }
+      s, hasStart := call.Function.Arguments["start_line"].(float64)
+      e, hasEnd := call.Function.Arguments["end_line"].(float64)
+      switch {
+      case hasStart && s > 0 && hasEnd:
+        ref = fmt.Sprintf("%s:%d-%d", path, int(s), int(e))
+      case hasStart && s > 0:
+        ref = fmt.Sprintf("%s:%d", path, int(s))
       }
 
       if !seen[ref] {
@@ -973,7 +976,8 @@ func (l *Loop) recordTurn(h []llm.Message, from int) {
 
   // the question itself, for consolidation (consolidate.go): kept as
   // evidence, not in the claim, so node lines stay pointers
-  l.Know.AddEvidence(id, know.RefSession, questionPrefix + cut(question, 300), 0)
+  asked := questionPrefix + cut(question, 300)
+  l.Know.AddEvidence(id, know.RefSession, asked, 0)
 
   metrics.Add("know.record.turns", 1)
   metrics.Observe("know.record.refs", float64(len(refs)))

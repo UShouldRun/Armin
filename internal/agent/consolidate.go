@@ -166,7 +166,6 @@ func (l *Loop) consolidateOne(
     shown[e.header] = true
   }
 
-  type claim struct{ text, ref string }
   var claims []claim
   for _, line := range strings.Split(reply.Content, "\n") {
     m := claimLine.FindStringSubmatch(line)

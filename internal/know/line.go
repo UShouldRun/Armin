@@ -91,7 +91,8 @@ func (g *Graph) Line(b *strings.Builder, id NodeID, full bool) {
 // firstFileEvidence returns the node's first file-kind evidence.
 func (g *Graph) firstFileEvidence(id NodeID) (Evidence, bool) {
   for _, e := range g.EvidenceOf(id, nil) {
-    if ev := g.Ev(e); ev.Kind == RefFile {
+    ev := g.Ev(e)
+    if ev.Kind == RefFile {
       return ev, true
     }
   }

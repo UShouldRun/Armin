@@ -33,6 +33,7 @@ func knowLoop(t *testing.T) (
     Session: "s1",
     LLM: &llm.Client{ Model: "m" },
   }
+
   call := func(name string, args map[string]any) map[string]string {
     t.Helper()
     out := l.execute(context.Background(), llm.ToolCall{
@@ -383,6 +384,7 @@ func TestRecordTurn(t *testing.T) {
     for _, c := range l.Know.Children(mustLookup(t, l, "sessions"), nil) {
       names += " " + l.Know.Name(c)
     }
+
     t.Fatalf("no sessions/how-does-the-handshake; sessions has:%s", names)
   }
 
@@ -393,8 +395,9 @@ func TestRecordTurn(t *testing.T) {
 
   // the claim points where the answer lives: the answer's own
   // citation beats the read ranges
-  if claim := l.Know.Claim(id); claim != "conn.go:3-6" {
-    t.Fatalf("claim: %q", l.Know.Claim(id))
+  claim := l.Know.Claim(id)
+  if claim != "conn.go:3-6" {
+    t.Fatalf("claim: %q", claim)
   }
 
   // the range read, then the question, kept for consolidation
@@ -421,7 +424,8 @@ func TestRecordTurn(t *testing.T) {
     turnHistory("How does the handshake work?", "SYN, then ACK again",
       [2]int{ 3, 6 }), 0,
   )
-  if got := len(l.Know.Children(mustLookup(t, l, "sessions"), nil)); got != 2 {
+  got := len(l.Know.Children(mustLookup(t, l, "sessions"), nil))
+  if got != 2 {
     t.Fatalf("a similar turn added a node; sessions has %d", got)
   }
 
