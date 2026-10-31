@@ -232,7 +232,9 @@ func wordColor(lg lang, text string, i, j int, goLang bool) string {
     return fgYellow
   case lg.types[key]:
     return fgCyan
-  case strings.HasPrefix(strings.TrimLeft(text[j:min(len(text), j + 4)], " "), "("):
+  case strings.HasPrefix(
+    strings.TrimLeft(text[j:min(len(text), j + 4)], " "), "(",
+  ):
     return fgBlue
   case goLang && w[0] >= 'A' && w[0] <= 'Z' &&
     (i == 0 || text[i - 1] != '.'):
