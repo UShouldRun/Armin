@@ -1,8 +1,9 @@
 // Package web serves armin's chat in a browser on localhost: the same
 // agent loop, tools and context management as the REPL, plus file
 // previews (PDF, Markdown, code) the terminal can't show. Standard
-// library only; the page is one embedded HTML file (static/) with
-// inline CSS and plain JS.
+// library only; the page is plain HTML, CSS and native ES modules in
+// static/ (css/tokens.css holds the colors, js/main.js the wiring), no
+// build step.
 //
 //   web.go       Serve (loopback only), the routes, the guard against
 //                other sites and DNS rebinding, the session it saves

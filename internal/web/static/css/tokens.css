@@ -1,0 +1,30 @@
+/* Colors, light and dark: the one place to restyle. The s* ones are
+   syntax highlighting. */
+
+:root {
+  --bg: #fafafa; --panel: #ffffff; --text: #1d1d1f; --dim: #6e6e73;
+  --line: #e3e3e6; --accent: #2a6df4; --code: #f2f2f5;
+  --add: #e6f6ea; --addt: #146c2e; --del: #fdecec; --delt: #a4161a;
+  --hl: #fff4c2;
+  --sk: #8a3ffc; --ss: #1f7a3a; --sc: #8e8e93; --sn: #b5561a;
+  --st: #0e7c86; --sf: #2a5bd7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141416; --panel: #1c1c1f; --text: #e8e8ea; --dim: #9a9aa0;
+    --line: #2c2c31; --accent: #6b9bff; --code: #242428;
+    --add: #12301c; --addt: #7fd69a; --del: #3a1517; --delt: #f19ca0;
+    --hl: #3d3610;
+    --sk: #c39bff; --ss: #8fd19e; --sc: #7c7c84; --sn: #f0a868;
+    --st: #6cd3dc; --sf: #8ab4ff;
+  }
+}
+
+/* syntax highlighting */
+.k { color: var(--sk); }
+.s { color: var(--ss); }
+.c { color: var(--sc); font-style: italic; }
+.num { color: var(--sn); }
+.t { color: var(--st); }
+.f { color: var(--sf); }

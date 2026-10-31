@@ -520,15 +520,19 @@ it's one 1,116-line `internal/web/static/index.html` with inline CSS
 and JS; it splits so each piece is easy to find and change:
 
 ```
-static/index.html      markup only
-static/css/tokens.css  colors, spacing, type as custom properties
-                       (light and dark), the one place to restyle
-static/css/layout.css  page grid, panels
-static/css/chat.css, tree.css, learn.css   one file per feature
-static/js/main.js      wiring only (native ES modules, no bundler)
-static/js/api.js       fetch + event stream to the Go side
-static/js/chat.js, render.js (markdown, [n42] refs), tree.js,
-static/js/learn.js (questions, plan panel), record.js (mic)
+static/index.html          markup only
+static/css/tokens.css      colors (light and dark) and syntax colors:
+                           the one place to restyle
+static/css/layout.css      the page grid, header, panels, small screens
+static/css/chat.css, viewer.css, md.css   one file per part
+static/js/main.js          wiring only (native ES modules, no bundler)
+static/js/api.js           $, esc, fetch to the Go side
+static/js/state.js         what the modules share: files, current, busy
+static/js/header.js        model picker, balance, context gauge
+static/js/chat.js          messages, approvals, status, the event stream
+static/js/viewer.js        file list, previews, proposed changes
+static/js/markdown.js, highlight.js   rendering
+later: tree.js, learn.js (questions, plan panel), record.js (mic)
 ```
 
 ## 7. Package layout — settled

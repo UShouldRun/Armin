@@ -1,0 +1,33 @@
+/* The file viewer: its bar, previews and code tables. */
+
+.bar .close { border: 0; background: none; color: var(--dim); font-size: 16px; padding: 0 4px; }
+
+.bar { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+
+.bar span { flex: 1; font: 12px ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+#preview { flex: 1; overflow: auto; }
+
+#preview iframe { width: 100%; height: 100%; border: 0; }
+
+#preview img { max-width: 100%; display: block; margin: 12px auto; }
+
+#preview .md { padding: 4px 18px; }
+
+table.code { border-collapse: collapse; font: 12px/1.45 ui-monospace, monospace; width: 100%; }
+
+table.code td { padding: 0 8px; white-space: pre; vertical-align: top; }
+
+table.code td.n { color: var(--dim); text-align: right; user-select: none; border-right: 1px solid var(--line); width: 1%; }
+
+table.code tr.hl td { background: var(--hl); }
+
+table.code tr.add td { background: var(--add); }
+
+table.code tr.del td { background: var(--del); }
+
+table.code tr.add td.n, table.code tr.del td.n { color: var(--text); }
+
+.approve .view { font: 12px ui-monospace, monospace; color: var(--accent); cursor: pointer; margin: 4px 0; }
+
+.empty { color: var(--dim); padding: 24px; }
