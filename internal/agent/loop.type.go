@@ -4,6 +4,7 @@
 package agent
 
 import (
+  "context"
   "sync"
 
   "armin/internal/ctags"
@@ -55,6 +56,12 @@ type Loop struct {
   Delegation uint32
   knowMu     sync.Mutex
   cyclesOpen bool // a know write opened a requires loop this session
+
+  // Minion returns the minion's model, for delegate and ChoreClient;
+  // nil when no minion is configured (delegate isn't offered).
+  // delegations numbers the delegations of this session.
+  Minion      func(context.Context) (*llm.Client, error)
+  delegations uint32
 
   // Aids are the reasoning aids turns get (see AidAll); Procedures
   // the steps per kind of task (DefaultProcedures when nil).

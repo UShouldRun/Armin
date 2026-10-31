@@ -37,5 +37,10 @@ func runLibrary(
     }
   }
 
-  return lib.Sync(ctx, library.AskWith(mind.Client), mind.Client.Model)
+  chore := mind.Client
+  if mind.Loop != nil {
+    chore = mind.Loop.ChoreClient(ctx)
+  }
+
+  return lib.Sync(ctx, library.AskWith(chore), chore.Model)
 }

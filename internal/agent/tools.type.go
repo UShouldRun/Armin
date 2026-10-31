@@ -81,3 +81,12 @@ type knowArgs struct {
   Delete      bool     `json:"delete"`
   Depth       int      `json:"depth"`
 }
+
+// delegateArgs are delegate's arguments.
+type delegateArgs struct {
+  Task      string   `json:"task"`
+  Check     string   `json:"check"`
+  CheckArgs []string `json:"check_args"`
+  Edits     bool     `json:"edits"`
+  Nodes     []string `json:"nodes"`
+}

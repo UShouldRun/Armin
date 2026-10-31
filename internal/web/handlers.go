@@ -189,7 +189,8 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 
   auto := effort == agent.EffortAuto
   effort, task := agent.PlanTurn(
-    r.Context(), s.cfg.Client, s.cfg.Loop.Aids, effort, in.Message,
+    r.Context(), s.cfg.Loop.ChoreClient(r.Context()), s.cfg.Loop.Aids, effort,
+    in.Message,
   )
   if auto {
     ev.send("effort", effort.String())

@@ -1260,5 +1260,54 @@
     ]
    }
   }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "delegate",
+   "description": "Hand a small, well-defined task to the minion, the local model: a search, a summary of some files, a small contained edit. First rule out that a script or a deterministic tool does it better (search_code, find_references, run_command...). It must be a task the minion gets right almost every time, with an acceptance check the result has to pass. What it adds to the tree stays marked as the minion's until you verify it.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "check": {
+      "type": "string",
+      "description": "The acceptance check run afterwards: tests, build, lint, command (check_args is the command), or none when you'll check the answer yourself",
+      "enum": [
+       "tests",
+       "build",
+       "lint",
+       "command",
+       "none"
+      ]
+     },
+     "check_args": {
+      "type": "array",
+      "description": "Arguments for the check: test or build args, or the command's binary then its arguments",
+      "items": {
+       "type": "string"
+      }
+     },
+     "edits": {
+      "type": "boolean",
+      "description": "Let the minion change files (each change is still approved); default false"
+     },
+     "nodes": {
+      "type": "array",
+      "description": "Tree nodes the task builds on (ids or paths); their lines go in the task",
+      "items": {
+       "type": "string"
+      }
+     },
+     "task": {
+      "type": "string",
+      "description": "What to do, precisely: files, names, the expected shape of the answer"
+     }
+    },
+    "required": [
+     "task",
+     "check"
+    ]
+   }
+  }
  }
 ]

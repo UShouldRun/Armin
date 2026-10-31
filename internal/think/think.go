@@ -238,6 +238,15 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
   loop.Memories, loop.Skills, loop.Scratch = m.Memories, m.Skills, m.Scratch
   m.Loop = loop
 
+  // The minion: delegate's model, and the helper calls' while chat
+  // runs on a hosted one. Started on first use.
+  minion := cfg.Minion
+  if minion != "" && m.Models.Has(minion) {
+    loop.Minion = func(ctx context.Context) (*llm.Client, error) {
+      return m.Models.Client(ctx, minion)
+    }
+  }
+
   // The project's knowledge tree; without one, the know tools are
   // simply not offered.
   m.Know, err = openKnow(m.Sandbox.Root)

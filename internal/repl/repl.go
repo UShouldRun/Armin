@@ -445,7 +445,7 @@ func (r *REPL) maybeTitle(ctx context.Context) {
   defer cancel()
 
   spinner := ui.NewSpinner("naming this session")
-  r.Meta.Title = convo.Title(ctx, r.LLM, r.History)
+  r.Meta.Title = convo.Title(ctx, r.Loop.ChoreClient(ctx), r.History)
   spinner.Stop()
 
   r.persisted = 0 // the title lives in the first line: rewrite once

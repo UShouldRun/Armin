@@ -607,8 +607,10 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
         return false
       }
 
+      // only what the lines show: a dependency off the page can't
+      // be seen to be stale
       for _, d := range deps(s, false) {
-        if flagged(d) {
+        if flagged(d) && slices.Contains(shown, d) {
           return true
         }
       }
@@ -616,7 +618,7 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
       return false
     })
     qs = append(qs, evalQuestion{
-      text:  "Which facts shown, with confidence checked or tested, directly depend on a node that is stale or suspect?",
+      text:  "Which facts shown, with confidence checked or tested, directly depend on a node shown that is stale or suspect?",
       shown: shown, want: idsAnswer(q5),
     })
 

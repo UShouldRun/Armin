@@ -42,6 +42,17 @@ minion has everything but `run_program`, the copilot everything, the
 advisor no file changes (`edit_file`, `write_file`, `run_program`).
 Starting on a role's model starts in that role.
 
+With a `minion` set, the copilot and advisor get `delegate`: a small,
+well-defined task handed to the minion with an acceptance check (the
+tests, the build, the linter or a command). The minion runs its own
+short turn; your approval still applies to its edits, and the advisor's
+minion never edits. What it adds to the knowledge tree stays marked as
+the minion's until the copilot or advisor verifies it; a passing check
+raises it from inferred to checked. While chat runs on a hosted model,
+armin's own small helper calls (titles, effort, library cataloging) go
+to the minion too; summaries and checks that read the whole
+conversation stay on the chat model, where it is already cached.
+
 Every llama-server armin starts, local or remote, gets lean
 defaults that spend memory on context instead of features a
 single-user, text-only agent doesn't use. Each applies only if your

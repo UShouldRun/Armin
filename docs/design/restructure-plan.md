@@ -51,8 +51,13 @@ beyond `golang.org/x/sys`, and no JSON for the trees.
   authorship stays the minion's, so a wrong conclusion can be traced
   back to it.
 
-armin's internal helpers (effort classification, verify, titles,
-compaction summaries, library cataloging) become minion jobs too.
+armin's small internal helpers (effort classification, titles,
+library cataloging) become minion jobs while chat runs on a hosted
+model (free, and the GPU is idle). Those that read the whole
+conversation (compaction summaries, verify, suggestions) stay on the
+chat model: there it is already in the provider's prompt cache, and a
+9B would read 50k+ tokens cold and summarize a bigger model's work
+worse. (Changed while building step 6.)
 
 ## 2. The graph — settled
 

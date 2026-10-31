@@ -65,5 +65,8 @@ const (
   toolKnowUpdate
   toolKnowTrace
 
+  // offered only with a minion to delegate to (flagMinion)
+  toolDelegate
+
   toolCount
 )

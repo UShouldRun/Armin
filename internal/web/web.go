@@ -101,7 +101,7 @@ func (s *Server) save(ctx context.Context) {
 
   if s.meta.Title == "" {
     tctx, cancel := context.WithTimeout(ctx, 30 * time.Second)
-    s.meta.Title = convo.Title(tctx, s.cfg.Client, s.history)
+    s.meta.Title = convo.Title(tctx, s.cfg.Loop.ChoreClient(tctx), s.history)
     cancel()
     s.persisted = 0 // the title is in the first line
   }

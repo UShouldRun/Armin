@@ -50,7 +50,7 @@ func cmdLibrary(r *REPL, ctx context.Context, args []string) {
     printLibrary(lib)
 
   case "catalog":
-    client := r.LLM
+    client := r.Loop.ChoreClient(ctx)
     if len(args) > 1 {
       c, err := r.catalogClient(ctx, args[1])
       if err != nil {
@@ -67,7 +67,7 @@ func cmdLibrary(r *REPL, ctx context.Context, args []string) {
     }
 
   case "merge":
-    client := r.LLM
+    client := r.Loop.ChoreClient(ctx)
     if len(args) > 1 {
       c, err := r.catalogClient(ctx, args[1])
       if err != nil {
@@ -108,7 +108,8 @@ func cmdLibrary(r *REPL, ctx context.Context, args []string) {
       return
     }
 
-    err = lib.Sync(ctx, library.AskWith(r.LLM), r.LLM.Model)
+    chore := r.Loop.ChoreClient(ctx)
+    err = lib.Sync(ctx, library.AskWith(chore), chore.Model)
     if err != nil {
       ui.Err(err)
     }
