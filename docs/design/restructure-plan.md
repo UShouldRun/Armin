@@ -120,9 +120,11 @@ On disk, per tree:
 
 ```
 graph.snap  header (magic "ARMK", version, counts, section offsets)
-            + the arrays exactly as in memory, little-endian
-graph.log   append-only ops: [op u8][len uvarint][payload][crc32]
-authors     the interned author table
+            + the node, edge, evidence and author arrays and the
+            string arena, exactly as in memory, little-endian
+graph.log   "ARML" + generation, then append-only ops:
+            [op u8][len uvarint][payload][crc32]
+lock        flock'd by the armin that writes; others open read-only
 events      (learner) raw 12-byte Event records, append-only
 ```
 
