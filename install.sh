@@ -352,7 +352,7 @@ else
   warn "llama-server not found on PATH"
   echo "      build/install it from https://github.com/ggml-org/llama.cpp so armin"
   echo "      can spawn it itself, or point -llama-url / config.conf's llama_url at"
-  echo "      one you already run elsewhere (see README.md's \"Model lifecycle\")."
+  echo "      one you already run elsewhere (see docs/guide/models.md)."
 fi
 
 # --- Optional: docker (web_search) --------------------------------------
@@ -371,7 +371,7 @@ elif [ -x "${HOME}/.local/bin/universal-ctags" ]; then
   ok "universal-ctags found at ~/.local/bin/universal-ctags"
 else
   warn "universal-ctags not found — -lsp's go-to-definition/workspace-symbol degrade gracefully without it"
-  echo "      (the plain \"ctags\" most distros ship is Emacs's, a different, incompatible tool — see README.md)"
+  echo "      (the plain \"ctags\" most distros ship is Emacs's, a different, incompatible tool — see docs/guide/install.md)"
 fi
 
 # --- Starter config -------------------------------------------------------
@@ -387,8 +387,8 @@ if [ "$write_config" -eq 1 ]; then
     ok "config.conf already exists at $config_path — left untouched"
   else
     cat > "$config_path" <<'EOF'
-# key = value, "#" comments, nothing fancier — see README.md's
-# "Config file" and "Model lifecycle" sections for the full key list.
+# key = value, "#" comments, nothing fancier — see docs/guide/config.md;
+# docs/guide/models.md for models.<name> blocks.
 model     = chat
 llama_url = http://localhost:8080
 EOF
@@ -396,7 +396,7 @@ EOF
   fi
 
   # .env holds API keys for any models.<name> pointed at an
-  # authenticated remote endpoint (see README.md's "Authenticated /
+  # authenticated remote endpoint (see docs/guide/models.md, "Authenticated /
   # remote models" section) — armin refuses to read one that's
   # readable by anyone but you, so this is created (and any existing
   # one re-tightened) at mode 600 from the start.

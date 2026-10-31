@@ -34,7 +34,7 @@ spec works too, if you'd rather manage it that way).
 
 Definition and workspace-symbol search need Universal Ctags on
 `PATH` as `universal-ctags` (see the main
-[README](../README.md#lsp-server-mode) for why the name matters and
+[frontends](guide/frontends.md#lsp-server-mode) for why the name matters and
 how to build it) — without it, those two just return nothing rather
 than failing.
 
@@ -216,4 +216,4 @@ is shown once, as a notification.
   copy, so the plugin and the binary never drift apart.
 - Every path argument the model can act on is still jailed to the
   project root by the same sandbox the REPL uses — see the main
-  [README](../README.md#safety-model).
+  [tools and safety](guide/tools.md#safety-model).
