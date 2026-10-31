@@ -9,6 +9,7 @@ import (
   "testing"
 
   "armin/internal/know"
+  "armin/internal/learner"
   "armin/internal/llm"
   "armin/internal/library"
   "armin/internal/notes"
@@ -39,6 +40,7 @@ func TestDefinitionsGolden(t *testing.T) {
     Library:  lib,
     Know:     know.New(),
     Minion:   func(context.Context) (*llm.Client, error) { return nil, nil },
+    Learner:  learner.New(),
   }
 
   all, _ := json.MarshalIndent(l.Definitions(), "", " ")

@@ -1309,6 +1309,46 @@
     ]
    }
   }
+ },
+ {
+  "type": "function",
+  "function": {
+   "name": "learn_explained",
+   "description": "After the user explains how they think about something (typed or spoken), record what it shows about what they know: concepts they used correctly, misconceptions, and gaps (concepts the explanation needed but never touched). Concepts are paths in the learner tree; a concept not there yet needs its definition in define.",
+   "parameters": {
+    "type": "object",
+    "properties": {
+     "correct": {
+      "type": "array",
+      "description": "Concepts used correctly",
+      "items": {
+       "type": "string"
+      }
+     },
+     "define": {
+      "type": "array",
+      "description": "\"path: definition\" for concepts to add to the learner tree first",
+      "items": {
+       "type": "string"
+      }
+     },
+     "gaps": {
+      "type": "array",
+      "description": "Concepts the explanation needed but never touched",
+      "items": {
+       "type": "string"
+      }
+     },
+     "misconceptions": {
+      "type": "array",
+      "description": "\"concept: what was misunderstood\", one each",
+      "items": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  }
  }
 ]
 [

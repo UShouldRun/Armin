@@ -68,5 +68,8 @@ const (
   // offered only with a minion to delegate to (flagMinion)
   toolDelegate
 
+  // offered only with the learner tree (flagLearner)
+  toolLearnExplained
+
   toolCount
 )

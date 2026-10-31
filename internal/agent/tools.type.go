@@ -90,3 +90,11 @@ type delegateArgs struct {
   Edits     bool     `json:"edits"`
   Nodes     []string `json:"nodes"`
 }
+
+// explainedArgs are learn_explained's arguments.
+type explainedArgs struct {
+  Correct        []string `json:"correct"`
+  Misconceptions []string `json:"misconceptions"`
+  Gaps           []string `json:"gaps"`
+  Define         []string `json:"define"`
+}

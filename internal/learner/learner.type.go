@@ -22,6 +22,8 @@ const (
 // level instead: ReportNever, ReportHeard, ReportUsed, ReportExplain.
 type Result uint8
 
+// For an explanation, Right is a concept used correctly, Wrong a
+// misconception, Partial a gap: needed, never touched.
 const (
   Wrong   Result = iota
   Partial
@@ -61,6 +63,8 @@ type Event struct {
 //   bits 20-25  accuracy score 0-50 of a crystallized concept
 //   bit  26     known by implication (a dependent was answered right)
 //   bit  27     has any status at all
+//   bit  28     in doubt: a partial answer, or an explanation that
+//               needed it and never touched it; cleared by a right one
 type Status uint32
 
 // State is what a plan does with a concept.

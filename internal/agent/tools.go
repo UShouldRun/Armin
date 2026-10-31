@@ -30,7 +30,8 @@ import (
 // program, so the same result twice is a loop. Agent: needs approvals
 // or state, so MCP doesn't serve it. Session: needs a Loop's stores,
 // so ToolDefinitions leaves it out. The rest say which store (Know:
-// the project's knowledge tree; Minion: a minion model to delegate to).
+// the project's knowledge tree; Minion: a minion model to delegate to;
+// Learner: the learner tree).
 const (
   flagWrite    toolFlags = 0b0000000000000001
   flagRun      toolFlags = 0b0000000000000010
@@ -42,13 +43,14 @@ const (
   flagLibrary  toolFlags = 0b0000000010000000
   flagKnow     toolFlags = 0b0000000100000000
   flagMinion   toolFlags = 0b0000001000000000
+  flagLearner  toolFlags = 0b0000010000000000
   flagAll      toolFlags = 0b1111111111111111
 )
 
 // specs is the table, built once from the topic files' lists.
 var specs = index(
   fileTools, searchTools, codeTools, gitTools, runTools, noteTools,
-  knowTools, delegateTools,
+  knowTools, delegateTools, teachTools,
 )
 
 // toolIDs maps wire names to IDs. A miss yields toolUnknown.
@@ -129,6 +131,8 @@ func (l *Loop) offered(id ToolID) bool {
     return l.Know != nil
   case id.has(flagMinion):
     return l.Minion != nil
+  case id.has(flagLearner):
+    return l.Learner != nil
   }
 
   return true

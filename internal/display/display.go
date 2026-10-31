@@ -118,6 +118,7 @@ func runREPL(
 
   r.Completion, r.Follower = mind.Completion, mind.Follower()
   mind.Loop.Session = r.Meta.ID // who writes to the knowledge tree
+  r.STT, r.STTRecord = opts.Config.STT, opts.Config.STTRecord
   r.RoleModels = map[agent.Role]string{
     agent.RoleMinion:  opts.Config.Minion,
     agent.RoleCopilot: opts.Config.Copilot,

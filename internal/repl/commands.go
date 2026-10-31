@@ -68,6 +68,11 @@ func commandList() []command {
       run:     cmdRole,
     },
     {
+      names:   []string{ "voice", "v" },
+      summary: "say it instead of typing: record, transcribe, edit, send",
+      run:     cmdVoice,
+    },
+    {
       names:   []string{ "context", "ctx" },
       summary: "show context usage for this session",
       run:     cmdContext,

@@ -306,3 +306,19 @@ func TestAreaReport(t *testing.T) {
     t.Fatalf("used it: the concepts to probe, got %v", under)
   }
 }
+
+func TestGapPutsInDoubt(t *testing.T) {
+  l := New()
+  c := concept(t, l, 0, "window")
+  answer(t, l, c, Right, days(0))
+  answer(t, l, c, Right, days(1))
+  l.Record(c, EventExplanation, Partial, SureMostly, days(2))
+  if l.State(c, Day(days(2))) != NotSure || l.Box(c) != 2 {
+    t.Fatal("a gap puts a known concept in doubt, without dropping its box")
+  }
+
+  answer(t, l, c, Right, days(3))
+  if l.State(c, Day(days(3))) != Known {
+    t.Fatal("a right answer clears the doubt")
+  }
+}

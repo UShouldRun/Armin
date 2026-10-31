@@ -33,6 +33,7 @@ explaining the project by hand.
 | `/quit`, `/exit`, `/q` | leave |
 | `/clear` | reset the conversation, keeping only the system prompt |
 | `/model [name]` | show the active model + every configured one, or switch |
+| `/voice` | say the message instead of typing it: records until Enter, transcribes with `stt` (see [config](config.md#speech)), and leaves the text in the prompt to correct before sending |
 | `/minion`, `/copilot`, `/advisor` | switch role, and model if config.conf names one (see [config](config.md#roles)) |
 | `/context`, `/ctx` | message count, tool-call count, rough token estimate |
 | `/compact [n]` | ask the model to summarize everything but the last `n` messages, to free up context |

@@ -42,6 +42,9 @@ type REPL struct {
   // current model.
   RoleModels map[agent.Role]string
 
+  // STT and STTRecord are config.conf's speech commands, for /voice.
+  STT, STTRecord string
+
   History   []llm.Message
   Root      string
   resumedAt *time.Time

@@ -223,6 +223,10 @@ func apply(cfg *Config, key, value string) error {
     cfg.Copilot = value
   case "advisor":
     cfg.Advisor = value
+  case "stt":
+    cfg.STT = value
+  case "stt_record":
+    cfg.STTRecord = value
   case "ctags_bin":
     cfg.CtagsBinary = value
   case "llama_url":

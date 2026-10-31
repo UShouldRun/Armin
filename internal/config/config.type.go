@@ -65,6 +65,11 @@ type Config struct {
   // Minion, Copilot and Advisor name the model each role runs on
   // (see agent.Role); /minion, /copilot and /advisor switch to them.
   Minion, Copilot, Advisor string
+
+  // STT turns a WAV into text and STTRecord records one, command lines
+  // with {wav} for the file (see internal/stt); empty STTRecord finds
+  // parec, pw-record, arecord or rec.
+  STT, STTRecord string
   Terminal        string // how to open a new terminal window: "ghostty -e"
   CtagsBinary     string // used only by -lsp definition/symbol/hover
 

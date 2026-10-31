@@ -1,12 +1,14 @@
-// The project's knowledge tree: opened with the agent loop, compacted
-// and closed at shutdown.
+// The project's knowledge tree and the user's learner tree: opened with
+// the agent loop, compacted and closed at shutdown.
 
 package think
 
 import (
   "fmt"
+  "path/filepath"
 
   "armin/internal/know"
+  "armin/internal/learner"
   "armin/internal/session"
   "armin/internal/ui"
 )
@@ -33,11 +35,11 @@ func openKnow(root string) (*know.Graph, error) {
   return g, nil
 }
 
-// closeKnow compacts a tree the session changed and closes it; once,
-// since Shutdown runs from both a signal and the normal exit, and
-// never in the middle of a know tool's write.
+// closeKnow compacts the trees the session changed and closes them;
+// once, since Shutdown runs from both a signal and the normal exit,
+// and never in the middle of a know tool's write.
 func (m *Mind) closeKnow() {
-  if m.Know == nil {
+  if m.Loop == nil {
     return
   }
 
@@ -45,16 +47,52 @@ func (m *Mind) closeKnow() {
     m.Loop.LockKnow()
     defer m.Loop.UnlockKnow()
 
-    if m.Know.Changed() {
-      err := m.Know.Compact()
-      if err != nil {
-        ui.Error("compacting the knowledge tree: %s", err)
-      }
+    if m.Know != nil {
+      closeTree(m.Know, "knowledge")
     }
 
-    err := m.Know.Close()
-    if err != nil {
-      ui.Error("closing the knowledge tree: %s", err)
+    if m.Learner != nil {
+      if m.Learner.Tree.Changed() {
+        err := m.Learner.Tree.Compact()
+        if err != nil {
+          ui.Error("compacting the learner tree: %s", err)
+        }
+      }
+
+      err := m.Learner.Close()
+      if err != nil {
+        ui.Error("closing the learner tree: %s", err)
+      }
     }
   })
+}
+
+// closeTree compacts g if the session changed it, then closes it.
+func closeTree(g *know.Graph, what string) {
+  if g.Changed() {
+    err := g.Compact()
+    if err != nil {
+      ui.Error("compacting the %s tree: %s", what, err)
+    }
+  }
+
+  err := g.Close()
+  if err != nil {
+    ui.Error("closing the %s tree: %s", what, err)
+  }
+}
+
+// openLearner opens the user's learner tree, <data>/armin/learner.
+func openLearner() (*learner.Learner, error) {
+  data, err := session.DataDir()
+  if err != nil {
+    return nil, fmt.Errorf("\n\t... in openLearner:\n\t%w", err)
+  }
+
+  l, err := learner.Open(filepath.Join(data, "learner"))
+  if err != nil {
+    return nil, fmt.Errorf("\n\t... in openLearner:\n\t%w", err)
+  }
+
+  return l, nil
 }

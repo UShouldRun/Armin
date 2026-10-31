@@ -238,6 +238,14 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
   loop.Memories, loop.Skills, loop.Scratch = m.Memories, m.Skills, m.Scratch
   m.Loop = loop
 
+  // What the user knows: one learner tree per user, for the advisor.
+  m.Learner, err = openLearner()
+  if err != nil {
+    ui.Warn("learner tree: %s", err)
+  } else {
+    loop.Learner = m.Learner
+  }
+
   // The minion: delegate's model, and the helper calls' while chat
   // runs on a hosted one. Started on first use.
   minion := cfg.Minion

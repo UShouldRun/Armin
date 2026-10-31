@@ -33,6 +33,7 @@ const (
   scoreMask  Status = 0b111111 << scoreShift
   impliedBit Status = 1 << 26
   hasBit     Status = 1 << 27
+  doubtBit   Status = 1 << 28
 
   // RefresherBelow is the score under which a crystallized concept
   // counts as not sure and a refresher is recommended.
@@ -116,6 +117,7 @@ func (l *Learner) apply(e Event) {
   default:
     switch e.Result() {
     case Right:
+      next &^= doubtBit
       if next.crystal() {
         next = next.withScore(moveScore(next.score(), maxScore))
       } else {
@@ -131,9 +133,10 @@ func (l *Learner) apply(e Event) {
       l.prerequisites(e.Node, day)
 
     case Partial:
-      *s = next.withDay(day)
+      *s = (next | doubtBit).withDay(day)
 
     case Wrong:
+      next &^= doubtBit // no doubt left: it isn't known
       if next.crystal() {
         next = next.withScore(moveScore(next.score(), 0))
       } else {
@@ -208,6 +211,8 @@ func (l *Learner) State(id know.NodeID, today uint16) State {
     return NotSure
   case s.implied():
     return Implied
+  case s & doubtBit != 0:
+    return NotSure // a gap: check before teaching or skipping
   case s.box() == 0:
     return Unknown
   case today > s.day() && int(today - s.day()) > 1 << s.box():

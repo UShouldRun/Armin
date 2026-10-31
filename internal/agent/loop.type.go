@@ -9,6 +9,7 @@ import (
 
   "armin/internal/ctags"
   "armin/internal/know"
+  "armin/internal/learner"
   "armin/internal/library"
   "armin/internal/llm"
   "armin/internal/notes"
@@ -62,6 +63,10 @@ type Loop struct {
   // delegations numbers the delegations of this session.
   Minion      func(context.Context) (*llm.Client, error)
   delegations uint32
+
+  // Learner is what the user knows (one tree per user); nil drops the
+  // teaching tools. knowMu guards it too.
+  Learner *learner.Learner
 
   // Aids are the reasoning aids turns get (see AidAll); Procedures
   // the steps per kind of task (DefaultProcedures when nil).

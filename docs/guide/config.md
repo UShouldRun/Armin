@@ -27,6 +27,26 @@ models.coder.args        = --ctx-size 8192 --n-gpu-layers 999
 `allow` appends to the default binary allowlist; it doesn't replace it.
 `allow_exec` does the same for `run_program`'s list.
 
+## Speech
+
+```
+stt        = whisper-cli -m ~/models/ggml-large-v3-turbo-q5_0.bin -f {wav} -l auto -nt -np -mc 0 -sns
+stt_record = parec --rate=16000 --channels=1 --format=s16le --file-format=wav {wav}
+```
+
+`/voice` records from the default microphone with `stt_record` (when
+unset: the first of `parec`, `pw-record`, `arecord`, `rec` found) and
+transcribes with `stt`, both command lines where `{wav}` is the file.
+armin has no audio code of its own. A recording with no sound in it (a
+stuck microphone) is refused instead of transcribed, since whisper
+turns silence into "Thank you." `-mc 0` keeps whisper from looping on
+a phrase.
+
+The advisor reads more from how you explain something than from a quiz
+answer: `learn_explained` records the concepts you used correctly, the
+misconceptions (each a question node the teaching goes after) and the
+gaps (needed, never touched: "not sure" until a right answer).
+
 ## Roles
 
 ```

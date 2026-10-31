@@ -8,6 +8,7 @@ import (
   "armin/internal/agent"
   "armin/internal/ctags"
   "armin/internal/know"
+  "armin/internal/learner"
   "armin/internal/library"
   "armin/internal/llamacpp"
   "armin/internal/llm"
@@ -36,6 +37,7 @@ type Mind struct {
   Loop     *agent.Loop
   Know     *know.Graph // the project's knowledge tree; nil if it can't open
   knowOnce sync.Once
+  Learner  *learner.Learner // what the user knows; nil if it can't open
   Memories *notes.Memories
   Skills   *notes.Skills
   Scratch  *notes.Scratchpad
