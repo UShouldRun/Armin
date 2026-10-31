@@ -72,3 +72,20 @@ go build -o armin ./cmd/armin
 dependency checks above and, only when you say yes, installing what's
 missing — there's no hidden step you'd be skipping by not using it.
 
+
+## Trying a branch beside the installed armin
+
+```sh
+./install-test.sh            # builds this checkout as ~/.local/bin/armin-test
+armin-test .
+```
+
+`armin-test` keeps everything apart from the installed armin: its own
+config (`~/.config/armin-test`), sessions, memories, knowledge trees and
+metrics (`~/.local/share/armin-test`), and its own join socket, so it
+never joins or hosts the installed armin's sessions. The first run
+seeds its config from `config.conf.restructure` (or a copy of the
+installed config.conf), copies the API keys and links the skills; later
+runs only rebuild the binary. `--name` picks another name. It shares
+the configured llama-server ports, so with both running they use the
+same model server.

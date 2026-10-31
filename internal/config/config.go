@@ -14,6 +14,8 @@ import (
   "strconv"
   "strings"
   "time"
+
+  "armin/internal/build"
 )
 
 // Dir returns the armin config directory, honoring XDG_CONFIG_HOME —
@@ -32,7 +34,7 @@ func Dir() (string, error) {
     base = filepath.Join(home, ".config")
   }
 
-  return filepath.Join(base, "armin"), nil
+  return filepath.Join(base, build.Name), nil
 }
 
 // Path returns the config file location, honoring XDG_CONFIG_HOME.

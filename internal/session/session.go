@@ -30,6 +30,7 @@ import (
   "strings"
   "time"
 
+  "armin/internal/build"
   "armin/internal/llm"
 )
 
@@ -55,7 +56,7 @@ func DataDir() (string, error) {
     base = filepath.Join(home, ".local", "share")
   }
 
-  return filepath.Join(base, "armin"), nil
+  return filepath.Join(base, build.Name), nil
 }
 
 // Dir returns the session storage directory.

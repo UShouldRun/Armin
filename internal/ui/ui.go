@@ -23,6 +23,8 @@ import (
   "fmt"
   "os"
   "strings"
+
+  "armin/internal/build"
 )
 
 const (
@@ -90,7 +92,7 @@ func UserLine(text string) string {
 // root, active model — the orientation a "uv"-style tool gives you
 // up front instead of silence.
 func Banner(root, model, baseURL string) {
-  fmt.Println(Bold(Cyan("armin")) + Dim(" — terminal codebase assistant"))
+  fmt.Println(Bold(Cyan(build.Name)) + Dim(" — terminal codebase assistant"))
   fmt.Printf("  %s %s\n", Dim("root:"), root)
   fmt.Printf(
     "  %s %s %s\n", Dim("model:"), model, Dim("(" + baseURL + ")"),
