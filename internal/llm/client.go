@@ -259,6 +259,11 @@ func (c *Client) request(
     reqBody.Provider = &privateProvider
   }
 
+  // only OpenRouter: another hosted API may reject the field
+  if strings.Contains(c.BaseURL, "openrouter.ai") {
+    reqBody.Accounting = &owaiAccounting{ Include: true }
+  }
+
   if reqBody.Stream {
     reqBody.StreamOptions = &owaiStreamOptions{ IncludeUsage: true }
     // Only for llama-server (no API key): a hosted API may reject a

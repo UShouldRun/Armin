@@ -89,6 +89,8 @@ var benchPairs = []benchPair{
 // benchRun is what one session cost and whether it answered right.
 type benchRun struct {
   prompt, completion, rounds, tools int
+  cached                            int     // prompt tokens read from cache
+  cost                              float64 // dollars, as OpenRouter bills
   right                             bool
   answer                            string
   calls                             []string // each tool call, short
@@ -185,10 +187,12 @@ func TestTreeBench(t *testing.T) {
             name := fmt.Sprintf("%s/%s-%s-%d.md", dump, pair.name,
               []string{ "plain", "tree" }[cond], si + 1)
             os.WriteFile(name, []byte(fmt.Sprintf(
-              "%s\n\nright %v, %d prompt, %d completion, %d rounds, %d tools\n\n"+
+              "%s\n\nright %v, %d prompt (%d cached), %d completion, "+
+                "$%.5f, %d rounds, %d tools\n\n"+
                 "## answer\n%s\n\n## calls\n%s\n\n## tree after\n%s\n",
-              q, run.right, run.prompt, run.completion, run.rounds,
-              run.tools, run.answer, strings.Join(run.calls, "\n"), run.tree,
+              q, run.right, run.prompt, run.cached, run.completion, run.cost,
+              run.rounds, run.tools, run.answer, strings.Join(run.calls, "\n"),
+              run.tree,
             )), 0o644)
           }
         }
@@ -203,11 +207,16 @@ func TestTreeBench(t *testing.T) {
     for cond := 0; cond < 2; cond++ {
       for si := 0; si < 2; si++ {
         r := results[pi][cond][si]
-        t.Logf("%-13s %-7s s%d  right %-5v  in %7d  out %6d  rounds %2d  tools %2d",
+        t.Logf(
+          "%-13s %-7s s%d  right %-5v  in %7d (cached %7d)  out %6d  "+
+            "$%.5f  rounds %2d  tools %2d",
           pair.name, []string{ "no tree", "tree" }[cond], si + 1, r.right,
-          r.prompt, r.completion, r.rounds, r.tools)
+          r.prompt, r.cached, r.completion, r.cost, r.rounds, r.tools,
+        )
         tot := &total[cond][si]
         tot.prompt += r.prompt
+        tot.cached += r.cached
+        tot.cost += r.cost
         tot.completion += r.completion
         tot.rounds += r.rounds
         tot.tools += r.tools
@@ -225,10 +234,24 @@ func TestTreeBench(t *testing.T) {
       }
 
       tot := total[cond][si]
-      t.Logf("TOTAL %-7s session %d: %d/%d right, in %d, out %d, rounds %d, tools %d",
+      t.Logf(
+        "TOTAL %-7s session %d: %d/%d right, in %d (cached %d), out %d, "+
+          "$%.4f, rounds %d, tools %d",
         []string{ "no tree", "tree" }[cond], si + 1, right, len(benchPairs),
-        tot.prompt, tot.completion, tot.rounds, tot.tools)
+        tot.prompt, tot.cached, tot.completion, tot.cost, tot.rounds, tot.tools,
+      )
     }
+  }
+
+  // what the whole pair costs in dollars: the number H1 asks about
+  var pair [2]float64
+  for cond := 0; cond < 2; cond++ {
+    pair[cond] = total[cond][0].cost + total[cond][1].cost
+  }
+
+  if pair[0] > 0 {
+    t.Logf("PAIR COST no tree $%.4f, tree $%.4f, delta %+.1f%%",
+      pair[0], pair[1], 100 * (pair[1] - pair[0]) / pair[0])
   }
 }
 
@@ -260,6 +283,8 @@ func benchSession(
     Usage: func(u llm.Usage) {
       run.prompt += u.PromptTokens
       run.completion += u.CompletionTokens
+      run.cached += u.PromptDetails.CachedTokens
+      run.cost += u.Cost
       run.rounds++
     },
     ToolCall: func(name string, args map[string]any) {

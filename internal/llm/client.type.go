@@ -39,10 +39,21 @@ type Message struct {
   Usage Usage `json:"-"`
 }
 
-// Usage is the server's token accounting for one request.
+// Usage is the server's token accounting for one request. Cost (in
+// dollars) and the cached part of the prompt come from OpenRouter,
+// which reports them when asked (see owaiAccounting); a server that
+// doesn't leaves them zero.
 type Usage struct {
-  PromptTokens     int `json:"prompt_tokens"`
-  CompletionTokens int `json:"completion_tokens"`
+  PromptTokens     int          `json:"prompt_tokens"`
+  CompletionTokens int          `json:"completion_tokens"`
+  Cost             float64      `json:"cost"`
+  PromptDetails    PromptDetail `json:"prompt_tokens_details"`
+}
+
+// PromptDetail splits the prompt's tokens; CachedTokens were read
+// from the provider's prompt cache, at its cached price.
+type PromptDetail struct {
+  CachedTokens int `json:"cached_tokens"`
 }
 
 // ToolCall is a single tool invocation the model asked for. ID
@@ -320,11 +331,19 @@ type owaiChatRequest struct {
   // Provider is OpenRouter's routing preferences: Client.Private.
   Provider *owaiProvider `json:"provider,omitempty"`
 
+  // Accounting asks OpenRouter for each request's cost and cached
+  // tokens in its usage.
+  Accounting *owaiAccounting `json:"usage,omitempty"`
+
   // llama-server's: the chat template's own switches
   // (enable_thinking, reasoning_effort) and a hard cap on thinking
   // tokens, for models whose template has no effort levels.
   TemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
   ThinkBudget    *int           `json:"thinking_budget_tokens,omitempty"`
+}
+
+type owaiAccounting struct {
+  Include bool `json:"include"`
 }
 
 type owaiReasoning struct {

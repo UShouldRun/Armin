@@ -850,3 +850,43 @@ func TestMaxTokensSent(t *testing.T) {
     t.Fatalf("max_tokens = %v, want 8192", got["max_tokens"])
   }
 }
+
+// TestUsageReadsCostAndCache decodes OpenRouter's usage as it sends it
+// on the wire, and checks only OpenRouter is asked for accounting.
+func TestUsageReadsCostAndCache(t *testing.T) {
+  var asked bool
+  reply := func(w http.ResponseWriter, r *http.Request) {
+    var req map[string]any
+    json.NewDecoder(r.Body).Decode(&req)
+    _, asked = req["usage"]
+    io.WriteString(w, `data: {"choices":[{"delta":{"content":"hi"}}]}`+"\n\n")
+    io.WriteString(w, `data: {"choices":[],"usage":{"prompt_tokens":1000,`+
+      `"completion_tokens":50,"cost":0.0001234,`+
+      `"prompt_tokens_details":{"cached_tokens":800}}}`+"\n\n")
+    io.WriteString(w, "data: [DONE]\n\n")
+  }
+
+  server := serverReturning(t, "/v1/chat/completions", reply)
+  client := New(server.URL, "m")
+  streamed := StreamHandlers{ Token: func(string) {} }
+  msg, err := client.ChatStream(context.Background(), nil, nil, streamed)
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  u := msg.Usage
+  if u.PromptTokens != 1000 || u.PromptDetails.CachedTokens != 800 ||
+    u.Cost != 0.0001234 {
+    t.Fatalf("usage = %+v", u)
+  }
+
+  if asked {
+    t.Fatal("a server that isn't OpenRouter was asked for accounting")
+  }
+
+  client.BaseURL = "https://openrouter.ai/api/v1"
+  body := client.request(nil, nil, StreamHandlers{})
+  if body.Accounting == nil || !body.Accounting.Include {
+    t.Fatal("OpenRouter should be asked for accounting")
+  }
+}
