@@ -180,10 +180,19 @@ func (m *Mind) startModels(ctx context.Context, opts *input.Options) error {
     m.Models.KnownHostsFile = filepath.Join(data, "remote_known_hosts")
   }
 
-  client, err := m.chatClient(ctx, opts.Model)
+  // The chat model: a resumed session's, when it used another, so
+  // the default one isn't loaded for nothing (its load is background;
+  // dropping it saves the GPU the switch).
+  chat := opts.Model
+  r := opts.Resumed
+  if r != nil && r.Model != "" && m.Models.Has(r.Model) {
+    chat = r.Model
+  }
+
+  client, err := m.chatClient(ctx, chat)
   if err != nil {
     return fmt.Errorf(
-      "\n\t... in startModels:\n\t starting model %q: %w", opts.Model, err,
+      "\n\t... in startModels:\n\t starting model %q: %w", chat, err,
     )
   }
 
@@ -296,9 +305,9 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
     msg, err := refreshKnow(m.Sandbox.Root, m.Know)
     m.took("loop.know-refresh", t0)
     if err != nil {
-      ui.Warn("knowledge tree: %s", err)
+      m.notice("knowledge tree: " + err.Error())
     } else if msg != "" {
-      ui.Info("%s", msg)
+      m.notice(msg)
     }
   }
 
@@ -320,10 +329,23 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
     }
   }
 
-  // A resumed session continues on the model it used.
+  // A resumed session continues on the model it used: chat starts
+  // there, not on the default one (whose load a resume would waste),
+  // and the window and context size describe the model the header
+  // actually shows.
   r := opts.Resumed
-  other := r != nil && r.Model != "" && r.Model != client.Model
-  if other && m.Models.Has(r.Model) {
+  if r != nil && r.Model != "" && r.Model != client.Model && m.Models.Has(r.Model) {
+    loop.Window = nil
+    w := m.Models.Window(r.Model)
+    if w != nil {
+      loop.Window = w
+    }
+
+    loop.ContextSize = cfg.ContextSize
+    if loop.ContextSize == 0 {
+      loop.ContextSize = m.Models.ContextOf(r.Model)
+    }
+
     err := m.Models.SwitchChat(ctx, client, m.Follower(), r.Model)
     if err != nil {
       ui.Error("resuming with model %q: %s (staying on %q)",

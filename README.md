@@ -1,10 +1,17 @@
-# armin
+<p align="center"><img src="assets/banner.svg" alt="armin — wings of freedom mark" width="100%"></p>
 
+# armin
 A terminal coding assistant, backed by a llama.cpp model (local, on a
 remote box, or hosted) that reads, searches and edits your codebase,
 runs its build and tests, and grounds every answer in what's actually
 there — not generic training data. Named after the *Attack on Titan*
 strategist: the one who reads the terrain before anyone moves.
+
+The wings mark is the project's logo (assets/, in light and dark
+variants; the dark one is the default). The README banner above is the
+same mark the web UI's header draws, on a transparent background;
+the startup header draws the PNG inline where the terminal
+can show images, and the web UI's pages carry the mark as their icon.
 
 One sandboxed tool layer, four front ends:
 

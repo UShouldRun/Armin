@@ -59,6 +59,19 @@ never run gofmt or goimports on it.
   return fmt.Errorf("\n\t... in LoadConfig:\n\t reading %q: %w", path, err)
   ```
 - Guard clauses and early returns; keep the happy path unindented.
+- Braces are not optional, and single-line bodies are not a thing.
+  Even a one-line `return` or `continue` gets its own braced block,
+  broken across lines:
+
+  ```go
+  if err != nil {
+    return err
+  }
+  ```
+
+  Never `if err != nil { return err }` on one line, and never an
+  unbraced `if err != nil; return err` — Go allows it, this style
+  doesn't.
 - Never declare in an `if` header. The statement goes on its own line
   above the `if`, which only tests:
 

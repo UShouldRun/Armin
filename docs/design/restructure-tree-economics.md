@@ -37,6 +37,7 @@ Everything below is why, and what the next tries are.
 | 6 (f751386) | none: round 5 scored in dollars (H1) | +5.3% tok, **−0.4% $** | +25% $ | −19% $ |
 | 7 (d8cf528) | recall: armin searches, model only writes | +15% $ ‡ | +53% $ ‡ | −17% $ |
 | 8 (1491052) | H3: three sessions, recall on | **−17.7% $** | +9% $ | −29% $, s3 −35% $ |
+| 9 (5c05413) | consolidation between sessions, charged to tree | **+10.2% $** | +13% $ | −28% $, s3 −20% $ |
 
 Input tokens, 3 runs summed, tree vs no-tree. Accuracy held
 throughout (scattered 3–5/5, never systematically worse; the two
@@ -437,4 +438,73 @@ holds, with two qualifiers, the second found checking its reading:
   the tree couldn't cover. The question should move to the same area
   before the next round (e.g. "what is the session file's first line
   and what does it hold").
+
+## Round 9: consolidation between sessions (2026-10-31)
+
+The round 8 pointer: promote s1's auto-recorded pointers (a `file`
+node whose claim is a list of file:line refs) into model-written
+claims, off the turn on the minion (internal/agent/consolidate.go,
+`Consolidate`/`consolidateOne`, commits 5c05413 + 23c1adb). In the
+bench it runs between a pair's sessions with the bench's model as the
+minion, its cost charged to the tree (treebench_test.go:194-197,
+benchConsolidate, ARMIN_TREEBENCH_CONSOLIDATE set).
+
+| | no tree | tree | delta |
+|---|---|---|---|
+| s1 | $0.1141 | $0.1290 | +13% |
+| s2 | $0.1013 | $0.0726 | −28% |
+| s3 | $0.1040 | $0.0827 | −20% |
+| all three | $0.2855 | $0.3146 | **+10.2%** |
+
+Per run: +4.4%, −3.6%, +32.6%. Traces reports/treebench9/, logs
+reports/treebench9-run*.log. **Round 8 was −17.7%; consolidation made
+it worse.** Accuracy tree 45/45, no tree 43/45.
+
+Where the money went, per run (pair costs already carry the
+consolidation charge, $0.0065 ± 0.001/run, ~41 calls over three runs
+at ~$0.0005 each — the pass itself is not the problem):
+
+- **run 3 is the whole regression.** No runaway session this time
+  (largest tree turn $0.0164, in 118958, out 1758); instead the
+  plain side got lucky: its three cheapest sessions of the round are
+  all run 3 (golden-tools s1 $0.0040 in 22944, roles s3 $0.0110,
+  repeat-guard s2 $0.0065), while tree s1 ran hot everywhere
+  (staleness $0.0164, roles $0.0159, project-dirs $0.0159).
+  No-tree s1 totals: run 3 $0.0320 vs run 1 $0.0394, run 2 $0.0394.
+- **s1 got 13% more expensive** (matches round 8's +9% plus
+  consolidation's charge), and s3's −35% from round 8 fell to −20%.
+
+Did consolidation work mechanically? Yes, on its own terms: ~41
+pointers consolidated into 51 claims + 4 links across the three
+runs (13-14 calls each, 1-2 empty), the promoted claims cite ranges
+that were actually shown, and run 3's staleness s3 answered largely
+from the tree's new `fact` nodes (8 tools vs plain's 6 — but see the
+next section). But it did not move the two numbers that matter:
+**s3 tools tree 76 vs plain 78** (round 8: 76 vs 99), and s3 dollars.
+
+Two readings, and the data does not separate them yet:
+
+1. **Round 9 hit the "cheap plain s3" ceiling from round 8's second
+   qualifier.** The pairs where plain s3 is already cheap (golden-tools,
+   repeat-guard: $0.0022-0.0037 in every run) leave nothing to save;
+   in round 8 the saving lived in the pairs where plain s3 explored
+   (staleness 12-15 tools, roles 8-14), and in round 9 those same
+   pairs' plain sides got cheap too (staleness plain s3: 6, 6, 11;
+   roles: 8, 8, 9 vs round 8's 14, 8, 8). The variance is the confound.
+2. **Consolidation's claims arrived too late to help s3 in the pairs
+   that needed them** — the pass runs between s1 and s2 with at most 10
+   pointers per call and 3 claims per pointer, and the promoted claims
+   answer *s1's question and its follow-up* (consolidatePrompt:
+   "the follow-up most likely after it"), not s3's week-later question.
+
+What round 9 does settle: consolidation as built does not pay for
+itself in the bench, and the round 8 write-up's "refinements now"
+verdict holds for it. The next measurement should fix the round 9
+confound before judging the idea: same round again, but the
+*consolidation pass is what s3 sees* (claims written between s2 and
+s3, from s2's pointers too), and the project-dirs third question
+moved on-area as round 8 flagged. If s3 tools don't drop there either,
+the pass stays as hygiene (dedupe, at-refs) and the money moves to
+what round 8 actually showed paying: recall attach rate, which held
+at 10/15 turns and 5-10 used in round 9.
 

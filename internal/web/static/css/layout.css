@@ -18,25 +18,23 @@ body.noviewer section { display: none; }
 
 * { scrollbar-width: thin; scrollbar-color: var(--line2) transparent; }
 
-/* header: the project on the left, the controls grouped on the right */
+/* header: the project on the left, the controls grouped on the right.
+   The page's type size stops here: the header stays small. */
 header {
   grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
   padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--panel);
+  font-size: 13px;
 }
 
-header b {
-  font-size: 15px; letter-spacing: .02em; display: flex; align-items: center; gap: 7px;
+header .logo {
+  height: 37.8px; width: auto; display: block; flex: none;
+  margin: 2px 2px 2px -2px;
 }
 
-header b::before {
-  content: ""; width: 10px; height: 10px; border-radius: 3px;
-  background: var(--accent); transform: rotate(45deg);
-}
-
-header .root {
-  color: var(--dim); font: var(--small) var(--mono); flex: 1;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+/* the logo stands alone on the left; the model picker opens the
+   right-aligned group (the root path bar that used to flex the gap
+   lives in the tree's aside now) */
+header select { margin-left: auto; }
 
 header .credits { color: var(--dim); font-size: var(--small); white-space: nowrap; }
 header .credits.low { color: var(--delt); }
@@ -49,7 +47,7 @@ header .warning {
 header .warning:empty { display: none; }
 
 header select, header button, .bar button, .approve button {
-  font: inherit; font-size: 13px; padding: 4px 10px;
+  font: inherit; font-size: 13px; padding: 6px 18px;
   border: 1px solid var(--line2); border-radius: var(--r);
   background: var(--raised); color: var(--text); cursor: pointer;
   transition: background .12s, border-color .12s;
@@ -59,19 +57,16 @@ header select:hover, header button:hover, .bar button:hover, .approve button:hov
   border-color: var(--faint);
 }
 
-header select { max-width: 340px; }
-
-/* the context gauge */
-.meter {
-  width: 110px; height: 6px; background: var(--code); border-radius: 3px; overflow: hidden;
+/* the model picker: wide enough for its labels, the dropdown scrolls
+   when the list is long, and long labels ellipsize instead of
+   squeezing the box */
+header select {
+  max-width: min(560px, 70vw); min-width: 160px;
 }
+header select option { white-space: normal; }
 
-.meter > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
-
-#ctx {
-  color: var(--dim); font: var(--small) var(--mono); min-width: 150px;
-  font-variant-numeric: tabular-nums;
-}
+/* the context readout sits in the composer (form .ctx in chat.css);
+   the header's bar gauge is retired */
 
 aside, main, section {
   min-height: 0; overflow: hidden; display: flex; flex-direction: column;
@@ -79,6 +74,14 @@ aside, main, section {
 
 /* the file list */
 aside { border-right: 1px solid var(--line); background: var(--panel); }
+
+/* the root path bar above the filter: scrolls sideways when the
+   path outgrows the tree's width, instead of wrapping or clipping */
+aside .path {
+  margin: 10px 10px 0; padding: 4px 10px;
+  font: var(--small) var(--mono); color: var(--dim);
+  white-space: nowrap; overflow-x: auto; scrollbar-width: thin;
+}
 
 aside input {
   margin: 10px; padding: 6px 10px; font: inherit; font-size: 13px;
@@ -90,13 +93,27 @@ aside input {
 
 #files div {
   padding: 1px 8px; border-radius: 6px; cursor: pointer;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #files div .dir { color: var(--faint); }
 #files div:hover { background: var(--code); }
 #files div.on { background: var(--accent-soft); color: var(--accent); }
 #files div.on .dir { color: var(--accent); opacity: .7; }
+
+/* a directory header: twistie + name, its children indented under it */
+#files .dirhead {
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 6px; margin-top: 4px; border-radius: 6px;
+  cursor: pointer; color: var(--faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#files .dirhead:hover { background: var(--code); color: var(--text); }
+#files .dirhead.shut .twist  { opacity: .55; }
+#files .dirhead .twist      { flex: none; width: 1em; text-align: center; }
+#files .dirhead .dirname    { overflow: hidden; text-overflow: ellipsis; }
+#files .dirhead + div       { margin-left: 0; }
+#files div:not(.dirhead)[data-path] { padding-left: 12px; }
 
 section { border-left: 1px solid var(--line); background: var(--panel); }
 

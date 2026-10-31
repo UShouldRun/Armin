@@ -1,4 +1,7 @@
 /armin
+reports/
+research_notes/
+build/
 *.exe
 *.test
 *.out

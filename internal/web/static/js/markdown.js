@@ -23,6 +23,21 @@ function inline(s) {
     return "\u0000" + (codes.length - 1) + "\u0000";
   });
   s = esc(s);
+  // raw HTML images from the file itself (&lt;img&gt; after esc):
+  // unescape just the tag, and route repo paths through /api/raw
+  s = s.replace(/&lt;img([^&]*?)src=(&quot;|")([^"&]+)(&quot;|")([^&]*?)&gt;/g,
+    (_, pre, _q1, src, _q2, post) => {
+      const img = src.startsWith("http") ? src
+                : src.startsWith("/") ? src
+                : `/api/raw?path=${ encodeURIComponent(src) }`;
+      return `<img class = "md-img" src = "${ img }"${ pre }${ post }>`;
+    });
+  s = s.replace(/!\[([^\]]*)\]\(([^\s)]+)\)/g, (_, a, src) => {
+    const img = src.startsWith("http") ? esc(src)
+              : src.startsWith("/") ? esc(src)
+              : `/api/raw?path=${ encodeURIComponent(src) }`;
+    return `<img class = "md-img" src = "${ img }" alt = "${ esc(a) }" loading = "lazy">`;
+  });
   s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, t, u) => `<a href = "${ u }" target = "_blank" rel = "noopener">${ t }</a>`);
   s = s.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|[^*])\*([^*\s][^*]*)\*/g, "$1<i>$2</i>");
   s = s.replace(fileRef, (m, pre, path, line) => state.files.includes(path) || state.files.some((f) => f.endsWith("/" + path))

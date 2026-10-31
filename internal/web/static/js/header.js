@@ -5,7 +5,12 @@ import { $, esc, api } from "./api.js";
 
 export async function refreshInfo() {
   const info = await api("/api/info");
-  $("root").textContent = info.root;
+  // the tree's root path bar is the only place the root shows now:
+  // the header dropped its copy
+  document.querySelectorAll("[data-root]").forEach((el) => {
+    el.textContent = info.root;
+    el.title = "project root: " + info.root;
+  });
   const sel = $("model");
   const models = info.models || [ { name: info.model, model: info.label } ];
   const sugg   = (info.hosted && info.suggested) || [];
@@ -13,7 +18,7 @@ export async function refreshInfo() {
   if (sel.dataset.models !== key) {
     const option = (value, label) => `<option value = "${ esc(value) }">${ esc(label) }</option>`;
     const mine   = models.map((m) => {
-      let label = m.model && m.model !== m.name ? `${ m.name } — ${ m.model }` : m.name;
+      let label = m.model && m.model !== m.name ? `${ m.name }: ${ m.model }` : m.name;
       label += m.cost ? ` · ${ costLabel(m.cost) }` : m.model && m.model.includes("/") ? " · hosted" : " · local, free";
       return option(m.name, label);
     }).join("");
@@ -37,7 +42,7 @@ export async function refreshInfo() {
     credits.textContent = "";
   }
   $("warning").textContent = info.warning ? "⚠ " + info.warning : "";
-  showContext(info.tokens || info.approx, info.window, info.tier, !info.tokens);
+  showContext(info.tokens || info.approx, info.window, !info.tokens);
 }
 
 // costLabel is a hosted model's price per 1M tokens in / out, and a
@@ -48,17 +53,23 @@ const costLabel = (c) => !c.in && !c.out ? "free"
 // kTokens renders a token count compactly: 950, 8.4k, 96k.
 export const kTokens = (n) => n < 1000 ? String(n) : n < 10000 ? (n / 1000).toFixed(1) + "k" : Math.round(n / 1000) + "k";
 
-// showContext fills the header gauge: used / window, the share, and
-// the tier; yellow past half, red where compaction starts (75%).
-export function showContext(used, window, tier, estimate) {
+// showContext fills the composer's context readout — used / window
+// and the share — formatted like the REPL's prompt gauge, colored the
+// same way: dim normally, yellow past half, red where compaction
+// starts (75%).
+export function showContext(used, window, estimate) {
   const pct  = window ? Math.min(100, Math.round(used * 100 / window)) : 0;
   const mark = estimate ? "~" : "";
-  const bar  = $("meter");
+  const text = $("ctx");
 
-  bar.style.width      = pct + "%";
-  bar.style.background = pct >= 75 ? "var(--delt)" : pct >= 50 ? "#d4a017" : "var(--accent)";
+  text.classList.remove("hot", "full");
+  if (pct >= 75) {
+    text.classList.add("full");
+  } else if (pct >= 50) {
+    text.classList.add("hot");
+  }
 
-  $("ctx").textContent = window
-    ? `${ mark }${ kTokens(used) } / ${ kTokens(window) } · ${ pct }%${ tier ? " · " + tier : "" }`
+  text.textContent = window
+    ? `${ mark }${ kTokens(used) }/${ kTokens(window) } ${ pct }%`
     : `${ mark }${ kTokens(used) } tokens`;
 }

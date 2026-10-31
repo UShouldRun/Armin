@@ -7,6 +7,15 @@ import { markdown }                                                   from "./ma
 import { refreshInfo, kTokens, showContext }                          from "./header.js";
 import { loadFiles, changers, filesChanged, parseChange, showChange } from "./viewer.js";
 
+// Messages typed while a turn runs, sent when it ends — like the
+// REPL's composer queue.
+const queued = [];
+
+export function hold(text) {
+  queued.push(text);
+  add("notice", `queued: ${ esc(text) }`);
+}
+
 export function add(cls, html) {
   const log = $("log");
   log.querySelector(".empty")?.remove();
@@ -178,7 +187,7 @@ export async function send(text) {
       break;
 
     case "usage":
-      showContext(data.tokens, data.window, data.tier, false);
+      showContext(data.tokens, data.window, false);
       break;
     case "approve":
       setPhase("waiting for your approval", false);
@@ -243,6 +252,11 @@ export async function send(text) {
     $("send").disabled = false;
     refreshInfo();
     loadFiles();
+
+    const next = queued.shift();
+    if (next) {
+      send(next);
+    }
   }
 }
 

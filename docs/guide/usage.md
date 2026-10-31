@@ -13,10 +13,11 @@ mirroring how tools like `code .` or `vim .` take a path. Omit it
 entirely and `-root` defaults to `.` anyway.
 
 ```
-armin — terminal codebase assistant
-  root: /path/to/your/project
-  model: chat (http://localhost:8080)
-  type /help for commands, /quit to exit
+     ▄▄▄▀▀▀▀▀▀▀▄▄   armin — terminal codebase assistant
+   ▄▀▀▀        ▀▀
+  ▀▀             root: /path/to/your/project
+                  model: chat (http://localhost:8080)
+                  type /help for commands, /quit to exit
 
 ❯ what does this project do?
 ```

@@ -102,7 +102,7 @@ details.trace pre { margin: 4px 0; color: var(--dim); white-space: pre-wrap; }
 
 /* the composer */
 form {
-  display: flex; gap: 8px; align-items: flex-end; padding: 12px 20px 16px;
+  display: flex; gap: 8px; align-items: center; padding: 12px 20px 16px;
   border-top: 1px solid var(--line); background: var(--panel);
 }
 
@@ -110,7 +110,7 @@ form > * { max-width: var(--column); }
 form::before, form::after { content: ""; flex: 1; max-width: none; }
 
 textarea {
-  flex: 1 1 var(--column); resize: none; height: 68px; padding: 10px 12px;
+  flex: 1 1 var(--column); resize: none; height: 54px; padding: 12px 14px;
   font: inherit; line-height: 1.5;
   border: 1px solid var(--line2); border-radius: var(--r-lg);
   background: var(--raised); color: var(--text);
@@ -123,9 +123,52 @@ textarea:focus {
 }
 
 form button {
-  height: 40px; padding: 0 18px; border: 0; border-radius: var(--r-lg);
+  height: 54px; padding: 0 22px; border: 0; border-radius: var(--r-lg);
   background: var(--accent); color: var(--accent-text);
   font: inherit; font-weight: 600; cursor: pointer;
 }
 
 form button:disabled { opacity: .45; cursor: default; }
+
+/* the context gauge: tokens used of the model's window, like the REPL
+   prompt's; yellow past half, red where compaction starts (75%). */
+form .ctx {
+  flex: none; min-width: 96px; text-align: right;
+  color: var(--dim); font: var(--small) var(--mono);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+form .ctx.hot { color: #d4a017; }
+form .ctx.full { color: var(--delt); }
+/* the ⋯→↑ dropup right of Send: header-style buttons stacked in a menu
+   that opens upward, centered on its arrow button */
+.dropup {
+  position: relative; flex: none; align-self: center;
+}
+
+.dropup > button {
+  width: 40px; padding: 0;
+  font-weight: 600; text-align: center; line-height: 1;
+  border: 1px solid var(--line2); background: var(--raised); color: var(--text);
+}
+
+.dropup .menu {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(100% + 6px);
+  display: none; flex-direction: column; gap: 2px;
+  padding: 6px; border-radius: var(--r-lg);
+  border: 1px solid var(--line); background: var(--panel);
+  box-shadow: 0 6px 24px rgb(0 0 0 / .25);
+  z-index: 5;
+}
+
+.dropup.open .menu { display: flex; }
+
+.dropup .menu button {
+  display: block; width: 100%; box-sizing: border-box;
+  padding: 6px 18px; border: 0; border-radius: var(--r);
+  font: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer; text-align: center;
+  background: transparent; color: var(--text);
+}
+
+.dropup .menu button:hover { background: var(--hl); color: var(--text); }

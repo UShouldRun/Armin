@@ -75,18 +75,22 @@ func Run(
     mind.PrintStartup(os.Stderr)
   }
 
-  // background work's messages: the REPL takes them over (runREPL);
-  // until then, and in the other modes, they go to stderr
-  go printNotices(mind)
-
+  // background work's messages: the REPL takes them over (runREPL
+  // starts its drain once it exists, so startup notices land under
+  // the banner, not on stderr above it); the other modes print
+  // them to stderr
   switch opts.Mode {
   case input.ModeMCP:
+    go printNotices(mind)
     return mcpserver.Serve(ctx, mind.Sandbox, mind.WebSearch, mind.Symbols)
   case input.ModeLSP:
+    go printNotices(mind)
     return runLSP(ctx, opts, mind)
   case input.ModeWeb:
+    go printNotices(mind)
     return runWeb(ctx, opts, mind)
   case input.ModeLibrary:
+    go printNotices(mind)
     return runLibrary(ctx, opts, mind)
   }
 
@@ -127,7 +131,11 @@ func runREPL(
   )
 
   r.Completion, r.Follower = mind.Completion, mind.Follower()
+  // stored before the drain starts, and before Run prints the
+  // banner: startup notices (the knowledge tree summary) then
+  // surface at the first prompt, under the header
   notices.Store(r)
+  go printNotices(mind)
   mind.Loop.Session = r.Meta.ID // who writes to the knowledge tree
   r.STT, r.STTRecord = opts.Config.STT, opts.Config.STTRecord
   r.RoleModels = map[agent.Role]string{

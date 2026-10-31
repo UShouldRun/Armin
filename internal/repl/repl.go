@@ -2,44 +2,44 @@
 // commands or a turn of the agent loop, and draws the turn as it
 // streams. It's what plain `armin` shows (display.runREPL starts it).
 //
-//   repl.go       New, Run: the read loop, the prompt line, follow-up
-//                 suggestions, autosave and session titles
-//   turn.go       one turn: planning, hooks, approvals
-//   turnview.go   how a turn looks while it runs
-//   proposal.go   a write or a run shown in full before it happens
-//   viewer.go     the full diff in another terminal window
-//   commands.go   the slash-command table, dispatch, help, toggles
-//   sessions.go   /sessions, /resume, /title, /save, /history, /clear
-//   notes.go      /memory, /remember, /skills, /skill, /scratch
-//   models.go     /model and the OpenRouter picker
-//   effort.go     /effort and the per-turn effort
-//   library.go    /library
-//   tips.go       the rotating tips under the spinner
-//   host.go       this REPL as the project's instance, serving others
-//   attach.go     a terminal joined to another instance's chat
+//	repl.go       New, Run: the read loop, the prompt line, follow-up
+//	              suggestions, autosave and session titles
+//	turn.go       one turn: planning, hooks, approvals
+//	turnview.go   how a turn looks while it runs
+//	proposal.go   a write or a run shown in full before it happens
+//	viewer.go     the full diff in another terminal window
+//	commands.go   the slash-command table, dispatch, help, toggles
+//	sessions.go   /sessions, /resume, /title, /save, /history, /clear
+//	notes.go      /memory, /remember, /skills, /skill, /scratch
+//	models.go     /model and the OpenRouter picker
+//	effort.go     /effort and the per-turn effort
+//	library.go    /library
+//	tips.go       the rotating tips under the spinner
+//	host.go       this REPL as the project's instance, serving others
+//	attach.go     a terminal joined to another instance's chat
 package repl
 
 import (
-  "bufio"
-  "context"
-  "errors"
-  "fmt"
-  "io"
-  "os"
-  "path/filepath"
-  "strconv"
-  "strings"
-  "time"
+	"bufio"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 
-  "armin/internal/agent"
-  "armin/internal/convo"
-  "armin/internal/llamacpp"
-  "armin/internal/llm"
-  "armin/internal/metrics"
-  "armin/internal/sandbox"
-  "armin/internal/session"
-  "armin/internal/tools"
-  "armin/internal/ui"
+	"armin/internal/agent"
+	"armin/internal/convo"
+	"armin/internal/llamacpp"
+	"armin/internal/llm"
+	"armin/internal/metrics"
+	"armin/internal/sandbox"
+	"armin/internal/session"
+	"armin/internal/tools"
+	"armin/internal/ui"
 )
 
 // compactKeepLast is how many recent messages /compact leaves
@@ -51,14 +51,14 @@ const compactKeepLast = 6
 const suggestTimeout = 20 * time.Second
 
 const (
-  flagAutosave flags = 1 << iota
-  flagQuit
-  flagSuggest
-  flagGhostText
-  flagAutoApprove
-  flagHideThinking
-  flagAll = flagAutosave | flagQuit | flagSuggest | flagGhostText |
-    flagAutoApprove | flagHideThinking
+	flagAutosave flags = 1 << iota
+	flagQuit
+	flagSuggest
+	flagGhostText
+	flagAutoApprove
+	flagHideThinking
+	flagAll = flagAutosave | flagQuit | flagSuggest | flagGhostText |
+		flagAutoApprove | flagHideThinking
 )
 
 // New builds a REPL. If resumed is non-nil, its history is used
@@ -66,54 +66,54 @@ const (
 // it); otherwise a fresh system prompt + auto-context message seeds
 // History.
 func New(
-  loop *agent.Loop, client *llm.Client, sb *sandbox.Config,
-  systemPrompt string, resumed *session.Saved, autosave bool,
-  models *llamacpp.Manager,
+	loop *agent.Loop, client *llm.Client, sb *sandbox.Config,
+	systemPrompt string, resumed *session.Saved, autosave bool,
+	models *llamacpp.Manager,
 ) *REPL {
-  r := &REPL{
-    Loop:    loop,
-    LLM:     client,
-    Models:  models,
-    Sandbox: sb,
-    Root:    sb.Root,
-    reader:  bufio.NewReader(os.Stdin),
-    system:  systemPrompt,
-    inbox:   make(chan func(), 16),
-    wake:    make(chan struct{}, 1),
-  }
+	r := &REPL{
+		Loop:    loop,
+		LLM:     client,
+		Models:  models,
+		Sandbox: sb,
+		Root:    sb.Root,
+		reader:  bufio.NewReader(os.Stdin),
+		system:  systemPrompt,
+		inbox:   make(chan func(), 16),
+		wake:    make(chan struct{}, 1),
+	}
 
-  name := client.Model
-  r.current.Store(&name)
-  r.completing.Store(&name)
+	name := client.Model
+	r.current.Store(&name)
+	r.completing.Store(&name)
 
-  if autosave {
-    r.state |= flagAutosave
-  }
+	if autosave {
+		r.state |= flagAutosave
+	}
 
-  if resumed != nil {
-    r.History = resumed.History
-    r.Meta = resumed.Meta
-    r.Meta.Model = client.Model
-    r.resumedAt = &resumed.UpdatedAt
-    r.persisted = len(resumed.History) // already on disk
-    // Today's prompt (memories, skills may have changed) replaces
-    // the saved one, and old turns are trimmed like live ones.
-    if len(r.History) > 0 && r.History[0].Role == "system" {
-      r.History[0].Content = systemPrompt
-      r.persisted = 0
-    }
+	if resumed != nil {
+		r.History = resumed.History
+		r.Meta = resumed.Meta
+		r.Meta.Model = client.Model
+		r.resumedAt = &resumed.UpdatedAt
+		r.persisted = len(resumed.History) // already on disk
+		// Today's prompt (memories, skills may have changed) replaces
+		// the saved one, and old turns are trimmed like live ones.
+		if len(r.History) > 0 && r.History[0].Role == "system" {
+			r.History[0].Content = systemPrompt
+			r.persisted = 0
+		}
 
-    loop.ElideOld(r.History)
-    agent.SetModelLine(r.History, client.Model, models.Label(client.Model))
+		loop.ElideOld(r.History)
+		agent.SetModelLine(r.History, client.Model, models.Label(client.Model))
 
-    return r
-  }
+		return r
+	}
 
-  r.History = []llm.Message{ { Role: "system", Content: systemPrompt } }
-  agent.SetModelLine(r.History, client.Model, models.Label(client.Model))
-  r.Meta = session.Meta{ ID: session.NewID(), Root: sb.Root, Model: client.Model }
+	r.History = []llm.Message{{Role: "system", Content: systemPrompt}}
+	agent.SetModelLine(r.History, client.Model, models.Label(client.Model))
+	r.Meta = session.Meta{ID: session.NewID(), Root: sb.Root, Model: client.Model}
 
-  return r
+	return r
 }
 
 // LoadAutoContext silently orients the model with a directory
@@ -123,14 +123,14 @@ func New(
 // tools.ProjectManifest) rather than duplicating it — this is just
 // that same note, loaded once automatically at session start.
 func (r *REPL) LoadAutoContext(ctx context.Context) {
-  out, err := tools.ProjectManifest(ctx, r.Sandbox, tools.ProjectManifestInput{})
-  if err != nil || out.Note == "" {
-    return
-  }
+	out, err := tools.ProjectManifest(ctx, r.Sandbox, tools.ProjectManifestInput{})
+	if err != nil || out.Note == "" {
+		return
+	}
 
-  // Merged into the system prompt, not a second system message:
-  // Qwen-style templates reject a system message after the first.
-  r.History[0].Content += "\n\n" + out.Note
+	// Merged into the system prompt, not a second system message:
+	// Qwen-style templates reject a system message after the first.
+	r.History[0].Content += "\n\n" + out.Note
 }
 
 // prompt is the input prompt with a context gauge in front: tokens
@@ -138,187 +138,187 @@ func (r *REPL) LoadAutoContext(ctx context.Context) {
 // server's count from the last request is exact; before the first
 // one it's the rough estimate, marked "~".
 func (r *REPL) prompt() string {
-  used, mark := r.lastTokens, ""
-  if used == 0 {
-    used, mark = r.Loop.Estimate(r.History), "~"
-  }
+	used, mark := r.lastTokens, ""
+	if used == 0 {
+		used, mark = r.Loop.Estimate(r.History), "~"
+	}
 
-  window := r.Loop.WindowSize()
-  if window <= 0 {
-    return ui.Dim(mark + kTokens(used) + " ") + ui.Prompt()
-  }
+	window := r.Loop.WindowSize()
+	if window <= 0 {
+		return ui.Dim(mark+kTokens(used)+" ") + ui.Prompt()
+	}
 
-  pct := used * 100 / window
-  gauge := fmt.Sprintf("%s%s/%s %d%%", mark, kTokens(used), kTokens(window), pct)
-  if r.Loop.Tier() == "streaming" {
-    gauge += " streaming"
-  }
+	pct := used * 100 / window
+	gauge := fmt.Sprintf("%s%s/%s %d%%", mark, kTokens(used), kTokens(window), pct)
+	if r.Loop.Tier() == "streaming" {
+		gauge += " streaming"
+	}
 
-  switch {
-  case pct >= agent.DefaultCompactAt:
-    gauge = ui.Red(gauge)
-  case pct >= 50:
-    gauge = ui.Yellow(gauge)
-  default:
-    gauge = ui.Dim(gauge)
-  }
+	switch {
+	case pct >= agent.DefaultCompactAt:
+		gauge = ui.Red(gauge)
+	case pct >= 50:
+		gauge = ui.Yellow(gauge)
+	default:
+		gauge = ui.Dim(gauge)
+	}
 
-  return gauge + " " + ui.Prompt()
+	return gauge + " " + ui.Prompt()
 }
 
 // kTokens renders a token count compactly: 950, 8.4k, 96k.
 func kTokens(n int) string {
-  switch {
-  case n < 1000:
-    return fmt.Sprint(n)
-  case n < 10000:
-    return fmt.Sprintf("%.1fk", float64(n) / 1000)
-  }
+	switch {
+	case n < 1000:
+		return fmt.Sprint(n)
+	case n < 10000:
+		return fmt.Sprintf("%.1fk", float64(n)/1000)
+	}
 
-  return fmt.Sprintf("%dk", n / 1000)
+	return fmt.Sprintf("%dk", n/1000)
 }
 
 // modelName is "alias — what serves it", or just the alias.
 func (r *REPL) modelName() string {
-  label := r.Models.Label(r.LLM.Model)
-  if label == "" || label == r.LLM.Model {
-    return r.LLM.Model
-  }
+	label := r.Models.Label(r.LLM.Model)
+	if label == "" || label == r.LLM.Model {
+		return r.LLM.Model
+	}
 
-  return r.LLM.Model + " — " + label
+	return r.LLM.Model + " — " + label
 }
 
 // SetAutoApprove skips the approval prompt for file writes.
 func (r *REPL) SetAutoApprove(on bool) {
-  if on {
-    r.state |= flagAutoApprove
-  } else {
-    r.state &^= flagAutoApprove
-  }
+	if on {
+		r.state |= flagAutoApprove
+	} else {
+		r.state &^= flagAutoApprove
+	}
 }
 
 // Interrupt cancels the turn in flight and reports whether there
 // was one — so Ctrl-C stops the model, not armin.
 func (r *REPL) Interrupt() bool {
-  r.turnMu.Lock()
-  defer r.turnMu.Unlock()
-  if r.cancelTurn == nil {
-    return false
-  }
+	r.turnMu.Lock()
+	defer r.turnMu.Unlock()
+	if r.cancelTurn == nil {
+		return false
+	}
 
-  r.cancelTurn()
-  r.cancelTurn = nil
+	r.cancelTurn()
+	r.cancelTurn = nil
 
-  return true
+	return true
 }
 
 // Run drives the interactive loop until /quit, EOF, or an input
 // error.
 func (r *REPL) Run(ctx context.Context) error {
-  r.runCtx = ctx
-  r.pump = ui.NewKeyPump(r.reader)
-  r.snapshot()
+	r.runCtx = ctx
+	r.pump = ui.NewKeyPump(r.reader)
+	r.snapshot()
 
-  ui.Banner(r.Root, r.modelName(), r.LLM.BaseURL)
-  if r.hub != nil {
-    ui.Instance(r.LLM.Model, r.hub.Instance, "— nvim's :ArminLsp and other " +
-      "armins here join it")
-  }
+	ui.Banner(r.Root, r.modelName(), r.LLM.BaseURL)
+	if r.hub != nil {
+		ui.Instance(r.LLM.Model, r.hub.Instance, "— nvim's :ArminLsp and other "+
+			"armins here join it")
+	}
 
-  w := r.Loop.Window
-  if w != nil {
-    ui.Info(
-      "  context: %dk in VRAM, grows to %dk with KV streaming when a task " +
-        "needs it",
-      w.Resident() / 1000, w.Max() / 1000,
-    )
-  }
+	w := r.Loop.Window
+	if w != nil {
+		ui.Info(
+			"  context: %dk in VRAM, grows to %dk with KV streaming when a task "+
+				"needs it",
+			w.Resident()/1000, w.Max()/1000,
+		)
+	}
 
-  switch {
-  case r.resumedAt != nil:
-    ui.Info(
-      "  session: %s (%s), last saved %s",
-      titleOr(r.Meta.Title), ShortID(r.Meta.ID), r.resumedAt.Format("Jan 2 " +
-        "15:04"),
-    )
-  default:
-    ui.Info("  session: new (%s)", ShortID(r.Meta.ID))
-  }
+	switch {
+	case r.resumedAt != nil:
+		ui.Info(
+			"  session: %s (%s), last saved %s",
+			ui.Bold(titleOr(r.Meta.Title)), ShortID(r.Meta.ID), r.resumedAt.Format("Jan 2 "+
+				"15:04"),
+		)
+	default:
+		ui.Info("  session: new (%s)", ShortID(r.Meta.ID))
+	}
 
-  partial := ""
-  for r.state & flagQuit == 0 {
-    r.runInbox()
+	partial := ""
+	for r.state&flagQuit == 0 {
+		r.runInbox()
 
-    // What was typed during the last turn and never sent.
-    if r.draft != "" {
-      partial, r.draft = r.draft, ""
-    }
+		// What was typed during the last turn and never sent.
+		if r.draft != "" {
+			partial, r.draft = r.draft, ""
+		}
 
-    input, err := ui.ReadLineWake(
-      ctx, r.pump, "\n" + r.prompt(), partial, r.wake, r.suggestFunc(),
-    )
-    partial = ""
-    if errors.Is(err, ui.ErrWoken) {
-      partial = input
-      continue // runInbox shows what woke it, then the line comes back
-    }
+		input, err := ui.ReadLineWake(
+			ctx, r.pump, "\n"+r.prompt(), partial, r.wake, r.suggestFunc(),
+		)
+		partial = ""
+		if errors.Is(err, ui.ErrWoken) {
+			partial = input
+			continue // runInbox shows what woke it, then the line comes back
+		}
 
-    if errors.Is(err, ui.ErrInterrupted) {
-      fmt.Println()
-      continue // Ctrl-C on a partial line: fresh prompt, don't quit
-    }
+		if errors.Is(err, ui.ErrInterrupted) {
+			fmt.Println()
+			continue // Ctrl-C on a partial line: fresh prompt, don't quit
+		}
 
-    if errors.Is(err, io.EOF) {
-      break
-    }
+		if errors.Is(err, io.EOF) {
+			break
+		}
 
-    if err != nil {
-      return fmt.Errorf("\n\t... in Run:\n\t input error: %w", err)
-    }
+		if err != nil {
+			return fmt.Errorf("\n\t... in Run:\n\t input error: %w", err)
+		}
 
-    input = strings.TrimSpace(input)
-    if input == "" {
-      continue
-    }
+		input = strings.TrimSpace(input)
+		if input == "" {
+			continue
+		}
 
-    picked, ok := r.pickSuggestion(input)
-    if ok {
-      input = picked
-    } else {
-      r.lastSuggestions = nil
-    }
+		picked, ok := r.pickSuggestion(input)
+		if ok {
+			input = picked
+		} else {
+			r.lastSuggestions = nil
+		}
 
-    if strings.HasPrefix(input, "/") {
-      r.dispatch(ctx, input)
-      continue
-    }
+		if strings.HasPrefix(input, "/") {
+			r.dispatch(ctx, input)
+			continue
+		}
 
-    cmd, ok := slashless(input)
-    if ok {
-      ui.Info("treating that as %s (commands start with /)", cmd)
-      r.dispatch(ctx, cmd)
-      continue
-    }
+		cmd, ok := slashless(input)
+		if ok {
+			ui.Info("treating that as %s (commands start with /)", cmd)
+			r.dispatch(ctx, cmd)
+			continue
+		}
 
-    err = r.turn(ctx, input)
-    if err != nil {
-      if errors.Is(err, llm.ErrToolsUnsupported) {
-        ui.Error(
-          "%q doesn't support tool calling, so it can't drive"+
-            " armin's tools. Switch to one that does with"+
-            " /model <name> (/model with no name lists what's"+
-            " configured).", r.LLM.Model,
-        )
-      } else {
-        ui.Err(err)
-      }
-    }
+		err = r.turn(ctx, input)
+		if err != nil {
+			if errors.Is(err, llm.ErrToolsUnsupported) {
+				ui.Error(
+					"%q doesn't support tool calling, so it can't drive"+
+						" armin's tools. Switch to one that does with"+
+						" /model <name> (/model with no name lists what's"+
+						" configured).", r.LLM.Model,
+				)
+			} else {
+				ui.Err(err)
+			}
+		}
 
-    r.maybeTitle(ctx)
-    r.maybeAutosave()
-  }
+		r.maybeTitle(ctx)
+		r.maybeAutosave()
+	}
 
-  return nil
+	return nil
 }
 
 // suggestFunc returns the ghost-text callback ReadLineWithGhostText
@@ -326,49 +326,49 @@ func (r *REPL) Run(ctx context.Context) error {
 // ReadLineWithGhostText to skip raw mode entirely and fall back to
 // a plain read, so turning this off costs nothing.
 func (r *REPL) suggestFunc() ui.SuggestFunc {
-  if r.state & flagGhostText == 0 {
-    return nil
-  }
+	if r.state&flagGhostText == 0 {
+		return nil
+	}
 
-  return r.suggestContinuation
+	return r.suggestContinuation
 }
 
 // pickSuggestion checks whether input is a bare number selecting
 // one of the follow-ups shown after the last answer.
 func (r *REPL) pickSuggestion(input string) (string, bool) {
-  if len(r.lastSuggestions) == 0 {
-    return "", false
-  }
+	if len(r.lastSuggestions) == 0 {
+		return "", false
+	}
 
-  n, err := strconv.Atoi(input)
-  if err != nil || n < 1 || n > len(r.lastSuggestions) {
-    return "", false
-  }
+	n, err := strconv.Atoi(input)
+	if err != nil || n < 1 || n > len(r.lastSuggestions) {
+		return "", false
+	}
 
-  return r.lastSuggestions[n - 1], true
+	return r.lastSuggestions[n-1], true
 }
 
 // maybeShowSuggestions prints 2-3 numbered follow-up questions after
 // an answer, if /suggest is on — pick one next by typing its number
 // instead of writing out the question.
 func (r *REPL) maybeShowSuggestions(ctx context.Context) {
-  if r.state & flagSuggest == 0 {
-    return
-  }
+	if r.state&flagSuggest == 0 {
+		return
+	}
 
-  suggestCtx, cancel := context.WithTimeout(ctx, suggestTimeout)
-  defer cancel()
+	suggestCtx, cancel := context.WithTimeout(ctx, suggestTimeout)
+	defer cancel()
 
-  suggestions, err := convo.Suggest(suggestCtx, r.LLM, r.History)
-  if err != nil || len(suggestions) == 0 {
-    return // a nice-to-have; fail silently rather than interrupt
-  }
+	suggestions, err := convo.Suggest(suggestCtx, r.LLM, r.History)
+	if err != nil || len(suggestions) == 0 {
+		return // a nice-to-have; fail silently rather than interrupt
+	}
 
-  r.lastSuggestions = suggestions
-  fmt.Println()
-  for i, s := range suggestions {
-    fmt.Println(ui.Dim(fmt.Sprintf("  [%d] %s", i + 1, s)))
-  }
+	r.lastSuggestions = suggestions
+	fmt.Println()
+	for i, s := range suggestions {
+		fmt.Println(ui.Dim(fmt.Sprintf("  [%d] %s", i+1, s)))
+	}
 }
 
 // suggestContinuation implements ui.SuggestFunc for the REPL's
@@ -376,20 +376,20 @@ func (r *REPL) maybeShowSuggestions(ctx context.Context) {
 // llm.Client.Complete) continuing the partial message, not a chat
 // reply to it.
 func (r *REPL) suggestContinuation(ctx context.Context, partial string) string {
-  if strings.TrimSpace(partial) == "" {
-    return ""
-  }
+	if strings.TrimSpace(partial) == "" {
+		return ""
+	}
 
-  out, err := r.completer().Complete(ctx, partial, "", llm.CompleteOptions{
-    Temperature: 0.3,
-    NumPredict:  24,
-    Stop:        []string{ "\n" },
-  })
-  if err != nil {
-    return ""
-  }
+	out, err := r.completer().Complete(ctx, partial, "", llm.CompleteOptions{
+		Temperature: 0.3,
+		NumPredict:  24,
+		Stop:        []string{"\n"},
+	})
+	if err != nil {
+		return ""
+	}
 
-  return strings.TrimRight(out, " \t")
+	return strings.TrimRight(out, " \t")
 }
 
 // maybeAutosave appends only the messages added since the last save
@@ -397,46 +397,46 @@ func (r *REPL) suggestContinuation(ctx context.Context, partial string) string {
 // stays O(1) amortized instead of re-writing the whole, ever-growing
 // history each time.
 func (r *REPL) maybeAutosave() {
-  // the turn's metrics too, so -metrics shows a session still running
-  // (a merge into the cumulative file; nothing is counted twice)
-  err := metrics.Flush()
-  if err != nil {
-    ui.Error("failed to save metrics: %s", err)
-  }
+	// the turn's metrics too, so -metrics shows a session still running
+	// (a merge into the cumulative file; nothing is counted twice)
+	err := metrics.Flush()
+	if err != nil {
+		ui.Error("failed to save metrics: %s", err)
+	}
 
-  if r.state & flagAutosave == 0 {
-    return
-  }
+	if r.state&flagAutosave == 0 {
+		return
+	}
 
-  r.Meta.Model = r.LLM.Model
-  err = session.Append(&r.Meta, r.History, &r.persisted)
-  if err != nil {
-    ui.Error("failed to save session: %s", err)
-  }
+	r.Meta.Model = r.LLM.Model
+	err = session.Append(&r.Meta, r.History, &r.persisted)
+	if err != nil {
+		ui.Error("failed to save session: %s", err)
+	}
 }
 
 // SaveNow writes the whole session (the exit flush), unless saving
 // is off or nothing was ever said.
 func (r *REPL) SaveNow() error {
-  if r.state & flagAutosave == 0 || !r.hasTurns() {
-    return nil
-  }
+	if r.state&flagAutosave == 0 || !r.hasTurns() {
+		return nil
+	}
 
-  r.Meta.Model = r.LLM.Model
+	r.Meta.Model = r.LLM.Model
 
-  return session.Save(&r.Meta, r.History)
+	return session.Save(&r.Meta, r.History)
 }
 
 // hasTurns reports whether the user said anything yet: an empty
 // session isn't worth a file.
 func (r *REPL) hasTurns() bool {
-  for _, m := range r.History {
-    if m.Role == "user" {
-      return true
-    }
-  }
+	for _, m := range r.History {
+		if m.Role == "user" {
+			return true
+		}
+	}
 
-  return false
+	return false
 }
 
 // titleTimeout bounds naming the session.
@@ -445,27 +445,27 @@ const titleTimeout = 30 * time.Second
 // maybeTitle has the model name the session after its first turn,
 // once; the name is what the resume menu shows.
 func (r *REPL) maybeTitle(ctx context.Context) {
-  if r.Meta.Title != "" || r.state & flagAutosave == 0 || !r.hasTurns() {
-    return
-  }
+	if r.Meta.Title != "" || r.state&flagAutosave == 0 || !r.hasTurns() {
+		return
+	}
 
-  ctx, cancel := context.WithTimeout(ctx, titleTimeout)
-  defer cancel()
+	ctx, cancel := context.WithTimeout(ctx, titleTimeout)
+	defer cancel()
 
-  spinner := ui.NewSpinner("naming this session")
-  r.Meta.Title = convo.Title(ctx, r.Loop.ChoreClient(ctx), r.History)
-  spinner.Stop()
+	spinner := ui.NewSpinner("naming this session")
+	r.Meta.Title = convo.Title(ctx, r.Loop.ChoreClient(ctx), r.History)
+	spinner.Stop()
 
-  r.persisted = 0 // the title lives in the first line: rewrite once
-  ui.Info("session: %s (%s)", r.Meta.Title, ShortID(r.Meta.ID))
+	r.persisted = 0 // the title lives in the first line: rewrite once
+	ui.Info("session: %s (%s)", r.Meta.Title, ShortID(r.Meta.ID))
 }
 
 func titleOr(t string) string {
-  if t == "" {
-    return "untitled"
-  }
+	if t == "" {
+		return "untitled"
+	}
 
-  return t
+	return t
 }
 
 // BindScratch points the scratchpad at this session's own folder,
@@ -474,50 +474,50 @@ func titleOr(t string) string {
 // carry across sessions. A session from before ids existed keeps the
 // project-wide folder it already used.
 func (r *REPL) BindScratch() {
-  if r.Loop.Scratch == nil || r.ScratchBase == "" {
-    return
-  }
+	if r.Loop.Scratch == nil || r.ScratchBase == "" {
+		return
+	}
 
-  r.Loop.Scratch.Dir = r.ScratchBase
-  if isUUID(r.Meta.ID) {
-    r.Loop.Scratch.Dir = filepath.Join(r.ScratchBase, r.Meta.ID)
-  }
+	r.Loop.Scratch.Dir = r.ScratchBase
+	if isUUID(r.Meta.ID) {
+		r.Loop.Scratch.Dir = filepath.Join(r.ScratchBase, r.Meta.ID)
+	}
 }
 
 func isUUID(id string) bool {
-  return len(id) == 36 && strings.Count(id, "-") == 4
+	return len(id) == 36 && strings.Count(id, "-") == 4
 }
 
 // ShortID is the first block of a UUID: enough to resume by.
 func ShortID(id string) string {
-  i := strings.IndexByte(id, '-')
-  if i > 0 {
-    return id[:i]
-  }
+	i := strings.IndexByte(id, '-')
+	if i > 0 {
+		return id[:i]
+	}
 
-  return id
+	return id
 }
 
 // slashless recognizes "add-dir <dir>" typed without the slash, but
 // only when <dir> exists: anything else is a message for the model.
 func slashless(input string) (string, bool) {
-  dir, ok := strings.CutPrefix(input, "add-dir ")
-  if !ok {
-    return "", false
-  }
+	dir, ok := strings.CutPrefix(input, "add-dir ")
+	if !ok {
+		return "", false
+	}
 
-  dir = strings.TrimSpace(dir)
-  if strings.HasPrefix(dir, "~/") {
-    home, err := os.UserHomeDir()
-    if err == nil {
-      dir = filepath.Join(home, dir[2:])
-    }
-  }
+	dir = strings.TrimSpace(dir)
+	if strings.HasPrefix(dir, "~/") {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			dir = filepath.Join(home, dir[2:])
+		}
+	}
 
-  info, err := os.Stat(dir)
-  if err != nil || !info.IsDir() {
-    return "", false
-  }
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		return "", false
+	}
 
-  return "/add-dir " + strings.TrimSpace(input[len("add-dir "):]), true
+	return "/add-dir " + strings.TrimSpace(input[len("add-dir "):]), true
 }

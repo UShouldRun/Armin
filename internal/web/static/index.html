@@ -8,6 +8,11 @@
 >
 <title>armin</title>
 <link
+  rel  = "icon"
+  href = "icon.svg"
+  type = "image/svg+xml"
+>
+<link
   rel  = "stylesheet"
   href = "css/tokens.css"
 >
@@ -34,15 +39,15 @@
 </head>
 <body>
 <header>
-  <b>armin</b>
-  <span
-    class = "root"
-    id    = "root"
-  ></span>
+  <img
+    class = "logo"
+    src   = "logo.svg"
+    alt   = ""
+  >
 
   <select
     id    = "model"
-    title = "pick a model — hosted ones show their price; completion stays local"
+    title = "pick a model: hosted ones show their price; completion stays local"
   ></select>
 
   <span
@@ -51,36 +56,17 @@
   ></span>
 
   <div
-    class = "meter"
-    title = "context used"
-  >
-    <div id = "meter"></div>
-  </div>
-
-  <span id = "ctx"></span>
-
-  <button
-    id    = "compact"
-    title = "summarize older history"
-  >compact</button>
-
-  <button
-    id    = "clear"
-    title = "start a new conversation"
-  >clear</button>
-
-  <button
-    id    = "viewer"
-    title = "show or hide the file viewer"
-  >viewer</button>
-
-  <div
     class = "warning"
     id    = "warning"
   ></div>
 </header>
 
 <aside>
+  <div
+    class = "path"
+    data-root
+    title = "project root"
+  ></div>
   <input
     id          = "filter"
     placeholder = "filter files…"
@@ -92,11 +78,45 @@
   <div id = "log"><div class = "empty">Ask about the project. Click a file on the left to preview it; click a <code>file:line</code> in an answer to jump there.</div></div>
   <div id = "status" hidden></div>
   <form id = "form">
+    <span
+      id    = "ctx"
+      class = "ctx"
+      title = "context used: tokens of the model's window"
+    ></span>
     <textarea
       id          = "input"
       placeholder = "Message (Enter to send, Shift+Enter for a new line)"
     ></textarea>
     <button id = "send">Send</button>
+    <div class = "dropup">
+      <button
+        id    = "menu"
+        type  = "button"
+        title = "compact, clear, approve all, viewer"
+      >↑</button>
+      <div class = "menu">
+        <button
+          id    = "compact"
+          type  = "button"
+          title = "summarize older history"
+        >compact</button>
+        <button
+          id    = "clear"
+          type  = "button"
+          title = "start a new conversation"
+        >clear</button>
+        <button
+          id    = "approve"
+          type  = "button"
+          title = "skip the approval prompt for file writes this session"
+        >approve all</button>
+        <button
+          id    = "viewer"
+          type  = "button"
+          title = "show or hide the file viewer"
+        >viewer</button>
+      </div>
+    </div>
   </form>
 </main>
 

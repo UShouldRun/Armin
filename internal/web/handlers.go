@@ -387,6 +387,21 @@ func (s *Server) command(w http.ResponseWriter, r *http.Request) {
     return
   }
 
+  // A flag flip, safe while a turn runs: it doesn't touch the
+  // history, and the hooks read it live.
+  if in.Name == "approve" {
+    s.cfg.AutoApprove = !s.cfg.AutoApprove
+
+    if s.cfg.AutoApprove {
+      writeJSON(w, map[string]string{ "result": "approvals on for this session" })
+
+    } else {
+      writeJSON(w, map[string]string{ "result": "approvals off" })
+    }
+
+    return
+  }
+
   if !s.mu.TryLock() {
     http.Error(w, "a turn is running", http.StatusConflict)
     return
@@ -414,6 +429,16 @@ func (s *Server) command(w http.ResponseWriter, r *http.Request) {
     writeJSON(w, map[string]string{
       "result": compactedNote(before, after),
     })
+
+  case "approve":
+    s.cfg.AutoApprove = !s.cfg.AutoApprove
+
+    if s.cfg.AutoApprove {
+      writeJSON(w, map[string]string{ "result": "approvals on for this session" })
+
+    } else {
+      writeJSON(w, map[string]string{ "result": "approvals off" })
+    }
 
   case "model":
     if s.cfg.Models == nil {

@@ -104,16 +104,17 @@ func (c *Client) Chat(
 
 // Chore returns c for background work (summaries, saving notes,
 // suggestions) where thinking buys little: a hosted reasoning model
-// gets a copy with reasoning off, since on a long context its
-// thinking can take longer than the answer. A local llama-server
-// gets c itself.
+// gets a copy with its effort lowered, since on a long context its
+// thinking can take longer than the answer. "low", never "none" —
+// some providers (GLM's, say) reject disabled reasoning outright.
+// A local llama-server gets c itself.
 func (c *Client) Chore() *Client {
   if c.APIKey == "" {
     return c
   }
 
   q := *c
-  q.Effort = "none"
+  q.Effort = "low"
 
   return &q
 }

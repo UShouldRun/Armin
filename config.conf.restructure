@@ -1,0 +1,117 @@
+# tmp config for the `restructure` branch build (roles on).
+# Move to ~/.config/armin/config.conf.restructure (or wherever) — the
+# main-branch armin you run daily ignores the role keys, which is why
+# they are commented out in the live config.conf. Run the branch
+# binary with XDG_CONFIG_HOME pointing at a dir containing armin/{this
+# file as config.conf, .env} — or just swap config.conf when switching
+# binaries. OPENROUTER_API_KEY in .env must come along if the
+# copilot/advisor (planner) role is used.
+
+# key = value, "#" comments, nothing fancier
+model = local
+
+# roles (see docs/guide/config.md#roles)
+minion  = local
+copilot = planner
+advisor = planner
+
+# Qwen3.5-9B on the laptop's RTX 4060, spawned and reaped by armin.
+# armin adds its lean defaults (--no-mmproj -np 1 -fa on -ctk/-ctv q8_0
+# -cram 1024); 96k context leaves VRAM headroom (128k max fits).
+# -lm dio: direct I/O load, ~2.6s cold or warm (mmap: 7.2s cold).
+models.local.binary     = /media/henrique/partition/llm/llama.cpp/llama-b11559/llama-server
+models.local.model_path = /media/henrique/partition/llm/models/Qwen3.5-9B-IQ4_XS.gguf
+models.local.port       = 8099
+models.local.args       = --jinja -ngl 999 -c 98304 -lm dio
+
+max_output = 8000
+
+# How hard models think: auto (the model judges each request with a
+# quick no-thinking question), off, low, medium or high. /effort
+# changes it in the chat; /effort high <task> for one task.
+effort = auto
+
+# Reference library: books, docs, standards, RFCs, man pages the
+# agent searches with library_search and cites. /library shows it;
+# /library add <file> to <topic> adds books (a model catalogs them).
+library = ~/Documents/Software
+
+# Streaming tier: when a task needs more than the 96k resident window,
+# armin restarts on Raymond Huang's KV-streaming llama.cpp fork, which
+# keeps a VRAM pool + ring buffer and streams the rest of the KV cache
+# from RAM. Benchmarked on this laptop (Gen4 x8): 160k filled → 21.5
+# tok/s; 192k drops to 11.4, so 160k is the sweet spot.
+models.local.stream_binary    = /media/henrique/partition/llm/src/kvstream/build/bin/llama-server
+models.local.stream_context   = 163840
+models.local.stream_arena_mib = 2048
+models.local.stream_args      = --fit off -b 256 -ub 256
+
+# --- More local models (benchmarked 2026-10-11, RTX 4060 8 GB) -------
+# Switch with /model <name>. armin adds the lean defaults to each.
+# Speeds: generation with an empty context → with 32k filled.
+
+# coding: JetBrains Mellum2.1, 12B MoE with 2.5B active, RL-trained in
+# real repos. 112 → 76 tok/s, all in VRAM. Loads at 96k but with only
+# ~0.5 GB spare, so 80k leaves headroom for other GPU apps.
+models.coding.binary     = /media/henrique/partition/llm/llama.cpp/llama-b11559/llama-server
+models.coding.model_path = /media/henrique/partition/llm/models/Mellum2.1-12B-A2.5B-Thinking-MXFP4_MOE.gguf
+models.coding.port       = 8101
+models.coding.args       = --jinja -ngl 999 -c 81920 -lm dio
+
+# search: InternScience Agents-A1-4B, long-horizon search, planning and
+# tool use. 70 → 55 tok/s, 192k context fully in VRAM (7.0 GB).
+models.search.binary     = /media/henrique/partition/llm/llama.cpp/llama-b11559/llama-server
+models.search.model_path = /media/henrique/partition/llm/models/Agents-A1-4B-Q4_K_M.gguf
+models.search.port       = 8102
+models.search.args       = --jinja -ngl 999 -c 196608 -lm dio
+
+# quick: Qwen3.5-4B, general-purpose mix. 69 → 55 tok/s, 192k context
+# fully in VRAM (7.1 GB); fastest on the bug-fix test (14 s).
+models.quick.binary     = /media/henrique/partition/llm/llama.cpp/llama-b11559/llama-server
+models.quick.model_path = /media/henrique/partition/llm/models/Qwen3.5-4B-Q4_K_M.gguf
+models.quick.port       = 8103
+models.quick.args       = --jinja -ngl 999 -c 196608 -lm dio
+
+# strong: Ornith-1.5-9B (IQ4_XS), a Qwen3.5-9B-architecture fine-tune.
+# 60-task test: 51/60 vs Qwen3.5-9B's 50, judgment 9/9 (Qwen 5/9),
+# shell 3/6; thinks ~2.7x more, so tasks take ~1.5x longer. Same size
+# and window as local. Replaced the REAP Qwen3.6-35B-A3B MoE (50/60,
+# deleted 2026-10-19).
+models.strong.binary     = /media/henrique/partition/llm/llama.cpp/llama-b11559/llama-server
+models.strong.model_path = /media/henrique/partition/llm/models/Ornith-1.5-9B-IQ4_XS.gguf
+models.strong.port       = 8104
+models.strong.args       = --jinja -ngl 999 -c 98304 -lm dio --spec-type ngram-mod
+
+models.planner.url         = https://openrouter.ai/api/v1
+models.planner.api_key_env = OPENROUTER_API_KEY
+models.planner.id          = qwen/qwen3.8-27b
+models.planner.reasoning   = medium
+# Your account can't use OpenRouter's regional hosts (Business plan
+# only): straight to the global one, no refused first request.
+models.planner.region      = off
+models.planner.private     = true
+
+# system RAM, for armin -install's speed estimates
+ram = ddr5-5600
+
+# LiquidAI/LFM2.5-8B-A1B-GGUF:Q6_K, added by armin -install on 2026-10-21
+models.lfm25-8b-a1b.binary     = /media/henrique/partition/llm/llama.cpp/llama-b11559/llama-server
+models.lfm25-8b-a1b.model_path = /media/henrique/partition/llm/models/LFM2.5-8B-A1B-Q6_K.gguf
+models.lfm25-8b-a1b.port       = 8105
+models.lfm25-8b-a1b.args       = --jinja -ngl 999 -c 65536
+
+# LiquidAI/LFM2.5-24B-A2B-GGUF:Q4_0, added by armin -install on 2026-10-21
+models.flash.binary     = /media/henrique/partition/llm/llama.cpp/llama-b11559/llama-server
+models.flash.model_path = /media/henrique/partition/llm/models/LFM2.5-24B-A2B-QAD-Q4_0.gguf
+models.flash.port       = 8106
+models.flash.args       = --jinja -ngl 40 -c 32768 --n-cpu-moe 20
+
+# unsloth/gemma-4-12b-it-GGUF:IQ4_XS, added by armin -install on 2026-10-21
+models.gemma-4-12b-it.binary     = /media/henrique/partition/llm/llama.cpp/llama-b11559/llama-server
+models.gemma-4-12b-it.model_path = /media/henrique/partition/llm/models/gemma-4-12b-it-IQ4_XS.gguf
+models.gemma-4-12b-it.port       = 8107
+models.gemma-4-12b-it.args       = --jinja -ngl 999 -c 65536
+
+# stt (branch-only key; main has no stt): whisper.cpp from 2026-10-31.
+# Add -ng if the local minion holds the GPU while using /voice.
+stt = /media/henrique/partition/llm/src/whisper.cpp/build/bin/whisper-cli --model /media/henrique/partition/llm/models/whisper/ggml-large-v3-turbo-q5_0.bin

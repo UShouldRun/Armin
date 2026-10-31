@@ -8,6 +8,26 @@ description: The user's JavaScript style — 2-space, semicolons, double quotes,
   `const useEvents = () => { ... };`, with `export default` at the end.
 - A space on both sides of every binary operator: `a + b`, `i * 2`,
   `x === y`, `count = count + 1`. Never `a+b` or `x=y`.
+- Braces are not optional, and single-line bodies are not a thing.
+  Even a one-line `return` gets its own braced block:
+
+  ```js
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+  ```
+
+  Never `if (!res.ok) return;` and never `if (!res.ok) { return; }`.
+  The only exception is a lone `else` giving the path its name:
+
+  ```js
+  if (busy) {
+    hold(text);
+
+  } else {
+    send(text);
+  }
+  ```
 
 ## Alignment
 - Align the `=` of consecutive declarations:
@@ -75,5 +95,6 @@ description: The user's JavaScript style — 2-space, semicolons, double quotes,
   ```
 
 ## Before finishing
-Re-read the diff for missing blank lines between blocks, unaligned `=` / `from` groups, unpadded `${x}`,
+Re-read the diff for missing blank lines between blocks, unbraced or one-line `if` bodies,
+unaligned `=` / `from` groups, unpadded `${x}`,
 unspaced operators, single quotes in new code.

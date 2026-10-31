@@ -81,8 +81,8 @@ func TestChoreTurnsOffHostedReasoning(t *testing.T) {
     t.Fatalf("Chat: %v", err)
   }
 
-  if got == nil || got.Effort != "none" {
-    t.Fatalf("Reasoning = %+v, want effort none", got)
+  if got == nil || got.Effort != "low" {
+    t.Fatalf("Reasoning = %+v, want effort low", got)
   }
 
   if client.Effort != "high" {
