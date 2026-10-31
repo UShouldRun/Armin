@@ -163,7 +163,7 @@ func runMemorySave(ctx context.Context, l *Loop, c toolCall) any {
   if l.Know != nil && l.citesCode(ctx, in.Content) {
     return map[string]string{
       "error": "this is a fact about the code (it cites a file, line " +
-        "or symbol): add it with know_add, where it is checked for " +
+        "or symbol): add it with know_write, where it is checked for " +
         "staleness. Memories are for how the user wants things done.",
     }
   }

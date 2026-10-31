@@ -4,12 +4,15 @@ package agent
 // as nodes with evidence, confidence and authorship (package know).
 // Results are node lines (know.Graph.Line), one per node.
 //
-//   know_find     search names and claims, optionally under a path
-//   know_get      nodes in full, with their evidence and author
-//   know_add      add a node; held back when a similar one exists
-//   know_link     add or remove an edge
-//   know_update   change a claim, kind, confidence, place; verify
+//   know_find     search names and claims; ids read nodes in full
+//   know_write    add a node, update one, or add/remove an edge
 //   know_trace    what a conclusion was derived from, weakest first
+//
+// know_write does the work of three tools so its description rides
+// on every request once, not three times: from and to name an edge
+// (kind picks the edge kind, remove takes it out); id names a node
+// to change (claim, kind, confidence, move_to, verified, current,
+// delete); otherwise path, kind and claim add a node.
 //
 // A minion's writes are capped: confidence at most inferred (checked
 // only with a passing acceptance check, see delegation), no decision
@@ -37,51 +40,43 @@ var knowTools = []toolSpec{
       "Search the knowledge tree before exploring code: what is already "+
         "known about the project, as one line per node (id, path, kind, "+
         "confidence, what it needs and what uses it, the claim). Read "+
-        "code only for what it doesn't cover or marks STALE.",
+        "code only for what it doesn't cover or marks STALE. With ids, "+
+        "read those nodes in full instead: the whole claim, the evidence "+
+        "and who wrote it.",
       map[string]llm.ToolProperty{
         "query": stringProp("Words to look for; a word's start matches too"),
         "under": stringProp("Only below this node: a path or an id (n42)"),
         "count": {
           Type: "integer", Description: "How many, up to 20 (default 10)",
         },
+        "ids": {
+          Type:        "array",
+          Description: "Read these nodes in full (ids n42 or paths), " +
+            "instead of searching",
+          Items:       &llm.ToolProperty{ Type: "string" },
+        },
       },
       "query",
     ),
   },
   {
-    id:    toolKnowGet,
+    id:    toolKnowWrite,
     flags: flagAgent | flagSession | flagKnow,
-    run:   runKnowGet,
+    run:   runKnowWrite,
     def: toolFunc(
-      "know_get",
-      "Read nodes in full: the whole claim, the evidence and who wrote it.",
-      map[string]llm.ToolProperty{
-        "ids": {
-          Type:        "array",
-          Description: "Node ids (n42) or paths",
-          Items:       &llm.ToolProperty{ Type: "string" },
-        },
-      },
-      "ids",
-    ),
-  },
-  {
-    id:    toolKnowAdd,
-    flags: flagAgent | flagSession | flagKnow,
-    run:   runKnowAdd,
-    def: toolFunc(
-      "know_add",
+      "know_write",
       "Add what you established to the knowledge tree, so it isn't "+
-        "rediscovered. Search first: don't add what a node already says, "+
-        "update or link it instead. Every concept needs a definition as "+
-        "its claim. Put reasoning in edges: needs (what it requires), "+
-        "derived_from (what you concluded it from).",
+        "rediscovered — or change what is there. Search first: don't "+
+        "add what a node already says, update or link it instead. "+
+        "Every concept needs a definition as its claim. Put reasoning "+
+        "in edges: needs (what it requires), derived_from (what you "+
+        "concluded it from).",
       map[string]llm.ToolProperty{
-        "path": stringProp("Where it goes, e.g. agent/loop/retries; missing " +
-          "parents are added as topics"),
+        "path": stringProp("Add a node here, e.g. agent/loop/retries; "+
+          "missing parents are added as topics"),
         "kind": {
           Type:        "string",
-          Description: "What it is",
+          Description: "What the added node is (or the node id's new kind)",
           Enum:        []string{
             "topic",
             "concept",
@@ -120,49 +115,9 @@ var knowTools = []toolSpec{
           Type:        "boolean",
           Description: "Add even though a similar node exists",
         },
-      },
-      "path", "kind", "claim",
-    ),
-  },
-  {
-    id:    toolKnowLink,
-    flags: flagAgent | flagSession | flagKnow,
-    run:   runKnowLink,
-    def: toolFunc(
-      "know_link",
-      "Add (or remove) an edge between two nodes.",
-      map[string]llm.ToolProperty{
-        "from": stringProp("Node id or path"),
-        "to":   stringProp("Node id or path"),
-        "kind": {
-          Type:        "string",
-          Description: "requires: from needs to before it makes sense; " +
-            "derived-from: from was concluded from to; explains; " +
-            "implements (project code → a general concept); contradicts",
-          Enum:        []string{
-            "requires", "implements", "explains", "contradicts", "derived-from",
-          },
-        },
-        "remove": { Type: "boolean", Description: "Remove the edge instead" },
-      },
-      "from", "to", "kind",
-    ),
-  },
-  {
-    id:    toolKnowUpdate,
-    flags: flagAgent | flagSession | flagKnow,
-    run:   runKnowUpdate,
-    def: toolFunc(
-      "know_update",
-      "Change a node: its claim, kind, confidence or place; mark it "+
-        "verified (a minion's claim you checked), current again (after "+
-        "re-reading STALE evidence), or delete it.",
-      map[string]llm.ToolProperty{
-        "id":         stringProp("Node id or path"),
-        "claim":      stringProp("The new claim"),
-        "kind":       stringProp("The new kind"),
-        "confidence": stringProp("guess, inferred, checked or tested"),
-        "move_to":    stringProp("New path"),
+        "id": stringProp("Change this node instead of adding: kind, claim, " +
+          "confidence, move_to, verified, current or delete"),
+        "move_to":    stringProp("Move it to this new path"),
         "verified":   {
           Type: "boolean", Description: "You checked a minion's claim",
         },
@@ -172,8 +127,24 @@ var knowTools = []toolSpec{
         "delete":     {
           Type: "boolean", Description: "Delete it (no children)",
         },
+        "edge": {
+          Type:        "string",
+          Description: "Add (or remove) an edge between two nodes " +
+            "instead: from and to, this kind. requires: from needs to " +
+            "before it makes sense; derived-from: from was concluded " +
+            "from to; explains; implements (project code → a general " +
+            "concept); contradicts",
+          Enum:        []string{
+            "requires", "implements", "explains", "contradicts", "derived-from",
+          },
+        },
+        "from": stringProp("The edge goes from this node"),
+        "to":   stringProp("The edge goes to this node"),
+        "remove": {
+          Type: "boolean", Description: "Remove the edge instead",
+        },
       },
-      "id",
+      "path", "kind", "claim",
     ),
   },
   {
@@ -237,7 +208,7 @@ func cycleFix(r Role) string {
   }
 
   return "Resolve it: merge the members into one node, flip the wrong " +
-    "edge (know_link remove), or make a mutual dependency explains."
+    "edge (know_write remove), or make a mutual dependency explains."
 }
 
 // OpenCycles lists the open requires loops' question nodes, as lines.
@@ -332,6 +303,10 @@ func runKnowFind(_ context.Context, l *Loop, c toolCall) any {
   l.knowMu.Lock()
   defer l.knowMu.Unlock()
 
+  if len(in.IDs) > 0 {
+    return knowGet(l, in.IDs)
+  }
+
   under := know.NodeID(0)
   if in.Under != "" {
     id, err := l.node(in.Under)
@@ -350,7 +325,8 @@ func runKnowFind(_ context.Context, l *Loop, c toolCall) any {
   hits := l.Know.Find(in.Query, under, count)
   if len(hits) == 0 {
     return map[string]string{
-      "found": "nothing; explore the code, then know_add what you establish",
+      "found": "nothing; explore the code, then know_write what you " +
+        "establish",
     }
   }
 
@@ -362,18 +338,12 @@ func runKnowFind(_ context.Context, l *Loop, c toolCall) any {
   return map[string]string{ "found": l.lines(ids, false) }
 }
 
-func runKnowGet(_ context.Context, l *Loop, c toolCall) any {
-  in, bad := decode[knowArgs](c)
-  if bad != nil {
-    return bad
-  }
-
-  l.knowMu.Lock()
-  defer l.knowMu.Unlock()
-
+// knowGet renders nodes in full: the whole claim, the evidence and
+// the author. Called from know_find's ids argument.
+func knowGet(l *Loop, refs []string) any {
   var b strings.Builder
   var evs []know.EvidenceID
-  for i, ref := range in.IDs {
+  for i, ref := range refs {
     id, err := l.node(ref)
     if err != nil {
       return errResult(err)
@@ -399,7 +369,11 @@ func runKnowGet(_ context.Context, l *Loop, c toolCall) any {
   return map[string]string{ "nodes": b.String() }
 }
 
-func runKnowAdd(_ context.Context, l *Loop, c toolCall) any {
+// runKnowWrite is the one write entry point: an edge when from and
+// to are set, a node change when id is set, an add otherwise. The
+// three used to be three tools; one description rides on every
+// request instead of three.
+func runKnowWrite(_ context.Context, l *Loop, c toolCall) any {
   in, bad := decode[knowArgs](c)
   if bad != nil {
     return bad
@@ -408,6 +382,17 @@ func runKnowAdd(_ context.Context, l *Loop, c toolCall) any {
   l.knowMu.Lock()
   defer l.knowMu.Unlock()
 
+  switch {
+  case in.From != "" || in.To != "":
+    return knowLink(l, in)
+  case in.ID != "":
+    return knowUpdate(l, in)
+  default:
+    return knowAdd(l, in)
+  }
+}
+
+func knowAdd(l *Loop, in knowArgs) any {
   kind, ok := know.ParseKind(in.Kind)
   if !ok {
     return errResult(fmt.Errorf("unknown kind %q", in.Kind))
@@ -465,7 +450,7 @@ func runKnowAdd(_ context.Context, l *Loop, c toolCall) any {
     if exists {
       _, taken := l.Know.Child(parent, name)
       if taken {
-        return errResult(fmt.Errorf("%s exists; know_update it instead", path))
+        return errResult(fmt.Errorf("%s exists; know_write it with its id instead", path))
       }
     }
 
@@ -483,9 +468,9 @@ func runKnowAdd(_ context.Context, l *Loop, c toolCall) any {
 
       return map[string]string{
         "similar": b.String(),
-        "next":    "not added: link to it (know_link), update it " +
-          "(know_update), or call know_add again with force: true if " +
-          "it really is different",
+        "next":    "not added: know_write the existing one with id " +
+          "(an edge with edge, a new claim with claim), or know_write " +
+          "again with force: true if it really is different",
       }
     }
   }
@@ -647,14 +632,11 @@ func (l *Loop) rangeHash(path string, start, end int) (uint32, error) {
   return know.RangeHash(lines[start - 1:end]), nil
 }
 
-func runKnowLink(_ context.Context, l *Loop, c toolCall) any {
-  in, bad := decode[knowArgs](c)
-  if bad != nil {
-    return bad
+// knowLink adds or removes an edge (know_write's from/to form).
+func knowLink(l *Loop, in knowArgs) any {
+  if in.From == "" || in.To == "" {
+    return errResult(fmt.Errorf("an edge needs both from and to"))
   }
-
-  l.knowMu.Lock()
-  defer l.knowMu.Unlock()
 
   from, err := l.node(in.From)
   if err != nil {
@@ -666,9 +648,9 @@ func runKnowLink(_ context.Context, l *Loop, c toolCall) any {
     return errResult(err)
   }
 
-  kind, ok := know.ParseEdge(in.Kind)
+  kind, ok := know.ParseEdge(in.Edge)
   if !ok {
-    return errResult(fmt.Errorf("unknown edge kind %q", in.Kind))
+    return errResult(fmt.Errorf("unknown edge kind %q", in.Edge))
   }
 
   if in.Remove {
@@ -699,15 +681,8 @@ func runKnowLink(_ context.Context, l *Loop, c toolCall) any {
   return out
 }
 
-func runKnowUpdate(_ context.Context, l *Loop, c toolCall) any {
-  in, bad := decode[knowArgs](c)
-  if bad != nil {
-    return bad
-  }
-
-  l.knowMu.Lock()
-  defer l.knowMu.Unlock()
-
+// knowUpdate changes or deletes a node (know_write's id form).
+func knowUpdate(l *Loop, in knowArgs) any {
   id, err := l.node(in.ID)
   if err != nil {
     return errResult(err)

@@ -56,7 +56,7 @@ func TestKnowToolsOfferedOnlyWithATree(t *testing.T) {
   }
 
   l.Know = know.New()
-  if !l.offered(toolKnowFind) || !l.offered(toolKnowAdd) {
+  if !l.offered(toolKnowFind) || !l.offered(toolKnowWrite) {
     t.Fatal("know tools missing with a tree")
   }
 }
@@ -64,7 +64,7 @@ func TestKnowToolsOfferedOnlyWithATree(t *testing.T) {
 func TestKnowAddFindGet(t *testing.T) {
   l, call := knowLoop(t)
 
-  out := call("know_add", map[string]any{
+  out := call("know_write", map[string]any{
     "path": "tcp/handshake", "kind": "fact",
     "claim": "the client sends SYN, then ACK", "confidence": "checked",
     "evidence": []any{
@@ -92,7 +92,7 @@ func TestKnowAddFindGet(t *testing.T) {
     t.Fatalf("find: %v", out)
   }
 
-  out = call("know_get", map[string]any{ "ids": []any{ "n2" } })
+  out = call("know_find", map[string]any{ "ids": []any{ "n2" } })
   if !strings.Contains(out["nodes"], "by copilot m") ||
     !strings.Contains(out["nodes"], "evidence file conn.go:3-6") {
     t.Fatalf("get: %v", out)
@@ -101,12 +101,12 @@ func TestKnowAddFindGet(t *testing.T) {
 
 func TestKnowAddHoldsBackSimilar(t *testing.T) {
   _, call := knowLoop(t)
-  call("know_add", map[string]any{
+  call("know_write", map[string]any{
     "path": "tcp/handshake", "kind": "fact",
     "claim": "the client sends SYN then ACK",
   })
 
-  out := call("know_add", map[string]any{
+  out := call("know_write", map[string]any{
     "path": "tcp/opening", "kind": "fact",
     "claim": "the client sends SYN then ACK first",
   })
@@ -114,7 +114,7 @@ func TestKnowAddHoldsBackSimilar(t *testing.T) {
     t.Fatalf("similar not held back: %v", out)
   }
 
-  out = call("know_add", map[string]any{
+  out = call("know_write", map[string]any{
     "path": "tcp/opening", "kind": "fact",
     "claim": "the client sends SYN then ACK first",
     "force": true,
@@ -127,14 +127,14 @@ func TestKnowAddHoldsBackSimilar(t *testing.T) {
 func TestKnowWritingRules(t *testing.T) {
   _, call := knowLoop(t)
   out := call(
-    "know_add",
+    "know_write",
     map[string]any{ "path": "tcp/rtt", "kind": "concept", "claim": "" },
   )
   if !strings.Contains(out["error"], "definition") {
     t.Fatalf("a concept without a definition: %v", out)
   }
 
-  out = call("know_add", map[string]any{
+  out = call("know_write", map[string]any{
     "path": "x", "kind": "fact", "claim": "y", "needs": []any{ "n99" },
   })
   if !strings.Contains(out["error"], "no node n99") {
@@ -146,7 +146,7 @@ func TestKnowMinionLimits(t *testing.T) {
   l, call := knowLoop(t)
   l.SetRole(RoleMinion)
 
-  out := call("know_add", map[string]any{
+  out := call("know_write", map[string]any{
     "path": "tcp/handshake", "kind": "fact", "claim": "SYN then ACK",
     "confidence": "tested",
   })
@@ -156,21 +156,21 @@ func TestKnowMinionLimits(t *testing.T) {
   }
 
   out = call(
-    "know_add",
+    "know_write",
     map[string]any{ "path": "d", "kind": "decision", "claim": "use x" },
   )
   if !strings.Contains(out["error"], "decisions belong") {
     t.Fatalf("minion decision: %v", out)
   }
 
-  out = call("know_update", map[string]any{ "id": "n2", "verified": true })
+  out = call("know_write", map[string]any{ "id": "n2", "verified": true })
   if !strings.Contains(out["error"], "only the copilot or the advisor") {
     t.Fatalf("minion verify: %v", out)
   }
 
   l.SetRole(RoleCopilot)
   out = call(
-    "know_update", map[string]any{ "id": "tcp/handshake", "verified": true },
+    "know_write", map[string]any{ "id": "tcp/handshake", "verified": true },
   )
   if strings.Contains(out["now"], "minion-unverified") || out["now"] == "" {
     t.Fatalf("copilot verify: %v", out)
@@ -186,16 +186,16 @@ func TestKnowMinionLimits(t *testing.T) {
 func TestKnowLinkUpdateTrace(t *testing.T) {
   l, call := knowLoop(t)
   call(
-    "know_add",
+    "know_write",
     map[string]any{ "path": "a", "kind": "fact", "claim": "alpha base fact" },
   )
-  call("know_add", map[string]any{
+  call("know_write", map[string]any{
     "path": "b", "kind": "fact", "claim": "beta conclusion",
     "derived_from": []any{ "a" },
   })
 
   out := call(
-    "know_link", map[string]any{ "from": "b", "to": "a", "kind": "explains" },
+    "know_write", map[string]any{ "from": "b", "to": "a", "edge": "explains" },
   )
   if !strings.Contains(out["now"], "needs n1") ||
       !strings.Contains(out["now"], "explains n1") {
@@ -209,7 +209,7 @@ func TestKnowLinkUpdateTrace(t *testing.T) {
 
   a, _ := l.Know.Lookup("a")
   l.Know.SetFlags(a, know.FlagStale, 0)
-  out = call("know_update", map[string]any{
+  out = call("know_write", map[string]any{
     "id": "a", "claim": "alpha, re-read", "current": true, "move_to": "base/a",
   })
   if strings.Contains(out["now"], "STALE") ||
@@ -217,7 +217,7 @@ func TestKnowLinkUpdateTrace(t *testing.T) {
     t.Fatalf("update: %v", out)
   }
 
-  out = call("know_update", map[string]any{ "id": "b", "delete": true })
+  out = call("know_write", map[string]any{ "id": "b", "delete": true })
   if out["deleted"] != "b" || l.Know.Live(2) {
     t.Fatalf("delete: %v", out)
   }
@@ -259,7 +259,7 @@ func TestMemorySaveRefusesCodeFacts(t *testing.T) {
     "name": "retries", "description": "retry count",
     "content": "the loop retries twice, see turn.go:120",
   })
-  if !strings.Contains(out["error"], "know_add") {
+  if !strings.Contains(out["error"], "know_write") {
     t.Fatalf("a code fact was saved as a memory: %v", out)
   }
 
@@ -275,17 +275,17 @@ func TestMemorySaveRefusesCodeFacts(t *testing.T) {
 func TestKnowLoopReportedAndReminded(t *testing.T) {
   l, call := knowLoop(t)
   call(
-    "know_add",
+    "know_write",
     map[string]any{ "path": "a", "kind": "concept", "claim": "alpha thing" },
   )
-  call("know_add", map[string]any{
+  call("know_write", map[string]any{
     "path": "b", "kind": "concept", "claim": "beta thing", "needs": []any{
       "a",
     },
   })
 
   out := call(
-    "know_link", map[string]any{ "from": "a", "to": "b", "kind": "requires" },
+    "know_write", map[string]any{ "from": "a", "to": "b", "edge": "requires" },
   )
   if !strings.Contains(out["cycle"], "n1 → n2") ||
       !strings.Contains(out["cycle"], "merge") {
@@ -304,9 +304,9 @@ func TestKnowLoopReportedAndReminded(t *testing.T) {
   }
 
   out = call(
-    "know_link",
+    "know_write",
     map[string]any{
-      "from": "a", "to": "b", "kind": "requires", "remove": true,
+      "from": "a", "to": "b", "edge": "requires", "remove": true,
     },
   )
   if out["cycle"] != "no requires loops are open now" {
@@ -323,17 +323,17 @@ func TestMinionLeavesLoops(t *testing.T) {
   l, call := knowLoop(t)
   l.SetRole(RoleMinion)
   call(
-    "know_add",
+    "know_write",
     map[string]any{ "path": "a", "kind": "concept", "claim": "alpha thing" },
   )
-  call("know_add", map[string]any{
+  call("know_write", map[string]any{
     "path": "b", "kind": "concept", "claim": "beta thing", "needs": []any{
       "a",
     },
   })
 
   out := call(
-    "know_link", map[string]any{ "from": "a", "to": "b", "kind": "requires" },
+    "know_write", map[string]any{ "from": "a", "to": "b", "edge": "requires" },
   )
   if !strings.Contains(out["cycle"], "Leave it") {
     t.Fatalf("minion told to resolve: %v", out)

@@ -74,6 +74,7 @@ type knowArgs struct {
   Force       bool     `json:"force"`
   From        string   `json:"from"`
   To          string   `json:"to"`
+  Edge        string   `json:"edge"`
   Remove      bool     `json:"remove"`
   MoveTo      string   `json:"move_to"`
   Verified    bool     `json:"verified"`

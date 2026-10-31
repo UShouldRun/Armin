@@ -118,10 +118,10 @@ const knowRules = "Check it before exploring: know_find first; when nodes " +
 // frozen at session start, and the rules.
 func knowSection(tree *know.Graph) string {
   var b strings.Builder
-  b.WriteString("\n\n# Knowledge tree (know_find, know_get, know_add)\n")
+  b.WriteString("\n\n# Knowledge tree (know_find, know_write)\n")
   outline := tree.Outline(outlineBytes)
   if outline == "" {
-    b.WriteString("Empty so far: know_add what you establish as you work.\n")
+    b.WriteString("Empty so far: know_write what you establish as you work.\n")
   } else {
     b.WriteString("What is established about this project, top two " +
       "levels with node counts:\n")

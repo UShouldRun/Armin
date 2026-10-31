@@ -41,7 +41,7 @@ func minionServer(t *testing.T, offered *[]string) *llm.Client {
       reply = llm.Message{
         Role: "assistant",
         ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
-          Name: "know_add",
+          Name: "know_write",
           Arguments: map[string]any{
             "path": "loop/retries", "kind": "fact",
             "claim": "the loop retries twice",
@@ -123,7 +123,7 @@ func TestDelegatePassingCheck(t *testing.T) {
     t.Fatalf("the delegator should be told to verify: %v", out)
   }
 
-  if !contains(offered, "know_add") || contains(offered, "edit_file") ||
+  if !contains(offered, "know_write") || contains(offered, "edit_file") ||
       contains(offered, "delegate") {
     t.Fatalf("minion offered %v", offered)
   }

@@ -33,7 +33,7 @@ const minionPrompt = "You are the minion: a small local model doing one " +
   "your result, and answer briefly with what you did and found, citing " +
   "files and lines. Don't do more than asked. If the task is unclear or " +
   "too big for you, say so instead of guessing. Record what you " +
-  "establish with know_add; it stays marked as yours until checked."
+  "establish with know_write; it stays marked as yours until checked."
 
 var delegateTools = []toolSpec{
   {
@@ -206,7 +206,7 @@ func runDelegate(ctx context.Context, l *Loop, c toolCall) any {
     if lines != "" {
       out["nodes"] = lines
       out["next"] = "these are the minion's, unverified: check the ones you " +
-        "rely on, then know_update them with verified: true"
+        "rely on, then know_write them with id and verified: true"
     }
   }
 

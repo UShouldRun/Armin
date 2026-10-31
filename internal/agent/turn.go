@@ -199,7 +199,7 @@ func (t *turn) recheck(ctx context.Context) bool {
 const cycleNote = "[armin] Before you finish: these requires loops are " +
   "open, and a learning plan can't be built through them. Resolve " +
   "each: merge the members into one node, flip the wrong edge " +
-  "(know_link remove), or make a mutual dependency explains.\n%s"
+  "(know_write remove), or make a mutual dependency explains.\n%s"
 
 // cycleCheck reminds the model, once per turn, of loops its know
 // writes opened; the minion leaves them to the copilot or advisor.

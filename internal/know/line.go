@@ -5,7 +5,7 @@
 // n8 "three segments: SYN, SYN-ACK, ACK; the server…" STALE
 //
 // Plain words, no legend needed; unset fields are left out; the claim
-// is cut at ClaimCut characters (know_get returns it whole).
+// is cut at ClaimCut characters (know_find with ids returns it whole).
 
 package know
 

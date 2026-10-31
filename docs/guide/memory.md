@@ -82,7 +82,7 @@ who wrote it, plus edges for what a node needs or was derived from.
 
 The system prompt carries the top two levels, frozen at session
 start. The model searches with `know_find` before exploring, records
-what it finds with `know_add`, and cites nodes as `[n42]` instead of
+what it finds with `know_write`, and cites nodes as `[n42]` instead of
 restating them. A minion's claims stay marked unverified until the
 copilot or advisor checks them, so a wrong conclusion can be traced
 back (`know_trace`).
@@ -106,7 +106,7 @@ re-reads it. A `requires` loop (A needs B needs A) gets a question
 under `cycles/` that the copilot or advisor must resolve.
 
 `memory_save` refuses a note that cites a file and line and points to
-`know_add`. To read or change the tree yourself: `armin -know dump`,
+`know_write`. To read or change the tree yourself: `armin -know dump`,
 `armin -know edit` (or `=tcp` for a subtree), and once, `armin -know
 import-memories` to move older code-fact memories into it.
 

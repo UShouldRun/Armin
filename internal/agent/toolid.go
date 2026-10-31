@@ -59,10 +59,7 @@ const (
 
   // offered only with the project's knowledge tree (flagKnow)
   toolKnowFind
-  toolKnowGet
-  toolKnowAdd
-  toolKnowLink
-  toolKnowUpdate
+  toolKnowWrite
   toolKnowTrace
 
   // offered only with a minion to delegate to (flagMinion)
