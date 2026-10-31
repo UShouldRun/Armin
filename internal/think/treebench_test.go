@@ -301,13 +301,22 @@ func benchSession(
   ctx, cancel := context.WithTimeout(context.Background(), 20 * time.Minute)
   defer cancel()
 
+  // what the user sees is every message of the turn, not the last:
+  // a model that answers, then records, then closes with "recorded
+  // as [n3]" has still answered
+  var said strings.Builder
+  hooks.Token = func(d string) { said.WriteString(d) }
+
   answer, err := loop.Turn(ctx, &history, hooks)
   if err != nil {
     t.Logf("session failed: %v", err)
     return run
   }
 
-  run.answer = answer
+  run.answer = said.String()
+  if strings.TrimSpace(run.answer) == "" {
+    run.answer = answer // a server that didn't stream
+  }
   if tree != nil {
     var b strings.Builder
     tree.Dump(&b, 0)

@@ -34,6 +34,7 @@ Everything below is why, and what the next tries are.
 | 3 † | "auto-record" that never fired | +42.4% | +55% | +28% |
 | 4 (6af79a5) | auto-record of Q/A pairs | +41.2% | +49% | +31% |
 | 5 (642f3a3) | pointers, at-refs, current, find guidance | +21.0% | +17% | +27% |
+| 6 (f751386) | none: round 5 scored in dollars (H1) | +5.3% tok, **−0.4% $** | +25% $ | −19% $ |
 
 Input tokens, 3 runs summed, tree vs no-tree. Accuracy held
 throughout (scattered 3–5/5, never systematically worse; the two
@@ -290,4 +291,44 @@ learner tree (user's own knowledge) is the sensitive one.
 - The static repo-map baseline (aider-style) is worth one round:
   it bounds how much of the tree's value is just "map present in
   the prompt".
+
+## Round 6: H1, the same design scored in dollars (2026-10-31)
+
+No change to the tree; usage now carries OpenRouter's own per-request
+cost and cached tokens (llm.Usage.Cost, PromptDetails.CachedTokens,
+asked for with `usage: {include: true}`, OpenRouter only). Three runs,
+traces in reports/treebench6/, logs reports/treebench6-run*.log.
+
+| | right | input | cached | output | cost |
+|---|---|---|---|---|---|
+| no tree s1 | 15/15 | 1155k | 79% | 18.8k | $0.093 |
+| tree s1 | 10/15 † | 1432k | 85% | 23.5k | $0.116 (+25%) |
+| no tree s2 | 15/15 | 950k | 80% | 13.2k | $0.123 |
+| tree s2 | 14/15 | 783k | 82% | 11.6k | $0.099 (−19%) |
+| pair | | +5.3% | | | $0.2154 vs $0.2146 (−0.4%) |
+
+**H1, partly wrong in its premise, right in its conclusion.** Qwen
+3.8 27B's cached input is $0.02/M against $0.04/M: a 2× discount, not
+10×. Input and output cost about the same per session here (input at
+$0.04/M, output at $2.30/M). Still, in dollars the pair breaks even:
+session 2's savings pay session 1's recording exactly. Session 2 is
+19% cheaper with the tree, in dollars and in tokens.
+
+† **The accuracy drop is a scoring artifact.** In all five misses the
+model wrote its answer, then called know_write, then closed the turn
+with "Recorded as [n3]" or "covered above". The REPL streams every
+message, so the user saw the answer; the bench scored only the final
+message. It now scores everything streamed in the turn (hooks.Token).
+Round 5's scattered misses were likely the same; their full text
+wasn't kept, so they can't be re-scored.
+
+**What this changes.** The pair is no longer a loss; the remaining
+question is whether the tree *wins*, which needs either a longer
+horizon (H3) or a cheaper read side. Proposed next, ahead of
+consolidation: **automatic retrieval** (Mem0's shape) — armin runs
+know_find on the user's message itself (BM25, no model call) and
+puts the top node lines at the head of that message, so reading the
+tree costs no tool round and no read-side tool descriptions; the
+model keeps only the write tool. Nothing is added when nothing
+matches, and the system prompt stays byte-stable.
 
