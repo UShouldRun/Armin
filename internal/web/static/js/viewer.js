@@ -3,9 +3,9 @@
 // tool changed.
 
 import { $, esc, api } from "./api.js";
-import { state } from "./state.js";
-import { markdown } from "./markdown.js";
-import { highlight } from "./highlight.js";
+import { state }       from "./state.js";
+import { markdown }    from "./markdown.js";
+import { highlight }   from "./highlight.js";
 
 export async function loadFiles() {
   try {
@@ -37,7 +37,12 @@ export function filesChanged(call) {
 export function renderFiles() {
   const q    = $("filter").value.toLowerCase();
   const list = state.files.filter((f) => f.toLowerCase().includes(q)).slice(0, 800);
-  $("files").innerHTML = list.map((f) => `<div data-path = "${ esc(f) }" class = "${ f === state.current ? "on" : "" }" title = "${ esc(f) }">${ esc(f) }</div>`).join("");
+  $("files").innerHTML = list.map((f) => {
+    const cut  = f.lastIndexOf("/") + 1;
+    const name = `<span class = "dir">${ esc(f.slice(0, cut)) }</span>${ esc(f.slice(cut)) }`;
+
+    return `<div data-path = "${ esc(f) }" class = "${ f === state.current ? "on" : "" }" title = "${ esc(f) }">${ name }</div>`;
+  }).join("");
 }
 
 // ---------- file viewer ----------

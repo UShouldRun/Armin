@@ -2,60 +2,101 @@
 
 * { box-sizing: border-box; }
 
-body.noviewer { grid-template-columns: 260px 1fr; }
-
-body.noviewer section { display: none; }
-
 body {
   margin: 0; height: 100vh; display: grid;
   grid-template-columns: 260px 1fr 42%;
   grid-template-rows: auto 1fr;
   background: var(--bg); color: var(--text);
-  font: 14px/1.5 system-ui, sans-serif;
+  font: var(--size)/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
 }
 
+body.noviewer { grid-template-columns: 260px 1fr; }
+body.noviewer section { display: none; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+* { scrollbar-width: thin; scrollbar-color: var(--line2) transparent; }
+
+/* header: the project on the left, the controls grouped on the right */
 header {
-  grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+  grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
   padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--panel);
 }
 
-header b { font-size: 15px; }
+header b {
+  font-size: 15px; letter-spacing: .02em; display: flex; align-items: center; gap: 7px;
+}
 
-header .credits { color: var(--dim); font-size: 12px; white-space: nowrap; }
+header b::before {
+  content: ""; width: 10px; height: 10px; border-radius: 3px;
+  background: var(--accent); transform: rotate(45deg);
+}
 
+header .root {
+  color: var(--dim); font: var(--small) var(--mono); flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+header .credits { color: var(--dim); font-size: var(--small); white-space: nowrap; }
 header .credits.low { color: var(--delt); }
 
 header .warning {
-  flex-basis: 100%; padding: 4px 9px; border-radius: 6px;
+  flex-basis: 100%; padding: 6px 10px; border-radius: var(--r);
   background: var(--hl); color: var(--text); font-size: 13px;
 }
 
 header .warning:empty { display: none; }
 
-header .root { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-
 header select, header button, .bar button, .approve button {
-  font: inherit; padding: 3px 9px; border: 1px solid var(--line);
-  border-radius: 6px; background: var(--panel); color: var(--text); cursor: pointer;
+  font: inherit; font-size: 13px; padding: 4px 10px;
+  border: 1px solid var(--line2); border-radius: var(--r);
+  background: var(--raised); color: var(--text); cursor: pointer;
+  transition: background .12s, border-color .12s;
 }
 
-.meter { width: 120px; height: 8px; background: var(--code); border-radius: 4px; overflow: hidden; }
+header select:hover, header button:hover, .bar button:hover, .approve button:hover {
+  border-color: var(--faint);
+}
 
-.meter > div { height: 100%; background: var(--accent); width: 0; }
+header select { max-width: 340px; }
 
-#ctx { color: var(--dim); font-size: 12px; min-width: 150px; }
+/* the context gauge */
+.meter {
+  width: 110px; height: 6px; background: var(--code); border-radius: 3px; overflow: hidden;
+}
 
-aside, main, section { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.meter > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
 
+#ctx {
+  color: var(--dim); font: var(--small) var(--mono); min-width: 150px;
+  font-variant-numeric: tabular-nums;
+}
+
+aside, main, section {
+  min-height: 0; overflow: hidden; display: flex; flex-direction: column;
+}
+
+/* the file list */
 aside { border-right: 1px solid var(--line); background: var(--panel); }
 
-aside input { margin: 8px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
+aside input {
+  margin: 10px; padding: 6px 10px; font: inherit; font-size: 13px;
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--bg); color: var(--text);
+}
 
-#files { overflow: auto; flex: 1; padding: 0 4px 8px; font: 12px ui-monospace, monospace; }
+#files { overflow: auto; flex: 1; padding: 0 6px 10px; font: var(--small)/1.7 var(--mono); }
 
-#files div { padding: 2px 6px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#files div {
+  padding: 1px 8px; border-radius: 6px; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
-#files div:hover, #files div.on { background: var(--code); }
+#files div .dir { color: var(--faint); }
+#files div:hover { background: var(--code); }
+#files div.on { background: var(--accent-soft); color: var(--accent); }
+#files div.on .dir { color: var(--accent); opacity: .7; }
 
 section { border-left: 1px solid var(--line); background: var(--panel); }
 

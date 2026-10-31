@@ -2,8 +2,17 @@
 // then build), with file:line references made into links the viewer
 // opens.
 
-import { esc } from "./api.js";
-import { state } from "./state.js";
+import { esc }       from "./api.js";
+import { highlight } from "./highlight.js";
+import { state }     from "./state.js";
+
+// fenceLangs maps a code fence's language to highlight's file
+// extension names; others are tried as they are.
+const fenceLangs = {
+  python: "py", rust: "rs", bash: "sh", shell: "sh", zsh: "sh",
+  javascript: "js", typescript: "ts", "c++": "cpp", golang: "go",
+  typst: "typ", kotlin: "kt",
+};
 
 const fileRef = /(^|[\s(`\[])((?:[\w.-]+\/)*[\w.-]+\.[A-Za-z0-9]{1,8}):(\d+)(?:-(\d+))?/g;
 
@@ -43,7 +52,8 @@ export function markdown(src) {
       }
 
       i++;
-      out.push(`<pre><code>${ esc(body.join("\n")) }</code></pre>`);
+      const lang = fenceLangs[fence[1].toLowerCase()] || fence[1].toLowerCase();
+      out.push(`<pre><code>${ highlight(body.join("\n"), lang).join("\n") }</code></pre>`);
       continue;
     }
 

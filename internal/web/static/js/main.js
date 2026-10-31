@@ -1,10 +1,10 @@
 // Wiring only: the page's events to the modules, and the first loads.
 
-import { $, esc, api } from "./api.js";
-import { state } from "./state.js";
-import { refreshInfo } from "./header.js";
+import { $, esc, api }                                             from "./api.js";
+import { state }                                                   from "./state.js";
+import { refreshInfo }                                             from "./header.js";
 import { loadFiles, renderFiles, preview, showViewer, viewerOpen } from "./viewer.js";
-import { add, send, loadHistory } from "./chat.js";
+import { add, send, loadHistory }                                  from "./chat.js";
 
 $("form").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -21,7 +21,8 @@ $("input").addEventListener("keydown", (e) => {
 });
 $("filter").addEventListener("input", renderFiles);
 $("files").addEventListener("click", (e) => {
-  if (e.target.dataset.path) preview(e.target.dataset.path);
+  const row = e.target.closest("[data-path]");
+  if (row) preview(row.dataset.path);
 });
 $("log").addEventListener("click", (e) => {
   const ref = e.target.closest("a.ref");

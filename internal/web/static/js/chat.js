@@ -1,10 +1,10 @@
 // The conversation: adding messages, approvals, the status bar, and
 // sending a message and reading its event stream back.
 
-import { $, esc, api } from "./api.js";
-import { state } from "./state.js";
-import { markdown } from "./markdown.js";
-import { refreshInfo, kTokens, showContext } from "./header.js";
+import { $, esc, api }                                                from "./api.js";
+import { state }                                                      from "./state.js";
+import { markdown }                                                   from "./markdown.js";
+import { refreshInfo, kTokens, showContext }                          from "./header.js";
 import { loadFiles, changers, filesChanged, parseChange, showChange } from "./viewer.js";
 
 export function add(cls, html) {
@@ -158,6 +158,7 @@ export async function send(text) {
       const name = cut < 0 ? line : line.slice(0, cut);
       const rest = cut < 0 ? "" : line.slice(cut + 2);
       add("tool", `<span class = "dot">●</span> <b>${ esc(name) }</b>  ${ esc(rest) }`);
+      paint(); // draw what streamed before this call, then start anew
       msg = null; answer = ""; think = null; thoughts = "";
       lastCall = data;
       setPhase("running " + (data.args?.binary || data.name), false);

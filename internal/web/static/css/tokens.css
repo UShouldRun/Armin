@@ -1,23 +1,89 @@
-/* Colors, light and dark: the one place to restyle. The s* ones are
-   syntax highlighting. */
+/* The design's tokens, light and dark: colors, type, radii and spacing.
+   Restyle armin here; the other files only use these names. The s*
+   colors are syntax highlighting. */
 
 :root {
-  --bg: #fafafa; --panel: #ffffff; --text: #1d1d1f; --dim: #6e6e73;
-  --line: #e3e3e6; --accent: #2a6df4; --code: #f2f2f5;
-  --add: #e6f6ea; --addt: #146c2e; --del: #fdecec; --delt: #a4161a;
-  --hl: #fff4c2;
-  --sk: #8a3ffc; --ss: #1f7a3a; --sc: #8e8e93; --sn: #b5561a;
-  --st: #0e7c86; --sf: #2a5bd7;
+  /* surfaces, from the page back to raised cards */
+  --bg:     #f6f6f4;
+  --panel:  #ffffff;
+  --raised: #ffffff;
+  --code:   #f0f0ed;
+  --line:   #e4e3df;
+  --line2:  #d2d1cc;
+
+  /* text */
+  --text:  #1c1c1a;
+  --dim:   #6b6a66;
+  --faint: #9b9a95;
+
+  /* the accent and its tints */
+  --accent:      #3b5bdb;
+  --accent-text: #ffffff;
+  --accent-soft: #e8ecfb;
+
+  /* diff and highlight */
+  --add:  #e5f4e8;
+  --addt: #1e6b34;
+  --del:  #fbe9e8;
+  --delt: #b3261e;
+  --hl:   #fff3c4;
+  --warn: #b7791f;
+
+  /* syntax */
+  --sk: #7c3aed;
+  --ss: #1f7a3a;
+  --sc: #8f8e89;
+  --sn: #b5561a;
+  --st: #0e7c86;
+  --sf: #2f5bd3;
+
+  /* type */
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrainsMono Nerd Font", "JetBrains Mono", ui-monospace,
+          "SF Mono", Menlo, Consolas, monospace;
+  --size:  14.5px;
+  --small: 12.5px;
+
+  /* shape and space */
+  --r:      8px;
+  --r-lg:   12px;
+  --gap:    12px;
+  --shadow: 0 1px 2px rgb(0 0 0 / 5%), 0 4px 16px rgb(0 0 0 / 5%);
+  --column: 820px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #141416; --panel: #1c1c1f; --text: #e8e8ea; --dim: #9a9aa0;
-    --line: #2c2c31; --accent: #6b9bff; --code: #242428;
-    --add: #12301c; --addt: #7fd69a; --del: #3a1517; --delt: #f19ca0;
-    --hl: #3d3610;
-    --sk: #c39bff; --ss: #8fd19e; --sc: #7c7c84; --sn: #f0a868;
-    --st: #6cd3dc; --sf: #8ab4ff;
+    --bg:     #121212;
+    --panel:  #181817;
+    --raised: #1f1f1e;
+    --code:   #232322;
+    --line:   #2b2b29;
+    --line2:  #3a3a37;
+
+    --text:  #e9e8e4;
+    --dim:   #a09f99;
+    --faint: #75746f;
+
+    --accent:      #7b96ff;
+    --accent-text: #0e1220;
+    --accent-soft: #1f2640;
+
+    --add:  #14301d;
+    --addt: #86d79d;
+    --del:  #3a1716;
+    --delt: #f29d97;
+    --hl:   #3b3412;
+    --warn: #e0b04b;
+
+    --sk: #c4a1ff;
+    --ss: #8fd19e;
+    --sc: #7c7b76;
+    --sn: #f0a868;
+    --st: #6cd3dc;
+    --sf: #8ab4ff;
+
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 4px 16px rgb(0 0 0 / 30%);
   }
 }
 

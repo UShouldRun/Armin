@@ -1,65 +1,131 @@
 /* The conversation: messages, tool lines, approvals, the status bar
-   and the input. */
+   and the input. The column is capped at --column for reading. */
 
-#log { flex: 1; overflow: auto; padding: 16px 20px; }
+#log { flex: 1; overflow: auto; padding: 24px 20px 12px; }
 
-.msg { margin: 0 0 16px; }
+#log > * { max-width: var(--column); margin-left: auto; margin-right: auto; }
 
-.msg.user { background: var(--code); padding: 8px 12px; border-radius: 8px; white-space: pre-wrap; }
+.msg { margin: 0 auto 18px; }
 
-.tool, .notice { color: var(--dim); font: 12px ui-monospace, monospace; margin: 2px 0; white-space: pre-wrap; word-break: break-all; }
+/* your messages: a tinted bubble at the column's right edge */
+#log > .msg.user {
+  width: fit-content; max-width: min(85%, var(--column));
+  margin-right: max(0px, calc((100% - var(--column)) / 2));
+  background: var(--accent-soft); padding: 9px 14px;
+  border-radius: var(--r-lg) var(--r-lg) 4px var(--r-lg);
+  white-space: pre-wrap;
+}
 
-.tool b { color: var(--text); }
+/* tool calls: compact monospace rows with an accent edge */
+.tool, .notice {
+  color: var(--dim); font: var(--small)/1.5 var(--mono); margin: 2px auto;
+  white-space: pre-wrap; word-break: break-all;
+}
 
+.tool:not(.result):not(.err) {
+  padding: 3px 10px; border-left: 2px solid var(--accent);
+  background: var(--panel); border-radius: 0 6px 6px 0;
+  margin-top: 8px;
+}
+
+.tool + .msg, .result + .msg { margin-top: 12px; }
+
+.tool b { color: var(--text); font-weight: 600; }
 .tool .dot { color: var(--accent); }
-
-.tool.result { padding-left: 14px; }
-
+.tool.result { padding-left: 14px; color: var(--faint); }
 .tool.err { padding-left: 14px; color: var(--delt); }
 
-.notice { color: var(--accent); }
+.notice {
+  width: fit-content; max-width: var(--column); padding: 2px 10px;
+  border-radius: 99px; background: var(--accent-soft); color: var(--accent);
+  margin: 8px auto;
+}
 
 .err { color: var(--delt); }
 
-details.think { color: var(--dim); margin: 4px 0; font-size: 13px; }
+details.think { color: var(--dim); margin: 6px auto; font-size: 13px; }
+details.think summary, details.trace summary {
+  cursor: pointer; width: fit-content; color: var(--faint);
+  font: var(--small) var(--mono); list-style: none;
+}
 
-details.think summary { cursor: pointer; }
+details.think summary::before, details.trace summary::before { content: "▸ "; }
+details[open].think summary::before, details[open].trace summary::before { content: "▾ "; }
 
-details.trace { margin: 4px 0; font-size: 13px; }
+details.think div {
+  white-space: pre-wrap; border-left: 2px solid var(--line2);
+  padding: 2px 0 2px 10px; margin-top: 4px;
+}
 
-details.trace summary { cursor: pointer; color: var(--dim); }
-
+details.trace { margin: 6px 0; font-size: 13px; }
 details.trace pre { margin: 4px 0; color: var(--dim); white-space: pre-wrap; }
 
-details.think div { white-space: pre-wrap; border-left: 2px solid var(--line); padding-left: 8px; }
+/* approvals: a raised card with the primary action first */
+.approve {
+  border: 1px solid var(--line); border-radius: var(--r-lg); padding: 12px 14px;
+  margin: 10px auto; background: var(--raised); box-shadow: var(--shadow);
+}
 
-.approve { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin: 6px 0; background: var(--panel); }
-
-.approve pre { margin: 6px 0; max-height: 320px; overflow: auto; font-size: 12px; }
+.approve pre {
+  margin: 8px 0; max-height: 320px; overflow: auto; font: var(--small)/1.5 var(--mono);
+  background: var(--code); border-radius: var(--r); padding: 8px 10px;
+}
 
 .approve .add { background: var(--add); color: var(--addt); display: block; }
-
 .approve .del { background: var(--del); color: var(--delt); display: block; }
 
-.approve input { width: 60%; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); }
+.approve button[data-ok = "1"] {
+  background: var(--accent); color: var(--accent-text); border-color: var(--accent);
+}
 
-#status { padding: 4px 20px; color: var(--dim); font: 12px ui-monospace, monospace; border-top: 1px solid var(--line); }
+.approve input {
+  width: 60%; padding: 4px 8px; margin-left: 4px; font: inherit; font-size: 13px;
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--bg); color: var(--text);
+}
 
-#status::before { content: "●"; color: var(--accent); margin-right: 8px; animation: pulse 1.2s ease-in-out infinite; }
+/* the status bar: what the turn is doing */
+#status {
+  padding: 5px 20px; color: var(--dim); font: var(--small) var(--mono);
+  border-top: 1px solid var(--line); background: var(--panel);
+}
 
-#status.stall::before, #status.stall { color: #d4a017; }
+#status::before {
+  content: "●"; color: var(--accent); margin-right: 8px;
+  animation: pulse 1.2s ease-in-out infinite;
+}
 
+#status.stall::before, #status.stall { color: var(--warn); }
 #status.lost::before, #status.lost { color: var(--delt); }
 
 @keyframes pulse { 50% { opacity: .25; } }
 
-form { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--panel); }
-
-textarea {
-  flex: 1; resize: none; height: 64px; padding: 8px; font: inherit;
-  border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text);
+/* the composer */
+form {
+  display: flex; gap: 8px; align-items: flex-end; padding: 12px 20px 16px;
+  border-top: 1px solid var(--line); background: var(--panel);
 }
 
-form button { padding: 0 18px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+form > * { max-width: var(--column); }
+form::before, form::after { content: ""; flex: 1; max-width: none; }
 
-form button:disabled { opacity: .5; }
+textarea {
+  flex: 1 1 var(--column); resize: none; height: 68px; padding: 10px 12px;
+  font: inherit; line-height: 1.5;
+  border: 1px solid var(--line2); border-radius: var(--r-lg);
+  background: var(--raised); color: var(--text);
+  transition: border-color .12s, box-shadow .12s;
+}
+
+textarea:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+form button {
+  height: 40px; padding: 0 18px; border: 0; border-radius: var(--r-lg);
+  background: var(--accent); color: var(--accent-text);
+  font: inherit; font-weight: 600; cursor: pointer;
+}
+
+form button:disabled { opacity: .45; cursor: default; }
