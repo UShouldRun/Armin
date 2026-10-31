@@ -64,7 +64,7 @@ Keep answers concise.`
 // are a tool call away.
 func buildSystemPrompt(
   base, root string, mem *notes.Memories, skills *notes.Skills,
-  lib *library.Library, tree *know.Graph,
+  lib *library.Library, tree *know.Graph, recall bool,
 ) string {
   var b strings.Builder
   b.WriteString(base)
@@ -91,7 +91,7 @@ func buildSystemPrompt(
   }
 
   if tree != nil {
-    b.WriteString(knowSection(tree))
+    b.WriteString(knowSection(tree, recall))
   }
 
   return b.String()
@@ -117,11 +117,24 @@ const knowRules = "Check it before exploring: know_find first; when nodes " +
   "prose. In the scratchpad, plans and summaries, cite nodes as [n42] " +
   "instead of restating them."
 
+// knowRecall replaces the find instruction when armin searches the tree
+// itself (Loop.Recall): the nodes arrive above the user's message.
+const knowRecall = "armin searches it with each of the user's messages " +
+  "and puts the closest nodes above the message, under \"[armin] From " +
+  "the knowledge tree\"; when they answer the question, answer from " +
+  "them. "
+
 // knowSection is the tree's part of the system prompt: the outline,
-// frozen at session start, and the rules.
-func knowSection(tree *know.Graph) string {
+// frozen at session start, and the rules. With recall, armin does the
+// searching, and the model only writes (know_write).
+func knowSection(tree *know.Graph, recall bool) string {
   var b strings.Builder
-  b.WriteString("\n\n# Knowledge tree (know_find, know_write)\n")
+  if recall {
+    b.WriteString("\n\n# Knowledge tree (know_write)\n")
+  } else {
+    b.WriteString("\n\n# Knowledge tree (know_find, know_write)\n")
+  }
+
   outline := tree.Outline(outlineBytes)
   if outline == "" {
     b.WriteString("Empty so far: know_write what you establish as you work.\n")
@@ -131,7 +144,14 @@ func knowSection(tree *know.Graph) string {
     b.WriteString(outline)
   }
 
-  b.WriteString(knowRules)
+  rules := knowRules
+  if recall {
+    rules = knowRecall + strings.TrimPrefix(rules, "Check it before " +
+      "exploring: know_find first; when nodes answer the question, " +
+      "answer from them. ")
+  }
+
+  b.WriteString(rules)
 
   return b.String()
 }

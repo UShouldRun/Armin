@@ -127,6 +127,8 @@ func (l *Loop) offered(id ToolID) bool {
     return l.Skills != nil && l.Skills.Len() > 0
   case id.has(flagLibrary):
     return l.Library != nil
+  case l.Recall && (id == toolKnowFind || id == toolKnowTrace):
+    return false // armin does the reading (recall.go)
   case id.has(flagKnow):
     return l.Know != nil
   case id.has(flagMinion):

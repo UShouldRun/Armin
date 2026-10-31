@@ -64,6 +64,14 @@ type Loop struct {
   Minion      func(context.Context) (*llm.Client, error)
   delegations uint32
 
+  // Recall makes armin search the tree with each turn's message and
+  // attach the matches (recall.go); the model then gets know_write
+  // alone, no read tools. recalled and recalledFiles are this turn's
+  // matches and their files, for recallSettle.
+  Recall        bool
+  recalled      []know.NodeID
+  recalledFiles []string
+
   // Learner is what the user knows (one tree per user); nil drops the
   // teaching tools. knowMu guards it too.
   Learner *learner.Learner

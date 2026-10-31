@@ -26,6 +26,7 @@ import (
   "armin/internal/agent"
   "armin/internal/know"
   "armin/internal/llm"
+  "armin/internal/metrics"
   "armin/internal/notes"
   "armin/internal/sandbox"
 )
@@ -243,6 +244,15 @@ func TestTreeBench(t *testing.T) {
     }
   }
 
+  // recall, when on: how often it attached nodes, and how often the
+  // model then used them (cited [nN] or read their files)
+  snap := metrics.Snapshot()
+  if snap["recall.turns"].Count > 0 {
+    t.Logf("RECALL turns %d, attached %d, used %d, empty %d",
+      snap["recall.turns"].Count, snap["recall.attached"].Count,
+      snap["recall.used"].Count, snap["recall.empty"].Count)
+  }
+
   // what the whole pair costs in dollars: the number H1 asks about
   var pair [2]float64
   for cond := 0; cond < 2; cond++ {
@@ -272,7 +282,11 @@ func benchSession(
 
   // no memories or skills: what's known comes from the tree alone
   mem := &notes.Memories{ ProjectDir: t.TempDir(), UserDir: t.TempDir() }
-  system := buildSystemPrompt(basePrompt, sb.Root, mem, &notes.Skills{}, nil, tree)
+  recall := tree != nil && os.Getenv("ARMIN_TREEBENCH_RECALL") != ""
+  loop.Recall = recall
+  system := buildSystemPrompt(
+    basePrompt, sb.Root, mem, &notes.Skills{}, nil, tree, recall,
+  )
   history := []llm.Message{
     { Role: "system", Content: system },
     { Role: "user", Content: question },

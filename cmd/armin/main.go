@@ -45,6 +45,11 @@ func run() error {
     return display.Install(ctx, opts)
   }
 
+  // -metrics only reads what earlier runs measured.
+  if opts.Mode == input.ModeMetrics {
+    return display.Metrics()
+  }
+
   // -know works on the knowledge tree alone.
   if opts.Mode == input.ModeKnow {
     return display.Know(opts)

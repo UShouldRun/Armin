@@ -29,6 +29,7 @@ const (
   ModeLibrary          // -library-sync/-add: index, catalog, exit
   ModeInstall          // -install/-uninstall: add or remove a model, exit
   ModeKnow             // -know: dump, edit or import into the tree, exit
+  ModeMetrics          // -metrics: print the metrics report, exit
 )
 
 const (
@@ -135,6 +136,8 @@ func Parse() (*Options, error) {
   }
 
   switch {
+  case f.metrics:
+    o.Mode = ModeMetrics
   case f.know != "":
     o.Mode = ModeKnow
     o.Know = f.know

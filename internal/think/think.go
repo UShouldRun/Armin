@@ -32,6 +32,7 @@ import (
   "armin/internal/library"
   "armin/internal/llamacpp"
   "armin/internal/llm"
+  "armin/internal/metrics"
   "armin/internal/sandbox"
   "armin/internal/searxng"
   "armin/internal/session"
@@ -93,6 +94,12 @@ func NewSenses(opts *input.Options) (*Mind, error) {
   }
 
   m := &Mind{ Sandbox: sb }
+
+  // what the deterministic systems did, kept with armin's data
+  data, err := session.DataDir()
+  if err == nil {
+    metrics.SetDir(filepath.Join(data, "metrics"))
+  }
 
   // web_search degrades gracefully: without docker the tool reports
   // "unavailable". The container starts on the first search.
@@ -262,6 +269,7 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
     ui.Warn("knowledge tree: %s", err)
   } else {
     loop.Know = m.Know
+    loop.Recall = cfg.Recall
     msg, err := refreshKnow(m.Sandbox.Root, m.Know)
     if err != nil {
       ui.Warn("knowledge tree: %s", err)
@@ -319,6 +327,7 @@ func (m *Mind) SystemPrompt(readOnly bool) string {
 
   return buildSystemPrompt(
     base, m.Sandbox.Root, m.Memories, m.Skills, m.Library, m.Know,
+    m.Loop != nil && m.Loop.Recall,
   )
 }
 
@@ -353,6 +362,10 @@ func (m *Mind) Shutdown() {
   defer cancel()
 
   m.closeKnow()
+  err := metrics.Flush()
+  if err != nil {
+    ui.Error("saving metrics: %s", err)
+  }
 
   if m.Models != nil {
     err := m.Models.Shutdown(ctx)

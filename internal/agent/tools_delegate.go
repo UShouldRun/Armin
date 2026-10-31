@@ -19,6 +19,7 @@ import (
 
   "armin/internal/know"
   "armin/internal/llm"
+  "armin/internal/metrics"
   "armin/internal/sandbox"
   "armin/internal/tools"
 )
@@ -195,6 +196,16 @@ func runDelegate(ctx context.Context, l *Loop, c toolCall) any {
     out["confidence"] = "checked"
   }
 
+  metrics.Add("delegate.calls", 1)
+  if in.Check != "none" {
+    metrics.Add("delegate.check.run", 1)
+    if passed {
+      metrics.Add("delegate.check.passed", 1)
+    }
+  }
+
+  metrics.Event("delegate", "id", id, "check", in.Check, "passed", passed)
+
   if l.Know != nil {
     l.knowMu.Lock()
     lines, err := l.settleDelegation(id, passed, report)
@@ -295,6 +306,7 @@ func (l *Loop) settleDelegation(
         }
       }
 
+      metrics.Add("delegate.nodes.raised", 1)
       _, err := l.Know.AddEvidence(n, know.RefCheck,
         fmt.Sprintf("delegation %d: %s", id, report), 0)
       if err != nil {

@@ -29,6 +29,7 @@ import (
 
   "armin/internal/know"
   "armin/internal/llm"
+  "armin/internal/metrics"
 )
 
 var knowTools = []toolSpec{
@@ -197,6 +198,7 @@ func (l *Loop) checkCycles(id know.NodeID, out map[string]string) {
     out["cycle"] = "this closes a requires loop: " + strings.Join(ids, " → ") +
       ". " + cycleFix(l.Role)
     l.cyclesOpen = true
+    metrics.Add("know.cycle.opened", 1)
     return
   }
 }
@@ -462,6 +464,9 @@ func knowAdd(l *Loop, in knowArgs) any {
 
     similar := l.Know.Similar(parent, name, claim)
     if len(similar) > 0 {
+      metrics.Add("know.dedup.held", 1)
+      metrics.Event("know.dedup.held", "path", path,
+        "best", fmt.Sprintf("n%d", similar[0].ID), "score", similar[0].Score)
       var b strings.Builder
       for i, h := range similar {
         if i > 0 {
@@ -491,6 +496,10 @@ func knowAdd(l *Loop, in knowArgs) any {
     return knowErr(err)
   }
 
+  if in.Force && len(l.Know.Similar(parent, name, claim)) > 0 {
+    metrics.Add("know.dedup.forced", 1)
+  }
+
   id, err := l.Know.AddNode(parent, name, claim, kind, conf, author)
   if err != nil {
     return knowErr(err)
@@ -513,6 +522,11 @@ func knowAdd(l *Loop, in knowArgs) any {
         return knowErr(err)
       }
     }
+  }
+
+  metrics.Add("know.write.add", 1)
+  if l.Role == RoleMinion {
+    metrics.Add("know.minion.added", 1)
   }
 
   out := map[string]string{ "added": l.lines([]know.NodeID{ id }, false) }
@@ -540,6 +554,7 @@ func (l *Loop) minionLimits(kind know.Kind, conf *know.Conf) (string, error) {
 
   if *conf > know.ConfInferred {
     *conf = know.ConfInferred
+    metrics.Add("know.minion.capped", 1)
     return "confidence capped at inferred: a minion's claim is checked " +
       "by the copilot or advisor", nil
   }
@@ -669,6 +684,7 @@ func knowLink(l *Loop, in knowArgs) any {
     return knowErr(err)
   }
 
+  metrics.Add("know.write.link", 1)
   out := map[string]string{ "now": l.lines([]know.NodeID{ from }, false) }
   if kind == know.EdgeRequires && !in.Remove {
     l.checkCycles(from, out)
@@ -680,6 +696,7 @@ func knowLink(l *Loop, in knowArgs) any {
       if err == nil && len(loops) == 0 {
         l.cyclesOpen = false
         out["cycle"] = "no requires loops are open now"
+        metrics.Add("know.cycle.resolved", 1)
       }
     }
   }
@@ -779,6 +796,7 @@ func knowUpdate(l *Loop, in knowArgs) any {
 
   var set, clear know.NodeFlags
   if in.Verified {
+    metrics.Add("know.verified", 1)
     set |= know.FlagVerified
   }
 
@@ -796,6 +814,7 @@ func knowUpdate(l *Loop, in knowArgs) any {
     return knowErr(err)
   }
 
+  metrics.Add("know.write.update", 1)
   out := map[string]string{ "now": l.lines([]know.NodeID{ id }, false) }
   if note != "" {
     out["note"] = note
@@ -951,6 +970,9 @@ func (l *Loop) recordTurn(h []llm.Message, from int) {
   for _, ref := range refs {
     l.addEvidence(id, ref)
   }
+
+  metrics.Add("know.record.turns", 1)
+  metrics.Observe("know.record.refs", float64(len(refs)))
 }
 
 // citeRe matches the citations answers carry: a path with a Go-ish

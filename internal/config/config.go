@@ -227,6 +227,15 @@ func apply(cfg *Config, key, value string) error {
     cfg.STT = value
   case "stt_record":
     cfg.STTRecord = value
+  case "recall":
+    switch value {
+    case "on", "true", "yes":
+      cfg.Recall = true
+    case "off", "false", "no":
+      cfg.Recall = false
+    default:
+      return fmt.Errorf("recall = %q: want on or off", value)
+    }
   case "ctags_bin":
     cfg.CtagsBinary = value
   case "llama_url":

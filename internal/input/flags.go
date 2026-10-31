@@ -119,6 +119,9 @@ func parseFlags(fileCfg config.Config) cliFlags {
     "the folder -install downloads into (default: where your models "+
       "already are, else ~/models)")
 
+  flag.BoolVar(&f.metrics, "metrics", false,
+    "print what armin's deterministic systems did (tree recall, dedup, "+
+      "staleness, delegation checks, every tool), then exit")
   flag.StringVar(&f.know, "know", "",
     "show or change the project's knowledge tree, then exit: "+
       "dump[=path] prints it, edit[=path] opens it in $EDITOR, "+

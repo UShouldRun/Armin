@@ -70,6 +70,10 @@ type Config struct {
   // with {wav} for the file (see internal/stt); empty STTRecord finds
   // parec, pw-record, arecord or rec.
   STT, STTRecord string
+
+  // Recall makes armin search the knowledge tree with each message and
+  // attach the matches, instead of the model calling know_find.
+  Recall bool
   Terminal        string // how to open a new terminal window: "ghostty -e"
   CtagsBinary     string // used only by -lsp definition/symbol/hover
 

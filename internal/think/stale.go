@@ -21,10 +21,12 @@ import (
   "path/filepath"
   "sort"
   "strings"
+  "time"
 
   "golang.org/x/sys/unix"
 
   "armin/internal/know"
+  "armin/internal/metrics"
 )
 
 // refreshKnow brings the tree up to date with the code and says what
@@ -33,6 +35,8 @@ func refreshKnow(root string, g *know.Graph) (string, error) {
   if g.ReadOnly() {
     return "", nil
   }
+
+  defer metrics.Since("stale.refresh.ms", time.Now())
 
   cited := map[string][]know.EvidenceID{}
   for path, evs := range g.CitedFiles() {
@@ -60,8 +64,10 @@ func refreshKnow(root string, g *know.Graph) (string, error) {
       now[rel] = st
     }
 
+    metrics.Add("stale.files.cited", 1)
     prev, seen := old[rel]
     if ok && seen && prev == st {
+      metrics.Add("stale.files.skipped", 1)
       continue
     }
 
@@ -78,12 +84,18 @@ func refreshKnow(root string, g *know.Graph) (string, error) {
 
     stale = append(stale, s...)
     moved += m
+    metrics.Add("stale.changed", int64(len(s) + m))
   }
+
+  metrics.Add("stale.moved", int64(moved))
+  metrics.Add("stale.stale", int64(len(stale)))
 
   suspect, err := g.MarkSuspect(stale)
   if err != nil {
     return "", fmt.Errorf("\n\t... in refreshKnow:\n\t%w", err)
   }
+
+  metrics.Add("stale.suspect", int64(suspect))
 
   author, err := g.Intern(know.RoleArmin, "", "", 0)
   if err != nil {

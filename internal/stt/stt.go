@@ -23,6 +23,8 @@ import (
   "strings"
   "syscall"
   "time"
+
+  "armin/internal/metrics"
 )
 
 // transcribeTimeout bounds one transcription; a long recording on the
@@ -181,7 +183,9 @@ func Transcribe(ctx context.Context, command, wav string) (string, error) {
     return "", fmt.Errorf("\n\t... in Transcribe:\n\t%w", err)
   }
 
+  metrics.Add("stt.recordings", 1)
   if Flat(data) {
+    metrics.Add("stt.flat", 1)
     return "", errors.New("\n\t... in Transcribe:\n\tthe microphone recorded " +
       "a flat " +
       "signal (no sound); check the input device, or reload its driver")
@@ -189,6 +193,7 @@ func Transcribe(ctx context.Context, command, wav string) (string, error) {
 
   ctx, cancel := context.WithTimeout(ctx, transcribeTimeout)
   defer cancel()
+  defer metrics.Since("stt.ms", time.Now())
 
   args := expand(command, wav)
   cmd := exec.CommandContext(ctx, args[0], args[1:]...)

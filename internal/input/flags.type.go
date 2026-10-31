@@ -22,6 +22,7 @@ type cliFlags struct {
   libraryAdd, libraryTo, effort, aids       string
   install, installTo, uninstall             string
   know                                      string
+  metrics                                   bool
 }
 
 // resumeFlag is -resume: a bool flag that can also carry a value.

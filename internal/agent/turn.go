@@ -16,8 +16,10 @@ import (
   "context"
   "encoding/json"
   "fmt"
+  "time"
 
   "armin/internal/llm"
+  "armin/internal/metrics"
 )
 
 // roundLimitNote is sent when a turn runs out of tool rounds: one
@@ -47,8 +49,13 @@ func (l *Loop) Turn(
   ctx context.Context, history *[]llm.Message, hooks Hooks,
 ) (string, error) {
   l.takeReminder(*history)
+  metrics.Add("turn.count", 1)
+  l.recall(*history)
   t := l.newTurn(history, hooks)
-  defer func() { l.endTurn(history, t.start, hooks) }()
+  defer func() {
+    l.recallSettle(*history, t.start)
+    l.endTurn(history, t.start, hooks)
+  }()
 
   defs := l.Definitions()
   stream := llm.StreamHandlers{
@@ -268,6 +275,8 @@ func (t *turn) run(ctx context.Context, call llm.ToolCall) []byte {
   prev, failedBefore := t.failed[key]
   if failedBefore {
     t.blocked++
+    metrics.Add("guard.blocked", 1)
+    metrics.Event("guard.blocked", "tool", call.Function.Name)
     out, _ := json.Marshal(map[string]string{
       "error": "you already made this exact call this turn and it " +
         "failed: " + prev + " Don't repeat it: change the " +
@@ -286,6 +295,7 @@ func (t *turn) run(ctx context.Context, call llm.ToolCall) []byte {
     return out
   }
 
+  start := time.Now()
   result := t.l.executeTurn(ctx, call, t.hooks, t.sources, t.declined)
   out, err := json.Marshal(result)
   if err != nil {
@@ -293,6 +303,8 @@ func (t *turn) run(ctx context.Context, call llm.ToolCall) []byte {
       `{"error":"failed to encode tool result: %s"}`, err,
     ))
   }
+
+  toolMetrics(call.Function.Name, start, out)
 
   raw := string(out) // compared across runs, before any note
   msg := errorOf(out)
@@ -334,3 +346,20 @@ func (t *turn) run(ctx context.Context, call llm.ToolCall) []byte {
 
   return out
 }
+
+// toolMetrics counts one tool call: calls and errors per tool and in
+// all, its milliseconds and the bytes its result put in context.
+func toolMetrics(name string, start time.Time, out []byte) {
+  failed := errorOf(out) != ""
+  metrics.Add("tool.calls", 1)
+  metrics.Add("tool." + name + ".calls", 1)
+  metrics.Since("tool." + name + ".ms", start)
+  metrics.Observe("tool." + name + ".bytes", float64(len(out)))
+  if failed {
+    metrics.Add("tool.errors", 1)
+    metrics.Add("tool." + name + ".errors", 1)
+  }
+
+  metrics.Event("tool", "name", name, "bytes", len(out), "error", failed)
+}
+
