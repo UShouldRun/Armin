@@ -1,8 +1,9 @@
 # Restructure plan: roles and knowledge trees
 
 Status: **steps 1-9 built** on branch `restructure`; step 10 (teaching)
-and 11 (end-to-end check) remain. Section 9 says exactly where things
-stand and what's left.
+and 11 (end-to-end check) remain, plus the open tree-economics question
+in "Does the tree pay?" (section 5). Section 9 says exactly where
+things stand and what's left.
 
 Inspired by LearnHarness (amosblomqvist/learnharness): a persistent
 knowledge graph of what the learner knows, built from teaching
@@ -172,12 +173,12 @@ and no automatic merge at any score (decided: word overlap can't
 tell "accepts" from "rejects", and a merge would drop an author and
 its evidence).
 
-Writing rules, stated in the `know_add` tool description and the
+Writing rules, stated in the `know_write` tool description and the
 procedure aid, and enforced in code where they can be:
 - **Search before adding.** Check that no node already holds the
   same information; prefer updating or linking it.
 - **Every concept has a definition.** A `concept` node's claim is its
-  definition; `know_add` refuses a concept with an empty claim.
+  definition; `know_write` refuses a concept with an empty claim.
 - **Reasoning goes into edges.** When a conclusion follows from other
   nodes, say so with `requires` / `derived-from` / `explains` edges
   instead of leaving the link in prose or the scratchpad, so the tree
@@ -310,7 +311,7 @@ Open questions:
 **Outline (decided)**: the system prompt gets a depth-2 outline of
 the project tree with per-branch node counts, frozen at session
 start and capped at ~300 tokens, so the prefix cache holds; deeper
-levels through `know_find` / `know_dump`, new nodes through tool
+levels through `know_find` / `armin -know dump`, new nodes through tool
 results. The advisor's slot also carries a depth-2 outline of the
 learner tree for the current topic (known / not sure).
 
@@ -324,7 +325,7 @@ n42 tcp/handshake fact checked minion-unverified needs n17 n23 used-by n8 "three
 ```
 
 IDs in the same `n42` form the model cites. Claims cut at ~100
-characters; `know_get` returns the full node.
+characters; `know_find` with `ids` returns the full node.
 
 Measured (internal/know/format_eval_test.go, 190-node fixture) against
 a coded format (`142 path F:t m? ←103,91 →199`):
@@ -365,13 +366,13 @@ opens it in the tree on click, nvim shows it on hover.
 The procedure aid opens with "check the tree before exploring:
 `know_find` first, read code only for what it doesn't cover or marks
 stale". `memory_save` refuses notes that cite a file, line or symbol
-and points to `know_add`. Existing memories that are code facts move
+and points to `know_write`. Existing memories that are code facts move
 once with `armin -know import-memories`: each is shown with a
 proposed node, you accept or skip, accepted ones leave memory.
 
 **The minion and the tree (decided)**:
 
-| use | outline | read (`know_find`, `know_get`) | write (`know_add`, edit) |
+| use | outline | read (`know_find`, ids) | write (`know_write`) |
 |---|---|---|---|
 | you talk to the minion | yes | yes | yes, always unverified |
 | `delegate` | no, the task carries the referenced nodes | yes | only if the delegator allows it |
@@ -384,6 +385,67 @@ evidence); no `decision` nodes; no verifying; no resolving cycles
 
 The main saving is input tokens and tool rounds (no re-reading what's
 understood); output shrinks mostly through references.
+
+### Does the tree pay? (measured 2026-10-31)
+
+`internal/think/treebench_test.go` measures it: five pairs of real
+questions about armin's own code (repeat-guard, golden-tools,
+staleness, roles, project-dirs), two fresh sessions per pair, run
+concurrently per condition. Session 1 asks about an area; session 2
+follows up on it, where the tree should spare the model from
+exploring again. Answers checked by regex; tokens from the usage
+hook. Qwen 3.8 27B via OpenRouter, effort medium, read-only, no
+memories or skills. `ARMIN_TREEBENCH_DUMP` writes per-session traces
+(paths are package-relative: pass an absolute path). The key loads
+from `~/.config/armin/.env` (0471735).
+
+Four rounds, three runs each, input tokens summed over runs:
+
+| round | s1 no tree | s1 tree | s2 no tree | s2 tree | pair |
+|---|---|---|---|---|---|
+| 6 tools, no auto-record (0471735) | 293k* | 463k (+58%) | 325k* | 259k (−20%) | 722k vs 619k |
+| 3 tools, no auto-record (28d53c5) | 1061k | 1383k (+30%) | 900k | 969k (+8%) | +19.9% |
+| 3 tools, auto-record never fired† | 1005k | 1562k (+55%) | 900k | 1150k (+28%) | +42.4% |
+| 3 tools, auto-record live (6af79a5) | 1202k | 1790k (+49%) | 869k | 1134k (+31%) | +41.2% |
+
+\* single runs, no repetition. † recordTurn read a nonexistent
+argument key (`file`; read_file's is `path`), so this round silently
+re-measured the 3-tool state; kept as a lesson: a feature whose
+effect is "nothing changed" must be proven on before its cost is
+believed. All tree-condition accuracy was 3–5/5 per session-1 and
+4–5/5 per session-2, scattered, never systematically worse.
+
+**Findings, from the traces (reports/treebench*/)**:
+
+1. **The tree pays exactly where the model wrote a real claim.**
+   golden-tools tree s2 with a recorded node: 4 rounds, 35k input,
+   answered from the tree. Without a recorded node the model calls
+   `know_find`, gets nothing useful, and explores anyway.
+2. **Three tools didn't lower the s1 cost** (recording + description
+   overhead sits on every request; +30% with descriptions alone).
+   But the merged `know_write` roughly doubled how often the model
+   records (about one write per session-1 now, 2 calls in 5 runs
+   before) — the easier surface is real, just not cheap enough.
+3. **Auto-recording Q/A pairs does not pay.** A cut question plus a
+   cut answer (`Q: … A: …`) under `sessions/` filled the tree (all
+   15 session-1s recorded), s2 searched and found them (1–4
+   `know_find` calls), and still explored the code: +31% s2, the
+   worst yet. The model doesn't trust a blob it can't weigh; a
+   claim it wrote itself, with evidence it chose, it reuses.
+4. **Run-to-run noise is large** (no-tree s1 ranged 317k–497k in
+   one round); three runs is the minimum, and only pair deltas mean
+   anything.
+
+**Where this leaves the tree (open, not settled)**: recording is
+the model's job (`know_write` with a real claim), and armin's
+auto-record should at most note *where to look* (a `file`-kind node
+with the ranges read, no Q/A text), so s2's first read is cheap and
+targeted instead of a search. The next measurement: strip the Q/A
+claim to the ranges alone, keep everything else, and see whether s2
+drops below no-tree. If it does, the tree's value is navigation, not
+prose; if it doesn't, the tree only pays in long chains (three-plus
+sessions) and the benchmark should grow a third session to show it.
+Costs so far: about $1.50 in OpenRouter across 12 clean runs.
 
 ## 6. The advisor flow — settled
 
@@ -589,11 +651,13 @@ its own commit (one per package where it spans several).
    `/advisor`. Works with no tree at all; the golden files prove each
    role's tool list is byte-stable.
 4. **Trees in context**: `tools_know.go` (find, get, add, link,
-   edit) with the node line format and writing rules, the frozen
-   outline in the system prompt, the procedure aid line,
-   `memory_save` refusing code facts, `-know dump | edit |
-   import-memories`. Then the **format measurement** (~200-node
-   fixture, ~20 questions, minion and copilot models).
+   edit; since merged into find, write, trace — see section 5) with
+   the node line format and writing rules, the frozen outline in the
+   system prompt, the procedure aid line, `memory_save` refusing
+   code facts, `-know dump | edit | import-memories`. Then the
+   **format measurement** (~200-node fixture, ~20 questions, minion
+   and copilot models), and the **benchmark** ("Does the tree pay?",
+   section 5).
 5. **Staleness**: evidence hashing, git diff + status at session
    start, same-file re-anchoring, suspect pass; the cycle pass and
    the turn-end reminder for open cycles. Tests replay real edits
@@ -618,7 +682,7 @@ its own commit (one per package where it spans several).
     tour of an unfamiliar codebase; fix what they show before calling
     the restructure done.
 
-## 9. Progress (2026-10-31)
+## 9. Progress (revised 2026-10-31, after the tree benchmark)
 
 Branch `restructure`, not pushed, not merged. Every step's tests
 pass (`go test ./...`, the know and learner packages also under
@@ -636,8 +700,17 @@ pass (`go test ./...`, the know and learner packages also under
 | 8 speech | done in the REPL (/voice, learn_explained) | 1adc4fe |
 | 9 web UI split + redesign | done | c38a8cf, e47a868 |
 | style pass (80 columns, no if-init) | done | 2faca9c |
+| tree benchmark + answer rule | done, results in section 5 | 0471735 |
+| six know tools into three | done (find reads full, write does all writes) | 28d53c5 |
+| auto-record turn into tree | built; Q/A claims measured unhelpful, rethink pending (section 5) | 6af79a5 |
+| benchmark loads .env key | done | e4a7178 |
 
 ### Left to do
+
+**Tree economics** (the open question in section 5, before more is
+built on the tree): strip auto-record to a `file`-kind node with the
+ranges read (no Q/A text), measure; if s2 still doesn't beat no-tree,
+add a third session to the pairs and measure long chains.
 
 **Step 10, teaching** (the big one; section 6 has every decision):
 - `tools_teach.go` beyond `learn_explained`: the probe (self-report on
@@ -668,10 +741,17 @@ pass (`go test ./...`, the know and learner packages also under
 to end; fix what that shows.
 
 **Smaller loose ends**
-- `stt` isn't in config.conf yet. The whisper.cpp build and model from
-  2026-10-31 are at /media/henrique/partition/llm (whisper-cli,
-  models/whisper/ggml-large-v3-turbo-q5_0.bin); add `-ng` if the local
-  minion holds the GPU. /voice is tested only with fake scripts.
+- `stt` isn't in the live config.conf yet; a branch-run config with
+  the role keys and stt sits at `config.conf.restructure` in the
+  repo root (the main-branch build ignores the role keys). The
+  whisper.cpp build is at
+  /media/henrique/partition/llm/src/whisper.cpp (whisper-cli under
+  build/bin), the model at
+  models/whisper/ggml-large-v3-turbo-q5_0.bin; add `-ng` if the
+  local minion holds the GPU. /voice is tested only with fake scripts.
+- The treebench dump path is package-relative (resolves under
+  internal/think); pass an absolute path, or make the bench
+  filepath.Abs it.
 - Version control adapters (hg, jj, svn, fossil) aren't written; only
   git was installed to test, and staleness no longer needs any.
 - Poneglyph integration (section 4c): later, when it exists.
