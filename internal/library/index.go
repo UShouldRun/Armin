@@ -14,6 +14,8 @@ import (
   "strconv"
   "strings"
   "sync"
+
+  "armin/internal/tokens"
 )
 
 const (
@@ -276,8 +278,8 @@ func (l *Library) write(
         }
       }
 
-      eachTerm(p.Label, buf, count)
-      eachTerm(p.Text, buf, count)
+      tokens.Each(p.Label, buf, count)
+      tokens.Each(p.Text, buf, count)
       for t, c := range counts {
         ps := terms[t]
         if ps == nil {

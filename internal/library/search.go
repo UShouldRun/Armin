@@ -6,6 +6,8 @@ import (
   "math"
   "sort"
   "strings"
+
+  "armin/internal/tokens"
 )
 
 // perDoc caps passages from one document, so a big book can't
@@ -54,7 +56,7 @@ func (l *Library) Search(
     )
   }
 
-  terms := queryTerms(query)
+  terms := tokens.Query(query)
   if len(terms) == 0 {
     return nil, fmt.Errorf(
       "\n\t... in Search:\n\t the query has no searchable words",

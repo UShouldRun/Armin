@@ -379,26 +379,6 @@ func TestExtract(t *testing.T) {
   }
 }
 
-func TestTerms(t *testing.T) {
-  got := queryTerms("The sync.WaitGroup waits for Goroutines; " +
-    "1234567 x ÉCOLE threads")
-  want := "sync waitgroup wait goroutine école thread"
-  if strings.Join(got, " ") != want {
-    t.Fatalf("queryTerms = %q, want %q", strings.Join(got, " "), want)
-  }
-
-  buf := make([]byte, 0, 64)
-  text := "Share memory by communicating; don't communicate by " +
-    "sharing memory."
-  allocs := testing.AllocsPerRun(100, func() {
-    eachTerm(text, buf, func([]byte) {})
-  })
-
-  if allocs != 0 {
-    t.Fatalf("eachTerm allocates %.0f times per call", allocs)
-  }
-}
-
 func TestSnippet(t *testing.T) {
   text := strings.Repeat("filler words here ", 100) +
     "the needle is here " + strings.Repeat("more filler ", 100)
