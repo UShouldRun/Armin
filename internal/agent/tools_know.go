@@ -834,3 +834,130 @@ func runKnowTrace(_ context.Context, l *Loop, c toolCall) any {
 
   return map[string]string{ "trace": b.String() }
 }
+
+// recordTurn saves what a finished turn established, so the next
+// session finds it without the model spending tokens on know_write.
+// Called from endTurn, once per turn: the node's claim is the
+// question and the answer's gist, its evidence the file ranges the
+// turn actually read. A node similar enough gets the evidence linked
+// instead of a near-duplicate child.
+func (l *Loop) recordTurn(h []llm.Message, from int) {
+  if l.Know == nil {
+    return
+  }
+
+  // the turn's user question and final answer
+  question, answer := "", ""
+  for i := from; i < len(h); i++ {
+    if h[i].Role == "user" && question == "" &&
+      !strings.HasPrefix(h[i].Content, "[armin]") {
+      question = strings.TrimSpace(h[i].Content)
+    }
+
+    if h[i].Role == "assistant" && len(h[i].ToolCalls) == 0 {
+      answer = strings.TrimSpace(h[i].Content)
+    }
+  }
+
+  if question == "" || answer == "" {
+    return
+  }
+
+  // the file ranges the turn read, as evidence refs
+  var refs []string
+  seen := map[string]bool{}
+  for i := from; i < len(h); i++ {
+    for _, call := range h[i].ToolCalls {
+      if call.Function.Name != "read_file" {
+        continue
+      }
+
+      path, _ := call.Function.Arguments["path"].(string)
+      if path == "" {
+        continue
+      }
+
+      ref := path
+      if s, ok := call.Function.Arguments["start_line"].(float64); ok && s > 0 {
+        if e, ok := call.Function.Arguments["end_line"].(float64); ok {
+          ref = fmt.Sprintf("%s:%d-%d", path, int(s), int(e))
+        } else {
+          ref = fmt.Sprintf("%s:%d", path, int(s))
+        }
+      }
+
+      if !seen[ref] {
+        seen[ref] = true
+        refs = append(refs, ref)
+      }
+    }
+  }
+
+  if len(refs) == 0 {
+    return
+  }
+
+  slices.Sort(refs)
+  if len(refs) > 5 {
+    refs = refs[:5]
+  }
+
+  l.knowMu.Lock()
+  defer l.knowMu.Unlock()
+
+  author, err := l.Know.Intern(know.RoleArmin, "", l.Session, 0)
+  if err != nil {
+    return
+  }
+
+  claim := "Q: " + cut(question, 200) + " A: " + cut(answer, 300)
+  parent, err := l.ensurePath("sessions", author)
+  if err != nil {
+    return
+  }
+
+  // a similar turn already recorded: link this turn's evidence to it
+  for _, hit := range l.Know.Similar(parent, "", claim) {
+    for _, ref := range refs {
+      l.addEvidence(hit.ID, ref)
+    }
+
+    l.Know.Touch(hit.ID)
+    return
+  }
+
+  id, err := l.Know.AddNode(
+    parent, turnSlug(question), claim, know.KindFact, know.ConfChecked,
+    author,
+  )
+  if err != nil {
+    return
+  }
+
+  for _, ref := range refs {
+    l.addEvidence(id, ref)
+  }
+}
+
+// turnSlug is a node name for a recorded turn: its first few
+// question words, lowercased, no punctuation.
+func turnSlug(question string) string {
+  var words []string
+  for _, w := range strings.Fields(strings.ToLower(question)) {
+    w = strings.Trim(w, ".,;:!?\"'()`")
+    if w == "" || len([]rune(w)) > 12 {
+      continue
+    }
+
+    words = append(words, w)
+    if len(words) == 4 {
+      break
+    }
+  }
+
+  if len(words) == 0 {
+    return "turn"
+  }
+
+  return strings.Join(words, "-")
+}

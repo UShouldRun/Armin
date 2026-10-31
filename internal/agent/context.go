@@ -122,6 +122,8 @@ func (l *Loop) endTurn(history *[]llm.Message, turnStart int, _ Hooks) {
   h := *history
   from := max(0, turnStart - 1)
 
+  l.recordTurn(h, from)
+
   var thoughts strings.Builder
   for i := from; i < len(h); i++ {
     if h[i].Reasoning != "" {

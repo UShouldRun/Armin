@@ -344,3 +344,93 @@ func TestMinionLeavesLoops(t *testing.T) {
     t.Fatal("the minion was asked to resolve a loop")
   }
 }
+
+// turnHistory is a finished turn's messages: a question, one or two
+// read_file calls, and an answer.
+func turnHistory(question, answer string, reads ...[2]int) []llm.Message {
+  h := []llm.Message{ { Role: "user", Content: question } }
+  for _, r := range reads {
+    args := map[string]any{ "path": "conn.go" }
+    if r[0] > 0 {
+      args["start_line"] = float64(r[0])
+      args["end_line"] = float64(r[1])
+    }
+
+    h = append(h, llm.Message{
+      Role: "assistant",
+      ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
+        Name: "read_file", Arguments: args,
+      } } },
+    })
+  }
+
+  return append(h, llm.Message{ Role: "assistant", Content: answer })
+}
+
+func TestRecordTurn(t *testing.T) {
+  l, _ := knowLoop(t)
+
+  // a turn that read a file: one fact node under sessions/, with the
+  // range as evidence and the question in the claim
+  l.recordTurn(
+    turnHistory("How does the handshake work?", "SYN, then ACK",
+      [2]int{ 3, 6 }), 0,
+  )
+  id, ok := l.Know.Lookup("sessions/how-does-the-handshake")
+  if !ok {
+    names := ""
+    for _, c := range l.Know.Children(mustLookup(t, l, "sessions"), nil) {
+      names += " " + l.Know.Name(c)
+    }
+    t.Fatalf("no sessions/how-does-the-handshake; sessions has:%s", names)
+  }
+
+  n := l.Know.Node(id)
+  if n.Kind() != know.KindFact || n.Conf() != know.ConfChecked {
+    t.Fatalf("node: %s", l.lines([]know.NodeID{ id }, true))
+  }
+
+  evs := l.Know.EvidenceOf(id, nil)
+  if len(evs) != 1 || l.Know.Ev(evs[0]).Kind != know.RefFile ||
+    l.Know.Str(l.Know.Ev(evs[0]).Ref) != "conn.go:3-6" ||
+    l.Know.Ev(evs[0]).Hash == 0 {
+    t.Fatalf("evidence: %v", evs)
+  }
+
+  if !strings.Contains(l.Know.Claim(id), "SYN, then ACK") {
+    t.Fatalf("claim: %q", l.Know.Claim(id))
+  }
+
+  // the same question again: linked to the same node, not a duplicate
+  l.recordTurn(
+    turnHistory("How does the handshake work?", "SYN, then ACK again",
+      [2]int{ 3, 6 }), 0,
+  )
+  if got := len(l.Know.Children(mustLookup(t, l, "sessions"), nil)); got != 1 {
+    t.Fatalf("a similar turn added a node; sessions has %d", got)
+  }
+
+  // a turn with no file reads records nothing
+  before := len(l.Know.Children(0, nil))
+  l.recordTurn([]llm.Message{
+    { Role: "user", Content: "hi" },
+    { Role: "assistant", Content: "hello" },
+  }, 0)
+  if len(l.Know.Children(0, nil)) != before {
+    t.Fatal("a turn with no reads recorded a node")
+  }
+
+  // no tree, no panic
+  l.Know = nil
+  l.recordTurn(turnHistory("q", "a", [2]int{ 1, 2 }), 0)
+}
+
+func mustLookup(t *testing.T, l *Loop, path string) know.NodeID {
+  t.Helper()
+  id, ok := l.Know.Lookup(path)
+  if !ok {
+    t.Fatalf("no node %s", path)
+  }
+
+  return id
+}
