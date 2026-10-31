@@ -1,0 +1,30 @@
+=== RUN   TestTreeBench
+    treebench_test.go:211: repeat-guard  no tree s1  right true   in   55698 (cached   40032)  out   1113  $0.00285  rounds  5  tools  7
+    treebench_test.go:211: repeat-guard  no tree s2  right true   in   32816 (cached   27392)  out    617  $0.00509  rounds  4  tools  4
+    treebench_test.go:211: repeat-guard  tree    s1  right true   in  129787 (cached  108368)  out   2154  $0.00572  rounds  8  tools 11
+    treebench_test.go:211: repeat-guard  tree    s2  right true   in   30619 (cached    7840)  out    646  $0.00249  rounds  3  tools  3
+    treebench_test.go:211: golden-tools  no tree s1  right true   in   33791 (cached   17248)  out    612  $0.00235  rounds  4  tools  5
+    treebench_test.go:211: golden-tools  no tree s2  right true   in   27274 (cached   14272)  out    441  $0.00355  rounds  3  tools  4
+    treebench_test.go:211: golden-tools  tree    s1  right false  in   59924 (cached   32928)  out   1339  $0.00468  rounds  5  tools  8
+    treebench_test.go:211: golden-tools  tree    s2  right true   in   59319 (cached   51200)  out   1098  $0.00898  rounds  6  tools  8
+    treebench_test.go:211: staleness     no tree s1  right true   in   73169 (cached   58816)  out   1269  $0.00763  rounds  7  tools  9
+    treebench_test.go:211: staleness     no tree s2  right true   in   46837 (cached   38912)  out    682  $0.00679  rounds  5  tools  5
+    treebench_test.go:211: staleness     tree    s1  right false  in   83935 (cached   46528)  out   1485  $0.01091  rounds  7  tools 10
+    treebench_test.go:211: staleness     tree    s2  right true   in   16795 (cached   10240)  out    563  $0.00364  rounds  2  tools  2
+    treebench_test.go:211: roles         no tree s1  right true   in   64395 (cached   47984)  out   1169  $0.00310  rounds  5  tools  8
+    treebench_test.go:211: roles         no tree s2  right true   in   59658 (cached   38656)  out    874  $0.00683  rounds  5  tools  8
+    treebench_test.go:211: roles         tree    s1  right true   in   99961 (cached   79632)  out   2144  $0.00514  rounds  7  tools 11
+    treebench_test.go:211: roles         tree    s2  right true   in   27046 (cached   16192)  out    573  $0.00219  rounds  3  tools  4
+    treebench_test.go:211: project-dirs  no tree s1  right true   in   37230 (cached   28160)  out    813  $0.00638  rounds  4  tools  6
+    treebench_test.go:211: project-dirs  no tree s2  right false  in   10640 (cached    9216)  out    762  $0.00302  rounds  2  tools  1
+    treebench_test.go:211: project-dirs  tree    s1  right false  in  187668 (cached  163584)  out   2241  $0.02514  rounds 12  tools 14
+    treebench_test.go:211: project-dirs  tree    s2  right true   in   56934 (cached   42784)  out    789  $0.00240  rounds  5  tools  6
+    treebench_test.go:238: TOTAL no tree session 1: 5/5 right, in 264283 (cached 192240), out 4976, $0.0223, rounds 25, tools 35
+    treebench_test.go:238: TOTAL no tree session 2: 4/5 right, in 177225 (cached 128448), out 3376, $0.0253, rounds 19, tools 22
+    treebench_test.go:238: TOTAL tree    session 1: 2/5 right, in 561275 (cached 431040), out 9363, $0.0516, rounds 39, tools 54
+    treebench_test.go:238: TOTAL tree    session 2: 5/5 right, in 190713 (cached 128256), out 3669, $0.0197, rounds 19, tools 23
+    treebench_test.go:251: RECALL turns 10, attached 5, used 3, empty 5
+    treebench_test.go:263: PAIR COST no tree $0.0476, tree $0.0713, delta +49.8%
+--- PASS: TestTreeBench (47.48s)
+PASS
+ok  	armin/internal/think	47.487s

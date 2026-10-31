@@ -35,6 +35,7 @@ Everything below is why, and what the next tries are.
 | 4 (6af79a5) | auto-record of Q/A pairs | +41.2% | +49% | +31% |
 | 5 (642f3a3) | pointers, at-refs, current, find guidance | +21.0% | +17% | +27% |
 | 6 (f751386) | none: round 5 scored in dollars (H1) | +5.3% tok, **−0.4% $** | +25% $ | −19% $ |
+| 7 (d8cf528) | recall: armin searches, model only writes | +15% $ ‡ | +53% $ ‡ | −17% $ |
 
 Input tokens, 3 runs summed, tree vs no-tree. Accuracy held
 throughout (scattered 3–5/5, never systematically worse; the two
@@ -331,4 +332,45 @@ puts the top node lines at the head of that message, so reading the
 tree costs no tool round and no read-side tool descriptions; the
 model keeps only the write tool. Nothing is added when nothing
 matches, and the system prompt stays byte-stable.
+
+## Round 7: recall (2026-10-31)
+
+armin searches the tree with each turn's message and attaches up to
+three node lines above it (score ≥ 40% of the best); the model loses
+know_find and know_trace and keeps know_write (`recall = on`,
+ARMIN_TREEBENCH_RECALL=1). Traces reports/treebench7/, logs
+reports/treebench7-run*.log.
+
+| | right | cost |
+|---|---|---|
+| no tree s1 | 15/15 | $0.078 |
+| tree s1 | 15/15 † | $0.461, $0.120 without the runaway ‡ |
+| no tree s2 | 14/15 | $0.094 |
+| tree s2 | 15/15 † | $0.078 (−17%) |
+| pair | | +213% as run; **+15% without the runaway** |
+
+Recall (from metrics): attached on 14 of 30 tree turns, which is every
+session 2 and no session 1 (the tree is empty there); the model used
+what was attached (cited [nN] or read the node's file) in 7 of 14.
+
+‡ **One runaway generation.** project-dirs tree s1 in one run wrote
+132k output tokens ($0.35) inside a single know_write call whose
+arguments never parsed (`know_write map[]`). Nothing capped a reply.
+Each turn now caps a reply at 32768 tokens unless the client sets its
+own (agent.maxReplyTokens); it's a gap any tool call could hit, not the
+tree's.
+
+† **The scoring bug wasn't fixed in round 6.** The bench recorded the
+whole streamed answer but still matched the final message. Fixed now
+(regex on run.answer); round 7 re-scored from its saved answers: the
+tree is 15/15 in both sessions. Every tree "miss" in rounds 6 and 7 was
+this bug. Round 6's saved answers were final messages only, so its
+accuracy can't be recovered.
+
+**Reading.** Session 2 lands where round 6 did (−17% against −19%), so
+recall reads the tree about as well as know_find did, with fewer
+tools; it didn't make session 2 cheaper. Session 1 swings with the
+no-tree baseline ($0.078 here, $0.093 in round 6): two sessions on
+five pairs is still noise-sized for s1. The honest next measurement
+is H3, three sessions per pair, with recall on.
 

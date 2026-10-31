@@ -339,7 +339,7 @@ func benchSession(
 
   run.right = true
   for _, w := range want {
-    if !regexp.MustCompile(`(?i)` + w).MatchString(answer) {
+    if !regexp.MustCompile(`(?i)` + w).MatchString(run.answer) {
       run.right = false
     }
   }

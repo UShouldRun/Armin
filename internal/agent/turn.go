@@ -30,6 +30,10 @@ const roundLimitNote = "You have reached the tool-call limit for " +
   "is done and verified, and what is left, so the user can decide " +
   "how to continue."
 
+// maxReplyTokens caps one model reply (thinking, text and tool calls)
+// unless the client sets its own cap. Real replies stay far below it.
+const maxReplyTokens = 32768
+
 // maxBlocked is how many repeats the guard refuses before the turn
 // stops: a model that keeps retrying a blocked call won't stop on
 // its own.
@@ -155,8 +159,16 @@ func (l *Loop) Turn(
 // line in the system prompt and the task's procedure on the request.
 func (l *Loop) newTurn(history *[]llm.Message, hooks Hooks) *turn {
   client := l.LLM
+  if client != nil && client.MaxTokens == 0 {
+    // a cap on one reply: a model looping inside a tool call's
+    // arguments once wrote 130k tokens (35 cents) before it ended
+    c := *client
+    c.MaxTokens = maxReplyTokens
+    client = &c
+  }
+
   if hooks.Effort != "" {
-    c := *l.LLM
+    c := *client
     c.Effort = hooks.Effort
     client = &c
   }

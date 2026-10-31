@@ -723,3 +723,26 @@ func TestScriptOf(t *testing.T) {
     }
   }
 }
+
+// TestTurnCapsReplyTokens: a client without its own cap gets
+// maxReplyTokens, also at a set effort; one with a cap keeps it, and
+// the Loop's client is never changed.
+func TestTurnCapsReplyTokens(t *testing.T) {
+  l := &Loop{ LLM: llm.New("http://x", "m") }
+  history := []llm.Message{ { Role: "system", Content: "s" } }
+  for _, effort := range []string{ "", "high" } {
+    tn := l.newTurn(&history, Hooks{ Effort: effort })
+    if tn.client.MaxTokens != maxReplyTokens {
+      t.Fatalf("effort %q: cap %d", effort, tn.client.MaxTokens)
+    }
+  }
+
+  if l.LLM.MaxTokens != 0 {
+    t.Fatal("the Loop's own client was changed")
+  }
+
+  l.LLM.MaxTokens = 1000
+  if l.newTurn(&history, Hooks{}).client.MaxTokens != 1000 {
+    t.Fatal("a client's own cap must be kept")
+  }
+}
