@@ -4,6 +4,7 @@
 package think
 
 import (
+  "context"
   "fmt"
   "path/filepath"
 
@@ -96,3 +97,37 @@ func openLearner() (*learner.Learner, error) {
 
   return l, nil
 }
+
+// consolidatePerSession caps the pointers consolidated at one start.
+const consolidatePerSession = 5
+
+// startConsolidation runs the consolidation pass in the background
+// (agent.Consolidate): with a minion to do it and a tree it may write,
+// it turns a few recorded pointers into claims while the user works.
+func (m *Mind) startConsolidation() {
+  loop := m.Loop
+  if loop == nil || loop.Minion == nil || loop.Know == nil ||
+    loop.Know.ReadOnly() {
+    return
+  }
+
+  ctx, cancel := context.WithCancel(context.Background())
+  m.stopConsolidating = cancel
+  m.consolidating.Add(1)
+  go func() {
+    defer m.consolidating.Done()
+    loop.Consolidate(ctx, consolidatePerSession)
+  }()
+}
+
+// stopConsolidation cancels the pass and waits for it, so it never
+// writes to a closed tree.
+func (m *Mind) stopConsolidation() {
+  if m.stopConsolidating == nil {
+    return
+  }
+
+  m.stopConsolidating()
+  m.consolidating.Wait()
+}
+

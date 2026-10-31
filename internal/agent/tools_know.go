@@ -26,6 +26,7 @@ import (
   "slices"
   "strconv"
   "strings"
+  "unicode"
 
   "armin/internal/know"
   "armin/internal/llm"
@@ -874,9 +875,8 @@ func (l *Loop) recordTurn(h []llm.Message, from int) {
   // the turn's user question and final answer
   question, answer := "", ""
   for i := from; i < len(h); i++ {
-    if h[i].Role == "user" && question == "" &&
-      !strings.HasPrefix(h[i].Content, "[armin]") {
-      question = strings.TrimSpace(h[i].Content)
+    if h[i].Role == "user" && question == "" {
+      question = userText(h[i].Content)
     }
 
     if h[i].Role == "assistant" && len(h[i].ToolCalls) == 0 {
@@ -971,6 +971,10 @@ func (l *Loop) recordTurn(h []llm.Message, from int) {
     l.addEvidence(id, ref)
   }
 
+  // the question itself, for consolidation (consolidate.go): kept as
+  // evidence, not in the claim, so node lines stay pointers
+  l.Know.AddEvidence(id, know.RefSession, questionPrefix + cut(question, 300), 0)
+
   metrics.Add("know.record.turns", 1)
   metrics.Observe("know.record.refs", float64(len(refs)))
 }
@@ -1003,8 +1007,10 @@ func answerCites(answer string) []string {
 func turnSlug(question string) string {
   var words []string
   for _, w := range strings.Fields(strings.ToLower(question)) {
-    w = strings.Trim(w, ".,;:!?\"'()`")
-    if w == "" || len([]rune(w)) > 12 {
+    w = strings.TrimFunc(w, func(r rune) bool {
+      return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+    })
+    if w == "" || len([]rune(w)) > 12 || !slugWord(w) {
       continue
     }
 
@@ -1019,4 +1025,37 @@ func turnSlug(question string) string {
   }
 
   return strings.Join(words, "-")
+}
+
+// slugWord keeps a word made of letters, digits, "_" and "-" only, so
+// a voice transcript's stray "-->" doesn't end up in a node's name.
+func slugWord(w string) bool {
+  for _, r := range w {
+    if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' && r != '-' {
+      return false
+    }
+  }
+
+  return true
+}
+
+// questionPrefix marks the session evidence holding a recorded turn's
+// question.
+const questionPrefix = "question: "
+
+// userText is what the user wrote: a user message without the blocks
+// armin put in front of it (the role reminder, recall's nodes), each
+// of which starts "[armin]" and ends with a blank line. A message that
+// is all armin's (a steer note) comes back empty.
+func userText(content string) string {
+  for strings.HasPrefix(content, "[armin]") {
+    i := strings.Index(content, "\n\n")
+    if i < 0 {
+      return ""
+    }
+
+    content = content[i + 2:]
+  }
+
+  return strings.TrimSpace(content)
 }

@@ -3,6 +3,7 @@
 package think
 
 import (
+  "context"
   "sync"
 
   "armin/internal/agent"
@@ -37,6 +38,11 @@ type Mind struct {
   Loop     *agent.Loop
   Know     *know.Graph // the project's knowledge tree; nil if it can't open
   knowOnce sync.Once
+
+  // the background consolidation pass (know.go): stopped and waited
+  // for at shutdown, before the tree closes
+  consolidating sync.WaitGroup
+  stopConsolidating context.CancelFunc
   Learner  *learner.Learner // what the user knows; nil if it can't open
   Memories *notes.Memories
   Skills   *notes.Skills

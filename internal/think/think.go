@@ -278,6 +278,10 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
     }
   }
 
+  // with the minion and a refreshed tree in place: consolidate in the
+  // background
+  m.startConsolidation()
+
   loop.Aids = opts.Aids
   confDir, err := config.Dir()
   if err == nil {
@@ -361,6 +365,7 @@ func (m *Mind) Shutdown() {
   ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
   defer cancel()
 
+  m.stopConsolidation()
   m.closeKnow()
   err := metrics.Flush()
   if err != nil {

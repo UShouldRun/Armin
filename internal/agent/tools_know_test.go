@@ -397,10 +397,12 @@ func TestRecordTurn(t *testing.T) {
     t.Fatalf("claim: %q", l.Know.Claim(id))
   }
 
+  // the range read, then the question, kept for consolidation
   evs := l.Know.EvidenceOf(id, nil)
-  if len(evs) != 1 || l.Know.Ev(evs[0]).Kind != know.RefFile ||
+  if len(evs) != 2 || l.Know.Ev(evs[0]).Kind != know.RefFile ||
     l.Know.Str(l.Know.Ev(evs[0]).Ref) != "conn.go:3-6" ||
-    l.Know.Ev(evs[0]).Hash == 0 {
+    l.Know.Ev(evs[0]).Hash == 0 ||
+    !strings.HasPrefix(l.Know.Str(l.Know.Ev(evs[1]).Ref), questionPrefix) {
     t.Fatalf("evidence: %v", evs)
   }
 

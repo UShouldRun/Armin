@@ -52,6 +52,26 @@ Rates: dedup held of adds (is the model repeating itself?), dedup
 overridden of held (is the 0.6 threshold too eager?), auto-recorded of
 turns.
 
+### Consolidation (`internal/agent/consolidate.go`)
+
+In the background at session start, on the minion: a few recorded
+pointers turned into claims a later session can answer from.
+
+| metric | meaning |
+|---|---|
+| `know.consolidate.pending` | pointers waiting when a pass started |
+| `know.consolidate.pointers` | pointers turned into at least one claim |
+| `know.consolidate.claims` | claims written |
+| `know.consolidate.linked` | claims a similar existing node already made, linked instead |
+| `know.consolidate.empty` | replies with no usable claim |
+| `know.consolidate.failed` | pointers whose model call failed |
+| `know.consolidate.in`, `.out`, `.cost` | the pass's own tokens and dollars |
+| `know.consolidate.ms` | time per pass |
+| event `know.consolidate` | debug: the pointer and how many claims |
+
+Rates: consolidated of pending (does the minion manage it?), linked of
+claims (is it repeating what's known?).
+
 ### Staleness (`internal/think/stale.go`)
 
 | metric | meaning |

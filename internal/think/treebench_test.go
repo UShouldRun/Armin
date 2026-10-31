@@ -105,9 +105,12 @@ var benchPairs = []benchPair{
     second: "How does armin name the per-project folders it keeps for " +
       "memory, the scratchpad and the knowledge tree?",
     secondWant: []string{ `ProjectKey`, `hash` },
-    third: "Where are a project's knowledge tree files stored, and " +
-      "what are they called?",
-    thirdWant: []string{ `graph\.snap`, `graph\.log` },
+    // the same area as the first two (internal/session): an earlier
+    // third question asked about internal/know, which no node could
+    // cover, so it didn't test compounding
+    third: "What is the first line of a saved session file, and what " +
+      "does it hold?",
+    thirdWant: []string{ `Meta`, `first` },
   },
 }
 
@@ -183,6 +186,11 @@ func TestTreeBench(t *testing.T) {
   }
 
   dump := os.Getenv("ARMIN_TREEBENCH_DUMP")
+
+  // consolidation between sessions, as armin-test runs it at start;
+  // the bench's model does it (there's no local minion here), and its
+  // cost is charged to the tree
+  consolidate := os.Getenv("ARMIN_TREEBENCH_CONSOLIDATE") != ""
   if dump != "" {
     os.MkdirAll(dump, 0o755)
   }
@@ -210,6 +218,10 @@ func TestTreeBench(t *testing.T) {
           want := wants[si]
 
           run := benchSession(t, client(), sb, tree, q, want)
+          if tree != nil && consolidate && si < sessions - 1 {
+            benchConsolidate(t, client(), sb, tree)
+          }
+
           results[pi][cond][si] = run
           if dump != "" {
             name := fmt.Sprintf("%s/%s-%s-%d.md", dump, pair.name,
@@ -280,12 +292,24 @@ func TestTreeBench(t *testing.T) {
       snap["recall.used"].Count, snap["recall.empty"].Count)
   }
 
-  // what all the sessions cost in dollars, tree against no tree
+  // what all the sessions cost in dollars, tree against no tree, the
+  // consolidation passes charged to the tree
   var pair [2]float64
   for cond := 0; cond < 2; cond++ {
     for si := 0; si < sessions; si++ {
       pair[cond] += total[cond][si].cost
     }
+  }
+
+  cons := snap["know.consolidate.cost"]
+  if cons.Count > 0 {
+    pair[1] += cons.Sum
+    t.Logf("CONSOLIDATE calls %d, $%.4f, pointers %d, claims %d, "+
+      "linked %d, empty %d",
+      cons.Count, cons.Sum, snap["know.consolidate.pointers"].Count,
+      snap["know.consolidate.claims"].Count,
+      snap["know.consolidate.linked"].Count,
+      snap["know.consolidate.empty"].Count)
   }
 
   if pair[0] > 0 {
@@ -375,3 +399,25 @@ func benchSession(
 
   return run
 }
+
+// benchConsolidate runs the consolidation pass on a pair's tree between
+// two sessions, with the bench's model as the minion.
+func benchConsolidate(
+  t *testing.T, client *llm.Client, sb *sandbox.Config, tree *know.Graph,
+) {
+  loop := agent.New(client, sb)
+  loop.Know = tree
+  loop.Session = fmt.Sprintf("consolidate-%d", time.Now().UnixNano())
+  loop.Minion = func(context.Context) (*llm.Client, error) {
+    return client, nil
+  }
+
+  ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Minute)
+  defer cancel()
+
+  _, err := loop.Consolidate(ctx, 10)
+  if err != nil {
+    t.Logf("consolidation failed: %v", err)
+  }
+}
+
