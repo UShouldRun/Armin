@@ -250,6 +250,22 @@ lines and its
 unless another model uses the file.
 .B "\-uninstall list"
 shows every model and its size.
+.SS Knowledge tree
+What armin has established about the project, kept between sessions.
+.TP
+.BR "\-know dump" [ =\fIpath\fR ]
+Print the tree, or the subtree at
+.IR path ,
+as text.
+.TP
+.BR "\-know edit" [ =\fIpath\fR ]
+Open that text in
+.B $EDITOR
+and load the changes back.
+.TP
+.B "\-know import\-memories"
+Offer each project memory that cites a file and line as a node, and
+move the accepted ones into the tree.
 .SS Reference library
 These work on the folder named by
 .B library
