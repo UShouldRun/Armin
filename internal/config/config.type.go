@@ -71,9 +71,11 @@ type Config struct {
   // parec, pw-record, arecord or rec.
   STT, STTRecord string
 
-  // Recall makes armin search the knowledge tree with each message and
-  // attach the matches, instead of the model calling know_find.
-  Recall bool
+  // NoRecall (recall = off) turns off armin searching the knowledge
+  // tree with each message and attaching the matches; the model then
+  // searches with know_find itself. Recall is on by default: it pays
+  // from the second session in an area (tree benchmark, round 8).
+  NoRecall bool
   Terminal        string // how to open a new terminal window: "ghostty -e"
   CtagsBinary     string // used only by -lsp definition/symbol/hover
 

@@ -72,3 +72,22 @@ func TestRecallHidesReadTools(t *testing.T) {
     t.Fatalf("with recall: %v", names)
   }
 }
+
+// TestRecallIgnoresTheRoleReminder: after a role switch the reminder
+// goes in front of the message, but recall searches the message alone
+// and the reminder ends up first.
+func TestRecallIgnoresTheRoleReminder(t *testing.T) {
+  l := recallLoop(t)
+  l.SetRole(RoleAdvisor) // its reminder talks about decisions and files
+  history := []llm.Message{ { Role: "user", Content: "zzz qqq" } }
+  l.recall(history)
+  l.takeReminder(history)
+  got := history[0].Content
+  if strings.Contains(got, recallHead) {
+    t.Fatalf("the reminder's words were searched:\n%s", got)
+  }
+
+  if !strings.HasPrefix(got, "[armin] Your role is now advisor") {
+    t.Fatalf("the reminder should come first:\n%s", got)
+  }
+}

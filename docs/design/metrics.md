@@ -20,7 +20,8 @@ derived rates below. Nothing leaves the machine.
 ### Tree recall (`internal/agent/recall.go`)
 
 armin searches the tree with each turn's message and attaches the best
-matches above it (config: `recall = on`).
+matches above it (on by default; `recall = off` in config.conf turns it
+off).
 
 | metric | meaning |
 |---|---|

@@ -269,7 +269,7 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
     ui.Warn("knowledge tree: %s", err)
   } else {
     loop.Know = m.Know
-    loop.Recall = cfg.Recall
+    loop.Recall = !cfg.NoRecall
     msg, err := refreshKnow(m.Sandbox.Root, m.Know)
     if err != nil {
       ui.Warn("knowledge tree: %s", err)

@@ -232,9 +232,9 @@ func apply(cfg *Config, key, value string) error {
   case "recall":
     switch value {
     case "on", "true", "yes":
-      cfg.Recall = true
+      cfg.NoRecall = false
     case "off", "false", "no":
-      cfg.Recall = false
+      cfg.NoRecall = true
     default:
       return fmt.Errorf("recall = %q: want on or off", value)
     }

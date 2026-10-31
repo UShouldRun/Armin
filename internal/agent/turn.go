@@ -52,9 +52,11 @@ const repeatNote = "[armin] You kept repeating a call that had " +
 func (l *Loop) Turn(
   ctx context.Context, history *[]llm.Message, hooks Hooks,
 ) (string, error) {
-  l.takeReminder(*history)
+  // recall searches the user's own words, so it runs before the role
+  // reminder is put in front of them
   metrics.Add("turn.count", 1)
   l.recall(*history)
+  l.takeReminder(*history)
   t := l.newTurn(history, hooks)
   defer func() {
     l.recallSettle(*history, t.start)
