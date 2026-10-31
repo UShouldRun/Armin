@@ -1,7 +1,8 @@
 # Restructure plan: roles and knowledge trees
 
-Status: **designed**, all sections settled; nothing is built yet.
-Section 8 is the build order.
+Status: **steps 1-9 built** on branch `restructure`; step 10 (teaching)
+and 11 (end-to-end check) remain. Section 9 says exactly where things
+stand and what's left.
 
 Inspired by LearnHarness (amosblomqvist/learnharness): a persistent
 knowledge graph of what the learner knows, built from teaching
@@ -616,3 +617,71 @@ its own commit (one per package where it spans several).
 11. **Check it works**: one full run learning a real topic and one
     tour of an unfamiliar codebase; fix what they show before calling
     the restructure done.
+
+## 9. Progress (2026-10-31)
+
+Branch `restructure`, not pushed, not merged. Every step's tests
+pass (`go test ./...`, the know and learner packages also under
+`-race`).
+
+| step | state | commits |
+|---|---|---|
+| 1 know storage | done | 9d3d73a |
+| 2 know algorithms | done (tokenizer moved to internal/tokens) | eabbf3b, 9ed27f6 |
+| 3 roles | done in the REPL | 9cf1c0c |
+| 4 trees in context | done, format measured | 28b0bec, 2a89273, 3b1f5c5, 24edf79 |
+| 5 staleness | done, by file stamps (no VCS needed) | cf60ab9, 1c77720 |
+| 6 delegation | done | 89b3663 |
+| 7 learner | done (logic only, used by step 10) | 4cd4d36 |
+| 8 speech | done in the REPL (/voice, learn_explained) | 1adc4fe |
+| 9 web UI split + redesign | done | c38a8cf, e47a868 |
+| style pass (80 columns, no if-init) | done | 2faca9c |
+
+### Left to do
+
+**Step 10, teaching** (the big one; section 6 has every decision):
+- `tools_teach.go` beyond `learn_explained`: the probe (self-report on
+  areas with `learner.AreaReport`, then `Probe.Next/Answer` with check
+  questions), map (goal-driven, lazy; concepts with definitions and
+  citations, confidence by source, `contradicts` for disagreements),
+  `know_plan` (know.Plan with learner.State as known; milestones of
+  2-4 concepts + a project piece + a check; refuses through an open
+  cycle), teach (prediction question, explanation, check, two
+  attempts), decide (`decision` nodes, options as children with
+  FlagChosen, requires to assumptions), hand off (the structured note,
+  stubs with TODO [nN], soft rule + review from the edit history).
+- Refreshers: surface `learner.Refreshers()` to the advisor (the only
+  unasked prompt).
+- Teaching as display events in `agent/display.go` (`kind: choice`,
+  options, answer type), rendered by the REPL (numbered options, one
+  key) and the web (buttons).
+- Codebase tours: survey (minion-delegated file summaries), the
+  architecture overview, path-following tours, exercises.
+- Web: role switching (/minion /copilot /advisor reach only the REPL
+  and joined frontends don't get them yet), the plan panel, the tree
+  view (js/tree.js), `[n42]` hover cards and click-to-open (needs a
+  `/api/know` endpoint), the mic button (js/record.js: MediaRecorder →
+  POST a WAV → internal/stt → text into the composer).
+- REPL: `[n42]` dimmed with its path after it; `/plan`, `/plan edit`.
+
+**Step 11**: learn one real topic and tour one unfamiliar codebase end
+to end; fix what that shows.
+
+**Smaller loose ends**
+- `stt` isn't in config.conf yet. The whisper.cpp build and model from
+  2026-10-31 are at /media/henrique/partition/llm (whisper-cli,
+  models/whisper/ggml-large-v3-turbo-q5_0.bin); add `-ng` if the local
+  minion holds the GPU. /voice is tested only with fake scripts.
+- Version control adapters (hg, jj, svn, fossil) aren't written; only
+  git was installed to test, and staleness no longer needs any.
+- Poneglyph integration (section 4c): later, when it exists.
+- The format harness (internal/know/format_eval_test.go) can rerun any
+  model: ARMIN_FORMAT_EVAL_URL/_MODEL/_KEY, _SET=hard|harder, _ONLY,
+  _REPEAT, _DUMP. Results so far: plain beat coded on every model
+  (Qwen 3.8 27B 28/28 vs 25/28 moderate; Qwen3.5-9B 20/20 vs 19/20;
+  GLM 5.3 Flash 19/20 vs 13/20 harder, label slip counted).
+- Web verification: a stub server and a WebDriver BiDi driver for
+  headless Firefox were used to compare old and new pages pixel for
+  pixel; they live only in the session scratchpad, worth adding under
+  internal/web/testdata if the web keeps growing.
+
