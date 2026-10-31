@@ -40,31 +40,45 @@ func (r *REPL) showProposal(p agent.Proposal) {
     }
 
     lines := strings.Split(strings.TrimRight(readSmall(p.Script), "\n"), "\n")
+    colored := ui.Highlight(p.Script, lines)
     fmt.Println(ui.Dim(fmt.Sprintf("  └ %s · runs %s (%d lines)", where, r.rel(p.Script), len(lines))))
-    for i, l := range lines {
+    for i := range lines {
       if i == scriptLines {
         line(ui.Dim(fmt.Sprintf("      … %d more lines — v to read it all", len(lines) - i)))
         break
       }
 
-      line(ui.Dim(fmt.Sprintf("    %4d  ", i + 1)) + l)
+      line(ui.Dim(fmt.Sprintf("    %4d  ", i + 1)) + colored[i])
     }
 
   case p.Created:
     fmt.Println(ui.Bold("● Create") + "(" + p.Path + ")")
     fmt.Println(ui.Dim(fmt.Sprintf("  └ %d lines", len(p.NewLines))))
-    for i, l := range p.NewLines {
+    colored := ui.Highlight(p.Path, p.NewLines)
+    for i := range p.NewLines {
       if i == proposalLines {
         line(ui.Dim(fmt.Sprintf("      … %d more lines — v to view all", len(p.NewLines) - i)))
         break
       }
 
-      line(ui.Dim(fmt.Sprintf("    %4d ", i + 1)) + ui.Green("+ " + l))
+      line(ui.Dim(fmt.Sprintf("    %4d ", i + 1)) + ui.Green("+ ") + colored[i])
     }
 
   default:
     fmt.Println(ui.Bold("● Update") + "(" + p.Path + ")")
     fmt.Println(ui.Dim("  └ " + plural(len(p.Came), "addition") + ", " + plural(len(p.Gone), "removal")))
+
+    // the code in syntax colors, the old file's for what goes and the
+    // new file's for what comes; the markers say which is which
+    oldColored := ui.Highlight(p.Path, p.OldLines)
+    newColored := ui.Highlight(p.Path, p.NewLines)
+    pick := func(colored []string, i int, plain string) string {
+      if i >= 0 && i < len(colored) {
+        return colored[i]
+      }
+
+      return plain
+    }
 
     shown := 0
     emit := func(n int, mark, text string) bool {
@@ -75,9 +89,9 @@ func (r *REPL) showProposal(p agent.Proposal) {
       num := ui.Dim(fmt.Sprintf("    %4d ", n))
       switch mark {
       case "-":
-        line(num + ui.Red("- " + text))
+        line(num + ui.Red("- ") + pick(oldColored, n - 1, text))
       case "+":
-        line(num + ui.Green("+ " + text))
+        line(num + ui.Green("+ ") + pick(newColored, n - 1, text))
       default:
         line(num + ui.Dim("  " + text))
       }
