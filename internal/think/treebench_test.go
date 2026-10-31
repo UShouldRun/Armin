@@ -31,13 +31,19 @@ import (
   "armin/internal/sandbox"
 )
 
-// benchPair is two questions on one area; each answer must match all
-// of its checks (case-insensitive regular expressions).
+// benchPair is three questions on one area, asked in three fresh
+// sessions: the first explores, the second follows up, the third comes
+// back "a week later" (H3: the tree's standing cost is per session, so
+// it should compound). Each answer must match all of its checks
+// (case-insensitive regular expressions).
 type benchPair struct {
-  name                 string
-  first, second        string
-  firstWant, secondWant []string
+  name                              string
+  first, second, third              string
+  firstWant, secondWant, thirdWant []string
 }
+
+// sessions is how many sessions a pair runs.
+const sessions = 3
 
 var benchPairs = []benchPair{
   {
@@ -49,6 +55,9 @@ var benchPairs = []benchPair{
       "turns tools off, instead of the current limit. What exactly do " +
       "I change, in which file?",
     secondWant: []string{ `maxBlocked`, `turn\.go` },
+    third: "When the repeat guard has refused enough calls and stops " +
+      "tools for the rest of the turn, what is the model told?",
+    thirdWant: []string{ `tools (are )?off|repeatNote` },
   },
   {
     name: "golden-tools",
@@ -58,6 +67,9 @@ var benchPairs = []benchPair{
     second: "Which file pins the advisor's tool list, and what command " +
       "regenerates it?",
     secondWant: []string{ `definitions\.advisor\.json`, `-update` },
+    third: "When the golden definitions test fails, where does it " +
+      "write the new output so I can diff it?",
+    thirdWant: []string{ `\.got` },
   },
   {
     name: "staleness",
@@ -67,6 +79,9 @@ var benchPairs = []benchPair{
     second: "When a node of the knowledge tree goes stale, what happens " +
       "to the nodes that depend on it, and which function does it?",
     secondWant: []string{ `suspect`, `MarkSuspect` },
+    third: "Where does armin keep the stamps of the files the tree " +
+      "cites, and what is in a stamp?",
+    thirdWant: []string{ `stamps`, `ctime|change time` },
   },
   {
     name: "roles",
@@ -75,7 +90,13 @@ var benchPairs = []benchPair{
     firstWant: []string{ `role` },
     second: "Can the advisor role call run_program? Where is that " +
       "decided in the code?",
-    secondWant: []string{ `\b(no|not|cannot|can't)\b`, `RoleCopilot|tools_run\.go` },
+    secondWant: []string{
+      `\b(no|not|cannot|can't)\b`, `RoleCopilot|tools_run\.go`,
+    },
+    third: "When I switch to the advisor in the middle of a " +
+      "conversation, how is the model told, and does the system " +
+      "prompt change?",
+    thirdWant: []string{ `remind`, `next user message|takeReminder` },
   },
   {
     name: "project-dirs",
@@ -84,6 +105,9 @@ var benchPairs = []benchPair{
     second: "How does armin name the per-project folders it keeps for " +
       "memory, the scratchpad and the knowledge tree?",
     secondWant: []string{ `ProjectKey`, `hash` },
+    third: "Where are a project's knowledge tree files stored, and " +
+      "what are they called?",
+    thirdWant: []string{ `graph\.snap`, `graph\.log` },
   },
 }
 
@@ -163,7 +187,8 @@ func TestTreeBench(t *testing.T) {
     os.MkdirAll(dump, 0o755)
   }
 
-  results := make([][2][2]benchRun, len(benchPairs)) // pair, tree?, session
+  // pair, tree?, session
+  results := make([][2][sessions]benchRun, len(benchPairs))
   var wg sync.WaitGroup
   for pi, pair := range benchPairs {
     for cond := 0; cond < 2; cond++ {
@@ -176,11 +201,13 @@ func TestTreeBench(t *testing.T) {
           tree = know.New()
         }
 
-        for si, q := range []string{ pair.first, pair.second } {
-          want := pair.firstWant
-          if si == 1 {
-            want = pair.secondWant
-          }
+        questions := [sessions]string{ pair.first, pair.second, pair.third }
+        wants := [sessions][]string{
+          pair.firstWant, pair.secondWant, pair.thirdWant,
+        }
+
+        for si, q := range questions {
+          want := wants[si]
 
           run := benchSession(t, client(), sb, tree, q, want)
           results[pi][cond][si] = run
@@ -203,10 +230,10 @@ func TestTreeBench(t *testing.T) {
 
   wg.Wait()
 
-  var total [2][2]benchRun
+  var total [2][sessions]benchRun
   for pi, pair := range benchPairs {
     for cond := 0; cond < 2; cond++ {
-      for si := 0; si < 2; si++ {
+      for si := 0; si < sessions; si++ {
         r := results[pi][cond][si]
         t.Logf(
           "%-13s %-7s s%d  right %-5v  in %7d (cached %7d)  out %6d  "+
@@ -226,7 +253,7 @@ func TestTreeBench(t *testing.T) {
   }
 
   for cond := 0; cond < 2; cond++ {
-    for si := 0; si < 2; si++ {
+    for si := 0; si < sessions; si++ {
       right := 0
       for pi := range benchPairs {
         if results[pi][cond][si].right {
@@ -253,10 +280,12 @@ func TestTreeBench(t *testing.T) {
       snap["recall.used"].Count, snap["recall.empty"].Count)
   }
 
-  // what the whole pair costs in dollars: the number H1 asks about
+  // what all the sessions cost in dollars, tree against no tree
   var pair [2]float64
   for cond := 0; cond < 2; cond++ {
-    pair[cond] = total[cond][0].cost + total[cond][1].cost
+    for si := 0; si < sessions; si++ {
+      pair[cond] += total[cond][si].cost
+    }
   }
 
   if pair[0] > 0 {
