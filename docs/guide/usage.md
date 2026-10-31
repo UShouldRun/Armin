@@ -33,6 +33,7 @@ explaining the project by hand.
 | `/quit`, `/exit`, `/q` | leave |
 | `/clear` | reset the conversation, keeping only the system prompt |
 | `/model [name]` | show the active model + every configured one, or switch |
+| `/minion`, `/copilot`, `/advisor` | switch role, and model if config.conf names one (see [config](config.md#roles)) |
 | `/context`, `/ctx` | message count, tool-call count, rough token estimate |
 | `/compact [n]` | ask the model to summarize everything but the last `n` messages, to free up context |
 | `/tools` | list the tools available to the model |

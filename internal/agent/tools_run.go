@@ -47,6 +47,7 @@ var runTools = []toolSpec{
   {
     id:    toolRunProgram,
     flags: flagWrite | flagRun | flagAgent,
+    roles: RoleCopilot,
     run:   runRunProgram,
     def: llm.ToolFunction{
       Name: "run_program",

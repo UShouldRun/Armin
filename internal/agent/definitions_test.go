@@ -12,7 +12,7 @@ import (
   "armin/internal/notes"
 )
 
-var update = flag.Bool("update", false, "rewrite testdata/definitions.json")
+var update = flag.Bool("update", false, "rewrite the testdata/definitions*.json files")
 
 // TestDefinitionsGolden pins what the model is told about its tools,
 // byte for byte: an accidental change to a description or a schema
@@ -41,7 +41,20 @@ func TestDefinitionsGolden(t *testing.T) {
   bare, _ := json.MarshalIndent(ToolDefinitions(), "", " ")
   got := append(append(all, '\n'), bare...)
 
-  golden := filepath.Join("testdata", "definitions.json")
+  checkGolden(t, "definitions.json", got)
+
+  // one file per role: each role's list must stay byte-stable too,
+  // or switching roles throws the prompt cache away
+  for _, r := range []Role{ RoleMinion, RoleCopilot, RoleAdvisor } {
+    l.SetRole(r)
+    defs, _ := json.MarshalIndent(l.Definitions(), "", " ")
+    checkGolden(t, "definitions." + r.String() + ".json", defs)
+  }
+}
+
+func checkGolden(t *testing.T, name string, got []byte) {
+  t.Helper()
+  golden := filepath.Join("testdata", name)
   if *update {
     os.MkdirAll("testdata", 0o755)
     os.WriteFile(golden, got, 0o644)
@@ -54,6 +67,6 @@ func TestDefinitionsGolden(t *testing.T) {
 
   if string(got) != string(want) {
     os.WriteFile(golden + ".got", got, 0o644)
-    t.Fatalf("tool definitions changed; diff testdata/definitions.json{,.got}")
+    t.Fatalf("tool definitions changed; diff testdata/%s{,.got}", name)
   }
 }

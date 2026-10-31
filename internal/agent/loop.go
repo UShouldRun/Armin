@@ -54,8 +54,7 @@ func New(client *llm.Client, sb *sandbox.Config) *Loop {
 // Estimate is the rough size of the next request: history plus the
 // tool definitions that go with every request.
 func (l *Loop) Estimate(history []llm.Message) int {
-  l.Definitions()
-  return convo.Analyze(history).ApproxTokens + l.defsTokens
+  return convo.Analyze(history).ApproxTokens + l.defsFor().tokens
 }
 
 func (l *Loop) maxRounds() int {
@@ -70,8 +69,7 @@ func (l *Loop) maxRounds() int {
 // would silently drop them — "arguments" for "args" ran a bare
 // find — so they're an error the model can correct.
 func (l *Loop) unknownParams(name string, args map[string]any) string {
-  l.Definitions()
-  known, ok := l.params[name]
+  known, ok := l.defsFor().params[name]
   if !ok {
     return "" // unknown tools are reported by the dispatch
   }

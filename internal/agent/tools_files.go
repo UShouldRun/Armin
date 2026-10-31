@@ -97,6 +97,7 @@ var fileTools = []toolSpec{
   {
     id:    toolEditFile,
     flags: flagWrite,
+    roles: RoleMinion | RoleCopilot,
     run:   runEditFile,
     def: llm.ToolFunction{
       Name: "edit_file",
@@ -132,6 +133,7 @@ var fileTools = []toolSpec{
   {
     id:    toolWriteFile,
     flags: flagWrite,
+    roles: RoleMinion | RoleCopilot,
     run:   runWriteFile,
     def: llm.ToolFunction{
       Name: "write_file",

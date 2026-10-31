@@ -480,3 +480,16 @@ models.local.stream_args      = --fit off -b 256 -ub 256
     t.Fatalf("local = %+v", l)
   }
 }
+
+func TestLoadRoleModels(t *testing.T) {
+  withConfigDir(t)
+  writeConfig(t, "minion = qwen3.5-9b\ncopilot = glm\nadvisor = planner\n")
+  cfg, err := Load()
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  if cfg.Minion != "qwen3.5-9b" || cfg.Copilot != "glm" || cfg.Advisor != "planner" {
+    t.Fatalf("roles = %q %q %q", cfg.Minion, cfg.Copilot, cfg.Advisor)
+  }
+}

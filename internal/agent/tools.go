@@ -105,9 +105,12 @@ func ToolDefinitions() []llm.ToolDefinition {
   return defs
 }
 
-// offered reports whether this Loop has what the tool needs.
+// offered reports whether this Loop has what the tool needs, and its
+// role may use it.
 func (l *Loop) offered(id ToolID) bool {
   switch {
+  case !id.allows(l.Role):
+    return false
   case l.ReadOnly && id.isWrite():
     return false
   case id.has(flagMemories):
@@ -123,31 +126,36 @@ func (l *Loop) offered(id ToolID) bool {
   return true
 }
 
-// Definitions is what this Loop offers the model, in table order.
-// Built once.
+// Definitions is what this Loop offers the model in its current role,
+// in table order. Built once per role.
 func (l *Loop) Definitions() []llm.ToolDefinition {
-  l.defsOnce.Do(func() {
+  return l.defsFor().list
+}
+
+func (l *Loop) defsFor() *roleDefs {
+  d := &l.roleDefs[l.Role.slot()]
+  d.once.Do(func() {
     for id := toolUnknown + 1; id < toolCount; id++ {
       if l.offered(id) {
-        l.defs = append(l.defs, wrap(specs[id].def))
+        d.list = append(d.list, wrap(specs[id].def))
       }
     }
 
-    raw, _ := json.Marshal(l.defs)
-    l.defsTokens = len(raw) / 4
+    raw, _ := json.Marshal(d.list)
+    d.tokens = len(raw) / 4
 
-    l.params = make(map[string]map[string]bool, len(l.defs))
-    for _, d := range l.defs {
-      names := make(map[string]bool, len(d.Function.Parameters.Properties))
-      for k := range d.Function.Parameters.Properties {
+    d.params = make(map[string]map[string]bool, len(d.list))
+    for _, def := range d.list {
+      names := make(map[string]bool, len(def.Function.Parameters.Properties))
+      for k := range def.Function.Parameters.Properties {
         names[k] = true
       }
 
-      l.params[d.Function.Name] = names
+      d.params[def.Function.Name] = names
     }
   })
 
-  return l.defs
+  return d
 }
 
 func wrap(f llm.ToolFunction) llm.ToolDefinition {
@@ -171,6 +179,15 @@ func (l *Loop) execute(
 
   id := toolIDs[name]
   if id == toolUnknown || !l.offered(id) {
+    if id != toolUnknown && !id.allows(l.Role) {
+      return map[string]string{
+        "error": fmt.Sprintf(
+          "the %s role can't use %s; the user can switch roles with /copilot",
+          l.Role, name,
+        ),
+      }
+    }
+
     if l.ReadOnly && id.isWrite() {
       return map[string]string{
         "error": "this session is read-only; " + name + " is unavailable",

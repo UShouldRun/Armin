@@ -217,6 +217,12 @@ func apply(cfg *Config, key, value string) error {
     cfg.Terminal = value
   case "completion_model":
     cfg.CompletionModel = value
+  case "minion":
+    cfg.Minion = value
+  case "copilot":
+    cfg.Copilot = value
+  case "advisor":
+    cfg.Advisor = value
   case "ctags_bin":
     cfg.CtagsBinary = value
   case "llama_url":

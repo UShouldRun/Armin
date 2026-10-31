@@ -53,6 +53,21 @@ func commandList() []command {
       run:     cmdModel,
     },
     {
+      names:   []string{ "minion" },
+      summary: "act as the minion: the local model, searches and small edits",
+      run:     cmdRole,
+    },
+    {
+      names:   []string{ "copilot" },
+      summary: "act as the copilot: the full agent, every tool",
+      run:     cmdRole,
+    },
+    {
+      names:   []string{ "advisor" },
+      summary: "act as the advisor: decisions and learning, no file changes",
+      run:     cmdRole,
+    },
+    {
       names:   []string{ "context", "ctx" },
       summary: "show context usage for this session",
       run:     cmdContext,
@@ -212,6 +227,7 @@ func (r *REPL) dispatch(ctx context.Context, input string) {
 
   c, ok := byName[name]
   if ok {
+    r.lastCommand = c.names[0]
     c.run(r, ctx, args)
     return
   }

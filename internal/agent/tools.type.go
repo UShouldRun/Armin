@@ -27,10 +27,12 @@ type runFunc func(ctx context.Context, l *Loop, c toolCall) any
 // reads.
 //
 // def is the name, description and parameters; paths, if set, says
-// which paths a call reads, for the access check.
+// which paths a call reads, for the access check; roles, if set, are
+// the only roles offered the tool.
 type toolSpec struct {
   id    ToolID
   flags toolFlags
+  roles Role
   def   llm.ToolFunction
   run   runFunc
   paths func(args map[string]any) []string

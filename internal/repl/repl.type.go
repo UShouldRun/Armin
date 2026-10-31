@@ -37,6 +37,11 @@ type REPL struct {
   Models  *llamacpp.Manager
   Sandbox *sandbox.Config
 
+  // RoleModels is the model each role runs on, from config.conf's
+  // minion, copilot and advisor keys; a role without one keeps the
+  // current model.
+  RoleModels map[agent.Role]string
+
   History   []llm.Message
   Root      string
   resumedAt *time.Time
@@ -76,6 +81,10 @@ type REPL struct {
   ContextFromServer bool
 
   state flags
+
+  // lastCommand is the canonical name of the slash command running,
+  // for handlers shared by several commands (cmdRole).
+  lastCommand string
 
   // effort is how hard the model thinks; once, when set, overrides
   // it for the next turn only (/effort high <task>).

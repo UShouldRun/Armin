@@ -306,7 +306,7 @@ func (l *Loop) state(h []llm.Message, used int) ContextState {
   }
 
   s.Turn = convo.Analyze(h[keptFrom(h, 1):]).ApproxTokens
-  s.Fixed = l.defsTokens
+  s.Fixed = l.defsFor().tokens
   if len(h) > 0 && h[0].Role == "system" {
     s.Fixed += convo.ApproxTokens(h[0])
   }

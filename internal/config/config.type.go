@@ -61,6 +61,10 @@ type ModelSpecConfig struct {
 type Config struct {
   Model           string // a name, resolved against Models (or LlamaURL, for the zero-config path)
   CompletionModel string // same, but for -lsp inline completion, not chat
+
+  // Minion, Copilot and Advisor name the model each role runs on
+  // (see agent.Role); /minion, /copilot and /advisor switch to them.
+  Minion, Copilot, Advisor string
   Terminal        string // how to open a new terminal window: "ghostty -e"
   CtagsBinary     string // used only by -lsp definition/symbol/hover
 

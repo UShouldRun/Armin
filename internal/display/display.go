@@ -19,6 +19,7 @@ import (
   "context"
   "fmt"
 
+  "armin/internal/agent"
   "armin/internal/input"
   "armin/internal/mcpserver"
   "armin/internal/repl"
@@ -116,6 +117,18 @@ func runREPL(
   )
 
   r.Completion, r.Follower = mind.Completion, mind.Follower()
+  r.RoleModels = map[agent.Role]string{
+    agent.RoleMinion:  opts.Config.Minion,
+    agent.RoleCopilot: opts.Config.Copilot,
+    agent.RoleAdvisor: opts.Config.Advisor,
+  }
+
+  // starting on a role's model starts in that role
+  for role, model := range r.RoleModels {
+    if model != "" && model == opts.Model {
+      mind.Loop.Role = role
+    }
+  }
   completing := mind.Completion.Model
   r.SetCompleting(completing)
 

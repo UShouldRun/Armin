@@ -4,8 +4,6 @@
 package agent
 
 import (
-  "sync"
-
   "armin/internal/ctags"
   "armin/internal/library"
   "armin/internal/llm"
@@ -69,10 +67,12 @@ type Loop struct {
   // a write).
   ReadOnly bool
 
-  defsOnce   sync.Once
-  defs       []llm.ToolDefinition
-  params     map[string]map[string]bool // tool → its parameter names
-  defsTokens int // rough size of defs, sent with every request
+  // Role decides which tools the model is offered (see role.go);
+  // zero offers them all. Change it with SetRole, between turns.
+  Role     Role
+  reminder string // queued by SetRole for the next user message
+
+  roleDefs [4]roleDefs // by Role.slot
 }
 
 // Hooks are the per-call callbacks of Turn. They're parameters, not

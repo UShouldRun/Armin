@@ -27,6 +27,21 @@ models.coder.args        = --ctx-size 8192 --n-gpu-layers 999
 `allow` appends to the default binary allowlist; it doesn't replace it.
 `allow_exec` does the same for `run_program`'s list.
 
+## Roles
+
+```
+minion  = qwen3.5-9b   # local: searches, small edits
+copilot = glm          # hosted: the full agent
+advisor = planner      # hosted: decisions and learning
+```
+
+Each names a model (a `models.<name>` block or a hosted id). `/minion`,
+`/copilot` and `/advisor` switch to that role and its model; a role
+without a key keeps the current model. The role decides the tools: the
+minion has everything but `run_program`, the copilot everything, the
+advisor no file changes (`edit_file`, `write_file`, `run_program`).
+Starting on a role's model starts in that role.
+
 Every llama-server armin starts, local or remote, gets lean
 defaults that spend memory on context instead of features a
 single-user, text-only agent doesn't use. Each applies only if your
