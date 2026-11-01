@@ -74,6 +74,13 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
     b.Hosted = s.cfg.Models.OpenRouter()
     if b.Hosted != "" {
       b.Suggested = catalog.Suggestions()
+    }
+
+    // the credits only while the chosen model spends them: a picked
+    // id ("planner:qwen/...") is served through its base's endpoint
+    base, _, _ := strings.Cut(b.Model, ":")
+    current, _ := s.cfg.Models.Endpoint(base)
+    if b.Hosted != "" && strings.Contains(current, "openrouter.ai") {
       url, key := s.cfg.Models.Endpoint(b.Hosted)
       b.Balance = catalog.CachedCredits(url, key)
     }
