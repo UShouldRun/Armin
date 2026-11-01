@@ -7,12 +7,6 @@ runs its build and tests, and grounds every answer in what's actually
 there - not generic training data. Named after the *Attack on Titan*
 strategist: the one who reads the terrain before anyone moves.
 
-The wings mark is the project's logo (assets/, in light, dark and
-white variants). The banner above is the web UI's icon in the
-readme's style: the same mark, in the banner crop, drawn in the
-icon's own tones on dark themes and the exact inverse on light
-themes, on a transparent background.
-
 One sandboxed tool layer, four front ends:
 
 - **REPL**: a chat loop in your terminal.
