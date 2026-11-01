@@ -84,8 +84,7 @@ armin-test .
 config (`~/.config/armin-test`), sessions, memories, knowledge DAGs and
 metrics (`~/.local/share/armin-test`), and its own join socket, so it
 never joins or hosts the installed armin's sessions. The first run
-seeds its config from `config.conf.restructure` (or a copy of the
-installed config.conf), copies the API keys and links the skills; later
-runs only rebuild the binary. `--name` picks another name. It shares
+seeds its config with a copy of the installed config.conf, copies the
+API keys and links the skills; later runs only rebuild the binary. `--name` picks another name. It shares
 the configured llama-server ports, so with both running they use the
 same model server.

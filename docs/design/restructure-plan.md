@@ -638,7 +638,8 @@ its own commit (one per package where it spans several).
 
 ## 9. Progress (revised 2026-11-01, after rounds 6–11)
 
-Branch `restructure`, not pushed, not merged. Every step's tests
+Merged into `main` on 2026-11-01 (the previous `main` is kept as the
+`v1` branch). Every step's tests
 pass (`go test ./...`, the know and learner packages also under
 `-race`). armin-test (`./install-test.sh`) builds the branch beside
 the installed armin, with its own config, data and join socket.
@@ -734,9 +735,8 @@ to end; fix what that shows.
 **Smaller loose ends**
 - Metrics: a tool's time includes the wait for the user's approval
   (edit_file's 120 s max on armin-test); time the approval apart.
-- `stt` isn't in the live config.conf yet; the branch-run config with
-  the role keys and stt is `config.conf.restructure` in the repo root,
-  copied into ~/.config/armin-test by install-test.sh. The
+- The role keys, `stt` and `repo_map` aren't in the live config.conf
+  yet; ~/.config/armin-test/config.conf has them all. The
   whisper.cpp build is at /media/henrique/partition/llm/src/whisper.cpp
   (whisper-cli under build/bin), the model at
   models/whisper/ggml-large-v3-turbo-q5_0.bin; add `-ng` if the local

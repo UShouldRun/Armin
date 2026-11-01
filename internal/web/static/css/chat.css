@@ -170,10 +170,8 @@ form .box {
   transition: border-color .12s, box-shadow .12s;
 }
 
-form .box:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow);
-}
+/* typing only firms the border up a step: no colored ring */
+form .box:focus-within { border-color: var(--faint); }
 
 textarea {
   display: block;
@@ -190,6 +188,9 @@ textarea {
 }
 
 textarea::placeholder { color: var(--faint); }
+
+/* the box around it shows focus: no outline drawn round the text */
+form textarea:focus-visible { outline: none; }
 
 form .row {
   display: flex;

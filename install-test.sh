@@ -7,8 +7,7 @@
 # joins or hosts the installed armin's sessions). Use it to try a
 # branch for a while; ./install.sh stays the way to install armin.
 #
-# The first run seeds armin-test's config: config.conf.restructure
-# from this checkout when there is one, else a copy of the installed
+# The first run seeds armin-test's config: a copy of the installed
 # armin's config.conf; the API keys from the installed .env (copied,
 # mode 600); the skills linked, read-only in practice. Later runs only
 # rebuild the binary: edit ~/.config/armin-test/config.conf directly.
@@ -58,10 +57,7 @@ mkdir -p "$test_conf"
 chmod 700 "$test_conf"
 
 if [ ! -f "$test_conf/config.conf" ]; then
-  if [ -f config.conf.restructure ]; then
-    cp config.conf.restructure "$test_conf/config.conf"
-    echo "config: config.conf.restructure → $test_conf/config.conf"
-  elif [ -f "$main_conf/config.conf" ]; then
+  if [ -f "$main_conf/config.conf" ]; then
     cp "$main_conf/config.conf" "$test_conf/config.conf"
     echo "config: a copy of $main_conf/config.conf"
   fi
