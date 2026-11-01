@@ -521,15 +521,16 @@ elif want "llama-server (llama.cpp) runs armin's local models and isn't installe
     echo "      re-run this script, for a llama-server that runs on the GPU"
   fi
 
+  llama_log="$llama_src/build.log"
   if cmake -S "$llama_src" -B "$llama_src/build" -DCMAKE_BUILD_TYPE=Release \
-       -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF $gpu >/dev/null &&
+       -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF $gpu >"$llama_log" 2>&1 &&
      cmake --build "$llama_src/build" --config Release --target llama-server \
-       -j "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" >/dev/null; then
+       -j "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" >>"$llama_log" 2>&1; then
     cp "$llama_src/build/bin/llama-server" "$prefix/llama-server.new"
     mv -f "$prefix/llama-server.new" "$prefix/llama-server"
     ok "built llama-server: $prefix/llama-server"
   else
-    err "building llama-server failed: see https://github.com/ggml-org/llama.cpp"
+    err "building llama-server failed: the build's output is in $llama_log"
   fi
 else
   warn "no llama-server: local models won't run (a hosted model or a"
