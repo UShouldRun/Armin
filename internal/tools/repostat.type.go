@@ -46,7 +46,8 @@ type ListLanguagesOutput struct {
 }
 
 type FindFilesInput struct {
-  Pattern string `json:"pattern"` // filepath.Match glob against the base name, e.g. "*.go"
+  // filepath.Match glob against the base name, e.g. "*.go"
+  Pattern string `json:"pattern"`
   Path    string `json:"path,omitempty"`
 }
 

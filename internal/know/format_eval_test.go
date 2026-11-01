@@ -228,16 +228,16 @@ func evalQuestions(g *Graph, all []NodeID) []evalQuestion {
     case 1:
       id := pick(func(id NodeID) bool { return len(deps(id, false)) >= 2 })
       q = evalQuestion{
-        text: fmt.Sprintf("Which nodes does node %d depend on?", id),
+        text:  fmt.Sprintf("Which nodes does node %d depend on?", id),
         shown: context(id),
-        want: idsAnswer(deps(id, false)),
+        want:  idsAnswer(deps(id, false)),
       }
     case 2:
       id := pick(func(id NodeID) bool { return len(deps(id, true)) >= 2 })
       q = evalQuestion{
-        text: fmt.Sprintf("Which nodes depend on node %d?", id),
+        text:  fmt.Sprintf("Which nodes depend on node %d?", id),
         shown: context(id),
-        want: idsAnswer(deps(id, true)),
+        want:  idsAnswer(deps(id, true)),
       }
     case 3:
       id := pick(func(NodeID) bool { return true })
@@ -257,7 +257,7 @@ func evalQuestions(g *Graph, all []NodeID) []evalQuestion {
     case 4:
       id := pick(func(NodeID) bool { return true })
       q = evalQuestion{
-        text: "Which of the nodes shown are stale or suspect?",
+        text:  "Which of the nodes shown are stale or suspect?",
         shown: context(id),
       }
       var ans []NodeID
@@ -276,7 +276,7 @@ func evalQuestions(g *Graph, all []NodeID) []evalQuestion {
           id,
         ),
         shown: context(id),
-        want: g.node(id).Conf().String(),
+        want:  g.node(id).Conf().String(),
       }
     case 6:
       id := pick(func(NodeID) bool { return true })
@@ -310,7 +310,7 @@ func evalQuestions(g *Graph, all []NodeID) []evalQuestion {
           id,
         ),
         shown: context(id),
-        want: idsAnswer(ans),
+        want:  idsAnswer(ans),
       }
     case 8:
       id := pick(func(id NodeID) bool { return len(deps(id, true)) >= 1 })
@@ -319,7 +319,7 @@ func evalQuestions(g *Graph, all []NodeID) []evalQuestion {
           "If node %d turned out wrong, which nodes directly rest on it?", id,
         ),
         shown: context(id),
-        want: idsAnswer(deps(id, true)),
+        want:  idsAnswer(deps(id, true)),
       }
     }
 

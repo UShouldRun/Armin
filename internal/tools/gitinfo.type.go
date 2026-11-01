@@ -91,7 +91,8 @@ type CodeOwnersOutput struct {
 
 type CommitStatsInput struct {
   Path  string `json:"path,omitempty"`
-  Count int    `json:"count,omitempty"` // top-N files to return, default 10, max 50
+  // top-N files to return, default 10, max 50
+  Count int    `json:"count,omitempty"`
 }
 
 type FileChangeCount struct {
@@ -100,5 +101,6 @@ type FileChangeCount struct {
 }
 
 type CommitStatsOutput struct {
-  Hotspots []FileChangeCount `json:"hotspots"` // most-frequently-changed files, ranked
+  // most-frequently-changed files, ranked
+  Hotspots []FileChangeCount `json:"hotspots"`
 }

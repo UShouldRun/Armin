@@ -15,7 +15,8 @@ type SymbolLocation struct {
 
 type FindDefinitionInput struct {
   Name     string `json:"name"`
-  FromFile string `json:"from_file,omitempty"` // ranks same-file/same-dir matches first
+  // ranks same-file/same-dir matches first
+  FromFile string `json:"from_file,omitempty"`
 }
 
 type FindDefinitionOutput struct {
@@ -23,7 +24,8 @@ type FindDefinitionOutput struct {
 }
 
 type ListSymbolsInput struct {
-  Query string `json:"query,omitempty"` // substring, case-insensitive; empty lists everything (capped)
+  // substring, case-insensitive; empty lists everything (capped)
+  Query string `json:"query,omitempty"`
 }
 
 type ListSymbolsOutput struct {

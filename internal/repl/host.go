@@ -111,7 +111,13 @@ func (r *REPL) shared(h agent.Hooks, origin string) agent.Hooks {
   }
 
   out.ToolResult = func(name, result string) {
-    send(share.Event{ Type: "tool_result", Name: name, Delta: agent.ResultLine(name, result) })
+    send(
+      share.Event{
+        Type:  "tool_result",
+        Name:  name,
+        Delta: agent.ResultLine(name, result),
+      },
+    )
     if h.ToolResult != nil {
       h.ToolResult(name, result)
     }
@@ -223,7 +229,9 @@ func (h host) Models() share.ModelInfo {
 }
 
 // SwitchModel switches on the REPL goroutine, between turns.
-func (h host) SwitchModel(ctx context.Context, name string) (share.ModelInfo, error) {
+func (h host) SwitchModel(
+  ctx context.Context, name string,
+) (share.ModelInfo, error) {
   r := h.r
 
   if r.busy.Load() {

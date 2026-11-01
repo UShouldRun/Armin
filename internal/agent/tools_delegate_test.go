@@ -45,7 +45,7 @@ func minionServer(t *testing.T, offered *[]string) *llm.Client {
           Name: "know_write",
           Arguments: map[string]any{
             "path": "loop/retries", "kind": "fact",
-            "claim": "the loop retries twice",
+            "claim":      "the loop retries twice",
             "confidence": "tested",
           },
         } } },
@@ -190,7 +190,7 @@ func TestChoreClient(t *testing.T) {
   local := llm.New("http://local", "chat")
   minion := llm.New("http://minion", "small")
   l := &Loop{
-    LLM: local,
+    LLM:    local,
     Minion: func(context.Context) (*llm.Client, error) { return minion, nil },
   }
 

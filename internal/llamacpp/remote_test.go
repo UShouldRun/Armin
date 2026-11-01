@@ -34,8 +34,15 @@ func (f *fakeEC2) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       ip = "<ipAddress>203.0.113.7</ipAddress>"
     }
 
-    fmt.Fprintf(w, `<R><reservationSet><item><instancesSet><item><instanceId>i-1</instanceId>` +
-      `<instanceState><name>%s</name></instanceState>%s</item></instancesSet></item></reservationSet></R>`, f.state, ip)
+    fmt.Fprintf(
+      w,
+      `<R><reservationSet><item><instancesSet><item>` +
+        `<instanceId>i-1</instanceId>` +
+        `<instanceState><name>%s</name></instanceState>%s` +
+        `</item></instancesSet></item></reservationSet></R>`,
+      f.state,
+      ip,
+    )
     if f.state == "pending" {
       f.state = "running"
     }
@@ -136,7 +143,9 @@ func TestAWSModelStartsTunnelsAndStops(t *testing.T) {
   for _, want := range []string{
     "-tt", "HostKeyAlias=i-1", "-i /keys/k.pem", "ubuntu@203.0.113.7",
     "127.0.0.1:8080", "trap 'sudo -n shutdown -h now' HUP;",
-    "/opt/llama/llama-server -m '/models/qwen 27b.gguf' --host 127.0.0.1 --port 8080 --jinja -c 65536 --no-mmproj -np 1 -fa on -ctk q8_0 -ctv q8_0 -cram 1024",
+    "/opt/llama/llama-server -m '/models/qwen 27b.gguf' --host 127.0.0.1 " +
+      "--port 8080 --jinja -c 65536 --no-mmproj -np 1 -fa on -ctk q8_0 -ctv " +
+        "q8_0 -cram 1024",
   } {
     if !strings.Contains(string(args), want) {
       t.Errorf("ssh args missing %q:\n%s", want, args)
@@ -169,7 +178,8 @@ func TestAWSInstanceAlreadyRunningIsLeftRunning(t *testing.T) {
   }
 
   args, _ := os.ReadFile(filepath.Join(dir, "args"))
-  if strings.Contains(string(args), "trap") || !strings.Contains(string(args), "exec /opt/llama") {
+  if strings.Contains(string(args), "trap") ||
+      !strings.Contains(string(args), "exec /opt/llama") {
     t.Errorf("guard armed on an instance armin didn't start:\n%s", args)
   }
 
@@ -195,12 +205,12 @@ func TestAWSNeedsCredentials(t *testing.T) {
 
 func TestShellQuote(t *testing.T) {
   cases := map[string]string{
-    "--jinja":           "--jinja",
-    "/models/a.gguf":    "/models/a.gguf",
-    "has space":         "'has space'",
-    "it's":              `'it'\''s'`,
-    "$(rm -rf /)":       "'$(rm -rf /)'",
-    "":                  "''",
+    "--jinja":        "--jinja",
+    "/models/a.gguf": "/models/a.gguf",
+    "has space":      "'has space'",
+    "it's":           `'it'\''s'`,
+    "$(rm -rf /)":    "'$(rm -rf /)'",
+    "":               "''",
   }
 
   for in, want := range cases {
@@ -228,7 +238,12 @@ func (f *fakeIaaS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       ip = `,"publicIp":"192.0.2.10"`
     }
 
-    fmt.Fprintf(w, `{"id":"s-1","status":%q,"nics":[{"ipv4":"10.0.0.4"%s}]}`, f.status, ip)
+    fmt.Fprintf(
+      w,
+      `{"id":"s-1","status":%q,"nics":[{"ipv4":"10.0.0.4"%s}]}`,
+      f.status,
+      ip,
+    )
     if f.status == "STARTING" {
       f.status = "ACTIVE"
     }
@@ -276,7 +291,8 @@ func TestSTACKITModelStartsTunnelsAndDeallocates(t *testing.T) {
   }
 
   args, _ := os.ReadFile(filepath.Join(dir, "args"))
-  if !strings.Contains(string(args), "ubuntu@192.0.2.10") || !strings.Contains(string(args), "HostKeyAlias=s-1") {
+  if !strings.Contains(string(args), "ubuntu@192.0.2.10") ||
+      !strings.Contains(string(args), "HostKeyAlias=s-1") {
     t.Errorf("ssh args = %s", args)
   }
 
@@ -289,7 +305,10 @@ func TestSTACKITModelStartsTunnelsAndDeallocates(t *testing.T) {
   f.mu.Lock()
   defer f.mu.Unlock()
   if strings.Join(f.actions, ",") != "start,deallocate" {
-    t.Fatalf("actions = %v, want start,deallocate (stop keeps billing)", f.actions)
+    t.Fatalf(
+      "actions = %v, want start,deallocate (stop keeps billing)",
+      f.actions,
+    )
   }
 }
 
@@ -300,16 +319,34 @@ func TestServerArgsLeanDefaults(t *testing.T) {
     want string
   }{
     { ModelSpec{ Args: []string{ "-c", "8192" } }, "-c 8192 " + lean },
-    { ModelSpec{ Args: []string{ "--mmproj", "v.gguf" } }, "--mmproj v.gguf -np 1 -fa on -ctk q8_0 -ctv q8_0 -cram 1024" },
-    { ModelSpec{ Args: []string{ "-ctk", "f16", "--parallel=2" } }, "-ctk f16 --parallel=2 --no-mmproj -fa on -ctv q8_0 -cram 1024" },
-    { ModelSpec{ Args: []string{ "-c", "8192" }, Flags: SpecVision }, "-c 8192 -np 1 -fa on -ctk q8_0 -ctv q8_0 -cram 1024" },
-    { ModelSpec{ Args: []string{ "-c", "8192" }, Flags: SpecNoLean }, "-c 8192" },
+    {
+      ModelSpec{ Args: []string{ "--mmproj", "v.gguf" } },
+      "--mmproj v.gguf -np 1 -fa on -ctk q8_0 -ctv q8_0 -cram 1024",
+    },
+    {
+      ModelSpec{ Args: []string{ "-ctk", "f16", "--parallel=2" } },
+      "-ctk f16 --parallel=2 --no-mmproj -fa on -ctv q8_0 -cram 1024",
+    },
+    {
+      ModelSpec{ Args: []string{ "-c", "8192" }, Flags: SpecVision },
+      "-c 8192 -np 1 -fa on -ctk q8_0 -ctv q8_0 -cram 1024",
+    },
+    {
+      ModelSpec{ Args: []string{ "-c", "8192" }, Flags: SpecNoLean },
+      "-c 8192",
+    },
   }
 
   for _, c := range cases {
     got := strings.Join(serverArgs(c.spec), " ")
     if got != c.want {
-      t.Errorf("serverArgs(%v, flags=%b)\n got  %q\n want %q", c.spec.Args, c.spec.Flags, got, c.want)
+      t.Errorf(
+        "serverArgs(%v, flags=%b)\n got  %q\n want %q",
+        c.spec.Args,
+        c.spec.Flags,
+        got,
+        c.want,
+      )
     }
   }
 }
@@ -331,7 +368,12 @@ func (f *fakeScaleway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       ip = `{"address":"51.15.0.9"}`
     }
 
-    fmt.Fprintf(w, `{"server":{"id":"srv-1","state":%q,"public_ip":%s}}`, f.state, ip)
+    fmt.Fprintf(
+      w,
+      `{"server":{"id":"srv-1","state":%q,"public_ip":%s}}`,
+      f.state,
+      ip,
+    )
     if f.state == "starting" {
       f.state = "running"
     }
@@ -341,7 +383,10 @@ func (f *fakeScaleway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       f.actions = append(f.actions, "poweron")
       f.state = "starting"
     } else {
-      f.actions = append(f.actions, strings.Trim(strings.TrimPrefix(string(raw), `{"action":`), `"}`))
+      f.actions = append(
+        f.actions,
+        strings.Trim(strings.TrimPrefix(string(raw), `{"action":`), `"}`),
+      )
       f.state = "stopped"
     }
   }
@@ -390,7 +435,10 @@ func TestScalewayModelPowersOnTunnelsAndPowersOff(t *testing.T) {
   f.mu.Lock()
   defer f.mu.Unlock()
   if strings.Join(f.actions, ",") != "poweron,poweroff" {
-    t.Fatalf("actions = %v, want poweron,poweroff (stop_in_place keeps billing)", f.actions)
+    t.Fatalf(
+      "actions = %v, want poweron,poweroff (stop_in_place keeps billing)",
+      f.actions,
+    )
   }
 }
 
@@ -405,7 +453,10 @@ func TestContextFlagHelpers(t *testing.T) {
     t.Errorf("contextOf = %d", n)
   }
 
-  got := strings.Join(withContext([]string{ "--jinja", "-c", "98304", "-ngl", "999" }, 196608), " ")
+  got := strings.Join(
+    withContext([]string{ "--jinja", "-c", "98304", "-ngl", "999" }, 196608),
+    " ",
+  )
   if got != "--jinja -ngl 999 -c 196608" {
     t.Errorf("withContext = %q", got)
   }
@@ -443,7 +494,8 @@ func TestStreamTierSwitchRestartsServerNotMachine(t *testing.T) {
 
   args, _ := os.ReadFile(filepath.Join(dir, "args"))
   for _, want := range []string{
-    "/opt/kvstream/llama-server", "-c 196608", "--kv-stream-arena-mib 2048", "--fit off",
+    "/opt/kvstream/llama-server", "-c 196608",
+    "--kv-stream-arena-mib 2048", "--fit off",
   } {
     if !strings.Contains(string(args), want) {
       t.Errorf("stream-tier args missing %q:\n%s", want, args)
@@ -460,21 +512,28 @@ func TestStreamTierSwitchRestartsServerNotMachine(t *testing.T) {
   }
 
   args, _ = os.ReadFile(filepath.Join(dir, "args"))
-  if !strings.Contains(string(args), "/opt/llama/llama-server") || !strings.Contains(string(args), "-c 98304") {
+  if !strings.Contains(string(args), "/opt/llama/llama-server") ||
+      !strings.Contains(string(args), "-c 98304") {
     t.Errorf("resident-tier args = %s", args)
   }
 
   m.Shutdown(context.Background())
   if f.log() != "" {
-    t.Fatalf("EC2 actions = %q: a tier switch must not touch the machine", f.log())
+    t.Fatalf(
+      "EC2 actions = %q: a tier switch must not touch the machine",
+      f.log(),
+    )
   }
 }
 
 func TestWindowNeedsStreamTierAndResidentContext(t *testing.T) {
   m := New(map[string]ModelSpec{
-    "plain":   { Args: []string{ "-c", "8192" } },
-    "nosize":  { Stream: &StreamSpec{ Context: 65536 } },
-    "smaller": { Args: []string{ "-c", "8192" }, Stream: &StreamSpec{ Context: 4096 } },
+    "plain":  { Args: []string{ "-c", "8192" } },
+    "nosize": { Stream: &StreamSpec{ Context: 65536 } },
+    "smaller": {
+      Args:   []string{ "-c", "8192" },
+      Stream: &StreamSpec{ Context: 4096 },
+    },
   })
   defer m.Shutdown(context.Background())
   for _, name := range []string{ "plain", "nosize", "smaller", "missing" } {

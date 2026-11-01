@@ -72,7 +72,10 @@ func RunProgram(
 
   if cfg.DryRun {
     return &RunProgramOutput{
-      Command: "[dry-run] would execute: " + sandbox.DescribeArgs(in.Binary, in.Args),
+      Command: "[dry-run] would execute: " + sandbox.DescribeArgs(
+        in.Binary,
+        in.Args,
+      ),
     }, nil
   }
 
@@ -119,7 +122,11 @@ func RunProgram(
   if stdout != nil {
     info, statErr := stdout.Stat()
     if statErr == nil {
-      res.Stdout = fmt.Sprintf("(stdout written to %s, %d bytes)\n", in.Stdout, info.Size())
+      res.Stdout = fmt.Sprintf(
+        "(stdout written to %s, %d bytes)\n",
+        in.Stdout,
+        info.Size(),
+      )
     }
   }
 

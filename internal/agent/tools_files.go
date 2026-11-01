@@ -157,8 +157,8 @@ var fileTools = []toolSpec{
     },
   },
   {
-    id:    toolCountLines,
-    run:   inSandbox(tools.CountLines),
+    id:  toolCountLines,
+    run: inSandbox(tools.CountLines),
     def: llm.ToolFunction{
       Name: "count_lines",
       Description: "Count lines of code across the project (or a " +
@@ -176,8 +176,8 @@ var fileTools = []toolSpec{
     },
   },
   {
-    id:    toolFindFiles,
-    run:   inSandbox(tools.FindFiles),
+    id:  toolFindFiles,
+    run: inSandbox(tools.FindFiles),
     def: llm.ToolFunction{
       Name: "find_files",
       Description: "Find files by name using a glob pattern " +
@@ -200,8 +200,8 @@ var fileTools = []toolSpec{
     },
   },
   {
-    id:    toolFileStat,
-    run:   inSandbox(tools.FileStat),
+    id:  toolFileStat,
+    run: inSandbox(tools.FileStat),
     def: llm.ToolFunction{
       Name: "file_stat",
       Description: "Get a file's size, line count, and " +

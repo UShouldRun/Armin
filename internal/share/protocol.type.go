@@ -22,14 +22,16 @@ import (
 type Event struct {
   ID       json.RawMessage `json:"id,omitempty"` // nvim's request id
   Type     string          `json:"type"`
-  Origin   string          `json:"origin,omitempty"` // who asked: "nvim", "terminal", "join:N"
+  // who asked: "nvim", "terminal", "join:N"
+  Origin   string          `json:"origin,omitempty"`
   Name     string          `json:"name,omitempty"`
   Args     map[string]any  `json:"args,omitempty"`
   Delta    string          `json:"delta,omitempty"`
   Error    string          `json:"error,omitempty"` // "reply": what failed
   Tier     string          `json:"tier,omitempty"`
   Tokens   int             `json:"tokens,omitempty"`  // context used ("usage")
-  Window   int             `json:"window,omitempty"`  // context window ("usage")
+  // context window ("usage")
+  Window   int             `json:"window,omitempty"`
   Reply    uint32          `json:"reply,omitempty"`   // "reply"
   Instance int             `json:"instance,omitempty"`
   History  []ChatLine      `json:"history,omitempty"`
@@ -46,7 +48,8 @@ type ChatLine struct {
 // ModelChoice is one configured model.
 type ModelChoice struct {
   Name    string `json:"name"`
-  Model   string `json:"model,omitempty"` // what serves it: the .gguf name, a machine, a URL
+  // what serves it: the .gguf name, a machine, a URL
+  Model   string `json:"model,omitempty"`
   Managed bool   `json:"managed"`         // false: armin only talks to it
   Running bool   `json:"running"`         // a managed process is up for it
 
@@ -58,9 +61,11 @@ type ModelChoice struct {
 // instance this is.
 type ModelInfo struct {
   Current    string        `json:"current"`
-  Completion string        `json:"completion,omitempty"` // serves inline completion
+  // serves inline completion
+  Completion string        `json:"completion,omitempty"`
   Instance   int           `json:"instance,omitempty"`
-  Warning    string        `json:"warning,omitempty"` // why local models are slow (llamacpp.GPUWarning)
+  // why local models are slow (llamacpp.GPUWarning)
+  Warning    string        `json:"warning,omitempty"`
   Configured []ModelChoice `json:"configured,omitempty"`
 
   // Hosted is the configured OpenRouter model whose endpoint the
@@ -86,7 +91,8 @@ type Request struct {
 // Fill is one inline completion, cut out by the frontend that has
 // the buffer (see lspserver.fimWindow).
 type Fill struct {
-  Key    string           `json:"key"` // a newer Fill with the same Key supersedes this one
+  // a newer Fill with the same Key supersedes this one
+  Key    string           `json:"key"`
   Prefix string           `json:"prefix"`
   Suffix string           `json:"suffix"`
   Opts   llm.CompleteOptions `json:"opts"`

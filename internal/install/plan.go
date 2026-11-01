@@ -167,7 +167,9 @@ func (p *Plan) place(m *Model, hw *Machine) {
     agentCtx = m.Context
   }
 
-  ctx := window(func(c int) bool { return m.GPUWeights() + m.KVBytes(c) <= budget })
+  ctx := window(
+    func(c int) bool { return m.GPUWeights() + m.KVBytes(c) <= budget },
+  )
   switch {
   case hw.GPU == nil:
     p.Place, p.Context = PlaceCPU, agentCtx
@@ -237,7 +239,13 @@ func (p *Plan) place(m *Model, hw *Machine) {
     p.RAMUse = m.Total + kv
   }
 
-  p.Args = []string{ "--jinja", "-ngl", fmt.Sprint(p.GPULayers), "-c", fmt.Sprint(p.Context) }
+  p.Args = []string{
+    "--jinja",
+    "-ngl",
+    fmt.Sprint(p.GPULayers),
+    "-c",
+    fmt.Sprint(p.Context),
+  }
   if p.Place == PlaceGPU {
     p.Args[2] = "999"
   }
@@ -333,7 +341,9 @@ func (p *Plan) estimate(m *Model, hw *Machine) {
 
   // Prefill: FLOPs per token at the average depth of agentPrompt,
   // over the compute of whichever side multiplies.
-  attn := 4 * float64(m.AttnLayers) * float64(m.Heads * m.HeadDim) * agentPrompt / 2
+  attn := 4 * float64(m.AttnLayers) * float64(
+    m.Heads * m.HeadDim,
+  ) * agentPrompt / 2
   flops := 2 * float64(m.ActiveParams()) + attn
   if p.Place == PlaceCPU {
     p.Prefill = cpuFLOPS(&hw.CPU) / flops

@@ -40,11 +40,20 @@ func printModelInfo(info share.ModelInfo) {
       state = " (local, free · running)"
     }
 
-    fmt.Printf("%s%-*s  %s%s\n", marker, width, c.Name, ui.Dim(c.Model), ui.Dim(state))
+    fmt.Printf(
+      "%s%-*s  %s%s\n",
+      marker,
+      width,
+      c.Name,
+      ui.Dim(c.Model),
+      ui.Dim(state),
+    )
   }
 
   if info.Completion != "" && info.Completion != info.Current {
-    fmt.Println(ui.Dim("  completion stays on " + info.Completion + ", on this machine"))
+    fmt.Println(
+      ui.Dim("  completion stays on " + info.Completion + ", on this machine"),
+    )
   }
 
   if info.Hosted != "" {
@@ -57,7 +66,8 @@ func printModelInfo(info share.ModelInfo) {
 
   help := "/model <name> switch · /model local back"
   if info.Hosted != "" {
-    help = "/model <name> switch · /model " + info.Hosted + ":<id> any OpenRouter model · /model local back"
+    help = "/model <name> switch · /model " +
+      info.Hosted + ":<id> any OpenRouter model · /model local back"
   }
 
   fmt.Println(ui.Dim("─ " + help + " · completion stays local"))
@@ -101,14 +111,24 @@ func printSuggestions(info share.ModelInfo) {
 
     price := costLabel(s)
 
-    fmt.Printf("%s%-*s  %s  %s\n", marker, width, s.ID, ui.Dim(price), ui.Dim(contextLabel(s.Context)))
+    fmt.Printf(
+      "%s%-*s  %s  %s\n",
+      marker,
+      width,
+      s.ID,
+      ui.Dim(price),
+      ui.Dim(contextLabel(s.Context)),
+    )
   }
 }
 
 func contextLabel(n int) string {
   switch {
   case n >= 1_000_000:
-    return strings.TrimSuffix(fmt.Sprintf("%.1f", float64(n) / 1e6), ".0") + "M ctx"
+    return strings.TrimSuffix(
+      fmt.Sprintf("%.1f", float64(n) / 1e6),
+      ".0",
+    ) + "M ctx"
   case n > 0:
     return fmt.Sprintf("%dk ctx", n / 1000)
   }
@@ -123,7 +143,12 @@ func costLabel(s catalog.Suggestion) string {
     return "free"
   }
 
-  return fmt.Sprintf("$%.2f / $%.2f per 1M · ~$%.2f a session", s.In, s.Out, s.Session)
+  return fmt.Sprintf(
+    "$%.2f / $%.2f per 1M · ~$%.2f a session",
+    s.In,
+    s.Out,
+    s.Session,
+  )
 }
 
 // balanceLine is what's left on the OpenRouter account.
@@ -133,7 +158,11 @@ func balanceLine(b catalog.Balance) string {
     "OpenRouter: $%.2f left of $%.2f · today $%.2f", left, b.Credits, b.Today,
   )
   if b.KeyLimit > 0 {
-    line += fmt.Sprintf(" · this key: $%.2f of its $%.2f cap left", b.KeyLeft, b.KeyLimit)
+    line += fmt.Sprintf(
+      " · this key: $%.2f of its $%.2f cap left",
+      b.KeyLeft,
+      b.KeyLimit,
+    )
   }
 
   if left < 1 {
@@ -147,7 +176,9 @@ func balanceLine(b catalog.Balance) string {
 // (a configured model like "planner"): Enter keeps its own id, a
 // number picks a suggestion, anything with a "/" is any OpenRouter
 // id. It returns the name to switch to, "" when nothing was chosen.
-func ChooseHosted(info share.ModelInfo, hosted string, read func(string) (string, error)) string {
+func ChooseHosted(
+  info share.ModelInfo, hosted string, read func(string) (string, error),
+) string {
   def := ""
   var defCost *catalog.Suggestion
   for _, c := range info.Configured {
@@ -156,7 +187,11 @@ func ChooseHosted(info share.ModelInfo, hosted string, read func(string) (string
     }
   }
 
-  fmt.Println(ui.Bold("OpenRouter model for " + hosted) + ui.Dim(" — Enter keeps the default"))
+  fmt.Println(
+    ui.Bold(
+      "OpenRouter model for " + hosted,
+    ) + ui.Dim(" — Enter keeps the default"),
+  )
 
   width := len(def)
   for _, s := range info.Suggested {
@@ -168,9 +203,22 @@ func ChooseHosted(info share.ModelInfo, hosted string, read func(string) (string
     cost = costLabel(*defCost)
   }
 
-  fmt.Printf("  %s %-*s  %s  %s\n", ui.Green("→"), width, def, ui.Dim(cost), ui.Dim("(default)"))
+  fmt.Printf(
+    "  %s %-*s  %s  %s\n",
+    ui.Green("→"),
+    width,
+    def,
+    ui.Dim(cost),
+    ui.Dim("(default)"),
+  )
   for i, s := range info.Suggested {
-    fmt.Printf("  %s %-*s  %s\n", ui.Dim(fmt.Sprintf("%d", i + 1)), width, s.ID, ui.Dim(costLabel(s)))
+    fmt.Printf(
+      "  %s %-*s  %s\n",
+      ui.Dim(fmt.Sprintf("%d", i + 1)),
+      width,
+      s.ID,
+      ui.Dim(costLabel(s)),
+    )
   }
 
   if len(info.Suggested) == 0 {
@@ -179,7 +227,11 @@ func ChooseHosted(info share.ModelInfo, hosted string, read func(string) (string
   }
 
   for {
-    answer, err := read(ui.Yellow("model") + ui.Dim(" [Enter = " + def + ", a number, or an OpenRouter id]: "))
+    answer, err := read(
+      ui.Yellow("model") + ui.Dim(
+        " [Enter = " + def + ", a number, or an OpenRouter id]: ",
+      ),
+    )
     if err != nil {
       return ""
     }

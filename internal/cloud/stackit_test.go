@@ -30,7 +30,9 @@ func writeKeyFile(t *testing.T, tokenURL string) *rsa.PrivateKey {
   t.Helper()
   key, _ := rsa.GenerateKey(rand.Reader, 2048)
   der, _ := x509.MarshalPKCS8PrivateKey(key)
-  pemText := string(pem.EncodeToMemory(&pem.Block{ Type: "PRIVATE KEY", Bytes: der }))
+  pemText := string(
+    pem.EncodeToMemory(&pem.Block{ Type: "PRIVATE KEY", Bytes: der }),
+  )
 
   file := map[string]any{
     "id": "k-1",
@@ -64,7 +66,8 @@ func verifyJWT(t *testing.T, jwt string, pub *rsa.PublicKey) map[string]any {
   var header map[string]string
   raw, _ := base64.RawURLEncoding.DecodeString(parts[0])
   json.Unmarshal(raw, &header)
-  if header["alg"] != "RS512" || header["kid"] != "kid-1" || header["typ"] != "JWT" {
+  if header["alg"] != "RS512" ||
+      header["kid"] != "kid-1" || header["typ"] != "JWT" {
     t.Errorf("header = %v", header)
   }
 
@@ -94,7 +97,8 @@ func TestKeyFlowSignsVerifiableJWTAndCachesToken(t *testing.T) {
     }
 
     claims := verifyJWT(t, form.Get("assertion"), &key.PublicKey)
-    if claims["iss"] != "armin@sa.stackit.cloud" || claims["sub"] != "11111111-2222-3333-4444-555555555555" ||
+    if claims["iss"] != "armin@sa.stackit.cloud" ||
+        claims["sub"] != "11111111-2222-3333-4444-555555555555" ||
       claims["jti"] == "" || claims["aud"] == "" {
       t.Errorf("claims = %v", claims)
     }
@@ -104,7 +108,10 @@ func TestKeyFlowSignsVerifiableJWTAndCachesToken(t *testing.T) {
       t.Errorf("exp - iat = %v, want 600", exp - iat)
     }
 
-    io.WriteString(w, `{"access_token":"tok-1","expires_in":3600,"token_type":"Bearer"}`)
+    io.WriteString(
+      w,
+      `{"access_token":"tok-1","expires_in":3600,"token_type":"Bearer"}`,
+    )
   }))
   defer server.Close()
   key = writeKeyFile(t, server.URL)
@@ -170,13 +177,19 @@ func (f *FakeIaaS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
   base := "/v2/projects/p-1/regions/eu01/servers/s-1"
   switch {
-  case r.Method == "GET" && r.URL.Path == base && r.URL.Query().Get("details") == "true":
+  case r.Method == "GET" &&
+      r.URL.Path == base && r.URL.Query().Get("details") == "true":
     ip := ""
     if f.Status == "ACTIVE" {
       ip = `,"publicIp":"192.0.2.10"`
     }
 
-    fmt.Fprintf(w, `{"id":"s-1","status":%q,"nics":[{"ipv4":"10.0.0.4"%s}]}`, f.Status, ip)
+    fmt.Fprintf(
+      w,
+      `{"id":"s-1","status":%q,"nics":[{"ipv4":"10.0.0.4"%s}]}`,
+      f.Status,
+      ip,
+    )
     if f.Status == "STARTING" {
       f.Status = "ACTIVE"
     }

@@ -29,7 +29,8 @@ func TestRunProgramStdinStdout(t *testing.T) {
     t.Fatalf("out.txt = %q, exit %d", got, out.ExitCode)
   }
 
-  if !strings.Contains(out.Output, "stdout written to out.txt") || !strings.HasSuffix(out.Command, "< in.txt > out.txt") {
+  if !strings.Contains(out.Output, "stdout written to out.txt") ||
+      !strings.HasSuffix(out.Command, "< in.txt > out.txt") {
     t.Fatalf("output = %+v", out)
   }
 

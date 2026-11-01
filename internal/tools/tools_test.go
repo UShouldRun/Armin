@@ -43,7 +43,11 @@ func TestReadFileWholeSmallFile(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "a.txt", "one\ntwo\nthree")
 
-  out, err := ReadFile(context.Background(), cfg, ReadFileInput{ Path: "a.txt" })
+  out, err := ReadFile(
+    context.Background(),
+    cfg,
+    ReadFileInput{ Path: "a.txt" },
+  )
   if err != nil {
     t.Fatalf("ReadFile: %v", err)
   }
@@ -90,12 +94,22 @@ func TestReadFileRequiresRangeAboveThreshold(t *testing.T) {
 
   writeFile(t, cfg.Root, "big.txt", b.String())
 
-  _, err := ReadFile(context.Background(), cfg, ReadFileInput{ Path: "big.txt" })
+  _, err := ReadFile(
+    context.Background(),
+    cfg,
+    ReadFileInput{ Path: "big.txt" },
+  )
   if err == nil {
-    t.Fatal("expected an error requiring start_line/end_line above the threshold")
+    t.Fatal(
+      "expected an error requiring start_line/end_line above the threshold",
+    )
   }
 
-  out, err := ReadFile(context.Background(), cfg, ReadFileInput{ Path: "big.txt", StartLine: 1, EndLine: 2 })
+  out, err := ReadFile(
+    context.Background(),
+    cfg,
+    ReadFileInput{ Path: "big.txt", StartLine: 1, EndLine: 2 },
+  )
   if err != nil {
     t.Fatalf("ranged ReadFile: %v", err)
   }
@@ -109,7 +123,11 @@ func TestReadFileRangeClampsAndValidates(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "a.txt", "1\n2\n3\n4\n5")
 
-  out, err := ReadFile(context.Background(), cfg, ReadFileInput{ Path: "a.txt", StartLine: 3, EndLine: 999 })
+  out, err := ReadFile(
+    context.Background(),
+    cfg,
+    ReadFileInput{ Path: "a.txt", StartLine: 3, EndLine: 999 },
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -118,12 +136,20 @@ func TestReadFileRangeClampsAndValidates(t *testing.T) {
     t.Fatalf("clamped end_line: content = %q", out.Content)
   }
 
-  _, err = ReadFile(context.Background(), cfg, ReadFileInput{ Path: "a.txt", StartLine: 10, EndLine: 20 })
+  _, err = ReadFile(
+    context.Background(),
+    cfg,
+    ReadFileInput{ Path: "a.txt", StartLine: 10, EndLine: 20 },
+  )
   if err == nil {
     t.Fatal("expected an error for start_line beyond the end of the file")
   }
 
-  _, err = ReadFile(context.Background(), cfg, ReadFileInput{ Path: "a.txt", StartLine: 4, EndLine: 2 })
+  _, err = ReadFile(
+    context.Background(),
+    cfg,
+    ReadFileInput{ Path: "a.txt", StartLine: 4, EndLine: 2 },
+  )
   if err == nil {
     t.Fatal("expected an error for start_line after end_line")
   }
@@ -144,7 +170,11 @@ func TestReadFileRejectsDirectory(t *testing.T) {
 
 func TestReadFileRejectsEscapingPath(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
-  _, err := ReadFile(context.Background(), cfg, ReadFileInput{ Path: "../outside.txt" })
+  _, err := ReadFile(
+    context.Background(),
+    cfg,
+    ReadFileInput{ Path: "../outside.txt" },
+  )
   if err == nil {
     t.Fatal("expected the sandbox to reject a path escaping the root")
   }
@@ -180,7 +210,11 @@ func TestListDirectoryRespectsDepth(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "a/b/c/deep.txt", "")
 
-  out, err := ListDirectory(context.Background(), cfg, ListDirectoryInput{ Depth: 1 })
+  out, err := ListDirectory(
+    context.Background(),
+    cfg,
+    ListDirectoryInput{ Depth: 1 },
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -197,7 +231,11 @@ func TestListDirectoryRespectsDepth(t *testing.T) {
 func TestListDirectoryRejectsNonDirectory(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "f.txt", "x")
-  _, err := ListDirectory(context.Background(), cfg, ListDirectoryInput{ Path: "f.txt" })
+  _, err := ListDirectory(
+    context.Background(),
+    cfg,
+    ListDirectoryInput{ Path: "f.txt" },
+  )
   if err == nil {
     t.Fatal("expected an error listing a file as a directory")
   }
@@ -206,9 +244,16 @@ func TestListDirectoryRejectsNonDirectory(t *testing.T) {
 // --- run_command ---
 
 func TestRunCommandRejectsUnlistedBinary(t *testing.T) {
-  cfg := newTestSandbox(t, sandbox.Options{ Allowlist: map[string]bool{ "echo": true } })
+  cfg := newTestSandbox(
+    t,
+    sandbox.Options{ Allowlist: map[string]bool{ "echo": true } },
+  )
 
-  out, cmdErr := RunCommand(context.Background(), cfg, RunCommandInput{ Binary: "curl", Args: []string{ "example.com" } })
+  out, cmdErr := RunCommand(
+    context.Background(),
+    cfg,
+    RunCommandInput{ Binary: "curl", Args: []string{ "example.com" } },
+  )
   if out != nil {
     t.Fatalf("RunCommand returned output for a disallowed binary: %+v", out)
   }
@@ -238,9 +283,16 @@ func TestRunCommandRequiresBinary(t *testing.T) {
 }
 
 func TestRunCommandSuccess(t *testing.T) {
-  cfg := newTestSandbox(t, sandbox.Options{ Allowlist: map[string]bool{ "echo": true } })
+  cfg := newTestSandbox(
+    t,
+    sandbox.Options{ Allowlist: map[string]bool{ "echo": true } },
+  )
 
-  out, cmdErr := RunCommand(context.Background(), cfg, RunCommandInput{ Binary: "echo", Args: []string{ "hi" } })
+  out, cmdErr := RunCommand(
+    context.Background(),
+    cfg,
+    RunCommandInput{ Binary: "echo", Args: []string{ "hi" } },
+  )
   if cmdErr != nil {
     t.Fatalf("RunCommand: %+v", cmdErr)
   }
@@ -255,15 +307,25 @@ func TestRunCommandSuccess(t *testing.T) {
 }
 
 func TestRunCommandDryRunFlowsThrough(t *testing.T) {
-  cfg := newTestSandbox(t, sandbox.Options{ DryRun: true, Allowlist: map[string]bool{ "echo": true } })
+  cfg := newTestSandbox(
+    t,
+    sandbox.Options{ DryRun: true, Allowlist: map[string]bool{ "echo": true } },
+  )
 
-  out, cmdErr := RunCommand(context.Background(), cfg, RunCommandInput{ Binary: "echo", Args: []string{ "hi" } })
+  out, cmdErr := RunCommand(
+    context.Background(),
+    cfg,
+    RunCommandInput{ Binary: "echo", Args: []string{ "hi" } },
+  )
   if cmdErr != nil {
     t.Fatalf("RunCommand: %+v", cmdErr)
   }
 
   if !out.DryRun {
-    t.Fatalf("expected DryRun=true to flow through to the tool output, got %+v", out)
+    t.Fatalf(
+      "expected DryRun=true to flow through to the tool output, got %+v",
+      out,
+    )
   }
 }
 
@@ -273,12 +335,22 @@ func TestRunCommandDryRunFlowsThrough(t *testing.T) {
 
 func requireRipgrep(t *testing.T) {
   t.Helper()
-  cfg, err := sandbox.New(t.TempDir(), sandbox.Options{ Allowlist: map[string]bool{ "rg": true } })
+  cfg, err := sandbox.New(
+    t.TempDir(),
+    sandbox.Options{ Allowlist: map[string]bool{ "rg": true } },
+  )
   if err != nil {
     t.Fatal(err)
   }
 
-  _, err = cfg.Exec(context.Background(), sandbox.Command{ Binary: "rg", Args: []string{ "--version" }, Mode: sandbox.ExecForce })
+  _, err = cfg.Exec(
+    context.Background(),
+    sandbox.Command{
+      Binary: "rg",
+      Args:   []string{ "--version" },
+      Mode:   sandbox.ExecForce,
+    },
+  )
   if err != nil {
     t.Skip("ripgrep (rg) not available — skipping search_code tests")
   }
@@ -289,7 +361,11 @@ func TestSearchCodeFindsMatches(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "a.go", "package main\n\nfunc NeedleFunc() {}\n")
 
-  out, err := SearchCode(context.Background(), cfg, SearchCodeInput{ Pattern: "NeedleFunc" })
+  out, err := SearchCode(
+    context.Background(),
+    cfg,
+    SearchCodeInput{ Pattern: "NeedleFunc" },
+  )
   if err != nil {
     t.Fatalf("SearchCode: %v", err)
   }
@@ -304,7 +380,11 @@ func TestSearchCodeNoMatches(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "a.go", "package main\n")
 
-  out, err := SearchCode(context.Background(), cfg, SearchCodeInput{ Pattern: "DefinitelyNotPresent" })
+  out, err := SearchCode(
+    context.Background(),
+    cfg,
+    SearchCodeInput{ Pattern: "DefinitelyNotPresent" },
+  )
   if err != nil {
     t.Fatalf("SearchCode: %v", err)
   }
@@ -356,26 +436,48 @@ func TestRunCommandGuardsSedAndFind(t *testing.T) {
     { "-i.bak", "s/a/b/", "a.txt" },
     { "--in-place", "s/a/b/", "a.txt" },
   } {
-    _, err := RunCommand(context.Background(), cfg, RunCommandInput{ Binary: "sed", Args: args })
+    _, err := RunCommand(
+      context.Background(),
+      cfg,
+      RunCommandInput{ Binary: "sed", Args: args },
+    )
     if err == nil {
       t.Errorf("sed %v was allowed", args)
     }
   }
 
-  out, err := RunCommand(context.Background(), cfg, RunCommandInput{ Binary: "sed", Args: []string{ "-n", "s/hello/bye/p", "a.txt" } })
+  out, err := RunCommand(
+    context.Background(),
+    cfg,
+    RunCommandInput{
+      Binary: "sed",
+      Args:   []string{ "-n", "s/hello/bye/p", "a.txt" },
+    },
+  )
   if err != nil || strings.TrimSpace(out.Stdout) != "bye" {
     t.Fatalf("read-only sed = %+v, %v", out, err)
   }
 
   // --sandbox blocks the w command, so sed can't write a file.
-  RunCommand(context.Background(), cfg, RunCommandInput{ Binary: "sed", Args: []string{ "w written.txt", "a.txt" } })
+  RunCommand(
+    context.Background(),
+    cfg,
+    RunCommandInput{
+      Binary: "sed",
+      Args:   []string{ "w written.txt", "a.txt" },
+    },
+  )
   _, statErr := os.Stat(filepath.Join(cfg.Root, "written.txt"))
   if statErr == nil {
     t.Fatal("sed's w command wrote a file")
   }
 
   for _, a := range []string{ "-delete", "-exec", "-fprint" } {
-    _, err := RunCommand(context.Background(), cfg, RunCommandInput{ Binary: "find", Args: []string{ ".", a } })
+    _, err := RunCommand(
+      context.Background(),
+      cfg,
+      RunCommandInput{ Binary: "find", Args: []string{ ".", a } },
+    )
     if err == nil {
       t.Errorf("find %s was allowed", a)
     }
@@ -399,17 +501,36 @@ func TestRunCommandJailsPathArgs(t *testing.T) {
     }
   }
 
-  out, err := RunCommand(ctx, cfg, RunCommandInput{ Binary: "grep", Args: []string{ "-n", "s/he/x/", "a.txt", "./a.txt" } })
+  out, err := RunCommand(
+    ctx,
+    cfg,
+    RunCommandInput{
+      Binary: "grep",
+      Args:   []string{ "-n", "s/he/x/", "a.txt", "./a.txt" },
+    },
+  )
   if err != nil || out.ExitCode > 1 {
-    t.Fatalf("in-project paths and path-like patterns refused: %v %+v", err, out)
+    t.Fatalf(
+      "in-project paths and path-like patterns refused: %v %+v",
+      err,
+      out,
+    )
   }
 
-  _, err = RunCommand(ctx, cfg, RunCommandInput{ Binary: "echo", Args: []string{ "/etc" } })
+  _, err = RunCommand(
+    ctx,
+    cfg,
+    RunCommandInput{ Binary: "echo", Args: []string{ "/etc" } },
+  )
   if err != nil {
     t.Fatalf("echo takes text, not paths: %v", err)
   }
 
-  _, err = RunCommand(ctx, cfg, RunCommandInput{ Binary: "cat", Args: []string{ "slides.PDF" } })
+  _, err = RunCommand(
+    ctx,
+    cfg,
+    RunCommandInput{ Binary: "cat", Args: []string{ "slides.PDF" } },
+  )
   if err == nil || !strings.Contains(err.Error, "read_pdf") {
     t.Fatalf("cat on a PDF = %v, want a read_pdf hint", err)
   }
@@ -417,7 +538,12 @@ func TestRunCommandJailsPathArgs(t *testing.T) {
 
 func TestRunProgramPlanAndRun(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
-  writeFile(t, cfg.Root, "hello.c", "#include <stdio.h>\nint main(void) { puts(\"hi\"); return 3; }\n")
+  writeFile(
+    t,
+    cfg.Root,
+    "hello.c",
+    "#include <stdio.h>\nint main(void) { puts(\"hi\"); return 3; }\n",
+  )
   os.MkdirAll(filepath.Join(cfg.Root, "build"), 0o755)
   ctx := context.Background()
 
@@ -441,12 +567,23 @@ func TestRunProgramPlanAndRun(t *testing.T) {
     t.Skip("no C compiler")
   }
 
-  out, err := RunProgram(ctx, cfg, RunProgramInput{ Binary: "cc", Args: []string{ "-o", "build/hello", "hello.c" } })
+  out, err := RunProgram(
+    ctx,
+    cfg,
+    RunProgramInput{
+      Binary: "cc",
+      Args:   []string{ "-o", "build/hello", "hello.c" },
+    },
+  )
   if err != nil || out.ExitCode != 0 {
     t.Fatalf("compile = %+v, %v", out, err)
   }
 
-  out, err = RunProgram(ctx, cfg, RunProgramInput{ Binary: "./hello", Dir: "build" })
+  out, err = RunProgram(
+    ctx,
+    cfg,
+    RunProgramInput{ Binary: "./hello", Dir: "build" },
+  )
   if err != nil || out.ExitCode != 3 || out.Dir != "build" {
     t.Fatalf("./hello in build = %+v, %v", out, err)
   }
@@ -460,7 +597,11 @@ func TestRunProgramPlanAndRun(t *testing.T) {
 func TestRunCommandPointsAtRunProgram(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   for _, bin := range []string{ "make", "rm" } {
-    _, err := RunCommand(context.Background(), cfg, RunCommandInput{ Binary: bin })
+    _, err := RunCommand(
+      context.Background(),
+      cfg,
+      RunCommandInput{ Binary: bin },
+    )
     if err == nil || !strings.Contains(err.Error, "run_program") {
       t.Errorf("run_command %s = %v, want a pointer to run_program", bin, err)
     }

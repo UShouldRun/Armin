@@ -25,7 +25,8 @@ type Server struct {
   sandbox       *sandbox.Config
   system        string
   completionLLM *llm.Client
-  follower      *llm.Client // completionLLM when it follows chat (see llamacpp.SwitchChat)
+  // completionLLM when it follows chat (see llamacpp.SwitchChat)
+  follower      *llm.Client
   models        *llamacpp.Manager
   symbols       *ctags.Index
 

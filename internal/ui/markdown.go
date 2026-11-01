@@ -459,7 +459,10 @@ func pad(text string, width int, align byte) string {
   case 'r':
     return strings.Repeat(" ", gap) + text
   case 'c':
-    return strings.Repeat(" ", gap / 2) + text + strings.Repeat(" ", gap - gap / 2)
+    return strings.Repeat(" ", gap / 2) + text + strings.Repeat(
+      " ",
+      gap - gap / 2,
+    )
   }
 
   return text + strings.Repeat(" ", gap)

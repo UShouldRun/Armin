@@ -363,12 +363,18 @@ func Pick(data []byte) ([]Suggestion, error) {
     }
   }
 
-  sort.Slice(out, func(i, j int) bool { return out[i].Session < out[j].Session })
+  sort.Slice(
+    out,
+    func(i, j int) bool { return out[i].Session < out[j].Session },
+  )
   if len(out) > maxPlanners {
     out = out[:maxPlanners]
   }
 
-  sort.Slice(free, func(i, j int) bool { return free[i].Created > free[j].Created })
+  sort.Slice(
+    free,
+    func(i, j int) bool { return free[i].Created > free[j].Created },
+  )
   for i := 0; i < len(free) && i < maxFree; i++ {
     s := suggestion(free[i])
     s.Free = true

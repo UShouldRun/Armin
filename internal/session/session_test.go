@@ -47,7 +47,9 @@ func lineCount(t *testing.T, id string) int {
 }
 
 func TestNewIDIsAUUIDv4(t *testing.T) {
-  re := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+  re := regexp.MustCompile(
+    `^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`,
+  )
   a, b := NewID(), NewID()
   if !re.MatchString(a) || a == b {
     t.Fatalf("ids %q %q", a, b)
@@ -69,11 +71,13 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
     t.Fatalf("Load: %v", err)
   }
 
-  if got.ID != m.ID || got.Root != m.Root || got.Title != m.Title || got.Model != "local" {
+  if got.ID != m.ID ||
+      got.Root != m.Root || got.Title != m.Title || got.Model != "local" {
     t.Fatalf("meta = %+v", got.Meta)
   }
 
-  if len(got.History) != 3 || got.History[2].Content != "hello" || got.Messages != 3 {
+  if len(got.History) != 3 ||
+      got.History[2].Content != "hello" || got.Messages != 3 {
     t.Fatalf("history = %+v", got.History)
   }
 
@@ -118,7 +122,10 @@ func TestListNewestFirstWithCounts(t *testing.T) {
 
   recent := newMeta()
   recent.Title = "newer"
-  Save(recent, append(sampleHistory(), llm.Message{ Role: "user", Content: "more" }))
+  Save(
+    recent,
+    append(sampleHistory(), llm.Message{ Role: "user", Content: "more" }),
+  )
 
   list, err := List()
   if err != nil || len(list) != 2 {
@@ -143,7 +150,8 @@ func TestLegacyPerProjectFileStillLists(t *testing.T) {
   os.WriteFile(legacy, []byte(string(head) + "\n" + string(body) + "\n"), 0o644)
 
   list, _ := List()
-  if len(list) != 1 || list[0].ID != "fox-apsp-mpi-1a2b3c4d" || list[0].Root != "/home/u/fox-apsp-mpi" {
+  if len(list) != 1 ||
+      list[0].ID != "fox-apsp-mpi-1a2b3c4d" || list[0].Root != "/home/u/fox-apsp-mpi" {
     t.Fatalf("legacy listing = %+v", list)
   }
 
@@ -169,7 +177,11 @@ func TestAppendFirstCallDoesFullSave(t *testing.T) {
   }
 
   if persisted != 3 || lineCount(t, m.ID) != 4 {
-    t.Fatalf("persisted = %d, lines = %d; want 3 and meta+3", persisted, lineCount(t, m.ID))
+    t.Fatalf(
+      "persisted = %d, lines = %d; want 3 and meta+3",
+      persisted,
+      lineCount(t, m.ID),
+    )
   }
 }
 
@@ -212,7 +224,10 @@ func TestAppendCostIsIndependentOfHistorySize(t *testing.T) {
 
   const seedMessages = 5000
   for i := 0; i < seedMessages; i++ {
-    history = append(history, llm.Message{ Role: "user", Content: "filler message" })
+    history = append(
+      history,
+      llm.Message{ Role: "user", Content: "filler message" },
+    )
   }
 
   err = Append(m, history, &persisted)
@@ -221,7 +236,10 @@ func TestAppendCostIsIndependentOfHistorySize(t *testing.T) {
   }
 
   const perAppendAllocLimit = 64
-  history = append(history, llm.Message{ Role: "assistant", Content: "one more" })
+  history = append(
+    history,
+    llm.Message{ Role: "assistant", Content: "one more" },
+  )
 
   // A fresh copy of persisted each run, so every run appends exactly
   // one new message instead of later runs becoming no-ops.
@@ -235,7 +253,8 @@ func TestAppendCostIsIndependentOfHistorySize(t *testing.T) {
 
   if allocs > perAppendAllocLimit {
     t.Fatalf(
-      "Append allocated %.0f times to append 1 message onto a %d-message history; " +
+      "Append allocated %.0f times to append 1 message onto a %d-message " +
+        "history; " +
         "want at most %d, independent of history length",
       allocs, len(history), perAppendAllocLimit,
     )

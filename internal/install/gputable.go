@@ -72,24 +72,24 @@ var gpuTable = map[string]gpuSpec{
   "RTX 3050 LAPTOP": { 192, 14 },
 
   // NVIDIA workstation and data center
-  "RTX PRO 6000":  { 1792, 300 },
-  "RTX 6000 ADA":  { 960, 180 },
-  "RTX A6000":     { 768, 75 },
-  "RTX A5000":     { 768, 55 },
-  "RTX A4000":     { 448, 40 },
-  "H200":          { 4800, 500 },
-  "H100":          { 3350, 450 },
-  "H100 PCIE":     { 2000, 350 },
-  "A100":          { 1555, 150 },
-  "A100 80GB":     { 1935, 150 },
+  "RTX PRO 6000":   { 1792, 300 },
+  "RTX 6000 ADA":   { 960, 180 },
+  "RTX A6000":      { 768, 75 },
+  "RTX A5000":      { 768, 55 },
+  "RTX A4000":      { 448, 40 },
+  "H200":           { 4800, 500 },
+  "H100":           { 3350, 450 },
+  "H100 PCIE":      { 2000, 350 },
+  "A100":           { 1555, 150 },
+  "A100 80GB":      { 1935, 150 },
   "A100-SXM4-80GB": { 2039, 150 },
-  "L40S":          { 864, 180 },
-  "L40":           { 864, 150 },
-  "L4":            { 300, 60 },
-  "A10":           { 600, 70 },
-  "A10G":          { 600, 65 },
-  "T4":            { 320, 25 },
-  "V100":          { 900, 45 },
+  "L40S":           { 864, 180 },
+  "L40":            { 864, 150 },
+  "L4":             { 300, 60 },
+  "A10":            { 600, 70 },
+  "A10G":           { 600, 65 },
+  "T4":             { 320, 25 },
+  "V100":           { 900, 45 },
 
   // AMD Radeon (names as pci.ids writes them)
   "RX 9070 XT":  { 640, 60 },
@@ -135,7 +135,8 @@ func containsWord(s, key string) bool {
     }
 
     start, end := i + j, i + j + len(key)
-    if (start == 0 || !alnum(s[start - 1])) && (end == len(s) || !alnum(s[end])) {
+    if (start == 0 ||
+        !alnum(s[start - 1])) && (end == len(s) || !alnum(s[end])) {
       return true
     }
 

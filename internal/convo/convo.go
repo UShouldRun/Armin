@@ -260,7 +260,9 @@ const maxTitle = 60
 // the exchange never enters history, and falls back to the first
 // words of the first request when the reply is unusable (a thinking
 // model can answer only in its reasoning).
-func Title(ctx context.Context, client *llm.Client, history []llm.Message) string {
+func Title(
+  ctx context.Context, client *llm.Client, history []llm.Message,
+) string {
   ask := make([]llm.Message, len(history), len(history) + 1)
   copy(ask, history)
   ask = append(ask, llm.Message{ Role: "user", Content: titlePrompt })

@@ -14,7 +14,16 @@ import (
 )
 
 func call(id, name string, args map[string]any) llm.ToolCall {
-  return llm.ToolCall{ ID: id, Function: llm.ToolCallFunction{ Name: name, Arguments: args } }
+  return llm.ToolCall{
+    ID:       id,
+    Function: llm.ToolCallFunction{ Name: name, Arguments: args },
+  }
+}
+
+// writeCalls answers a request with the tool calls.
+func writeCalls(t *testing.T, w http.ResponseWriter, calls ...llm.ToolCall) {
+  t.Helper()
+  writeChatResponse(t, w, llm.Message{ Role: "assistant", ToolCalls: calls })
 }
 
 func TestEditNeedsReadThenAsksApproval(t *testing.T) {
@@ -23,14 +32,30 @@ func TestEditNeedsReadThenAsksApproval(t *testing.T) {
     round++
     switch round {
     case 1:
-      writeChatResponse(t, w, llm.Message{ Role: "assistant", ToolCalls: []llm.ToolCall{
-        call("e1", "edit_file", map[string]any{ "path": "f.txt", "old_string": "hello", "new_string": "bye" }),
-      } })
+      writeCalls(t, w,
+        call(
+          "e1",
+          "edit_file",
+          map[string]any{
+            "path":       "f.txt",
+            "old_string": "hello",
+            "new_string": "bye",
+          },
+        ),
+      )
     case 2:
-      writeChatResponse(t, w, llm.Message{ Role: "assistant", ToolCalls: []llm.ToolCall{
+      writeCalls(t, w,
         call("r1", "read_file", map[string]any{ "path": "f.txt" }),
-        call("e2", "edit_file", map[string]any{ "path": "f.txt", "old_string": "hello", "new_string": "bye" }),
-      } })
+        call(
+          "e2",
+          "edit_file",
+          map[string]any{
+            "path":       "f.txt",
+            "old_string": "hello",
+            "new_string": "bye",
+          },
+        ),
+      )
     default:
       writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "done" })
     }
@@ -51,7 +76,10 @@ func TestEditNeedsReadThenAsksApproval(t *testing.T) {
   }
 
   if !strings.Contains(history[2].Content, "hasn't been read") {
-    t.Fatalf("first edit result = %s, want a read-first error", history[2].Content)
+    t.Fatalf(
+      "first edit result = %s, want a read-first error",
+      history[2].Content,
+    )
   }
 
   if len(previews) != 1 || !strings.Contains(previews[0], "+ bye world") {
@@ -69,9 +97,13 @@ func TestDeclinedEditCarriesFeedback(t *testing.T) {
   loop, root := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
     round++
     if round == 1 {
-      writeChatResponse(t, w, llm.Message{ Role: "assistant", ToolCalls: []llm.ToolCall{
-        call("w1", "write_file", map[string]any{ "path": "new.txt", "content": "x" }),
-      } })
+      writeCalls(t, w,
+        call(
+          "w1",
+          "write_file",
+          map[string]any{ "path": "new.txt", "content": "x" },
+        ),
+      )
 
       return
     }
@@ -80,7 +112,9 @@ func TestDeclinedEditCarriesFeedback(t *testing.T) {
   })
 
   hooks := Hooks{
-    Approve: func(string, string) (bool, string) { return false, "name it NEW.txt" },
+    Approve: func(string, string) (bool, string) {
+      return false, "name it NEW.txt"
+    },
   }
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
@@ -111,16 +145,24 @@ func TestNoteToolsOnlyWhenConfigured(t *testing.T) {
   base := len(loop.Definitions())
 
   loop2, _ := newTestLoop(t, func(http.ResponseWriter, *http.Request) {})
-  loop2.Memories = &notes.Memories{ ProjectDir: t.TempDir(), UserDir: t.TempDir() }
+  loop2.Memories = &notes.Memories{
+    ProjectDir: t.TempDir(),
+    UserDir:    t.TempDir(),
+  }
   loop2.Scratch = &notes.Scratchpad{ Dir: t.TempDir() }
   got := len(loop2.Definitions())
   if got != base + 6 {
-    t.Fatalf("definitions = %d, want %d (+3 memory, +3 scratchpad)", got, base + 6)
+    t.Fatalf(
+      "definitions = %d, want %d (+3 memory, +3 scratchpad)",
+      got,
+      base + 6,
+    )
   }
 
-  out := loop2.execute(context.Background(), call("1", "scratchpad_write", map[string]any{
+  write := call("1", "scratchpad_write", map[string]any{
     "name": "plan", "content": "step 1",
-  }), Hooks{})
+  })
+  out := loop2.execute(context.Background(), write, Hooks{})
   f, ok := out.(notes.ScratchFile)
   if !ok || f.Name != "plan" {
     t.Fatalf("scratchpad_write = %#v", out)
@@ -146,7 +188,10 @@ func TestEndTurnOnlyStripsReasoning(t *testing.T) {
   }
 
   if history[2].Content != big {
-    t.Fatal("endTurn trimmed history with no context pressure (breaks prompt caching)")
+    t.Fatal(
+      "endTurn trimmed history with no context pressure " +
+        "(breaks prompt caching)",
+    )
   }
 }
 
@@ -164,9 +209,19 @@ func TestTrimUnderPressureKeepsRecentTurns(t *testing.T) {
       call("b", "write_file", map[string]any{ "path": "n.go", "content": big }),
     } },
     { Role: "tool", ToolName: "read_file", ToolCallID: "a", Content: big },
-    { Role: "tool", ToolName: "write_file", ToolCallID: "b", Content: `{"path":"n.go"}` },
+    {
+      Role:       "tool",
+      ToolName:   "write_file",
+      ToolCallID: "b",
+      Content:    `{"path":"n.go"}`,
+    },
     { Role: "user", Content: "turn 2" },
-    { Role: "assistant", ToolCalls: []llm.ToolCall{ call("c", "read_file", map[string]any{ "path": "x.go" }) } },
+    {
+      Role: "assistant",
+      ToolCalls: []llm.ToolCall{
+        call("c", "read_file", map[string]any{ "path": "x.go" }),
+      },
+    },
     { Role: "tool", ToolName: "read_file", ToolCallID: "c", Content: big },
   }
 
@@ -205,7 +260,11 @@ func TestAutoCompactBeforeOverflow(t *testing.T) {
     json.NewDecoder(r.Body).Decode(&req)
     if len(req.Tools) == 0 {
       summarized = true
-      writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "summary" })
+      writeChatResponse(
+        t,
+        w,
+        llm.Message{ Role: "assistant", Content: "summary" },
+      )
 
       return
     }

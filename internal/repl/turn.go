@@ -227,7 +227,10 @@ func (r *REPL) approve(tool, preview string) (bool, string) {
   shown := r.proposal
   r.proposal = nil
   if shown == nil {
-    for _, line := range strings.Split(strings.TrimSuffix(preview, "\n"), "\n") {
+    for _, line := range strings.Split(
+      strings.TrimSuffix(preview, "\n"),
+      "\n",
+    ) {
       switch {
       case strings.HasPrefix(line, "+ "):
         fmt.Println("  " + ui.Green(line))
@@ -261,7 +264,9 @@ func (r *REPL) approve(tool, preview string) (bool, string) {
 
   // The legend once, the question short: a long question wraps in a
   // narrow terminal.
-  fmt.Println(ui.Dim("  " + legend + " · anything else is feedback to the model"))
+  fmt.Println(
+    ui.Dim("  " + legend + " · anything else is feedback to the model"),
+  )
 
   for {
     answer, err := r.ask(ui.Yellow(question) + ui.Dim(" [" + keys + "] "))

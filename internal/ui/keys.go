@@ -217,7 +217,8 @@ func decodeCSI(params string, final byte) key {
     return byteKey(byte(c) & 0x1f)
   case c == '\t' || c == 127:
     return byteKey(byte(c))
-  case m & (modAlt | modCtrl) == 0 && c >= 0x20 && c != 127 && c <= utf8.MaxRune:
+  case m & (modAlt | modCtrl) == 0 &&
+      c >= 0x20 && c != 127 && c <= utf8.MaxRune:
     return key{ r: rune(c) }
   }
 

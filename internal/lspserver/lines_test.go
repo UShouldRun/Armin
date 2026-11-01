@@ -52,7 +52,12 @@ func TestLineOffsetLastLineNoTrailingNewline(t *testing.T) {
   text := "a\nb\nc" // no trailing newline
   start, end, ok := lineOffset(text, 2)
   if !ok || text[start:end] != "c" {
-    t.Fatalf("lineOffset last line = (%d,%d,%v), want the final \"c\"", start, end, ok)
+    t.Fatalf(
+      "lineOffset last line = (%d,%d,%v), want the final \"c\"",
+      start,
+      end,
+      ok,
+    )
   }
 }
 

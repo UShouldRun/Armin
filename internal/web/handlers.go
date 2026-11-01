@@ -88,7 +88,8 @@ func (s *Server) files(w http.ResponseWriter, r *http.Request) {
     }
 
     if d.IsDir() {
-      if path != root && (tools.SkipDir(d.Name()) || strings.HasPrefix(d.Name(), ".")) {
+      if path != root &&
+          (tools.SkipDir(d.Name()) || strings.HasPrefix(d.Name(), ".")) {
         return filepath.SkipDir
       }
 
@@ -179,7 +180,10 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
   w.Header().Set("Cache-Control", "no-cache")
   ev := &sse{ w: w, fl: fl }
 
-  s.history = append(s.history, llm.Message{ Role: "user", Content: in.Message })
+  s.history = append(
+    s.history,
+    llm.Message{ Role: "user", Content: in.Message },
+  )
 
   effort := s.cfg.Effort
   asked, ok := agent.ParseEffort(in.Effort)
@@ -303,7 +307,13 @@ func (s *Server) historyView(w http.ResponseWriter, r *http.Request) {
 
     case "assistant":
       for _, c := range m.ToolCalls {
-        out = append(out, historyEntry{ "tool", agent.CallLine(c.Function.Name, c.Function.Arguments) })
+        out = append(
+          out,
+          historyEntry{
+            "tool",
+            agent.CallLine(c.Function.Name, c.Function.Arguments),
+          },
+        )
       }
 
       if strings.TrimSpace(m.Content) != "" {
@@ -328,7 +338,10 @@ func (s *Server) ask(
   s.approvals.Store(id, ch)
   defer s.approvals.Delete(id)
 
-  ev.send("approve", map[string]string{ "id": id, "tool": tool, "preview": preview })
+  ev.send(
+    "approve",
+    map[string]string{ "id": id, "tool": tool, "preview": preview },
+  )
   select {
   case d := <-ch:
     return d.OK, d.Feedback
@@ -393,7 +406,10 @@ func (s *Server) command(w http.ResponseWriter, r *http.Request) {
     s.cfg.AutoApprove = !s.cfg.AutoApprove
 
     if s.cfg.AutoApprove {
-      writeJSON(w, map[string]string{ "result": "approvals on for this session" })
+      writeJSON(
+        w,
+        map[string]string{ "result": "approvals on for this session" },
+      )
 
     } else {
       writeJSON(w, map[string]string{ "result": "approvals off" })
@@ -434,7 +450,10 @@ func (s *Server) command(w http.ResponseWriter, r *http.Request) {
     s.cfg.AutoApprove = !s.cfg.AutoApprove
 
     if s.cfg.AutoApprove {
-      writeJSON(w, map[string]string{ "result": "approvals on for this session" })
+      writeJSON(
+        w,
+        map[string]string{ "result": "approvals on for this session" },
+      )
 
     } else {
       writeJSON(w, map[string]string{ "result": "approvals off" })

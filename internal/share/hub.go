@@ -194,7 +194,9 @@ func (h *Hub) serve(ctx context.Context, nc net.Conn) {
 
   info := h.host.Models()
   info.Instance = h.Instance
-  c.send(Event{ Type: "hello", Delta: c.origin, Instance: h.Instance, Model: &info })
+  c.send(
+    Event{ Type: "hello", Delta: c.origin, Instance: h.Instance, Model: &info },
+  )
   c.send(Event{ Type: "history", History: h.host.History() })
 
   for scan.Scan() {
@@ -300,7 +302,9 @@ func (h *Hub) handle(ctx context.Context, c *conn, req Request) {
 
 // start registers a job; a fill supersedes the one before it with
 // the same key (its result is stale the moment a newer one exists).
-func (c *conn) start(ctx context.Context, seq uint32, key string) context.Context {
+func (c *conn) start(
+  ctx context.Context, seq uint32, key string,
+) context.Context {
   jobCtx, cancel := context.WithCancel(ctx)
 
   c.jobsMu.Lock()

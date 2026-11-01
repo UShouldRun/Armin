@@ -176,7 +176,8 @@ func PathArgs(binary string, args []string) []string {
       a = v
     }
 
-    if a == "." || a == ".." || strings.Contains(a, "/") || strings.HasPrefix(a, "~") {
+    if a == "." || a == ".." ||
+        strings.Contains(a, "/") || strings.HasPrefix(a, "~") {
       out = append(out, expandHome(a))
     }
   }

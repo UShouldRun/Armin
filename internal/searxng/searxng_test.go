@@ -25,7 +25,11 @@ func TestTruncateSnippetLongStringCut(t *testing.T) {
   }
 
   if !strings.HasSuffix(got, "…") {
-    t.Fatalf("truncateSnippet(%d chars) = %q, want a truncation marker", len(s), got)
+    t.Fatalf(
+      "truncateSnippet(%d chars) = %q, want a truncation marker",
+      len(s),
+      got,
+    )
   }
 }
 
@@ -55,7 +59,10 @@ func TestToResultsCountAboveAvailableIsClamped(t *testing.T) {
 
   got := toResults(parsed, "", 10)
   if len(got) != 1 {
-    t.Fatalf("toResults returned %d results, want 1 (all that's available)", len(got))
+    t.Fatalf(
+      "toResults returned %d results, want 1 (all that's available)",
+      len(got),
+    )
   }
 }
 
@@ -91,7 +98,10 @@ func TestEnsureSettingsWritesFileOnce(t *testing.T) {
   }
 
   if changed || string(content1) != string(content2) {
-    t.Fatal("ensureSettings regenerated the file (and its secret_key) on a second call")
+    t.Fatal(
+      "ensureSettings regenerated the file (and its secret_key) on a second " +
+        "call",
+    )
   }
 }
 
@@ -115,7 +125,8 @@ func TestEnsureSettingsUpgradesOldFileKeepingSecret(t *testing.T) {
   t.Setenv("XDG_CONFIG_HOME", home)
   dir := filepath.Join(home, "armin", "searxng")
   os.MkdirAll(dir, 0o755)
-  old := "use_default_settings: true\n\nserver:\n  secret_key: \"abc123\"\n\nsearch:\n  formats:\n    - html\n    - json\n"
+  old := "use_default_settings: true\n\nserver:\n  secret_key: " +
+    "\"abc123\"\n\nsearch:\n  formats:\n    - html\n    - json\n"
   os.WriteFile(filepath.Join(dir, "settings.yml"), []byte(old), 0o644)
 
   path, changed, err := ensureSettings()
@@ -124,7 +135,12 @@ func TestEnsureSettingsUpgradesOldFileKeepingSecret(t *testing.T) {
   }
 
   got, _ := os.ReadFile(path)
-  for _, want := range []string{ "abc123", "keep_only", "- yandex", "limiter: false" } {
+  for _, want := range []string{
+    "abc123",
+    "keep_only",
+    "- yandex",
+    "limiter: false",
+  } {
     if !strings.Contains(string(got), want) {
       t.Errorf("rewritten settings missing %q:\n%s", want, got)
     }
@@ -140,7 +156,8 @@ func TestEnsureSettingsLeavesUserFileAlone(t *testing.T) {
   t.Setenv("XDG_CONFIG_HOME", home)
   dir := filepath.Join(home, "armin", "searxng")
   os.MkdirAll(dir, 0o755)
-  mine := "# my own config\nuse_default_settings: true\nserver:\n  secret_key: \"x\"\n"
+  mine := "# my own config\nuse_default_settings: true\nserver:\n  " +
+    "secret_key: \"x\"\n"
   os.WriteFile(filepath.Join(dir, "settings.yml"), []byte(mine), 0o644)
 
   path, changed, _ := ensureSettings()
@@ -151,7 +168,13 @@ func TestEnsureSettingsLeavesUserFileAlone(t *testing.T) {
 }
 
 func TestCategory(t *testing.T) {
-  cases := map[string]string{ "": "general", "general": "general", "code": "general,it", "science": "science,general", "bogus": "general" }
+  cases := map[string]string{
+    "":        "general",
+    "general": "general",
+    "code":    "general,it",
+    "science": "science,general",
+    "bogus":   "general",
+  }
   for in, want := range cases {
     got := Category(in)
     if got != want {

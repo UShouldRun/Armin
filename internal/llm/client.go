@@ -240,8 +240,8 @@ func (c *Client) request(
   }
 
   reqBody := owaiChatRequest{
-    Model:    model,
-    Messages: toWireMessages(messages),
+    Model:     model,
+    Messages:  toWireMessages(messages),
     Tools:     wireTools,
     Stream:    h.streaming(),
     MaxTokens: c.MaxTokens,

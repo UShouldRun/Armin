@@ -35,7 +35,8 @@ var (
   hubURL      = "https://huggingface.co" // a variable for tests
   splitSuffix = regexp.MustCompile(`-\d{5}-of-(\d{5})\.gguf$`)
   quantTag    = regexp.MustCompile(
-    `(?i)(?:^|[-_.])((?:UD-)?(?:I?Q\d(?:_[0-9A-Z]+)*|BF16|F16|F32|MXFP4(?:_MOE)?|TQ\d_0))(?:[-_.]|$)`,
+    `(?i)(?:^|[-_.])((?:UD-)?(?:I?Q\d(?:_[0-9A-Z]+)*` +
+      `|BF16|F16|F32|MXFP4(?:_MOE)?|TQ\d_0))(?:[-_.]|$)`,
   )
 )
 
@@ -101,7 +102,10 @@ func resolve(ctx context.Context, c *http.Client, arg string) (*source, error) {
     })
     if s.Pick < 0 {
       s.Pick = findGroup(s.Groups, func(g quantGroup) bool {
-        return strings.Contains(strings.ToUpper(g.Files[0].Path), strings.ToUpper(ref.quant))
+        return strings.Contains(
+          strings.ToUpper(g.Files[0].Path),
+          strings.ToUpper(ref.quant),
+        )
       })
     }
   default:
@@ -149,7 +153,11 @@ func parseHub(arg string) (hubRef, error) {
 
   switch parts[0] {
   case "datasets", "spaces", "collections", "models":
-    return ref, fmt.Errorf("%q: a link to a model repo, please, not to %s", arg, parts[0])
+    return ref, fmt.Errorf(
+      "%q: a link to a model repo, please, not to %s",
+      arg,
+      parts[0],
+    )
   }
 
   repo, quant, _ := strings.Cut(parts[1], ":")
@@ -216,14 +224,18 @@ func direct(ctx context.Context, c *http.Client, link string) (*source, error) {
 
   return &source{
     URL:    link,
-    Groups: []quantGroup{ { Label: quantLabel(base), Files: []hubFile{ f }, Size: size } },
+    Groups: []quantGroup{
+      { Label: quantLabel(base), Files: []hubFile{ f }, Size: size },
+    },
   }, nil
 }
 
 // remoteSize asks for one byte and reads the total from
 // Content-Range, which also proves the server takes ranges (the
 // header is read with them).
-func remoteSize(ctx context.Context, c *http.Client, link string) (int64, error) {
+func remoteSize(
+  ctx context.Context, c *http.Client, link string,
+) (int64, error) {
   req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
   if err != nil {
     return 0, err
@@ -238,7 +250,11 @@ func remoteSize(ctx context.Context, c *http.Client, link string) (int64, error)
   defer resp.Body.Close()
 
   if resp.StatusCode != http.StatusPartialContent {
-    return 0, fmt.Errorf("%s: %s (it must serve byte ranges)", link, resp.Status)
+    return 0, fmt.Errorf(
+      "%s: %s (it must serve byte ranges)",
+      link,
+      resp.Status,
+    )
   }
 
   cr := resp.Header.Get("Content-Range")
@@ -262,7 +278,9 @@ func (s *source) fileURL(f hubFile) string {
     return s.URL
   }
 
-  return hubURL + "/" + s.Repo + "/resolve/" + s.Rev + "/" + (&url.URL{ Path: f.Path }).EscapedPath()
+  return hubURL + "/" + s.Repo + "/resolve/" + s.Rev + "/" + (&url.URL{
+    Path: f.Path,
+  }).EscapedPath()
 }
 
 func findGroup(gs []quantGroup, match func(quantGroup) bool) int {
@@ -278,7 +296,10 @@ func findGroup(gs []quantGroup, match func(quantGroup) bool) int {
 // defaultGroup is where the reading starts when no quantization was
 // named: Q4_K_M, the usual balance, or else the middle size.
 func defaultGroup(gs []quantGroup) int {
-  i := findGroup(gs, func(g quantGroup) bool { return strings.EqualFold(g.Label, "Q4_K_M") })
+  i := findGroup(
+    gs,
+    func(g quantGroup) bool { return strings.EqualFold(g.Label, "Q4_K_M") },
+  )
   if i >= 0 {
     return i
   }
@@ -287,8 +308,12 @@ func defaultGroup(gs []quantGroup) int {
 }
 
 // listRepo lists a repo's .gguf files, with sizes and checksums.
-func listRepo(ctx context.Context, c *http.Client, repo, rev string) ([]hubFile, error) {
-  u := hubURL + "/api/models/" + repo + "/tree/" + url.PathEscape(rev) + "?recursive=true"
+func listRepo(
+  ctx context.Context, c *http.Client, repo, rev string,
+) ([]hubFile, error) {
+  u := hubURL + "/api/models/" + repo + "/tree/" + url.PathEscape(
+    rev,
+  ) + "?recursive=true"
   req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
   if err != nil {
     return nil, fmt.Errorf("\n\t... in listRepo:\n\t%w", err)
@@ -304,7 +329,8 @@ func listRepo(ctx context.Context, c *http.Client, repo, rev string) ([]hubFile,
 
   if resp.StatusCode != http.StatusOK {
     hint := ""
-    if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+    if resp.StatusCode == http.StatusUnauthorized ||
+        resp.StatusCode == http.StatusForbidden {
       hint = " — a gated or private repo needs HF_TOKEN in .env"
     }
 
@@ -369,7 +395,10 @@ func groupQuants(files []hubFile) []quantGroup {
   out := make([]quantGroup, 0, len(keys))
   for _, k := range keys {
     g := byKey[k]
-    sort.Slice(g.Files, func(i, j int) bool { return g.Files[i].Path < g.Files[j].Path })
+    sort.Slice(
+      g.Files,
+      func(i, j int) bool { return g.Files[i].Path < g.Files[j].Path },
+    )
     out = append(out, *g)
   }
 
@@ -384,7 +413,10 @@ func groupQuants(files []hubFile) []quantGroup {
 
   for i := range out {
     if seen[strings.ToUpper(out[i].Label)] > 1 {
-      base := splitSuffix.ReplaceAllString(path.Base(out[i].Files[0].Path), ".gguf")
+      base := splitSuffix.ReplaceAllString(
+        path.Base(out[i].Files[0].Path),
+        ".gguf",
+      )
       out[i].Label = strings.TrimSuffix(base, ".gguf")
     }
   }
@@ -395,7 +427,10 @@ func groupQuants(files []hubFile) []quantGroup {
 // quantLabel is the quantization in a file name ("Q4_K_M"), or the
 // name itself when it has none.
 func quantLabel(p string) string {
-  base := strings.TrimSuffix(splitSuffix.ReplaceAllString(path.Base(p), ".gguf"), ".gguf")
+  base := strings.TrimSuffix(
+    splitSuffix.ReplaceAllString(path.Base(p), ".gguf"),
+    ".gguf",
+  )
   m := quantTag.FindAllStringSubmatch(base, -1)
   if len(m) == 0 {
     return base
@@ -448,7 +483,10 @@ func (r *rangeReader) Read(p []byte) (int, error) {
     defer resp.Body.Close()
 
     if resp.StatusCode != http.StatusPartialContent {
-      return 0, fmt.Errorf("reading the header: %s (no range support?)", resp.Status)
+      return 0, fmt.Errorf(
+        "reading the header: %s (no range support?)",
+        resp.Status,
+      )
     }
 
     r.buf, err = io.ReadAll(io.LimitReader(resp.Body, rangeChunk))
@@ -522,13 +560,20 @@ func download(
     }
   }
 
-  w := &progressWriter{ w: io.MultiWriter(f, h), done: have, start: have, report: progress }
+  w := &progressWriter{
+    w:      io.MultiWriter(f, h),
+    done:   have,
+    start:  have,
+    report: progress,
+  }
   wait, progressed := retryFirst, time.Now()
   for w.done < size {
     before := w.done
     err = fetch(ctx, c, u, w)
     if ctx.Err() != nil {
-      return errors.New("\n\t... in download:\n\t interrupted — run it again to resume")
+      return errors.New(
+        "\n\t... in download:\n\t interrupted — run it again to resume",
+      )
     }
 
     if w.done >= size {
@@ -562,7 +607,9 @@ func download(
 
     select {
     case <-ctx.Done():
-      return errors.New("\n\t... in download:\n\t interrupted — run it again to resume")
+      return errors.New(
+        "\n\t... in download:\n\t interrupted — run it again to resume",
+      )
     case <-time.After(wait):
     }
 
@@ -583,7 +630,10 @@ func download(
 
   if sum != "" && hex.EncodeToString(h.Sum(nil)) != sum {
     os.Remove(partPath)
-    return fmt.Errorf("\n\t... in download:\n\t %s: SHA-256 mismatch, deleted", dest)
+    return fmt.Errorf(
+      "\n\t... in download:\n\t %s: SHA-256 mismatch, deleted",
+      dest,
+    )
   }
 
   err = f.Close()
@@ -596,7 +646,9 @@ func download(
 
 // fetch appends u from byte w.done on through w, dropping the
 // connection when nothing arrives for stallTimeout.
-func fetch(ctx context.Context, c *http.Client, u string, w *progressWriter) error {
+func fetch(
+  ctx context.Context, c *http.Client, u string, w *progressWriter,
+) error {
   ctx, cancel := context.WithCancel(ctx)
   defer cancel()
 
@@ -622,7 +674,10 @@ func fetch(ctx context.Context, c *http.Client, u string, w *progressWriter) err
   case w.done == 0 && resp.StatusCode == http.StatusOK:
   case w.done > 0 && resp.StatusCode == http.StatusOK:
     // The whole file again: appending it would corrupt the part.
-    return &statusError{ code: resp.StatusCode, msg: u + ": the server ignores Range, so it can't resume" }
+    return &statusError{
+      code: resp.StatusCode,
+      msg:  u + ": the server ignores Range, so it can't resume",
+    }
   default:
     return &statusError{ code: resp.StatusCode, msg: u + ": " + resp.Status }
   }

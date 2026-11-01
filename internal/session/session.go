@@ -293,12 +293,19 @@ func resolve(id string) (string, error) {
 
   switch len(hits) {
   case 0:
-    return "", fmt.Errorf("no session with id %q (armin -resume lists them)", id)
+    return "", fmt.Errorf(
+      "no session with id %q (armin -resume lists them)",
+      id,
+    )
   case 1:
     return pathFor(hits[0].ID)
   }
 
-  return "", fmt.Errorf("%q matches %d sessions; use more of the id", id, len(hits))
+  return "", fmt.Errorf(
+    "%q matches %d sessions; use more of the id",
+    id,
+    len(hits),
+  )
 }
 
 // parseMeta reads a first line, filling what a legacy file lacks:

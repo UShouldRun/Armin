@@ -18,7 +18,10 @@ import (
 // modelName turns a file name into a config name: lower case, no
 // quantization, no dots (config keys split on them).
 func modelName(file, quant string, taken map[string]Existing) string {
-  base := strings.TrimSuffix(splitSuffix.ReplaceAllString(filepath.Base(file), ".gguf"), ".gguf")
+  base := strings.TrimSuffix(
+    splitSuffix.ReplaceAllString(filepath.Base(file), ".gguf"),
+    ".gguf",
+  )
   if quant != "" {
     i := strings.LastIndex(strings.ToUpper(base), strings.ToUpper(quant))
     if i > 0 {
@@ -125,7 +128,12 @@ func block(name, binary, modelPath, origin string, port int, p *Plan) string {
   }
 
   var b strings.Builder
-  fmt.Fprintf(&b, "\n# %s, added by armin -install on %s\n", origin, time.Now().Format("2006-01-02"))
+  fmt.Fprintf(
+    &b,
+    "\n# %s, added by armin -install on %s\n",
+    origin,
+    time.Now().Format("2006-01-02"),
+  )
   b.WriteString(line("binary", binary))
   b.WriteString(line("model_path", modelPath))
   b.WriteString(line("port", fmt.Sprint(port)))

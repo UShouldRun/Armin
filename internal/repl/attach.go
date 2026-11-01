@@ -93,7 +93,14 @@ func (a *Attached) Run(ctx context.Context) error {
       return nil
     }
 
-    input, err := ui.ReadLineWake(ctx, pump, "\n" + ui.Prompt(), partial, a.wake, nil)
+    input, err := ui.ReadLineWake(
+      ctx,
+      pump,
+      "\n" + ui.Prompt(),
+      partial,
+      a.wake,
+      nil,
+    )
     partial = ""
     switch {
     case errors.Is(err, ui.ErrWoken):

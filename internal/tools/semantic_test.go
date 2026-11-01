@@ -26,11 +26,20 @@ func TestTokenize(t *testing.T) {
 
 func TestSemanticSearchRanksByTermFrequency(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
-  writeFile(t, cfg.Root, "a.go", "package a\n// sandbox sandbox sandbox path jail\n")
+  writeFile(
+    t,
+    cfg.Root,
+    "a.go",
+    "package a\n// sandbox sandbox sandbox path jail\n",
+  )
   writeFile(t, cfg.Root, "b.go", "package b\n// mentions sandbox once\n")
   writeFile(t, cfg.Root, "c.go", "package c\n// unrelated content entirely\n")
 
-  out, err := SemanticSearch(context.Background(), cfg, SemanticSearchInput{ Query: "sandbox" })
+  out, err := SemanticSearch(
+    context.Background(),
+    cfg,
+    SemanticSearchInput{ Query: "sandbox" },
+  )
   if err != nil {
     t.Fatalf("SemanticSearch: %v", err)
   }
@@ -40,7 +49,10 @@ func TestSemanticSearchRanksByTermFrequency(t *testing.T) {
   }
 
   if out.Results[0].File != "a.go" {
-    t.Fatalf("Results[0] = %+v, want a.go first (3 mentions > 1)", out.Results[0])
+    t.Fatalf(
+      "Results[0] = %+v, want a.go first (3 mentions > 1)",
+      out.Results[0],
+    )
   }
 }
 
@@ -56,7 +68,11 @@ func TestSemanticSearchNoMatches(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "a.go", "package a\n")
 
-  out, err := SemanticSearch(context.Background(), cfg, SemanticSearchInput{ Query: "definitelynotpresent" })
+  out, err := SemanticSearch(
+    context.Background(),
+    cfg,
+    SemanticSearchInput{ Query: "definitelynotpresent" },
+  )
   if err != nil {
     t.Fatalf("SemanticSearch: %v", err)
   }

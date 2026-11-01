@@ -25,7 +25,11 @@ func TestToolDefinitionsShape(t *testing.T) {
   names := map[string]bool{}
   for _, d := range defs {
     if d.Type != "function" {
-      t.Errorf("tool %q has Type %q, want \"function\"", d.Function.Name, d.Type)
+      t.Errorf(
+        "tool %q has Type %q, want \"function\"",
+        d.Function.Name,
+        d.Type,
+      )
     }
 
     if d.Function.Description == "" {
@@ -38,7 +42,8 @@ func TestToolDefinitionsShape(t *testing.T) {
   for _, want := range []string{
     "search_code", "read_file", "list_directory", "run_command", "web_search",
     "write_file", "edit_file", "read_pdf",
-    "count_lines", "list_languages", "find_files", "file_stat", "find_todo_fixme",
+    "count_lines", "list_languages", "find_files", "file_stat",
+    "find_todo_fixme",
     "env_info", "project_manifest",
     "find_definition", "list_symbols", "outline_file", "find_references",
     "git_log", "git_blame", "git_diff", "git_show", "working_tree_diff",
@@ -114,7 +119,11 @@ func newTestLoop(t *testing.T, chatHandler http.HandlerFunc) (*Loop, string) {
   t.Cleanup(server.Close)
 
   root := t.TempDir()
-  err := os.WriteFile(filepath.Join(root, "f.txt"), []byte("hello world"), 0o644)
+  err := os.WriteFile(
+    filepath.Join(root, "f.txt"),
+    []byte("hello world"),
+    0o644,
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -147,7 +156,10 @@ func TestTurnExecutesToolThenReturnsAnswer(t *testing.T) {
         }}},
       }
     } else {
-      reply = llm.Message{ Role: "assistant", Content: "the file says hello world" }
+      reply = llm.Message{
+        Role:    "assistant",
+        Content: "the file says hello world",
+      }
     }
 
     writeChatResponse(t, w, reply)
@@ -157,7 +169,11 @@ func TestTurnExecutesToolThenReturnsAnswer(t *testing.T) {
   onToolCall := func(name string, _ map[string]any) { toolCallSeen = name }
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
-  answer, err := loop.Turn(context.Background(), &history, Hooks{ ToolCall: onToolCall })
+  answer, err := loop.Turn(
+    context.Background(),
+    &history,
+    Hooks{ ToolCall: onToolCall },
+  )
   if err != nil {
     t.Fatalf("Turn: %v", err)
   }
@@ -171,10 +187,14 @@ func TestTurnExecutesToolThenReturnsAnswer(t *testing.T) {
   }
 
   if round != 2 {
-    t.Fatalf("model was called %d times, want exactly 2 (tool call, then answer)", round)
+    t.Fatalf(
+      "model was called %d times, want exactly 2 (tool call, then answer)",
+      round,
+    )
   }
 
-  // history should now hold: system, assistant(tool_calls), tool(result), assistant(answer)
+  // history should now hold: system, assistant(tool_calls),
+  // tool(result), assistant(answer)
   if len(history) != 4 {
     t.Fatalf("history has %d messages, want 4, got %+v", len(history), history)
   }
@@ -198,7 +218,10 @@ func TestTurnSurfacesToolErrorAsStructuredResult(t *testing.T) {
         }}},
       }
     } else {
-      reply = llm.Message{ Role: "assistant", Content: "couldn't find that file" }
+      reply = llm.Message{
+        Role:    "assistant",
+        Content: "couldn't find that file",
+      }
     }
 
     writeChatResponse(t, w, reply)
@@ -221,7 +244,9 @@ func TestTurnSurfacesToolErrorAsStructuredResult(t *testing.T) {
   }
 
   if result["error"] == "" {
-    t.Fatal("expected the tool error result to carry a non-empty \"error\" field")
+    t.Fatal(
+      "expected the tool error result to carry a non-empty \"error\" field",
+    )
   }
 }
 
@@ -236,7 +261,11 @@ func TestTurnHitsMaxRoundsThenSummarizes(t *testing.T) {
     json.NewDecoder(r.Body).Decode(&req)
     if len(req.Tools) == 0 {
       // The closing call: no tools offered, so it must answer.
-      writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "partial report" })
+      writeChatResponse(
+        t,
+        w,
+        llm.Message{ Role: "assistant", Content: "partial report" },
+      )
 
       return
     }
@@ -259,7 +288,11 @@ func TestTurnHitsMaxRoundsThenSummarizes(t *testing.T) {
   }
 
   if answer != "partial report" || calls != 4 {
-    t.Fatalf("answer = %q after %d calls, want the summary after 3+1", answer, calls)
+    t.Fatalf(
+      "answer = %q after %d calls, want the summary after 3+1",
+      answer,
+      calls,
+    )
   }
 }
 
@@ -313,7 +346,9 @@ func TestTurnRejectsUnknownTool(t *testing.T) {
   loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
     reply := llm.Message{
       Role: "assistant",
-      ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{ Name: "delete_everything" } } },
+      ToolCalls: []llm.ToolCall{
+        { Function: llm.ToolCallFunction{ Name: "delete_everything" } },
+      },
     }
 
     writeChatResponse(t, w, reply)
@@ -361,7 +396,8 @@ func TestTurnBlocksARepeatedFailedCall(t *testing.T) {
   }
 
   second := history[4]
-  if second.Role != "tool" || !strings.Contains(second.Content, "already made this exact call") {
+  if second.Role != "tool" ||
+      !strings.Contains(second.Content, "already made this exact call") {
     t.Fatalf("second result = %+v", second)
   }
 }
@@ -370,7 +406,9 @@ func TestRequestAccessAsksThenGrants(t *testing.T) {
   loop, root := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {})
   outside := t.TempDir()
   os.WriteFile(filepath.Join(outside, "slides.pdf"), []byte("x"), 0o644)
-  raw, _ := json.Marshal(map[string]string{ "dir": outside, "reason": "read slides" })
+  raw, _ := json.Marshal(
+    map[string]string{ "dir": outside, "reason": "read slides" },
+  )
 
   out := loop.requestAccess(raw, Hooks{})
   if !strings.Contains(fmt.Sprint(out), "-add-dir") {
@@ -387,7 +425,8 @@ func TestRequestAccessAsksThenGrants(t *testing.T) {
     t.Fatalf("declined = %v", out)
   }
 
-  if !strings.Contains(asked, outside) || !strings.Contains(asked, "read slides") {
+  if !strings.Contains(asked, outside) ||
+      !strings.Contains(asked, "read slides") {
     t.Fatalf("question = %q", asked)
   }
 
@@ -396,7 +435,9 @@ func TestRequestAccessAsksThenGrants(t *testing.T) {
     t.Fatal("readable after a decline")
   }
 
-  allow := Hooks{ Approve: func(string, string) (bool, string) { return true, "" } }
+  allow := Hooks{
+    Approve: func(string, string) (bool, string) { return true, "" },
+  }
   granted, _ := loop.requestAccess(raw, allow).(map[string]any)
   if granted["granted"] == nil {
     t.Fatalf("granted = %v", granted)
@@ -415,7 +456,11 @@ func TestRequestAccessAsksThenGrants(t *testing.T) {
 // and the read goes through, a no is remembered for the turn.
 func TestTurnAsksBeforeReadingOutside(t *testing.T) {
   outside := t.TempDir()
-  os.WriteFile(filepath.Join(outside, "notes.txt"), []byte("fox algorithm"), 0o644)
+  os.WriteFile(
+    filepath.Join(outside, "notes.txt"),
+    []byte("fox algorithm"),
+    0o644,
+  )
   target := filepath.Join(outside, "notes.txt")
 
   run := func(answer bool) ([]llm.Message, []string) {
@@ -428,7 +473,10 @@ func TestTurnAsksBeforeReadingOutside(t *testing.T) {
           Role: "assistant",
           ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
             Name:      "read_file",
-            Arguments: map[string]any{ "path": target, "start_line": float64(round) },
+            Arguments: map[string]any{
+              "path":       target,
+              "start_line": float64(round),
+            },
           } } },
         }
       }
@@ -465,7 +513,8 @@ func TestTurnAsksBeforeReadingOutside(t *testing.T) {
     t.Fatalf("asked %d times after a decline, want 1", len(asked))
   }
 
-  if !strings.Contains(history[2].Content, "declined") || !strings.Contains(history[4].Content, "declined") {
+  if !strings.Contains(history[2].Content, "declined") ||
+      !strings.Contains(history[4].Content, "declined") {
     t.Fatalf("results = %s / %s", history[2].Content, history[4].Content)
   }
 }
@@ -493,8 +542,14 @@ func TestRunProgramNeedsApproval(t *testing.T) {
     t.Fatalf("question = %q", asked)
   }
 
-  allow := Hooks{ Approve: func(string, string) (bool, string) { return true, "" } }
-  res, ok := loop.runProgram(context.Background(), in, allow).(*tools.RunProgramOutput)
+  allow := Hooks{
+    Approve: func(string, string) (bool, string) { return true, "" },
+  }
+  res, ok := loop.runProgram(
+    context.Background(),
+    in,
+    allow,
+  ).(*tools.RunProgramOutput)
   if !ok || res.ExitCode != 0 || !strings.Contains(res.Output, "go version") {
     t.Fatalf("approved = %+v", res)
   }
@@ -564,8 +619,13 @@ func TestPrivilegedProgramsAlwaysAsk(t *testing.T) {
     return true, ""
   } }
 
-  out := loop.runProgram(context.Background(), tools.RunProgramInput{ Binary: "rm", Args: []string{ "f.txt" } }, hooks)
-  if tool != ApprovePrivileged || !AlwaysAsk(tool) || !strings.Contains(preview, "$ rm f.txt") {
+  out := loop.runProgram(
+    context.Background(),
+    tools.RunProgramInput{ Binary: "rm", Args: []string{ "f.txt" } },
+    hooks,
+  )
+  if tool != ApprovePrivileged ||
+      !AlwaysAsk(tool) || !strings.Contains(preview, "$ rm f.txt") {
     t.Fatalf("asked %q / %q", tool, preview)
   }
 
@@ -579,7 +639,11 @@ func TestPrivilegedProgramsAlwaysAsk(t *testing.T) {
     t.Fatal("f.txt still there after an approved rm")
   }
 
-  loop.runProgram(context.Background(), tools.RunProgramInput{ Binary: "go", Args: []string{ "version" } }, hooks)
+  loop.runProgram(
+    context.Background(),
+    tools.RunProgramInput{ Binary: "go", Args: []string{ "version" } },
+    hooks,
+  )
   if AlwaysAsk(tool) {
     t.Fatalf("go version is asked as %q, want an ordinary run", tool)
   }
@@ -590,16 +654,37 @@ func TestNormalizeArgs(t *testing.T) {
     in   map[string]any
     want string
   }{
-    { map[string]any{ "binary": "find", "arguments": []any{ ".", "-name", "*.h" } }, `find [. -name *.h]` },
-    { map[string]any{ "binary": "find", "args": `. -name "my file.h"` }, `find [. -name my file.h]` },
-    { map[string]any{ "binary": "mpirun -np 4 ./fox" }, `mpirun [-np 4 ./fox]` },
-    { map[string]any{ "binary": "make", "args": []any{ "run" } }, `make [run]` },
+    {
+      map[string]any{
+        "binary":    "find",
+        "arguments": []any{ ".", "-name", "*.h" },
+      },
+      `find [. -name *.h]`,
+    },
+    {
+      map[string]any{ "binary": "find", "args": `. -name "my file.h"` },
+      `find [. -name my file.h]`,
+    },
+    {
+      map[string]any{ "binary": "mpirun -np 4 ./fox" },
+      `mpirun [-np 4 ./fox]`,
+    },
+    {
+      map[string]any{ "binary": "make", "args": []any{ "run" } },
+      `make [run]`,
+    },
   }
 
   for _, c := range cases {
-    call := llm.ToolCall{ Function: llm.ToolCallFunction{ Name: "run_program", Arguments: c.in } }
+    call := llm.ToolCall{
+      Function: llm.ToolCallFunction{ Name: "run_program", Arguments: c.in },
+    }
     normalizeArgs(&call)
-    got := fmt.Sprint(call.Function.Arguments["binary"], " ", call.Function.Arguments["args"])
+    got := fmt.Sprint(
+      call.Function.Arguments["binary"],
+      " ",
+      call.Function.Arguments["args"],
+    )
     if got != c.want {
       t.Errorf("normalizeArgs(%v) = %s, want %s", c.in, got, c.want)
     }
@@ -608,11 +693,14 @@ func TestNormalizeArgs(t *testing.T) {
 
 func TestUnknownParamsAreAnError(t *testing.T) {
   loop, _ := newTestLoop(t, func(http.ResponseWriter, *http.Request) {})
-  out := fmt.Sprint(loop.execute(context.Background(), llm.ToolCall{ Function: llm.ToolCallFunction{
-    Name: "read_file", Arguments: map[string]any{ "path": "f.txt", "lines": "1-5" },
-  } }, Hooks{}))
+  read := call("1", "read_file", map[string]any{
+    "path":  "f.txt",
+    "lines": "1-5",
+  })
+  out := fmt.Sprint(loop.execute(context.Background(), read, Hooks{}))
 
-  if !strings.Contains(out, "no parameter lines") || !strings.Contains(out, "start_line") {
+  if !strings.Contains(out, "no parameter lines") ||
+      !strings.Contains(out, "start_line") {
     t.Fatalf("result = %s", out)
   }
 }
@@ -631,9 +719,10 @@ func TestTurnStopsIdenticalReruns(t *testing.T) {
 
     reply := llm.Message{ Role: "assistant", Content: "it's built" }
     if len(req.Tools) > 0 {
-      reply = llm.Message{ Role: "assistant", ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
-        Name: "run_command", Arguments: map[string]any{ "binary": "ls" },
-      } } } }
+      ls := call("", "run_command", map[string]any{ "binary": "ls" })
+      reply = llm.Message{
+        Role: "assistant", ToolCalls: []llm.ToolCall{ ls },
+      }
     }
 
     writeChatResponse(t, w, reply)
@@ -672,9 +761,12 @@ func TestRerunAfterOtherCallsIsNoted(t *testing.T) {
 
     reply := llm.Message{ Role: "assistant", Content: "done" }
     if calls < len(script) {
-      reply = llm.Message{ Role: "assistant", ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
-        Name: "run_command", Arguments: map[string]any{ "binary": script[calls] },
-      } } } }
+      run := call("", "run_command", map[string]any{
+        "binary": script[calls],
+      })
+      reply = llm.Message{
+        Role: "assistant", ToolCalls: []llm.ToolCall{ run },
+      }
     }
 
     calls++
@@ -688,11 +780,16 @@ func TestRerunAfterOtherCallsIsNoted(t *testing.T) {
   }
 
   if calls != len(script) + 1 {
-    t.Fatalf("model called %d times, want %d: the turn was stopped", calls, len(script) + 1)
+    t.Fatalf(
+      "model called %d times, want %d: the turn was stopped",
+      calls,
+      len(script) + 1,
+    )
   }
 
   third := results[2]
-  if !strings.Contains(third, "same output") || strings.Contains(third, "\"error\"") {
+  if !strings.Contains(third, "same output") ||
+      strings.Contains(third, "\"error\"") {
     t.Fatalf("third ls result = %s, want a note, not an error", third)
   }
 }
@@ -709,11 +806,26 @@ func TestScriptOf(t *testing.T) {
     in   tools.RunProgramInput
     want string
   }{
-    { tools.RunProgramInput{ Binary: "python3", Args: []string{ "gen.py" } }, "gen.py" },
+    {
+      tools.RunProgramInput{ Binary: "python3", Args: []string{ "gen.py" } },
+      "gen.py",
+    },
     { tools.RunProgramInput{ Binary: "rm", Args: []string{ "a.c" } }, "" },
-    { tools.RunProgramInput{ Binary: "mpirun", Args: []string{ "-np", "1", "./fox" } }, "" },
+    {
+      tools.RunProgramInput{
+        Binary: "mpirun",
+        Args:   []string{ "-np", "1", "./fox" },
+      },
+      "",
+    },
     { tools.RunProgramInput{ Binary: "python3", Args: []string{ "fox" } }, "" },
-    { tools.RunProgramInput{ Binary: "bash", Args: []string{ "-c", "make && ./fox" } }, "" },
+    {
+      tools.RunProgramInput{
+        Binary: "bash",
+        Args:   []string{ "-c", "make && ./fox" },
+      },
+      "",
+    },
   }
 
   for _, c := range cases {

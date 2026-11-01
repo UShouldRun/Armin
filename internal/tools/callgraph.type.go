@@ -43,7 +43,8 @@ type FindCallersOutput struct {
 }
 
 type FindDeadCodeInput struct {
-  Path string `json:"path,omitempty"` // limit the exported-symbol scan to this file/dir prefix
+  // limit the exported-symbol scan to this file/dir prefix
+  Path string `json:"path,omitempty"`
 }
 
 type DeadCodeCandidate struct {
@@ -62,6 +63,7 @@ type ImpactAnalysisInput struct {
 }
 
 type ImpactAnalysisOutput struct {
-  Affected  []string `json:"affected"` // function names that transitively call Name
+  // function names that transitively call Name
+  Affected  []string `json:"affected"`
   Truncated bool     `json:"truncated,omitempty"`
 }

@@ -40,16 +40,25 @@ func gpuWarning(root string) string {
       )
     }
 
-    msg := fmt.Sprintf("kernel %s has no NVIDIA driver, so local models run on the CPU", release)
+    msg := fmt.Sprintf(
+      "kernel %s has no NVIDIA driver, so local models run on the CPU",
+      release,
+    )
     others := kernelsWithNvidia(at("lib/modules"), release)
     if len(others) > 0 && newerKernel(others[len(others) - 1], release) {
-      return msg + fmt.Sprintf(" — reboot into %s, which has one", others[len(others) - 1])
+      return msg + fmt.Sprintf(
+        " — reboot into %s, which has one",
+        others[len(others) - 1],
+      )
     }
 
     msg += " — update the driver for this kernel (Ubuntu: sudo apt " +
       "full-upgrade) and reboot"
     if len(others) > 0 {
-      msg += fmt.Sprintf(", or pick %s in GRUB, which has one", others[len(others) - 1])
+      msg += fmt.Sprintf(
+        ", or pick %s in GRUB, which has one",
+        others[len(others) - 1],
+      )
     }
 
     return msg
@@ -163,7 +172,11 @@ func leadingNumber(s string) (int, string) {
 // libraryVersion is the user-space driver's version, from the name
 // of its NVML library (libnvidia-ml.so.595.84).
 func libraryVersion(at func(string) string) string {
-  for _, dir := range []string{ "usr/lib/x86_64-linux-gnu", "usr/lib64", "usr/lib" } {
+  for _, dir := range []string{
+    "usr/lib/x86_64-linux-gnu",
+    "usr/lib64",
+    "usr/lib",
+  } {
     found, _ := filepath.Glob(filepath.Join(at(dir), "libnvidia-ml.so.*.*"))
     if len(found) > 0 {
       return strings.TrimPrefix(filepath.Base(found[0]), "libnvidia-ml.so.")

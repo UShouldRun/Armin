@@ -42,8 +42,8 @@ var searchTools = []toolSpec{
     },
   },
   {
-    id:    toolWebSearch,
-    run:   runWebSearch,
+    id:  toolWebSearch,
+    run: runWebSearch,
     def: llm.ToolFunction{
       Name: "web_search",
       Description: "Search the web for information not in this " +
@@ -74,8 +74,8 @@ var searchTools = []toolSpec{
     },
   },
   {
-    id:    toolFindTodoFixme,
-    run:   inSandbox(tools.FindTodoFixme),
+    id:  toolFindTodoFixme,
+    run: inSandbox(tools.FindTodoFixme),
     def: llm.ToolFunction{
       Name: "find_todo_fixme",
       Description: "Find TODO/FIXME/XXX comment markers in the " +
@@ -93,8 +93,8 @@ var searchTools = []toolSpec{
     },
   },
   {
-    id:    toolSemanticSearch,
-    run:   inSandbox(tools.SemanticSearch),
+    id:  toolSemanticSearch,
+    run: inSandbox(tools.SemanticSearch),
     def: llm.ToolFunction{
       Name: "semantic_search",
       Description: "Keyword/term-frequency relevance search across " +

@@ -454,7 +454,11 @@ func TestMergeTopics(t *testing.T) {
 func manyTopics(n int) []Topic {
   rows := make([]Topic, n)
   for i := range rows {
-    rows[i] = Topic{ Topic: fmt.Sprintf("topic-%03d", i), Book: "b", Where: "§ 1" }
+    rows[i] = Topic{
+      Topic: fmt.Sprintf("topic-%03d", i),
+      Book:  "b",
+      Where: "§ 1",
+    }
   }
 
   return rows

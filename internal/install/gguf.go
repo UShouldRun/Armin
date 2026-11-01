@@ -222,7 +222,11 @@ func (m *Model) describe(h header) {
 
   m.Kind = "dense"
   if m.ExpertCount > 0 && m.Experts > 0 {
-    m.Kind = fmt.Sprintf("MoE, %d experts, %d active", m.ExpertCount, m.ExpertUsed)
+    m.Kind = fmt.Sprintf(
+      "MoE, %d experts, %d active",
+      m.ExpertCount,
+      m.ExpertUsed,
+    )
   }
 
   if m.AttnLayers > 0 && m.AttnLayers < m.Layers {
@@ -383,7 +387,10 @@ func readHeader(r io.Reader) (header, error) {
 
   version := cr.u32()
   if version < 2 {
-    return h, fmt.Errorf("\n\t... in readHeader:\n\t GGUF v%d is too old", version)
+    return h, fmt.Errorf(
+      "\n\t... in readHeader:\n\t GGUF v%d is too old",
+      version,
+    )
   }
 
   nTensors, nKV := cr.u64(), cr.u64()
@@ -401,7 +408,11 @@ func readHeader(r io.Reader) (header, error) {
     t := tensorInfo{ name: cr.str(maxNameLen), elems: 1 }
     nDims := cr.u32()
     if nDims > 8 {
-      return h, fmt.Errorf("\n\t... in readHeader:\n\t %s has %d dims", t.name, nDims)
+      return h, fmt.Errorf(
+        "\n\t... in readHeader:\n\t %s has %d dims",
+        t.name,
+        nDims,
+      )
     }
 
     for d := uint32(0); d < nDims; d++ {
@@ -439,8 +450,12 @@ func (c *countReader) fill(n int) []byte {
   return c.b[:n]
 }
 
-func (c *countReader) u32() uint32 { return binary.LittleEndian.Uint32(c.fill(4)) }
-func (c *countReader) u64() uint64 { return binary.LittleEndian.Uint64(c.fill(8)) }
+func (c *countReader) u32() uint32 { return binary.LittleEndian.Uint32(
+  c.fill(4),
+) }
+func (c *countReader) u64() uint64 { return binary.LittleEndian.Uint64(
+  c.fill(8),
+) }
 
 // skip discards n bytes without keeping them.
 func (c *countReader) skip(n uint64) {

@@ -60,7 +60,13 @@ func TestRegionalFor(t *testing.T) {
   for _, c := range cases {
     got := RegionalFor(base, c.setting)
     if got != c.want {
-      t.Errorf("RegionalFor(%q, %q) = %q, want %q", base, c.setting, got, c.want)
+      t.Errorf(
+        "RegionalFor(%q, %q) = %q, want %q",
+        base,
+        c.setting,
+        got,
+        c.want,
+      )
     }
   }
 
@@ -86,7 +92,10 @@ func TestZone(t *testing.T) {
     t.Fatalf("empty root: zone = %q", got)
   }
 
-  os.Symlink("/usr/share/zoneinfo/Europe/Lisbon", filepath.Join(etc, "localtime"))
+  os.Symlink(
+    "/usr/share/zoneinfo/Europe/Lisbon",
+    filepath.Join(etc, "localtime"),
+  )
   got = zone(root)
   if got != "Europe/Lisbon" {
     t.Fatalf("localtime link: zone = %q", got)

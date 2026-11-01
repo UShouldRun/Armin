@@ -123,7 +123,8 @@ func parseRequirementsTxt(data []byte) ([]Dependency, error) {
   scanner := bufio.NewScanner(strings.NewReader(string(data)))
   for scanner.Scan() {
     line := strings.TrimSpace(scanner.Text())
-    if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
+    if line == "" ||
+        strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
       continue
     }
 
@@ -220,7 +221,14 @@ func ModuleGraph(
     return nil, fmt.Errorf("\n\t... in ModuleGraph:\n\t%w", err)
   }
 
-  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "go", Args: []string{ "list", "-json", "./..." }, Mode: sandbox.ExecForce | sandbox.ExecFull })
+  res, err := cfg.Exec(
+    ctx,
+    sandbox.Command{
+      Binary: "go",
+      Args:   []string{ "list", "-json", "./..." },
+      Mode:   sandbox.ExecForce | sandbox.ExecFull,
+    },
+  )
   if err != nil {
     return nil, fmt.Errorf("\n\t... in ModuleGraph:\n\t%w", err)
   }

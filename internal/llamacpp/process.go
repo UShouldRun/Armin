@@ -74,7 +74,9 @@ func (t *tailBuffer) String() string {
   return strings.TrimSpace(string(t.buf))
 }
 
-func (m *Manager) spawn(ctx context.Context, name string, spec ModelSpec) error {
+func (m *Manager) spawn(
+  ctx context.Context, name string, spec ModelSpec,
+) error {
   m.mu.Lock()
   spec = spec.inTier(m.tiers[name])
   m.mu.Unlock()

@@ -48,7 +48,9 @@ func Run(ctx context.Context, req Request) error {
   client := &http.Client{
     Transport: &http.Transport{
       Proxy:                 http.ProxyFromEnvironment,
-      DialContext:           (&net.Dialer{ Timeout: 15 * time.Second }).DialContext,
+      DialContext:           (&net.Dialer{
+        Timeout: 15 * time.Second,
+      }).DialContext,
       TLSHandshakeTimeout:   15 * time.Second,
       ResponseHeaderTimeout: 30 * time.Second,
     },
@@ -81,7 +83,8 @@ func Run(ctx context.Context, req Request) error {
   }
 
   // With no quantization named, the repo's best that runs well.
-  if src.Repo != "" && src.Quant == "" && src.File == "" && len(src.Groups) > 1 {
+  if src.Repo != "" &&
+      src.Quant == "" && src.File == "" && len(src.Groups) > 1 {
     best := bestGroup(&m, &hw, src)
     if best != src.Pick {
       src.Pick = best
@@ -145,9 +148,19 @@ func Run(ctx context.Context, req Request) error {
     return err
   }
 
-  name := askLine(in, req.Yes, "name in config.conf", modelName(path, m.Quant, req.Models))
+  name := askLine(
+    in,
+    req.Yes,
+    "name in config.conf",
+    modelName(path, m.Quant, req.Models),
+  )
   for !validName(name) {
-    name = askLine(in, req.Yes, "no dots, spaces or '=' — name", modelName(path, m.Quant, req.Models))
+    name = askLine(
+      in,
+      req.Yes,
+      "no dots, spaces or '=' — name",
+      modelName(path, m.Quant, req.Models),
+    )
   }
 
   origin := filepath.Base(path)
@@ -158,13 +171,24 @@ func Run(ctx context.Context, req Request) error {
     origin = src.URL
   }
 
-  conf, err := appendConfig(block(name, binary, path, origin, nextPort(req.Models), &p))
+  conf, err := appendConfig(
+    block(name, binary, path, origin, nextPort(req.Models), &p),
+  )
   if err != nil {
     return fmt.Errorf("\n\t... in Run:\n\t%w", err)
   }
 
-  fmt.Printf("added models.%s to %s — use it with armin -model %s or /model %s\n", name, conf, name, name)
-  if !req.Yes && ask("run a quick benchmark to check the estimates (up to a minute)?", false) {
+  fmt.Printf(
+    "added models.%s to %s — use it with armin -model %s or /model %s\n",
+    name,
+    conf,
+    name,
+    name,
+  )
+  if !req.Yes && ask(
+    "run a quick benchmark to check the estimates (up to a minute)?",
+    false,
+  ) {
     runBench(ctx, binary, path, &p)
   }
 
@@ -172,7 +196,9 @@ func Run(ctx context.Context, req Request) error {
 }
 
 // readSource reads the picked model's header, locally or by ranges.
-func readSource(ctx context.Context, c *http.Client, src *source) (Model, int64, error) {
+func readSource(
+  ctx context.Context, c *http.Client, src *source,
+) (Model, int64, error) {
   if src.Local != "" {
     f, err := os.Open(src.Local)
     if err != nil {
@@ -202,7 +228,11 @@ func readSource(ctx context.Context, c *http.Client, src *source) (Model, int64,
 
   m, err := readModel(parts)
   if err != nil {
-    return Model{}, 0, fmt.Errorf("\n\t... in readSource:\n\t %s: %w", g.Label, err)
+    return Model{}, 0, fmt.Errorf(
+      "\n\t... in readSource:\n\t %s: %w",
+      g.Label,
+      err,
+    )
   }
 
   // The file name says what the uploader chose; the header's file
@@ -212,7 +242,10 @@ func readSource(ctx context.Context, c *http.Client, src *source) (Model, int64,
   }
 
   if looksLikeHash(m.Name) {
-    m.Name = strings.TrimSuffix(path.Base(firstNonEmpty(src.Repo, g.Files[0].Path)), ".gguf")
+    m.Name = strings.TrimSuffix(
+      path.Base(firstNonEmpty(src.Repo, g.Files[0].Path)),
+      ".gguf",
+    )
   }
 
   return m, g.Size, nil
@@ -280,7 +313,8 @@ func alternatives(m *Model, hw *Machine, src *source) []alternative {
 func bestGroup(m *Model, hw *Machine, src *source) int {
   alts := alternatives(m, hw, src)
   tiers := []func(Plan) bool{
-    func(p Plan) bool { return p.Verdict == VerdictFine && p.Place == PlaceGPU },
+    func(p Plan) bool { return p.Verdict == VerdictFine &&
+        p.Place == PlaceGPU },
     func(p Plan) bool { return p.Verdict == VerdictFine },
     func(p Plan) bool { return p.Verdict == VerdictSlow },
   }
@@ -325,7 +359,9 @@ const (
 // or, for a repo, the label of another quantization to look at
 // (returned as its index). A model that won't load can't be said
 // yes to, only swapped.
-func confirm(in *bufio.Reader, yes bool, src *source, dir string, v Verdict) int {
+func confirm(
+  in *bufio.Reader, yes bool, src *source, dir string, v Verdict,
+) int {
   if yes {
     if v == VerdictWontLoad {
       return choiceNo
@@ -340,7 +376,8 @@ func confirm(in *bufio.Reader, yes bool, src *source, dir string, v Verdict) int
   case v == VerdictWontLoad && !others:
     return choiceNo
   case v == VerdictWontLoad:
-    q = "it won't load — another quantization from the list? [name, or Enter to stop] "
+    q = "it won't load — another quantization from the list? [name, or " +
+      "Enter to stop] "
   case src.Local != "":
     q = "add it to config.conf?"
   default:
@@ -385,7 +422,10 @@ func confirm(in *bufio.Reader, yes bool, src *source, dir string, v Verdict) int
       return choiceNo
     }
 
-    i := findGroup(src.Groups, func(g quantGroup) bool { return strings.EqualFold(g.Label, answer) })
+    i := findGroup(
+      src.Groups,
+      func(g quantGroup) bool { return strings.EqualFold(g.Label, answer) },
+    )
     if i >= 0 && others {
       return i
     }
@@ -400,7 +440,9 @@ func confirm(in *bufio.Reader, yes bool, src *source, dir string, v Verdict) int
 
 // fetchSource downloads the picked group into dir and returns the
 // path config.conf should name (a split model's first part).
-func fetchSource(ctx context.Context, c *http.Client, src *source, dir string) (string, error) {
+func fetchSource(
+  ctx context.Context, c *http.Client, src *source, dir string,
+) (string, error) {
   if src.Local != "" {
     abs, err := filepath.Abs(src.Local)
     if err != nil {
@@ -433,10 +475,21 @@ func fetchSource(ctx context.Context, c *http.Client, src *source, dir string) (
     label := filepath.Base(f.Path)
     err = download(
       ctx, c, src.fileURL(f), dest, f.Size, f.SHA256,
-      func(done, fresh int64) { progressLine(label, done, fresh, f.Size, start) },
+      func(done, fresh int64) { progressLine(
+        label,
+        done,
+        fresh,
+        f.Size,
+        start,
+      ) },
       func(err error, wait time.Duration) {
         ui.ClearLine()
-        fmt.Printf("%s  %s — retrying in %s (Ctrl-C stops; it resumes later)", label, shortErr(err), wait)
+        fmt.Printf(
+          "%s  %s — retrying in %s (Ctrl-C stops; it resumes later)",
+          label,
+          shortErr(err),
+          wait,
+        )
       },
     )
     ui.ClearLine()
@@ -518,7 +571,8 @@ func runBench(ctx context.Context, binary, path string, p *Plan) {
   }
 
   fmt.Printf(
-    "measured: generation %.0f tok/s (estimated %.0f), prefill %.0f tok/s (estimated %.0f)\n",
+    "measured: generation %.0f tok/s (estimated %.0f), prefill %.0f tok/s " +
+      "(estimated %.0f)\n",
     gen, p.GenEmpty, pre, p.Prefill,
   )
 }

@@ -14,8 +14,8 @@ const (
 func initializeResult() initializeResultT {
   return initializeResultT{
     Capabilities: capabilities{
-      TextDocumentSync:       1,
-      HoverProvider:          true,
+      TextDocumentSync: 1,
+      HoverProvider:    true,
       ExecuteCommandProvider: executeCommandOptions{
         Commands: []string{
           "armin.ask", "armin.model", "armin.clear", "armin.history",

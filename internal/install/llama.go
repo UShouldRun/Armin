@@ -64,13 +64,18 @@ func knowsArch(binary, arch string) (known, checked bool) {
 
 // bench runs llama-bench (beside binary, or on PATH) with the plan's
 // placement and returns measured prefill and generation tokens/s.
-func bench(ctx context.Context, binary, model string, p *Plan) (pre, gen float64, err error) {
+func bench(
+  ctx context.Context, binary, model string, p *Plan,
+) (pre, gen float64, err error) {
   tool := filepath.Join(filepath.Dir(binary), "llama-bench")
   _, statErr := os.Stat(tool)
   if statErr != nil {
     tool, err = exec.LookPath("llama-bench")
     if err != nil {
-      return 0, 0, fmt.Errorf("\n\t... in bench:\n\t llama-bench not found next to %s or on PATH", binary)
+      return 0, 0, fmt.Errorf(
+        "\n\t... in bench:\n\t llama-bench not found next to %s or on PATH",
+        binary,
+      )
     }
   }
 
@@ -96,13 +101,21 @@ func bench(ctx context.Context, binary, model string, p *Plan) (pre, gen float64
   cmd.Stderr = &stderr
   out, err := cmd.Output()
   if err != nil {
-    return 0, 0, fmt.Errorf("\n\t... in bench:\n\t %s: %v\n%s", tool, err, lastLines(stderr.String(), 5))
+    return 0, 0, fmt.Errorf(
+      "\n\t... in bench:\n\t %s: %v\n%s",
+      tool,
+      err,
+      lastLines(stderr.String(), 5),
+    )
   }
 
   var rows []benchResult
   err = json.Unmarshal(out, &rows)
   if err != nil {
-    return 0, 0, fmt.Errorf("\n\t... in bench:\n\t reading llama-bench's JSON: %w", err)
+    return 0, 0, fmt.Errorf(
+      "\n\t... in bench:\n\t reading llama-bench's JSON: %w",
+      err,
+    )
   }
 
   for _, r := range rows {

@@ -52,7 +52,8 @@ func TestWrapKeepsHangingIndent(t *testing.T) {
 
   inCode := false
   rows := RenderLine("- one two three four five six seven", &inCode, 16)
-  if len(rows) < 2 || !strings.HasPrefix(rows[0], "• ") || !strings.HasPrefix(rows[1], "  ") {
+  if len(rows) < 2 ||
+      !strings.HasPrefix(rows[0], "• ") || !strings.HasPrefix(rows[1], "  ") {
     t.Fatalf("rows = %q", rows)
   }
 

@@ -59,13 +59,21 @@ func TestModelFiles(t *testing.T) {
 
   // Another model on the same file keeps it.
   twin := Existing{ ModelPath: big.ModelPath }
-  files, shared = modelFiles("big", big, map[string]Existing{ "big": big, "twin": twin })
+  files, shared = modelFiles(
+    "big",
+    big,
+    map[string]Existing{ "big": big, "twin": twin },
+  )
   if len(files) != 0 || len(shared) != 2 {
     t.Errorf("shared: files %+v shared %v", files, shared)
   }
 
   // Remote and hosted models delete nothing.
-  files, _ = modelFiles("r", Existing{ ModelPath: big.ModelPath, Remote: true }, nil)
+  files, _ = modelFiles(
+    "r",
+    Existing{ ModelPath: big.ModelPath, Remote: true },
+    nil,
+  )
   if len(files) != 0 {
     t.Errorf("remote: %+v", files)
   }
@@ -89,7 +97,9 @@ func TestUninstall(t *testing.T) {
     "hosted": { External: true },
   }
 
-  err := Uninstall(Request{ Model: "local", Yes: true, Models: models, Default: "local" })
+  err := Uninstall(
+    Request{ Model: "local", Yes: true, Models: models, Default: "local" },
+  )
   if err == nil || !strings.Contains(err.Error(), "model =") {
     t.Errorf("uninstalling the default: %v", err)
   }
@@ -99,13 +109,16 @@ func TestUninstall(t *testing.T) {
     t.Error("unknown model: no error")
   }
 
-  err = Uninstall(Request{ Model: "big", Yes: true, Models: models, Default: "local" })
+  err = Uninstall(
+    Request{ Model: "big", Yes: true, Models: models, Default: "local" },
+  )
   if err != nil {
     t.Fatal(err)
   }
 
   got, _ := os.ReadFile(path)
-  if strings.Contains(string(got), "models.big") || !strings.Contains(string(got), "models.hosted") {
+  if strings.Contains(string(got), "models.big") ||
+      !strings.Contains(string(got), "models.hosted") {
     t.Errorf("config after:\n%s", got)
   }
 

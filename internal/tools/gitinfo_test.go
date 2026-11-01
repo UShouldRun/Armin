@@ -23,7 +23,10 @@ func requireGit(t *testing.T) {
 func initGitRepo(t *testing.T, cfg *sandbox.Config) {
   t.Helper()
   run := func(args ...string) {
-    res, err := cfg.Exec(context.Background(), sandbox.Command{ Binary: "git", Args: args, Mode: sandbox.ExecForce })
+    res, err := cfg.Exec(
+      context.Background(),
+      sandbox.Command{ Binary: "git", Args: args, Mode: sandbox.ExecForce },
+    )
     if err != nil {
       t.Fatalf("git %v: %v", args, err)
     }
@@ -58,7 +61,8 @@ func TestGitLogParsesCommits(t *testing.T) {
   }
 
   c := out.Commits[0]
-  if c.Author != "Test User" || c.Subject != "initial commit" || c.Hash == "" || c.Date == "" {
+  if c.Author != "Test User" ||
+      c.Subject != "initial commit" || c.Hash == "" || c.Date == "" {
     t.Fatalf("commit = %+v, missing/wrong fields", c)
   }
 }
@@ -81,7 +85,11 @@ func TestGitBlameAttributesLines(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   initGitRepo(t, cfg)
 
-  out, err := GitBlame(context.Background(), cfg, GitBlameInput{ Path: "a.txt" })
+  out, err := GitBlame(
+    context.Background(),
+    cfg,
+    GitBlameInput{ Path: "a.txt" },
+  )
   if err != nil {
     t.Fatalf("GitBlame: %v", err)
   }
@@ -198,7 +206,11 @@ func TestGrepHistoryFindsIntroducedText(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   initGitRepo(t, cfg)
 
-  out, err := GrepHistory(context.Background(), cfg, GrepHistoryInput{ Term: "hello" })
+  out, err := GrepHistory(
+    context.Background(),
+    cfg,
+    GrepHistoryInput{ Term: "hello" },
+  )
   if err != nil {
     t.Fatalf("GrepHistory: %v", err)
   }
@@ -220,7 +232,8 @@ func TestCodeOwnersRanksByCommitCount(t *testing.T) {
     t.Fatalf("CodeOwners: %v", err)
   }
 
-  if len(out.Owners) != 1 || out.Owners[0].Author != "Test User" || out.Owners[0].Commits != 1 {
+  if len(out.Owners) != 1 ||
+      out.Owners[0].Author != "Test User" || out.Owners[0].Commits != 1 {
     t.Fatalf("Owners = %+v", out.Owners)
   }
 }
@@ -235,7 +248,8 @@ func TestCommitStatsRanksHotspots(t *testing.T) {
     t.Fatalf("CommitStats: %v", err)
   }
 
-  if len(out.Hotspots) != 1 || out.Hotspots[0].File != "a.txt" || out.Hotspots[0].Commits != 1 {
+  if len(out.Hotspots) != 1 ||
+      out.Hotspots[0].File != "a.txt" || out.Hotspots[0].Commits != 1 {
     t.Fatalf("Hotspots = %+v", out.Hotspots)
   }
 }

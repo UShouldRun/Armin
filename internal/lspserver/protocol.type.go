@@ -173,7 +173,8 @@ type initializeResultT struct {
 }
 
 type capabilities struct {
-  TextDocumentSync         int                   `json:"textDocumentSync"` // 1 = Full
+  // 1 = Full
+  TextDocumentSync         int                   `json:"textDocumentSync"`
   HoverProvider            bool                  `json:"hoverProvider"`
   ExecuteCommandProvider   executeCommandOptions `json:"executeCommandProvider"`
   InlineCompletionProvider bool                  `json:"inlineCompletionProvider"`

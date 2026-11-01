@@ -173,8 +173,8 @@ func replayFile(t *testing.T, path string, revs []string) {
       ws = append(
         ws,
         window{
-          ev: ev,
-          text: string(bytes.Join(oldLines[start:start + 10], nil)),
+          ev:    ev,
+          text:  string(bytes.Join(oldLines[start:start + 10], nil)),
           start: start,
         },
       )

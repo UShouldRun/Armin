@@ -124,7 +124,11 @@ func (s *Server) reset(ctx context.Context) {
   s.bindScratch()
 
   prompt := s.cfg.SystemPrompt
-  out, err := tools.ProjectManifest(ctx, s.cfg.Sandbox, tools.ProjectManifestInput{})
+  out, err := tools.ProjectManifest(
+    ctx,
+    s.cfg.Sandbox,
+    tools.ProjectManifestInput{},
+  )
   if err == nil && out.Note != "" {
     prompt += "\n\n" + out.Note
   }
@@ -260,7 +264,8 @@ func inUse(addr string) string {
     }
   }
 
-  return addr + " is in use by another program: pick another address (-web " + other + ")"
+  return addr + " is in use by another program: pick another address (-web " +
+    other + ")"
 }
 
 // --- commands ---

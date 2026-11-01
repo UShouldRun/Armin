@@ -184,7 +184,9 @@ func (c *Client) Models(ctx context.Context) (ModelInfo, error) {
   return c.model(ctx, "")
 }
 
-func (c *Client) SwitchModel(ctx context.Context, name string) (ModelInfo, error) {
+func (c *Client) SwitchModel(
+  ctx context.Context, name string,
+) (ModelInfo, error) {
   return c.model(ctx, name)
 }
 

@@ -29,5 +29,6 @@ type turnView struct {
   streamed     bool
   pending      int          // newlines the answer ended on so far, held back
   md           *ui.Markdown // renders the answer as it streams
-  held         string       // a write's or run's call line, until its proposal shows
+  // a write's or run's call line, until its proposal shows
+  held         string
 }

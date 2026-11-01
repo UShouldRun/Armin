@@ -8,7 +8,8 @@ type Suggestion struct {
   In      float64 `json:"in"`      // dollars per million input tokens
   Out     float64 `json:"out"`     // dollars per million output tokens
   Context int     `json:"context"` // tokens
-  Session float64 `json:"session"` // dollars for a deep session, see SessionIn/Out
+  // dollars for a deep session, see SessionIn/Out
+  Session float64 `json:"session"`
   Planner bool    `json:"planner"` // a vendor's strongest current model
   Free    bool    `json:"free"`
 }

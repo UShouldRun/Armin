@@ -38,7 +38,9 @@ require (
 }
 
 func TestParseGoModSingleLineRequire(t *testing.T) {
-  data := []byte("module example.com/foo\n\ngo 1.23\n\nrequire golang.org/x/sys v0.35.0\n")
+  data := []byte(
+    "module example.com/foo\n\ngo 1.23\n\nrequire golang.org/x/sys v0.35.0\n",
+  )
   deps, err := parseGoMod(data)
   if err != nil {
     t.Fatalf("parseGoMod: %v", err)
@@ -98,14 +100,20 @@ func TestParseRequirementsTxt(t *testing.T) {
 }
 
 func TestParseCargoToml(t *testing.T) {
-  data := []byte("[package]\nname = \"foo\"\n\n[dependencies]\nserde = \"1.0\"\ntokio = \"1.0\"\n\n[dev-dependencies]\nother = \"2.0\"\n")
+  data := []byte(
+    "[package]\nname = \"foo\"\n\n[dependencies]\nserde = \"1.0\"\ntokio = " +
+      "\"1.0\"\n\n[dev-dependencies]\nother = \"2.0\"\n",
+  )
   deps, err := parseCargoToml(data)
   if err != nil {
     t.Fatalf("parseCargoToml: %v", err)
   }
 
   if len(deps) != 2 {
-    t.Fatalf("deps = %+v, want 2 (only [dependencies], not [dev-dependencies])", deps)
+    t.Fatalf(
+      "deps = %+v, want 2 (only [dependencies], not [dev-dependencies])",
+      deps,
+    )
   }
 }
 
@@ -113,9 +121,18 @@ func TestParseCargoToml(t *testing.T) {
 
 func TestListDependenciesFindsGoMod(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
-  writeFile(t, cfg.Root, "go.mod", "module foo\n\ngo 1.23\n\nrequire golang.org/x/sys v0.35.0\n")
+  writeFile(
+    t,
+    cfg.Root,
+    "go.mod",
+    "module foo\n\ngo 1.23\n\nrequire golang.org/x/sys v0.35.0\n",
+  )
 
-  out, err := ListDependencies(context.Background(), cfg, ListDependenciesInput{})
+  out, err := ListDependencies(
+    context.Background(),
+    cfg,
+    ListDependenciesInput{},
+  )
   if err != nil {
     t.Fatalf("ListDependencies: %v", err)
   }
@@ -142,8 +159,18 @@ func TestModuleGraphInternalEdgesOnly(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{ Timeout: 60_000_000_000 })
 
   writeFile(t, cfg.Root, "go.mod", "module fixture\n\ngo 1.21\n")
-  writeFile(t, cfg.Root, "main.go", "package main\n\nimport \"fixture/pkg\"\n\nfunc main() { pkg.Hello() }\n")
-  writeFile(t, cfg.Root, "pkg/pkg.go", "package pkg\n\nimport \"fmt\"\n\nfunc Hello() { fmt.Println(\"hi\") }\n")
+  writeFile(
+    t,
+    cfg.Root,
+    "main.go",
+    "package main\n\nimport \"fixture/pkg\"\n\nfunc main() { pkg.Hello() }\n",
+  )
+  writeFile(
+    t,
+    cfg.Root,
+    "pkg/pkg.go",
+    "package pkg\n\nimport \"fmt\"\n\nfunc Hello() { fmt.Println(\"hi\") }\n",
+  )
 
   out, err := ModuleGraph(context.Background(), cfg, ModuleGraphInput{})
   if err != nil {
@@ -156,6 +183,9 @@ func TestModuleGraphInternalEdgesOnly(t *testing.T) {
 
   imports := out.Imports["fixture"]
   if len(imports) != 1 || imports[0] != "fixture/pkg" {
-    t.Fatalf(`Imports["fixture"] = %v, want ["fixture/pkg"] (fmt is stdlib, excluded)`, imports)
+    t.Fatalf(
+      `Imports["fixture"] = %v, want ["fixture/pkg"] (fmt is stdlib, excluded)`,
+      imports,
+    )
   }
 }

@@ -191,7 +191,9 @@ func (m *Manager) Has(name string) bool {
 // Client's OnRequestStart/OnRequestEnd are wired back into this
 // Manager, so the idle reaper never stops name's process while a
 // request made through this Client is in flight.
-func (m *Manager) Client(ctx context.Context, name string) (*llm.Client, error) {
+func (m *Manager) Client(
+  ctx context.Context, name string,
+) (*llm.Client, error) {
   url, err := m.ensure(ctx, name)
   if err != nil {
     return nil, fmt.Errorf("\n\t... in Client:\n\t%w", err)
@@ -207,7 +209,9 @@ func (m *Manager) Client(ctx context.Context, name string) (*llm.Client, error) 
 // — a switch has to be visible through all of them at once (see the
 // doc comment on llm.Client.Model for the concurrency caveat this
 // carries).
-func (m *Manager) Switch(ctx context.Context, client *llm.Client, name string) error {
+func (m *Manager) Switch(
+  ctx context.Context, client *llm.Client, name string,
+) error {
   // Two local models rarely fit one GPU together: free the one being
   // left before loading the next. Only that one — a separate
   // completion model may still be in use.
@@ -362,7 +366,11 @@ func (m *Manager) fallback(from, to string) {
 
   m.mu.Unlock()
 
-  m.status("%s refused (in-region routing needs a Business plan) — using %s", from, to)
+  m.status(
+    "%s refused (in-region routing needs a Business plan) — using %s",
+    from,
+    to,
+  )
 }
 
 // apiKey resolves name's configured APIKeyEnv against the real

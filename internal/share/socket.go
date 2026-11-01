@@ -35,7 +35,11 @@ func Socket(root string) (string, error) {
 
   sum := sha256.Sum256([]byte(abs))
 
-  return filepath.Join(dir, "attach", hex.EncodeToString(sum[:8]) + ".sock"), nil
+  return filepath.Join(
+    dir,
+    "attach",
+    hex.EncodeToString(sum[:8]) + ".sock",
+  ), nil
 }
 
 // live reports whether a host answers at path.

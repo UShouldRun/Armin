@@ -23,7 +23,12 @@ func TestSourcesNumberAcrossSearches(t *testing.T) {
   ts.number(a)
   ts.number(b)
   if a.Results[1].ID != 2 || b.Results[0].ID != 2 || b.Results[1].ID != 3 {
-    t.Fatalf("ids = %d %d %d, want 2 2 3", a.Results[1].ID, b.Results[0].ID, b.Results[1].ID)
+    t.Fatalf(
+      "ids = %d %d %d, want 2 2 3",
+      a.Results[1].ID,
+      b.Results[0].ID,
+      b.Results[1].ID,
+    )
   }
 
   if a.Cite == "" {
@@ -53,7 +58,11 @@ func TestTurnAppendsSourcesTheModelForgot(t *testing.T) {
   round := 0
   loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
     round++
-    writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "Answer citing [1]." })
+    writeChatResponse(
+      t,
+      w,
+      llm.Message{ Role: "assistant", Content: "Answer citing [1]." },
+    )
   })
 
   var streamed strings.Builder
@@ -61,8 +70,14 @@ func TestTurnAppendsSourcesTheModelForgot(t *testing.T) {
   sources.number(&tools.WebSearchOutput{ Results: []tools.WebSearchResult{
     { Title: "Doc", URL: "https://example.com/doc" },
   } })
-  history := []llm.Message{ { Role: "assistant", Content: "Answer citing [1]." } }
-  got := loop.finish(&history, sources, Hooks{ Token: func(s string) { streamed.WriteString(s) } })
+  history := []llm.Message{
+    { Role: "assistant", Content: "Answer citing [1]." },
+  }
+  got := loop.finish(
+    &history,
+    sources,
+    Hooks{ Token: func(s string) { streamed.WriteString(s) } },
+  )
 
   if !strings.Contains(got, "- [1] [Doc](https://example.com/doc)") || !strings.Contains(history[0].Content, "Sources:") {
     t.Fatalf("answer = %q", got)

@@ -37,10 +37,13 @@ func TestShowProposal(t *testing.T) {
   }
 
   run := capture(t, func() {
-    r.showProposal(agent.Proposal{ Tool: "run_program", Command: "make -j4", Dir: "/p/src" })
+    r.showProposal(
+      agent.Proposal{ Tool: "run_program", Command: "make -j4", Dir: "/p/src" },
+    )
   })
 
-  if !strings.Contains(run, "● Run(make -j4)") || !strings.Contains(run, "└ in src") {
+  if !strings.Contains(run, "● Run(make -j4)") ||
+      !strings.Contains(run, "└ in src") {
     t.Fatalf("run display:\n%s", run)
   }
 }
@@ -68,7 +71,11 @@ func TestViewOpensNvim(t *testing.T) {
   }
 
   args := waitFile(t, log)
-  if strings.Contains(args, " -d ") || !strings.Contains(args, "filetype=diff +5 ") || !strings.HasSuffix(strings.TrimSpace(args), "main.c.diff") {
+  if strings.Contains(args, " -d ") ||
+      !strings.Contains(args, "filetype=diff +5 ") || !strings.HasSuffix(
+        strings.TrimSpace(args),
+        "main.c.diff",
+      ) {
     t.Fatalf("change opened as %q", args)
   }
 
@@ -78,12 +85,21 @@ func TestViewOpensNvim(t *testing.T) {
   }
 
   os.Remove(log)
-  err = r.view(agent.Proposal{ Tool: "run_program", Command: "python3 gen.py", Script: "/p/gen.py" })
+  err = r.view(
+    agent.Proposal{
+      Tool:    "run_program",
+      Command: "python3 gen.py",
+      Script:  "/p/gen.py",
+    },
+  )
   if err != nil {
     t.Fatal(err)
   }
 
-  if args := waitFile(t, log); !strings.HasSuffix(strings.TrimSpace(args), "nvim -R /p/gen.py") {
+  if args := waitFile(t, log); !strings.HasSuffix(
+    strings.TrimSpace(args),
+    "nvim -R /p/gen.py",
+  ) {
     t.Fatalf("script opened as %q", args)
   }
 }
@@ -130,8 +146,13 @@ func TestChooseHosted(t *testing.T) {
   defer func() { ui.Enabled = true }()
 
   info := share.ModelInfo{
-    Configured: []share.ModelChoice{ { Name: "planner", Model: "qwen/qwen3.8-27b" } },
-    Suggested:  []catalog.Suggestion{ { ID: "z-ai/glm-5.3" }, { ID: "deepseek/deepseek-v4-pro-0813" } },
+    Configured: []share.ModelChoice{
+      { Name: "planner", Model: "qwen/qwen3.8-27b" },
+    },
+    Suggested:  []catalog.Suggestion{
+      { ID: "z-ai/glm-5.3" },
+      { ID: "deepseek/deepseek-v4-pro-0813" },
+    },
   }
 
   cases := []struct {
@@ -140,7 +161,10 @@ func TestChooseHosted(t *testing.T) {
   }{
     { []string{ "" }, "planner" },
     { []string{ "2" }, "planner:deepseek/deepseek-v4-pro-0813" },
-    { []string{ "anthropic/claude-sonnet-5.5" }, "planner:anthropic/claude-sonnet-5.5" },
+    {
+      []string{ "anthropic/claude-sonnet-5.5" },
+      "planner:anthropic/claude-sonnet-5.5",
+    },
     { []string{ "oops", "" }, "planner" },
   }
 
@@ -159,7 +183,11 @@ func TestChooseHosted(t *testing.T) {
       }
     })
 
-    if !strings.Contains(printed, "→ qwen/qwen3.8-27b") || !strings.Contains(printed, "(default)") || !strings.Contains(printed, "2 deepseek") {
+    if !strings.Contains(printed, "→ qwen/qwen3.8-27b") ||
+        !strings.Contains(printed, "(default)") || !strings.Contains(
+          printed,
+          "2 deepseek",
+        ) {
       t.Fatalf("list shown:\n%s", printed)
     }
   }

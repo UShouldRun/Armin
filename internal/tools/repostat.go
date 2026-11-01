@@ -201,7 +201,11 @@ func ListLanguages(
   for _, e := range exts {
     c := stats.byExt[e]
     out.Languages = append(
-      out.Languages, LanguageCount{ Extension: e, Files: c.files, Lines: c.lines },
+      out.Languages, LanguageCount{
+        Extension: e,
+        Files:     c.files,
+        Lines:     c.lines,
+      },
     )
   }
 
@@ -325,7 +329,10 @@ func FindTodoFixme(
     return nil, fmt.Errorf("\n\t... in FindTodoFixme:\n\t%w", err)
   }
 
-  return &FindTodoFixmeOutput{ Matches: res.Matches, Truncated: res.Truncated }, nil
+  return &FindTodoFixmeOutput{
+    Matches:   res.Matches,
+    Truncated: res.Truncated,
+  }, nil
 }
 
 // --- env_info ---
@@ -338,7 +345,14 @@ func EnvInfo(
 ) (*EnvInfoOutput, error) {
   out := &EnvInfoOutput{ OS: runtime.GOOS, Arch: runtime.GOARCH }
 
-  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "go", Args: []string{ "version" }, Mode: sandbox.ExecForce })
+  res, err := cfg.Exec(
+    ctx,
+    sandbox.Command{
+      Binary: "go",
+      Args:   []string{ "version" },
+      Mode:   sandbox.ExecForce,
+    },
+  )
   if err == nil && res.ExitCode == 0 {
     out.GoVersion = strings.TrimSpace(res.Stdout)
   }

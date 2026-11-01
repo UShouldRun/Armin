@@ -41,10 +41,26 @@ func (r *REPL) showProposal(p agent.Proposal) {
 
     lines := strings.Split(strings.TrimRight(readSmall(p.Script), "\n"), "\n")
     colored := ui.Highlight(p.Script, lines)
-    fmt.Println(ui.Dim(fmt.Sprintf("  └ %s · runs %s (%d lines)", where, r.rel(p.Script), len(lines))))
+    fmt.Println(
+      ui.Dim(
+        fmt.Sprintf(
+          "  └ %s · runs %s (%d lines)",
+          where,
+          r.rel(p.Script),
+          len(lines),
+        ),
+      ),
+    )
     for i := range lines {
       if i == scriptLines {
-        line(ui.Dim(fmt.Sprintf("      … %d more lines — v to read it all", len(lines) - i)))
+        line(
+          ui.Dim(
+            fmt.Sprintf(
+              "      … %d more lines — v to read it all",
+              len(lines) - i,
+            ),
+          ),
+        )
         break
       }
 
@@ -57,7 +73,14 @@ func (r *REPL) showProposal(p agent.Proposal) {
     colored := ui.Highlight(p.Path, p.NewLines)
     for i := range p.NewLines {
       if i == proposalLines {
-        line(ui.Dim(fmt.Sprintf("      … %d more lines — v to view all", len(p.NewLines) - i)))
+        line(
+          ui.Dim(
+            fmt.Sprintf(
+              "      … %d more lines — v to view all",
+              len(p.NewLines) - i,
+            ),
+          ),
+        )
         break
       }
 
@@ -66,7 +89,14 @@ func (r *REPL) showProposal(p agent.Proposal) {
 
   default:
     fmt.Println(ui.Bold("● Update") + "(" + p.Path + ")")
-    fmt.Println(ui.Dim("  └ " + plural(len(p.Came), "addition") + ", " + plural(len(p.Gone), "removal")))
+    fmt.Println(
+      ui.Dim(
+        "  └ " + plural(
+          len(p.Came),
+          "addition",
+        ) + ", " + plural(len(p.Gone), "removal"),
+      ),
+    )
 
     // the code in syntax colors, the old file's for what goes and the
     // new file's for what comes; the markers say which is which
@@ -125,7 +155,14 @@ func (r *REPL) showProposal(p agent.Proposal) {
 
     total := len(p.Gone) + len(p.Came)
     if shown == proposalLines && total > shown {
-      line(ui.Dim(fmt.Sprintf("      … %d changed lines in all — v to view the whole diff", total)))
+      line(
+        ui.Dim(
+          fmt.Sprintf(
+            "      … %d changed lines in all — v to view the whole diff",
+            total,
+          ),
+        ),
+      )
     }
   }
 }

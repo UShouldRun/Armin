@@ -172,7 +172,10 @@ func TestResolvePathRejectsSymlinkEscape(t *testing.T) {
 
   _, err = cfg.ResolvePath("escape/secret.txt")
   if err == nil {
-    t.Fatal("ResolvePath followed a symlink out of the project root without rejecting it")
+    t.Fatal(
+      "ResolvePath followed a symlink out of the project root without " +
+        "rejecting it",
+    )
   }
 }
 
@@ -215,7 +218,10 @@ func TestCheckBinaryRejectsPathQualified(t *testing.T) {
   for _, bad := range []string{ "/usr/bin/git", "./git", "../git", "sub/git" } {
     err := cfg.CheckBinary(bad)
     if err == nil {
-      t.Errorf("CheckBinary(%q) should reject a path-qualified binary name", bad)
+      t.Errorf(
+        "CheckBinary(%q) should reject a path-qualified binary name",
+        bad,
+      )
     }
   }
 }
@@ -242,9 +248,15 @@ func TestRunFlags(t *testing.T) {
 // --- Exec ---
 
 func TestRunDryRunDoesNotExecute(t *testing.T) {
-  cfg := newTestConfig(t, Options{ DryRun: true, Allowlist: map[string]bool{ "rm": true } })
+  cfg := newTestConfig(
+    t,
+    Options{ DryRun: true, Allowlist: map[string]bool{ "rm": true } },
+  )
 
-  res, err := cfg.Exec(context.Background(), Command{ Binary: "rm", Args: []string{ "-rf", "/should/not/run" } })
+  res, err := cfg.Exec(
+    context.Background(),
+    Command{ Binary: "rm", Args: []string{ "-rf", "/should/not/run" } },
+  )
   if err != nil {
     t.Fatalf("Run: %v", err)
   }
@@ -261,7 +273,14 @@ func TestRunDryRunDoesNotExecute(t *testing.T) {
 func TestRunForceCapturesOutputAndExitCode(t *testing.T) {
   cfg := newTestConfig(t, Options{})
 
-  res, err := cfg.Exec(context.Background(), Command{ Binary: "sh", Args: []string{ "-c", "echo out; echo err >&2; exit 3" }, Mode: ExecForce })
+  res, err := cfg.Exec(
+    context.Background(),
+    Command{
+      Binary: "sh",
+      Args:   []string{ "-c", "echo out; echo err >&2; exit 3" },
+      Mode:   ExecForce,
+    },
+  )
   if err != nil {
     t.Fatalf("Exec: %v", err)
   }
@@ -282,7 +301,10 @@ func TestRunForceCapturesOutputAndExitCode(t *testing.T) {
 func TestRunForceRunsInRoot(t *testing.T) {
   cfg := newTestConfig(t, Options{})
 
-  res, err := cfg.Exec(context.Background(), Command{ Binary: "pwd", Args: nil, Mode: ExecForce })
+  res, err := cfg.Exec(
+    context.Background(),
+    Command{ Binary: "pwd", Args: nil, Mode: ExecForce },
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -300,7 +322,10 @@ func TestRunForceRunsInRoot(t *testing.T) {
 func TestRunForceTimesOut(t *testing.T) {
   cfg := newTestConfig(t, Options{ Timeout: 30 * time.Millisecond })
 
-  _, err := cfg.Exec(context.Background(), Command{ Binary: "sleep", Args: []string{ "5" }, Mode: ExecForce })
+  _, err := cfg.Exec(
+    context.Background(),
+    Command{ Binary: "sleep", Args: []string{ "5" }, Mode: ExecForce },
+  )
   if err == nil || !strings.Contains(err.Error(), "timed out") {
     t.Fatalf("Exec error = %v, want a timeout error", err)
   }
@@ -309,7 +334,14 @@ func TestRunForceTimesOut(t *testing.T) {
 func TestRunForceTruncatesLongOutput(t *testing.T) {
   cfg := newTestConfig(t, Options{ MaxOutput: 10 })
 
-  res, err := cfg.Exec(context.Background(), Command{ Binary: "sh", Args: []string{ "-c", "printf '%050d' 0" }, Mode: ExecForce })
+  res, err := cfg.Exec(
+    context.Background(),
+    Command{
+      Binary: "sh",
+      Args:   []string{ "-c", "printf '%050d' 0" },
+      Mode:   ExecForce,
+    },
+  )
   if err != nil {
     t.Fatal(err)
   }

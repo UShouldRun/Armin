@@ -124,8 +124,8 @@ var benchPairs = []benchPair{
     thirdWant: []string{ `remind`, `next user message|takeReminder` },
   },
   {
-    name: "project-dirs",
-    first: "How does armin save chat sessions to disk?",
+    name:      "project-dirs",
+    first:     "How does armin save chat sessions to disk?",
     firstWant: []string{ `append` },
     second: "How does armin name the per-project folders it keeps for " +
       "memory, the scratchpad and the knowledge DAG?",

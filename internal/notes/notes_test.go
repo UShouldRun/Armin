@@ -9,10 +9,10 @@ import (
 
 func TestSafeName(t *testing.T) {
   cases := map[string]string{
-    "Build Steps":  "build-steps",
+    "Build Steps":   "build-steps",
     "../etc/passwd": "etc-passwd",
-    "plan.md":      "plan",
-    "a_b-c":        "a_b-c",
+    "plan.md":       "plan",
+    "a_b-c":         "a_b-c",
   }
 
   for in, want := range cases {
@@ -54,12 +54,14 @@ func TestMemoriesRoundTripAndScopes(t *testing.T) {
     t.Fatal(err)
   }
 
-  if mem.Scope != ScopeUser || mem.Description != "2-space indent" || body != "\nuse 2 spaces\n" {
+  if mem.Scope != ScopeUser ||
+      mem.Description != "2-space indent" || body != "\nuse 2 spaces\n" {
     t.Fatalf("Read = %+v %q", mem, body)
   }
 
   index := m.Index()
-  if !strings.Contains(index, "- db (project): mysql 8") || !strings.Contains(index, "- style (user)") {
+  if !strings.Contains(index, "- db (project): mysql 8") ||
+      !strings.Contains(index, "- style (user)") {
     t.Fatalf("Index =\n%s", index)
   }
 
@@ -93,9 +95,21 @@ func TestSkillsLoadOverrideAndJail(t *testing.T) {
     os.WriteFile(p, []byte(content), 0o644)
   }
 
-  write(user, "review/SKILL.md", "---\nname: review\ndescription: user version\n---\nuser body\n")
-  write(user, "deploy/SKILL.md", "---\nname: deploy\ndescription: ship it\n---\nsteps\n")
-  write(project, "review/SKILL.md", "---\nname: review\ndescription: project version\n---\nproject body\n")
+  write(
+    user,
+    "review/SKILL.md",
+    "---\nname: review\ndescription: user version\n---\nuser body\n",
+  )
+  write(
+    user,
+    "deploy/SKILL.md",
+    "---\nname: deploy\ndescription: ship it\n---\nsteps\n",
+  )
+  write(
+    project,
+    "review/SKILL.md",
+    "---\nname: review\ndescription: project version\n---\nproject body\n",
+  )
   write(project, "review/checklist.md", "- [ ] tests\n")
   write(project, "secret.txt", "nope")
 
@@ -175,7 +189,8 @@ func TestScratchpadArchiveRotatesAndPointsAtLines(t *testing.T) {
   }
 
   got, _, _ := p.Read(name, start, end)
-  if !strings.Contains(got, "read_file path=a.go") || !strings.Contains(got, "line2") {
+  if !strings.Contains(got, "read_file path=a.go") ||
+      !strings.Contains(got, "line2") {
     t.Fatalf("read back %q", got)
   }
 
@@ -187,6 +202,10 @@ func TestScratchpadArchiveRotatesAndPointsAtLines(t *testing.T) {
   big := strings.Repeat("y", maxScratchBytes - 30)
   name3, _, _, err := p.Archive("big", big)
   if err != nil || name3 != "archive-2" {
-    t.Fatalf("big entry went to %s (%v), want rotation to archive-2", name3, err)
+    t.Fatalf(
+      "big entry went to %s (%v), want rotation to archive-2",
+      name3,
+      err,
+    )
   }
 }

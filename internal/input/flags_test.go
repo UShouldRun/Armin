@@ -22,7 +22,7 @@ func TestExtractPositionalRootVariousOrderings(t *testing.T) {
       args: []string{ "." }, wantRest: []string{}, wantPositional: ".",
     },
     {
-      name: "positional first",
+      name:           "positional first",
       args:           []string{ ".", "-mcp", "-no-color" },
       wantRest:       []string{ "-mcp", "-no-color" },
       wantPositional: ".",
@@ -52,7 +52,8 @@ func TestExtractPositionalRootVariousOrderings(t *testing.T) {
       wantPositional: ".",
     },
     {
-      name:           "-- stops extraction, everything from it on passed through verbatim",
+      name:           "-- stops extraction, everything from it on passed " +
+        "through verbatim",
       args:           []string{ "-mcp", "--", "." },
       wantRest:       []string{ "-mcp", "--", "." },
       wantPositional: "",
@@ -64,7 +65,8 @@ func TestExtractPositionalRootVariousOrderings(t *testing.T) {
       wantPositional: "a",
     },
     {
-      name:           "path-like value after a value-taking flag isn't mistaken for the positional",
+      name:           "path-like value after a value-taking flag isn't " +
+        "mistaken for the positional",
       args:           []string{ "-root", ".", "-mcp" },
       wantRest:       []string{ "-root", ".", "-mcp" },
       wantPositional: "",
@@ -88,14 +90,20 @@ func TestExtractPositionalRootVariousOrderings(t *testing.T) {
 func TestExtractResumeWithID(t *testing.T) {
   dir := t.TempDir()
 
-  rest, pos := extractPositionalRoot([]string{ "-resume", "3f2a91c0", "-model", "quick" })
+  rest, pos := extractPositionalRoot(
+    []string{ "-resume", "3f2a91c0", "-model", "quick" },
+  )
   if pos != "" || strings.Join(rest, " ") != "-resume=3f2a91c0 -model quick" {
     t.Fatalf("id: rest=%v pos=%q", rest, pos)
   }
 
   rest, pos = extractPositionalRoot([]string{ "-resume", dir })
   if pos != dir || strings.Join(rest, " ") != "-resume" {
-    t.Fatalf("directory after -resume must stay the root: rest=%v pos=%q", rest, pos)
+    t.Fatalf(
+      "directory after -resume must stay the root: rest=%v pos=%q",
+      rest,
+      pos,
+    )
   }
 
   rest, pos = extractPositionalRoot([]string{ ".", "-resume" })

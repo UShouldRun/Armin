@@ -416,7 +416,9 @@ func (s *Server) executeModel(
 
 // SwitchModel moves chat (and completion, sharing its Client) to
 // name, and tells every frontend.
-func (s *Server) SwitchModel(ctx context.Context, name string) (share.ModelInfo, error) {
+func (s *Server) SwitchModel(
+  ctx context.Context, name string,
+) (share.ModelInfo, error) {
   if !s.models.Has(name) {
     return share.ModelInfo{}, fmt.Errorf("no model %q in config.conf", name)
   }

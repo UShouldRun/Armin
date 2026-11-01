@@ -51,7 +51,11 @@ func ReadDocComment(
 
   comment := commentAbove(lines, sym.Line)
 
-  return &ReadDocCommentOutput{ File: sym.File, Line: sym.Line, Comment: comment }, nil
+  return &ReadDocCommentOutput{
+    File:    sym.File,
+    Line:    sym.Line,
+    Comment: comment,
+  }, nil
 }
 
 func readAllLines(path string) ([]string, error) {

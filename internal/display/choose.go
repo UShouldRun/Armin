@@ -22,7 +22,8 @@ import (
 func ChooseModel(opts *input.Options) {
   spec, ok := opts.Config.Models[opts.Model]
   hosted := ok && strings.Contains(spec.URL, "openrouter.ai")
-  if !hosted || opts.Mode != input.ModeREPL || opts.Resumed != nil || !terminal() {
+  if !hosted || opts.Mode != input.ModeREPL ||
+      opts.Resumed != nil || !terminal() {
     return
   }
 
@@ -38,10 +39,13 @@ func ChooseModel(opts *input.Options) {
     info.Configured[0].Cost = &cost
   }
 
-  name := repl.ChooseHosted(info, opts.Model, func(prompt string) (string, error) {
+  read := func(prompt string) (string, error) {
     fmt.Print(prompt)
+
     return ui.ReadLineUnbuffered(os.Stdin)
-  })
+  }
+
+  name := repl.ChooseHosted(info, opts.Model, read)
   if name != "" {
     opts.Model = name
   }

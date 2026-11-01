@@ -25,13 +25,13 @@ func TestDecodeKeyPrintableASCII(t *testing.T) {
 
 func TestDecodeKeyControlKeys(t *testing.T) {
   cases := map[string]controlKey{
-    "\r":        keyEnter,
-    "\n":        keyEnter,
-    "\x7f":      keyBackspace,
-    "\b":        keyBackspace,
-    "\t":        keyTab,
-    "\x03":      keyInterrupt,
-    "\x04":      keyEOF,
+    "\r":   keyEnter,
+    "\n":   keyEnter,
+    "\x7f": keyBackspace,
+    "\b":   keyBackspace,
+    "\t":   keyTab,
+    "\x03": keyInterrupt,
+    "\x04": keyEOF,
   }
   for input, want := range cases {
     k := decode(t, input)
@@ -108,7 +108,9 @@ func TestDecodeKeySequential(t *testing.T) {
 }
 
 func TestDecodeKeyBracketedPaste(t *testing.T) {
-  r := bufio.NewReader(strings.NewReader("\x1b[200~one\r\ntwo\rthree\n\tfour\x1b[A\x1b[201~x"))
+  r := bufio.NewReader(
+    strings.NewReader("\x1b[200~one\r\ntwo\rthree\n\tfour\x1b[A\x1b[201~x"),
+  )
 
   k, err := decodeKey(r)
   if err != nil || k.control != keyPaste {

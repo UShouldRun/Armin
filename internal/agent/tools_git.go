@@ -9,8 +9,8 @@ import (
 
 var gitTools = []toolSpec{
   {
-    id:    toolGitLog,
-    run:   inSandbox(tools.GitLog),
+    id:  toolGitLog,
+    run: inSandbox(tools.GitLog),
     def: llm.ToolFunction{
       Name: "git_log",
       Description: "Get structured commit history (hash, author, " +
@@ -31,8 +31,8 @@ var gitTools = []toolSpec{
     },
   },
   {
-    id:    toolGitBlame,
-    run:   inSandbox(tools.GitBlame),
+    id:  toolGitBlame,
+    run: inSandbox(tools.GitBlame),
     def: llm.ToolFunction{
       Name: "git_blame",
       Description: "Get per-line author/date attribution for a " +
@@ -58,8 +58,8 @@ var gitTools = []toolSpec{
     },
   },
   {
-    id:    toolGitDiff,
-    run:   inSandbox(tools.GitDiff),
+    id:  toolGitDiff,
+    run: inSandbox(tools.GitDiff),
     def: llm.ToolFunction{
       Name: "git_diff",
       Description: "Diff between two refs (default: HEAD vs. the " +
@@ -84,10 +84,10 @@ var gitTools = []toolSpec{
     },
   },
   {
-    id:    toolGitShow,
-    run:   inSandbox(tools.GitShow),
+    id:  toolGitShow,
+    run: inSandbox(tools.GitShow),
     def: llm.ToolFunction{
-      Name: "git_show",
+      Name:        "git_show",
       Description: "Get one commit's full diff and message by hash.",
       Parameters: llm.ToolParameters{
         Type: "object",
@@ -102,8 +102,8 @@ var gitTools = []toolSpec{
     },
   },
   {
-    id:    toolWorkingTreeDiff,
-    run:   inSandbox(tools.WorkingTreeDiff),
+    id:  toolWorkingTreeDiff,
+    run: inSandbox(tools.WorkingTreeDiff),
     def: llm.ToolFunction{
       Name: "working_tree_diff",
       Description: "Show uncommitted changes only — what you've " +
@@ -120,8 +120,8 @@ var gitTools = []toolSpec{
     },
   },
   {
-    id:    toolGrepHistory,
-    run:   inSandbox(tools.GrepHistory),
+    id:  toolGrepHistory,
+    run: inSandbox(tools.GrepHistory),
     def: llm.ToolFunction{
       Name: "grep_history",
       Description: "Find when a piece of text was introduced or " +
@@ -147,8 +147,8 @@ var gitTools = []toolSpec{
     },
   },
   {
-    id:    toolCodeOwners,
-    run:   inSandbox(tools.CodeOwners),
+    id:  toolCodeOwners,
+    run: inSandbox(tools.CodeOwners),
     def: llm.ToolFunction{
       Name: "code_owners",
       Description: "Approximate who owns a path, by commit count " +
@@ -165,8 +165,8 @@ var gitTools = []toolSpec{
     },
   },
   {
-    id:    toolCommitStats,
-    run:   inSandbox(tools.CommitStats),
+    id:  toolCommitStats,
+    run: inSandbox(tools.CommitStats),
     def: llm.ToolFunction{
       Name: "commit_stats",
       Description: "Rank files by how often they've changed — a " +

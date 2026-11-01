@@ -30,9 +30,9 @@ func knowLoop(t *testing.T) (
 
   l := &Loop{
     Sandbox: sb,
-    Know: know.New(),
+    Know:    know.New(),
     Session: "s1",
-    LLM: &llm.Client{ Model: "m" },
+    LLM:     &llm.Client{ Model: "m" },
   }
 
   call := func(name string, args map[string]any) map[string]string {

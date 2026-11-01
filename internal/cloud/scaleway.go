@@ -126,7 +126,9 @@ func (c *scalewayClient) do(
 }
 
 // GetServer reports one server's state and addresses.
-func (c *scalewayClient) GetServer(ctx context.Context, id string) (scalewayServer, error) {
+func (c *scalewayClient) GetServer(
+  ctx context.Context, id string,
+) (scalewayServer, error) {
   var b scalewayServerBody
   err := c.do(ctx, http.MethodGet, c.serverURL(id, ""), nil, &b)
   if err != nil {
@@ -210,7 +212,10 @@ func (c *scalewayClient) WaitRunning(
 
     select {
     case <-ctx.Done():
-      return srv, started, fmt.Errorf("\n\t... in WaitRunning:\n\t%w", ctx.Err())
+      return srv, started, fmt.Errorf(
+        "\n\t... in WaitRunning:\n\t%w",
+        ctx.Err(),
+      )
     case <-time.After(StatePoll):
     }
   }

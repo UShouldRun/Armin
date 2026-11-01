@@ -92,7 +92,13 @@ func (w *Wrapper) Flush() string {
 // Reset starts over at column 0, after the caller printed a newline
 // of its own.
 func (w *Wrapper) Reset() {
-  *w = Wrapper{ Width: w.Width, fence: w.fence, word: w.word[:0], space: w.space[:0], start: true }
+  *w = Wrapper{
+    Width: w.Width,
+    fence: w.fence,
+    word:  w.word[:0],
+    space: w.space[:0],
+    start: true,
+  }
 }
 
 func (w *Wrapper) flushWord(b *strings.Builder) {

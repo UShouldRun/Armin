@@ -24,7 +24,13 @@ func TestWordAt(t *testing.T) {
     t.Run(c.name, func(t *testing.T) {
       got := wordAt(c.line, c.character)
       if got != c.want {
-        t.Fatalf("wordAt(%q, %d) = %q, want %q", c.line, c.character, got, c.want)
+        t.Fatalf(
+          "wordAt(%q, %d) = %q, want %q",
+          c.line,
+          c.character,
+          got,
+          c.want,
+        )
       }
     })
   }

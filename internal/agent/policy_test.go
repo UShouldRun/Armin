@@ -20,7 +20,8 @@ func TestWithModelLine(t *testing.T) {
   }
 
   p = WithModelLine(p, "strong", "Qwen3.6-35B-A3B on EC2 instance i-1")
-  if strings.Count(p, modelLinePrefix) != 1 || !strings.Contains(p, "`strong` (Qwen3.6-35B-A3B on EC2 instance i-1)") {
+  if strings.Count(p, modelLinePrefix) != 1 ||
+      !strings.Contains(p, "`strong` (Qwen3.6-35B-A3B on EC2 instance i-1)") {
     t.Fatalf("replaced = %q", p)
   }
 
@@ -37,31 +38,71 @@ func TestDecide(t *testing.T) {
     want Action
   }{
     { "no window", ContextState{ Used: 99999 }, 0 },
-    { "plenty of room", ContextState{ Used: 40000, Window: 98304, Resident: 98304, Max: 196608 }, 0 },
-    { "past half: trim only", ContextState{ Used: 60000, Window: 98304, Resident: 98304, Max: 196608 }, ActTrim },
+    {
+      "plenty of room",
+      ContextState{ Used: 40000, Window: 98304, Resident: 98304, Max: 196608 },
+      0,
+    },
+    {
+      "past half: trim only",
+      ContextState{ Used: 60000, Window: 98304, Resident: 98304, Max: 196608 },
+      ActTrim,
+    },
     {
       "full, mostly old history: save and compact",
-      ContextState{ Used: 80000, Turn: 10000, Window: 98304, Resident: 98304, Max: 196608 },
+      ContextState{
+        Used:     80000,
+        Turn:     10000,
+        Window:   98304,
+        Resident: 98304,
+        Max:      196608,
+      },
       ActTrim | ActSave | ActCompact,
     },
     {
       "full, mostly this turn, can grow: grow",
-      ContextState{ Used: 80000, Turn: 60000, Window: 98304, Resident: 98304, Max: 196608 },
+      ContextState{
+        Used:     80000,
+        Turn:     60000,
+        Window:   98304,
+        Resident: 98304,
+        Max:      196608,
+      },
       ActTrim | ActGrow,
     },
     {
       "full, mostly this turn, no stream tier: compact",
-      ContextState{ Used: 80000, Turn: 60000, Window: 98304, Resident: 98304, Max: 98304 },
+      ContextState{
+        Used:     80000,
+        Turn:     60000,
+        Window:   98304,
+        Resident: 98304,
+        Max:      98304,
+      },
       ActTrim | ActSave | ActCompact,
     },
     {
       "fixed overhead doesn't count against the working set",
-      ContextState{ Used: 80000, Turn: 30000, Fixed: 25000, Window: 98304, Resident: 98304, Max: 196608 },
+      ContextState{
+        Used:     80000,
+        Turn:     30000,
+        Fixed:    25000,
+        Window:   98304,
+        Resident: 98304,
+        Max:      196608,
+      },
       ActTrim | ActGrow,
     },
     {
       "full while already streaming: compact",
-      ContextState{ Used: 160000, Turn: 150000, Window: 196608, Resident: 98304, Max: 196608, Streaming: true },
+      ContextState{
+        Used:      160000,
+        Turn:      150000,
+        Window:    196608,
+        Resident:  98304,
+        Max:       196608,
+        Streaming: true,
+      },
       ActTrim | ActSave | ActCompact,
     },
   }
@@ -73,14 +114,23 @@ func TestDecide(t *testing.T) {
     }
   }
 
-  shrink := ContextState{ Used: 20000, Window: 196608, Resident: 98304, Max: 196608, Streaming: true }
+  shrink := ContextState{
+    Used:      20000,
+    Window:    196608,
+    Resident:  98304,
+    Max:       196608,
+    Streaming: true,
+  }
   if DecideAfterCompact(shrink) != ActShrink {
     t.Error("expected a shrink once compaction left little")
   }
 
   shrink.Used = 70000
   if DecideAfterCompact(shrink) != 0 {
-    t.Error("shrank although the context wouldn't fit the resident window comfortably")
+    t.Error(
+      "shrank although the context wouldn't fit the resident " +
+        "window comfortably",
+    )
   }
 }
 
@@ -127,8 +177,18 @@ func TestGrowsWhenTheCurrentTurnIsTheBulk(t *testing.T) {
   history := []llm.Message{
     { Role: "system", Content: "sys" },
     { Role: "user", Content: "refactor the parser" },
-    { Role: "assistant", ToolCalls: []llm.ToolCall{ call("a", "read_file", map[string]any{ "path": "p.go" }) } },
-    { Role: "tool", ToolName: "read_file", ToolCallID: "a", Content: strings.Repeat("x", 7000) },
+    {
+      Role: "assistant",
+      ToolCalls: []llm.ToolCall{
+        call("a", "read_file", map[string]any{ "path": "p.go" }),
+      },
+    },
+    {
+      Role:       "tool",
+      ToolName:   "read_file",
+      ToolCallID: "a",
+      Content:    strings.Repeat("x", 7000),
+    },
   }
 
   loop.manageContext(context.Background(), &history, llm.Usage{}, Hooks{
@@ -163,19 +223,32 @@ func TestCompactsOldHistoryAfterSavingAndShrinksBack(t *testing.T) {
       sawSaveNote = true
       for _, d := range req.Tools {
         n := d.Function.Name
-        if n != "scratchpad_write" && n != "scratchpad_read" && n != "memory_save" {
+        if n != "scratchpad_write" &&
+            n != "scratchpad_read" && n != "memory_save" {
           t.Errorf("save turn offered %s", n)
         }
       }
 
-      writeChatResponse(t, w, llm.Message{ Role: "assistant", ToolCalls: []llm.ToolCall{
-        call("s1", "scratchpad_write", map[string]any{ "name": "plan", "content": "step 3 of 5" }),
-      } })
+      writeCalls(t, w,
+        call(
+          "s1",
+          "scratchpad_write",
+          map[string]any{ "name": "plan", "content": "step 3 of 5" },
+        ),
+      )
     case lastMsg.Role == "tool" && lastMsg.ToolName == "scratchpad_write":
-      writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "saved" })
+      writeChatResponse(
+        t,
+        w,
+        llm.Message{ Role: "assistant", Content: "saved" },
+      )
     case len(req.Tools) == 0:
       summarized = true
-      writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "summary" })
+      writeChatResponse(
+        t,
+        w,
+        llm.Message{ Role: "assistant", Content: "summary" },
+      )
     }
   })
   loop.Scratch = &notes.Scratchpad{ Dir: t.TempDir() }
@@ -261,7 +334,11 @@ func TestEndTurnArchivesThinking(t *testing.T) {
   history := []llm.Message{
     { Role: "system", Content: "sys" },
     { Role: "user", Content: "why is the build slow" },
-    { Role: "assistant", Content: "looking", Reasoning: "check the cache flags first" },
+    {
+      Role:      "assistant",
+      Content:   "looking",
+      Reasoning: "check the cache flags first",
+    },
   }
 
   loop.endTurn(&history, 2, Hooks{})
@@ -271,7 +348,10 @@ func TestEndTurnArchivesThinking(t *testing.T) {
   }
 
   raw, err := os.ReadFile(filepath.Join(dir, "thinking.md"))
-  if err != nil || !strings.Contains(string(raw), "check the cache flags first") ||
+  if err != nil || !strings.Contains(
+    string(raw),
+    "check the cache flags first",
+  ) ||
     !strings.Contains(string(raw), "why is the build slow") {
     t.Fatalf("thinking.md = %q, %v", raw, err)
   }
@@ -285,8 +365,16 @@ func TestSuggestCompact(t *testing.T) {
   }{
     { "no window", ContextState{ Used: 99999 }, false },
     { "below the mark", ContextState{ Used: 55000, Window: 100000 }, false },
-    { "between the mark and auto-compaction", ContextState{ Used: 65000, Window: 100000 }, true },
-    { "auto-compaction's turn", ContextState{ Used: 80000, Window: 100000 }, false },
+    {
+      "between the mark and auto-compaction",
+      ContextState{ Used: 65000, Window: 100000 },
+      true,
+    },
+    {
+      "auto-compaction's turn",
+      ContextState{ Used: 80000, Window: 100000 },
+      false,
+    },
   }
 
   for _, c := range cases {
@@ -326,7 +414,10 @@ func TestCompactHintOncePerStretch(t *testing.T) {
   }
 
   if !strings.Contains(history[len(history) - 1].Content, "/compact") {
-    t.Fatalf("hint = %q, want it to name /compact", history[len(history) - 1].Content)
+    t.Fatalf(
+      "hint = %q, want it to name /compact",
+      history[len(history) - 1].Content,
+    )
   }
 
   history = append(history,
@@ -341,7 +432,11 @@ func TestCompactHintOncePerStretch(t *testing.T) {
   // A compaction starts a new stretch: the hint may come back.
   history = append(history,
     llm.Message{ Role: "assistant", Content: "ok" },
-    llm.Message{ Role: "user", Content: "[Summary of the earlier conversation, compacted to save context]\n- x" },
+    llm.Message{
+      Role: "user",
+      Content: "[Summary of the earlier conversation, compacted to save " +
+        "context]\n- x",
+    },
     llm.Message{ Role: "user", Content: "again" },
   )
   loop.hintCompact(&history, hooks)

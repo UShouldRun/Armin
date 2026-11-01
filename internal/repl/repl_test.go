@@ -30,7 +30,11 @@ func TestAllDoesNotCoverPrivileged(t *testing.T) {
 
   ok, _ := r.approve(agent.ApprovePrivileged, "$ rm -rf build")
   if !ok || r.state & flagAutoApprove != 0 {
-    t.Fatalf("privileged: ok=%v, auto-approve turned on=%v", ok, r.state & flagAutoApprove != 0)
+    t.Fatalf(
+      "privileged: ok=%v, auto-approve turned on=%v",
+      ok,
+      r.state & flagAutoApprove != 0,
+    )
   }
 
   ok, _ = r.approve("run_program", "$ make")
@@ -134,11 +138,36 @@ func TestAnswerNewlines(t *testing.T) {
     tool   bool
     want   string
   }{
-    { "remark then tool", []string{ "Let me verify it builds:", "\n\n\n" }, true, "Let me verify it builds:\n● build_check" },
-    { "newlines in one delta", []string{ "whether it builds.\n\n\n" }, true, "whether it builds.\n● build_check" },
-    { "paragraphs capped", []string{ "One.\n\n\n\nTwo." }, false, "One.\n\nTwo." },
-    { "split across deltas", []string{ "One.\n", "\n", "\nTwo." }, false, "One.\n\nTwo." },
-    { "space between words", []string{ "the ", "project" }, false, "the project" },
+    {
+      "remark then tool",
+      []string{ "Let me verify it builds:", "\n\n\n" },
+      true,
+      "Let me verify it builds:\n● build_check",
+    },
+    {
+      "newlines in one delta",
+      []string{ "whether it builds.\n\n\n" },
+      true,
+      "whether it builds.\n● build_check",
+    },
+    {
+      "paragraphs capped",
+      []string{ "One.\n\n\n\nTwo." },
+      false,
+      "One.\n\nTwo.",
+    },
+    {
+      "split across deltas",
+      []string{ "One.\n", "\n", "\nTwo." },
+      false,
+      "One.\n\nTwo.",
+    },
+    {
+      "space between words",
+      []string{ "the ", "project" },
+      false,
+      "the project",
+    },
     { "single newline kept", []string{ "a\n", "b" }, false, "a\nb" },
   }
 

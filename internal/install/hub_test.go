@@ -18,13 +18,13 @@ import (
 
 func TestQuantLabel(t *testing.T) {
   for in, want := range map[string]string{
-    "Qwen3.5-9B-IQ4_XS.gguf":                        "IQ4_XS",
-    "Qwen3-30B-A3B-UD-Q4_K_XL.gguf":                 "UD-Q4_K_XL",
-    "Q8_0/Qwen3-32B-Q8_0-00001-of-00002.gguf":       "Q8_0",
-    "gpt-oss-20b-MXFP4.gguf":                        "MXFP4",
-    "Mellum2.1-12B-A2.5B-Thinking-MXFP4_MOE.gguf":   "MXFP4_MOE",
-    "model-bf16.gguf":                               "BF16",
-    "plain.gguf":                                    "plain",
+    "Qwen3.5-9B-IQ4_XS.gguf":                      "IQ4_XS",
+    "Qwen3-30B-A3B-UD-Q4_K_XL.gguf":               "UD-Q4_K_XL",
+    "Q8_0/Qwen3-32B-Q8_0-00001-of-00002.gguf":     "Q8_0",
+    "gpt-oss-20b-MXFP4.gguf":                      "MXFP4",
+    "Mellum2.1-12B-A2.5B-Thinking-MXFP4_MOE.gguf": "MXFP4_MOE",
+    "model-bf16.gguf":                             "BF16",
+    "plain.gguf":                                  "plain",
   } {
     got := quantLabel(in)
     if got != want {
@@ -104,7 +104,8 @@ func TestResolveAndReadRemote(t *testing.T) {
     t.Fatal(err)
   }
 
-  if len(src.Groups) != 1 || src.Pick != 0 || src.Groups[0].Files[0].SHA256 == "" {
+  if len(src.Groups) != 1 ||
+      src.Pick != 0 || src.Groups[0].Files[0].SHA256 == "" {
     t.Fatalf("source: %+v", src)
   }
 
@@ -135,8 +136,19 @@ func TestDownloadResumes(t *testing.T) {
     t.Fatal(err)
   }
 
-  u := (&source{ Repo: "org/repo", Rev: "main" }).fileURL(hubFile{ Path: "m.gguf" })
-  err = download(context.Background(), srv.Client(), u, dest, int64(len(data)), hex.EncodeToString(sum[:]), nil, nil)
+  u := (&source{ Repo: "org/repo", Rev: "main" }).fileURL(
+    hubFile{ Path: "m.gguf" },
+  )
+  err = download(
+    context.Background(),
+    srv.Client(),
+    u,
+    dest,
+    int64(len(data)),
+    hex.EncodeToString(sum[:]),
+    nil,
+    nil,
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -153,7 +165,16 @@ func TestDownloadResumes(t *testing.T) {
 
   // A wrong checksum deletes the file instead of keeping it.
   dest2 := dest + "2"
-  err = download(context.Background(), srv.Client(), u, dest2, int64(len(data)), strings.Repeat("0", 64), nil, nil)
+  err = download(
+    context.Background(),
+    srv.Client(),
+    u,
+    dest2,
+    int64(len(data)),
+    strings.Repeat("0", 64),
+    nil,
+    nil,
+  )
   if err == nil || !strings.Contains(err.Error(), "SHA-256") {
     t.Errorf("bad checksum: %v", err)
   }
@@ -166,16 +187,21 @@ func TestDownloadResumes(t *testing.T) {
 
 func TestParseHub(t *testing.T) {
   for in, want := range map[string]hubRef{
-    "org/repo":                         { "org/repo", "main", "", "" },
-    "org/repo:Q4_K_M":                  { "org/repo", "main", "", "Q4_K_M" },
-    "org/repo/sub/m-Q8_0.gguf":         { "org/repo", "main", "sub/m-Q8_0.gguf", "" },
-    "https://huggingface.co/org/repo":  { "org/repo", "main", "", "" },
-    "https://huggingface.co/org/repo/": { "org/repo", "main", "", "" },
-    "http://www.huggingface.co/org/repo?library=gguf#files": { "org/repo", "main", "", "" },
-    "https://hf.co/org/repo:IQ4_XS":    { "org/repo", "main", "", "IQ4_XS" },
-    "https://huggingface.co/org/repo/tree/main":              { "org/repo", "main", "", "" },
-    "https://huggingface.co/org/repo/tree/v2/Q8_0":           { "org/repo", "v2", "", "Q8_0" },
-    "https://huggingface.co/org/repo/blob/main/m-Q4_K_M.gguf": { "org/repo", "main", "m-Q4_K_M.gguf", "" },
+    "org/repo":        { "org/repo", "main", "", "" },
+    "org/repo:Q4_K_M": { "org/repo", "main", "", "Q4_K_M" },
+    "org/repo/sub/m-Q8_0.gguf":         {
+      "org/repo",
+      "main",
+      "sub/m-Q8_0.gguf",
+      "",
+    },
+    "https://huggingface.co/org/repo":                                       { "org/repo", "main", "", "" },
+    "https://huggingface.co/org/repo/":                                      { "org/repo", "main", "", "" },
+    "http://www.huggingface.co/org/repo?library=gguf#files":                 { "org/repo", "main", "", "" },
+    "https://hf.co/org/repo:IQ4_XS":                                         { "org/repo", "main", "", "IQ4_XS" },
+    "https://huggingface.co/org/repo/tree/main":                             { "org/repo", "main", "", "" },
+    "https://huggingface.co/org/repo/tree/v2/Q8_0":                          { "org/repo", "v2", "", "Q8_0" },
+    "https://huggingface.co/org/repo/blob/main/m-Q4_K_M.gguf":               { "org/repo", "main", "m-Q4_K_M.gguf", "" },
     "https://huggingface.co/org/repo/resolve/abc123/d/m.gguf?download=true": { "org/repo", "abc123", "d/m.gguf", "" },
   } {
     got, err := parseHub(in)
@@ -203,7 +229,8 @@ func TestCatalog(t *testing.T) {
 
   for name, e := range catalog {
     _, err := parseHub(e.Repo)
-    if err != nil || name != strings.ToLower(name) || strings.Contains(name, ":") {
+    if err != nil ||
+        name != strings.ToLower(name) || strings.Contains(name, ":") {
       t.Errorf("catalog %q: %v", name, err)
     }
   }
@@ -227,7 +254,10 @@ func TestDirectLink(t *testing.T) {
     t.Fatal(err)
   }
 
-  if src.URL == "" || src.Groups[0].Label != "Q5_K_M" || src.Groups[0].Size != int64(len(data)) {
+  if src.URL == "" ||
+      src.Groups[0].Label != "Q5_K_M" || src.Groups[0].Size != int64(
+        len(data),
+      ) {
     t.Fatalf("direct source: %+v", src)
   }
 
@@ -280,7 +310,8 @@ func TestGroupQuantsDuplicateLabels(t *testing.T) {
     { Path: "M-Q8_0.gguf", Size: 20 },
   })
 
-  if gs[0].Label != "M-Q4_0" || gs[1].Label != "M-QAD-Q4_0" || gs[2].Label != "Q8_0" {
+  if gs[0].Label != "M-Q4_0" ||
+      gs[1].Label != "M-QAD-Q4_0" || gs[2].Label != "Q8_0" {
     t.Errorf("labels: %s %s %s", gs[0].Label, gs[1].Label, gs[2].Label)
   }
 }
@@ -288,14 +319,21 @@ func TestGroupQuantsDuplicateLabels(t *testing.T) {
 // shortRetries makes the retry timing fast for a test.
 func shortRetries(t *testing.T) {
   s, f, m, g := stallTimeout, retryFirst, retryMax, giveUpAfter
-  stallTimeout, retryFirst, retryMax, giveUpAfter = 200 * time.Millisecond, 10 * time.Millisecond, 40 * time.Millisecond, 2 * time.Second
-  t.Cleanup(func() { stallTimeout, retryFirst, retryMax, giveUpAfter = s, f, m, g })
+  stallTimeout = 200 * time.Millisecond
+  retryFirst   = 10 * time.Millisecond
+  retryMax     = 40 * time.Millisecond
+  giveUpAfter  = 2 * time.Second
+  t.Cleanup(
+    func() { stallTimeout, retryFirst, retryMax, giveUpAfter = s, f, m, g },
+  )
 }
 
 // flaky serves data with Range, but the first few requests break:
 // "drop" closes the connection after a chunk, "stall" sends a chunk
 // and then goes quiet, as a dead Wi-Fi link does.
-func flaky(t *testing.T, data []byte, mode string, failures int) (*httptest.Server, *int) {
+func flaky(
+  t *testing.T, data []byte, mode string, failures int,
+) (*httptest.Server, *int) {
   calls := 0
   srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
     calls++
@@ -308,7 +346,10 @@ func flaky(t *testing.T, data []byte, mode string, failures int) (*httptest.Serv
     fmt.Sscanf(r.Header.Get("Range"), "bytes=%d-", &start)
     w.Header().Set("Content-Length", fmt.Sprint(len(data) - start))
     if start > 0 {
-      w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, len(data) - 1, len(data)))
+      w.Header().Set(
+        "Content-Range",
+        fmt.Sprintf("bytes %d-%d/%d", start, len(data) - 1, len(data)),
+      )
       w.WriteHeader(http.StatusPartialContent)
     }
 
@@ -348,7 +389,13 @@ func TestDownloadRetries(t *testing.T) {
 
     got, _ := os.ReadFile(dest)
     if !bytes.Equal(got, data) || retries != 3 || *calls != 4 {
-      t.Errorf("%s: %d bytes, %d retries, %d calls", mode, len(got), retries, *calls)
+      t.Errorf(
+        "%s: %d bytes, %d retries, %d calls",
+        mode,
+        len(got),
+        retries,
+        *calls,
+      )
     }
   }
 }
@@ -362,7 +409,16 @@ func TestDownloadGivesUp(t *testing.T) {
   defer missing.Close()
   retries := 0
   count := func(error, time.Duration) { retries++ }
-  err := download(context.Background(), missing.Client(), missing.URL, filepath.Join(t.TempDir(), "m"), 5000, "", nil, count)
+  err := download(
+    context.Background(),
+    missing.Client(),
+    missing.URL,
+    filepath.Join(t.TempDir(), "m"),
+    5000,
+    "",
+    nil,
+    count,
+  )
   if err == nil || retries != 0 {
     t.Errorf("404: %v after %d retries", err, retries)
   }
@@ -375,7 +431,16 @@ func TestDownloadGivesUp(t *testing.T) {
   defer down.Close()
   dest := filepath.Join(t.TempDir(), "m")
   os.WriteFile(dest + ".part", data[:100], 0o644)
-  err = download(context.Background(), down.Client(), down.URL, dest, int64(len(data)), "", nil, nil)
+  err = download(
+    context.Background(),
+    down.Client(),
+    down.URL,
+    dest,
+    int64(len(data)),
+    "",
+    nil,
+    nil,
+  )
   if err == nil || !strings.Contains(err.Error(), "no progress") {
     t.Errorf("down: %v", err)
   }
@@ -389,8 +454,18 @@ func TestDownloadGivesUp(t *testing.T) {
   ctx, cancel := context.WithCancel(context.Background())
   go func() { time.Sleep(50 * time.Millisecond); cancel() }()
   start := time.Now()
-  err = download(ctx, down.Client(), down.URL, dest, int64(len(data)), "", nil, nil)
-  if err == nil || !strings.Contains(err.Error(), "interrupted") || time.Since(start) > time.Second {
+  err = download(
+    ctx,
+    down.Client(),
+    down.URL,
+    dest,
+    int64(len(data)),
+    "",
+    nil,
+    nil,
+  )
+  if err == nil || !strings.Contains(err.Error(), "interrupted") ||
+      time.Since(start) > time.Second {
     t.Errorf("cancel: %v after %s", err, time.Since(start))
   }
 }

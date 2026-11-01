@@ -31,7 +31,9 @@ func newTestServer(t *testing.T) *Server {
 
 // call sends one request line through Serve's handler directly (no
 // stdio round trip needed) and returns the decoded response.
-func call(t *testing.T, s *Server, id int, method string, params any) rpcResponse {
+func call(
+  t *testing.T, s *Server, id int, method string, params any,
+) rpcResponse {
   t.Helper()
 
   var paramsRaw json.RawMessage
@@ -77,7 +79,11 @@ func TestInitialize(t *testing.T) {
   var result initializeResult
   remarshal(t, resp.Result, &result)
   if result.ProtocolVersion != protocolVersion {
-    t.Fatalf("ProtocolVersion = %q, want %q", result.ProtocolVersion, protocolVersion)
+    t.Fatalf(
+      "ProtocolVersion = %q, want %q",
+      result.ProtocolVersion,
+      protocolVersion,
+    )
   }
 
   if result.ServerInfo.Name != "armin" {
@@ -123,7 +129,8 @@ func TestToolsList(t *testing.T) {
 
   for _, want := range []string{
     "search_code", "read_file", "list_directory", "run_command", "web_search",
-    "count_lines", "list_languages", "find_files", "file_stat", "find_todo_fixme",
+    "count_lines", "list_languages", "find_files", "file_stat",
+    "find_todo_fixme",
     "env_info", "project_manifest",
     "find_definition", "list_symbols", "outline_file", "find_references",
     "git_log", "git_blame", "git_diff", "git_show", "working_tree_diff",
@@ -154,8 +161,12 @@ func TestToolsCallSuccess(t *testing.T) {
     t.Fatalf("expected success, got an error result: %+v", result)
   }
 
-  if len(result.Content) != 1 || !strings.Contains(result.Content[0].Text, "hello") {
-    t.Fatalf("Content = %+v, want it to contain the file's text", result.Content)
+  if len(result.Content) != 1 ||
+      !strings.Contains(result.Content[0].Text, "hello") {
+    t.Fatalf(
+      "Content = %+v, want it to contain the file's text",
+      result.Content,
+    )
   }
 }
 
@@ -170,13 +181,22 @@ func TestToolsCallDisallowedBinaryIsError(t *testing.T) {
   remarshal(t, resp.Result, &result)
 
   if !result.IsError {
-    t.Fatal("expected IsError=true for a disallowed binary — MCP clients rely on this to know the call failed")
+    t.Fatal(
+      "expected IsError=true for a disallowed binary — MCP clients rely on " +
+        "this to know the call failed",
+    )
   }
 }
 
 func TestToolsCallUnknownTool(t *testing.T) {
   s := newTestServer(t)
-  resp := call(t, s, 1, "tools/call", callToolParams{ Name: "delete_everything" })
+  resp := call(
+    t,
+    s,
+    1,
+    "tools/call",
+    callToolParams{ Name: "delete_everything" },
+  )
 
   var result callToolResult
   remarshal(t, resp.Result, &result)
@@ -224,7 +244,9 @@ func TestServeEndToEnd(t *testing.T) {
   s := newTestServer(t)
 
   var in bytes.Buffer
-  in.WriteString(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}` + "\n")
+  in.WriteString(
+    `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}` + "\n",
+  )
   in.WriteString(`{"jsonrpc":"2.0","id":2,"method":"tools/list"}` + "\n")
 
   var out bytes.Buffer

@@ -24,7 +24,10 @@ func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
   defer f.mu.Unlock()
   if r.Header.Get("X-Auth-Token") != "secret" {
     w.WriteHeader(401)
-    io.WriteString(w, `{"message":"authentication is denied","type":"denied_authentication"}`)
+    io.WriteString(
+      w,
+      `{"message":"authentication is denied","type":"denied_authentication"}`,
+    )
 
     return
   }
@@ -37,7 +40,13 @@ func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       ip = `{"id":"ip-1","address":"51.15.0.9"}`
     }
 
-    fmt.Fprintf(w, `{"server":{"id":"srv-1","state":%q,"public_ip":%s,"public_ips":[],"private_ip":null}}`, f.state, ip)
+    fmt.Fprintf(
+      w,
+      `{"server":{"id":"srv-1","state":%q,"public_ip":%s,` +
+        `"public_ips":[],"private_ip":null}}`,
+      f.state,
+      ip,
+    )
     if f.state == "starting" {
       f.state = "running"
     }
@@ -98,9 +107,17 @@ func TestWaitRunningPowersOnAndOff(t *testing.T) {
 func TestErrorsAreReadable(t *testing.T) {
   server := httptest.NewServer(&fakeAPI{ state: "running" })
   defer server.Close()
-  c := &scalewayClient{ Zone: "fr-par-2", SecretKey: "wrong", HTTP: http.DefaultClient, Endpoint: server.URL }
+  c := &scalewayClient{
+    Zone:      "fr-par-2",
+    SecretKey: "wrong",
+    HTTP:      http.DefaultClient,
+    Endpoint:  server.URL,
+  }
   _, err := c.GetServer(context.Background(), "srv-1")
-  if err == nil || !strings.Contains(err.Error(), "HTTP 401: authentication is denied") {
+  if err == nil || !strings.Contains(
+    err.Error(),
+    "HTTP 401: authentication is denied",
+  ) {
     t.Fatalf("err = %v", err)
   }
 }

@@ -29,7 +29,11 @@ func TestFindCallersFindsCallSites(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeCallGraphFixture(t, cfg.Root)
 
-  out, err := FindCallers(context.Background(), cfg, FindCallersInput{ Name: "Helper" })
+  out, err := FindCallers(
+    context.Background(),
+    cfg,
+    FindCallersInput{ Name: "Helper" },
+  )
   if err != nil {
     t.Fatalf("FindCallers: %v", err)
   }
@@ -43,7 +47,11 @@ func TestFindCallersNoCallSites(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeCallGraphFixture(t, cfg.Root)
 
-  out, err := FindCallers(context.Background(), cfg, FindCallersInput{ Name: "Orphan" })
+  out, err := FindCallers(
+    context.Background(),
+    cfg,
+    FindCallersInput{ Name: "Orphan" },
+  )
   if err != nil {
     t.Fatalf("FindCallers: %v", err)
   }
@@ -68,7 +76,11 @@ func TestImpactAnalysisTransitiveCallers(t *testing.T) {
   writeCallGraphFixture(t, cfg.Root)
 
   // depth 1: only CallsHelper (the direct caller of Helper).
-  out, err := ImpactAnalysis(context.Background(), cfg, ImpactAnalysisInput{ Name: "Helper", Depth: 1 })
+  out, err := ImpactAnalysis(
+    context.Background(),
+    cfg,
+    ImpactAnalysisInput{ Name: "Helper", Depth: 1 },
+  )
   if err != nil {
     t.Fatalf("ImpactAnalysis: %v", err)
   }
@@ -78,7 +90,11 @@ func TestImpactAnalysisTransitiveCallers(t *testing.T) {
   }
 
   // depth 2: CallsHelper, then whoever calls that (CallsCallsHelper).
-  out, err = ImpactAnalysis(context.Background(), cfg, ImpactAnalysisInput{ Name: "Helper", Depth: 2 })
+  out, err = ImpactAnalysis(
+    context.Background(),
+    cfg,
+    ImpactAnalysisInput{ Name: "Helper", Depth: 2 },
+  )
   if err != nil {
     t.Fatalf("ImpactAnalysis: %v", err)
   }

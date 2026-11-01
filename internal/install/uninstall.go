@@ -31,7 +31,8 @@ func Uninstall(req Request) error {
   e, ok := req.Models[name]
   if !ok {
     return fmt.Errorf(
-      "\n\t... in Uninstall:\n\t no models.%s in config.conf (armin -uninstall list shows them)",
+      "\n\t... in Uninstall:\n\t no models.%s in config.conf (armin " +
+        "-uninstall list shows them)",
       name,
     )
   }
@@ -101,7 +102,10 @@ func Uninstall(req Request) error {
 
   fmt.Printf("removed models.%s; %s freed\n", name, gb(total))
   if len(failed) > 0 {
-    return fmt.Errorf("\n\t... in Uninstall:\n\t%s", strings.Join(failed, "\n\t"))
+    return fmt.Errorf(
+      "\n\t... in Uninstall:\n\t%s",
+      strings.Join(failed, "\n\t"),
+    )
   }
 
   return nil
@@ -140,7 +144,8 @@ func withoutModel(text, name string) (kept string, removed []string) {
     }
 
     blank := strings.TrimSpace(l) == ""
-    if blank && len(out) > 0 && strings.TrimSpace(out[len(out) - 1]) == "" && i > 0 && drop[i - 1] {
+    if blank && len(out) > 0 &&
+        strings.TrimSpace(out[len(out) - 1]) == "" && i > 0 && drop[i - 1] {
       continue
     }
 
@@ -153,7 +158,9 @@ func withoutModel(text, name string) (kept string, removed []string) {
 // modelFiles is what deleting name frees: its .gguf, the other parts
 // of a split one, and leftover .part downloads. A file another model
 // also points at is returned in shared instead.
-func modelFiles(name string, e Existing, models map[string]Existing) (files []sizedFile, shared []string) {
+func modelFiles(
+  name string, e Existing, models map[string]Existing,
+) (files []sizedFile, shared []string) {
   if e.ModelPath == "" || e.Remote || e.External {
     return nil, nil
   }
@@ -163,7 +170,9 @@ func modelFiles(name string, e Existing, models map[string]Existing) (files []si
   m := splitSuffix.FindStringSubmatchIndex(path)
   if m != nil {
     // name-00001-of-00003.gguf: every part shares what comes before.
-    found, _ := filepath.Glob(path[:m[0]] + "-?????-of-" + path[m[2]:m[3]] + ".gguf")
+    found, _ := filepath.Glob(
+      path[:m[0]] + "-?????-of-" + path[m[2]:m[3]] + ".gguf",
+    )
     paths = found
   }
 

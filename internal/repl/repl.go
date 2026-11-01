@@ -111,7 +111,11 @@ func New(
 
   r.History = []llm.Message{ { Role: "system", Content: systemPrompt } }
   agent.SetModelLine(r.History, client.Model, models.Label(client.Model))
-  r.Meta = session.Meta{ ID: session.NewID(), Root: sb.Root, Model: client.Model }
+  r.Meta = session.Meta{
+    ID:    session.NewID(),
+    Root:  sb.Root,
+    Model: client.Model,
+  }
 
   return r
 }
@@ -123,7 +127,11 @@ func New(
 // tools.ProjectManifest) rather than duplicating it — this is just
 // that same note, loaded once automatically at session start.
 func (r *REPL) LoadAutoContext(ctx context.Context) {
-  out, err := tools.ProjectManifest(ctx, r.Sandbox, tools.ProjectManifestInput{})
+  out, err := tools.ProjectManifest(
+    ctx,
+    r.Sandbox,
+    tools.ProjectManifestInput{},
+  )
   if err != nil || out.Note == "" {
     return
   }
@@ -149,7 +157,13 @@ func (r *REPL) prompt() string {
   }
 
   pct := used * 100 / window
-  gauge := fmt.Sprintf("%s%s/%s %d%%", mark, kTokens(used), kTokens(window), pct)
+  gauge := fmt.Sprintf(
+    "%s%s/%s %d%%",
+    mark,
+    kTokens(used),
+    kTokens(window),
+    pct,
+  )
   if r.Loop.Tier() == "streaming" {
     gauge += " streaming"
   }
@@ -238,7 +252,9 @@ func (r *REPL) Run(ctx context.Context) error {
   case r.resumedAt != nil:
     ui.Info(
       "  session: %s (%s), last saved %s",
-      ui.Bold(titleOr(r.Meta.Title)), ShortID(r.Meta.ID), r.resumedAt.Format("Jan 2 " +
+      ui.Bold(
+        titleOr(r.Meta.Title),
+      ), ShortID(r.Meta.ID), r.resumedAt.Format("Jan 2 " +
         "15:04"),
     )
   default:

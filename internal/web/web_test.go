@@ -40,7 +40,11 @@ func fakeModel(t *testing.T) *httptest.Server {
 func newServer(t *testing.T) (*Server, string) {
   t.Helper()
   root := t.TempDir()
-  os.WriteFile(filepath.Join(root, "page.html"), []byte("<script>alert(1)</script>"), 0o644)
+  os.WriteFile(
+    filepath.Join(root, "page.html"),
+    []byte("<script>alert(1)</script>"),
+    0o644,
+  )
   sb, err := sandbox.New(root, sandbox.Options{})
   if err != nil {
     t.Fatal(err)
@@ -69,7 +73,11 @@ func TestLocalOnlyRejectsForeignHostAndOrigin(t *testing.T) {
     t.Errorf("foreign Host: %d, want 403", rec.Code)
   }
 
-  req = httptest.NewRequest("POST", "/api/command", strings.NewReader(`{"name":"clear"}`))
+  req = httptest.NewRequest(
+    "POST",
+    "/api/command",
+    strings.NewReader(`{"name":"clear"}`),
+  )
   req.Host = "127.0.0.1:7777"
   req.Header.Set("Origin", "https://evil.example")
   rec = httptest.NewRecorder()
@@ -121,7 +129,11 @@ func TestChatStreamsAndWaitsForApproval(t *testing.T) {
   srv := httptest.NewServer(s.routes())
   defer srv.Close()
 
-  resp, err := http.Post(srv.URL + "/api/chat", "application/json", strings.NewReader(`{"message":"make new.txt"}`))
+  resp, err := http.Post(
+    srv.URL + "/api/chat",
+    "application/json",
+    strings.NewReader(`{"message":"make new.txt"}`),
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -148,7 +160,11 @@ func TestChatStreamsAndWaitsForApproval(t *testing.T) {
         }
 
         body := `{"id":"` + a["id"] + `","ok":true}`
-        r, err := http.Post(srv.URL + "/api/approve", "application/json", strings.NewReader(body))
+        r, err := http.Post(
+          srv.URL + "/api/approve",
+          "application/json",
+          strings.NewReader(body),
+        )
         if err != nil || r.StatusCode != 200 {
           t.Fatalf("approve: %v %v", err, r.Status)
         }
@@ -166,7 +182,8 @@ func TestChatStreamsAndWaitsForApproval(t *testing.T) {
     }
   }
 
-  if len(events["tool"]) != 1 || len(events["approve"]) != 1 || len(events["done"]) != 1 {
+  if len(events["tool"]) != 1 ||
+      len(events["approve"]) != 1 || len(events["done"]) != 1 {
     t.Fatalf("events = %v", events)
   }
 
@@ -192,7 +209,11 @@ func TestChatSavesAndResumes(t *testing.T) {
   }
 
   srv := httptest.NewServer(New(context.Background(), cfg).routes())
-  resp, err := http.Post(srv.URL + "/api/chat", "application/json", strings.NewReader(`{"message":"make new.txt"}`))
+  resp, err := http.Post(
+    srv.URL + "/api/chat",
+    "application/json",
+    strings.NewReader(`{"message":"make new.txt"}`),
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -228,7 +249,10 @@ func TestChatSavesAndResumes(t *testing.T) {
   }
 
   json.NewDecoder(resp.Body).Decode(&h)
-  if h.ID != saved.ID || len(h.Entries) != 3 || h.Entries[0].Text != "make new.txt" || h.Entries[1].Role != "tool" {
+  if h.ID != saved.ID ||
+      len(
+        h.Entries,
+      ) != 3 || h.Entries[0].Text != "make new.txt" || h.Entries[1].Role != "tool" {
     t.Fatalf("history = %+v", h)
   }
 }

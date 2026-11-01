@@ -112,7 +112,9 @@ func New(
 // NewProxy builds a Server for an nvim joining the project's armin
 // instance: definition and symbols answer here, from ctags; chat,
 // hover, completion and models go to the host.
-func NewProxy(sb *sandbox.Config, symbols *ctags.Index, host *share.Client) *Server {
+func NewProxy(
+  sb *sandbox.Config, symbols *ctags.Index, host *share.Client,
+) *Server {
   return &Server{
     sandbox:    sb,
     symbols:    symbols,

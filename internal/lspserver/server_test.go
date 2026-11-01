@@ -30,7 +30,10 @@ func fakeChatServer(t *testing.T, reply string) *httptest.Server {
       if req.Stream {
         delta, _ := json.Marshal(map[string]any{
           "choices": []map[string]any{
-            { "delta": map[string]string{ "content": reply }, "finish_reason": "stop" },
+            {
+              "delta":         map[string]string{ "content": reply },
+              "finish_reason": "stop",
+            },
           },
         })
         fmt.Fprintf(w, "data: %s\n\ndata: [DONE]\n\n", delta)
@@ -40,7 +43,12 @@ func fakeChatServer(t *testing.T, reply string) *httptest.Server {
 
       json.NewEncoder(w).Encode(map[string]any{
         "choices": []map[string]any{
-          { "message": map[string]string{ "role": "assistant", "content": reply } },
+          {
+            "message": map[string]string{
+              "role":    "assistant",
+              "content": reply,
+            },
+          },
         },
       })
     },
@@ -82,14 +90,23 @@ func newTestServer(t *testing.T, chatURL string, modelNames ...string) *Server {
 
   loop := agent.New(client, sb)
 
-  return New(loop, sb, "system prompt", completionClient, models, ctags.New(root, ""))
+  return New(
+    loop,
+    sb,
+    "system prompt",
+    completionClient,
+    models,
+    ctags.New(root, ""),
+  )
 }
 
 // callExecuteCommand invokes s.executeCommand directly rather than
 // through s.handle — handle dispatches executeCommand in a
 // goroutine (so a slow model call never blocks the read loop), which
 // would make a synchronous test racy against s.out.
-func callExecuteCommand(t *testing.T, s *Server, p ExecuteCommandParams) rpcResponse {
+func callExecuteCommand(
+  t *testing.T, s *Server, p ExecuteCommandParams,
+) rpcResponse {
   t.Helper()
 
   var out bytes.Buffer
@@ -143,7 +160,10 @@ func TestExecuteModelSwitchesLive(t *testing.T) {
   }
 
   if s.loop.LLM.Model != "coder" {
-    t.Fatalf("the shared client's Model wasn't actually updated: %q", s.loop.LLM.Model)
+    t.Fatalf(
+      "the shared client's Model wasn't actually updated: %q",
+      s.loop.LLM.Model,
+    )
   }
 }
 
@@ -161,7 +181,10 @@ func TestExecuteModelRejectsUnconfiguredName(t *testing.T) {
   }
 
   if s.loop.LLM.Model != "chat" {
-    t.Fatalf("a rejected switch must not mutate the client: Model = %q", s.loop.LLM.Model)
+    t.Fatalf(
+      "a rejected switch must not mutate the client: Model = %q",
+      s.loop.LLM.Model,
+    )
   }
 }
 
@@ -170,7 +193,11 @@ func TestExecuteModelReportsCurrentAndConfigured(t *testing.T) {
   defer server.Close()
   s := newTestServer(t, server.URL, "chat", "coder")
 
-  resp := callExecuteCommand(t, s, ExecuteCommandParams{ Command: "armin.model" })
+  resp := callExecuteCommand(
+    t,
+    s,
+    ExecuteCommandParams{ Command: "armin.model" },
+  )
   if resp.Error != nil {
     t.Fatalf("armin.model (get): %+v", resp.Error)
   }
@@ -196,7 +223,9 @@ func TestExecuteModelReportsCurrentAndConfigured(t *testing.T) {
 // raw error body llama-server returns for a model/template with no
 // tool-calling support — executeAsk/hover are expected to turn this
 // into a clean, one-line message instead of passing it through.
-func fakeChatServerRejectsTools(t *testing.T, modelName string) *httptest.Server {
+func fakeChatServerRejectsTools(
+  t *testing.T, modelName string,
+) *httptest.Server {
   t.Helper()
   return httptest.NewServer(http.HandlerFunc(
     func(w http.ResponseWriter, r *http.Request) {
@@ -217,19 +246,25 @@ func TestExecuteAskToolsUnsupportedShowsCleanMessage(t *testing.T) {
 
   resp := callExecuteCommand(t, s, ExecuteCommandParams{
     Command:   "armin.ask",
-    Arguments: []json.RawMessage{ json.RawMessage(`{"question":"what does this do?"}`) },
+    Arguments: []json.RawMessage{
+      json.RawMessage(`{"question":"what does this do?"}`),
+    },
   })
   if resp.Error == nil {
     t.Fatal("expected an error response")
   }
 
-  if strings.Contains(resp.Error.Message, "\t") || strings.Contains(resp.Error.Message, "\n") {
+  if strings.Contains(resp.Error.Message, "\t") ||
+      strings.Contains(resp.Error.Message, "\n") {
     t.Fatalf("error message wasn't cleaned up: %q", resp.Error.Message)
   }
 
   if !strings.Contains(resp.Error.Message, "fake-model") ||
     !strings.Contains(resp.Error.Message, ":ArminModel") {
-    t.Fatalf("error message = %q, want it to name the model and mention :ArminModel", resp.Error.Message)
+    t.Fatalf(
+      "error message = %q, want it to name the model and mention :ArminModel",
+      resp.Error.Message,
+    )
   }
 }
 
@@ -256,7 +291,9 @@ func TestExecuteAskKeepsConversation(t *testing.T) {
   ask := func(q string) {
     resp := callExecuteCommand(t, s, ExecuteCommandParams{
       Command:   "armin.ask",
-      Arguments: []json.RawMessage{ json.RawMessage(`{"question":"` + q + `"}`) },
+      Arguments: []json.RawMessage{
+        json.RawMessage(`{"question":"` + q + `"}`),
+      },
     })
     if resp.Error != nil {
       t.Fatalf("armin.ask: %+v", resp.Error)
@@ -281,7 +318,11 @@ func TestExecuteAskKeepsConversation(t *testing.T) {
     t.Fatal("citation instruction belongs in the system prompt")
   }
 
-  resp := callExecuteCommand(t, s, ExecuteCommandParams{ Command: "armin.clear" })
+  resp := callExecuteCommand(
+    t,
+    s,
+    ExecuteCommandParams{ Command: "armin.clear" },
+  )
   if resp.Error != nil || len(s.chat) != 0 {
     t.Fatalf("armin.clear: %+v, chat = %d messages", resp.Error, len(s.chat))
   }
@@ -332,7 +373,12 @@ func TestJoinSharesChat(t *testing.T) {
   defer c.Close()
 
   if c.Origin != "terminal:2" || c.Instance != 1 || c.Model.Current != "chat" {
-    t.Fatalf("joined as %q, instance %d, model %q", c.Origin, c.Instance, c.Model.Current)
+    t.Fatalf(
+      "joined as %q, instance %d, model %q",
+      c.Origin,
+      c.Instance,
+      c.Model.Current,
+    )
   }
 
   _, err = share.Listen(context.Background(), root, s)
@@ -356,7 +402,8 @@ func TestJoinSharesChat(t *testing.T) {
   }
 
   h, err := c.Lines(context.Background())
-  if err != nil || len(h) != 2 || h[0].Text != "hi" || h[1].Text != "shared answer" {
+  if err != nil || len(h) != 2 ||
+      h[0].Text != "hi" || h[1].Text != "shared answer" {
     t.Fatalf("history = %+v, %v", h, err)
   }
 

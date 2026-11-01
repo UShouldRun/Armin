@@ -178,7 +178,14 @@ func (r *REPL) deleteSession(id string) {
     "(%s, %s, %d msgs) and its scratchpad? [y/N]",
     ShortID(saved.ID), filepath.Base(saved.Root), saved.Messages,
   )
-  answer, _ := r.ask(fmt.Sprintf("%s %s %s ", ui.Yellow("delete"), titleOr(saved.Title), ui.Dim(detail)))
+  answer, _ := r.ask(
+    fmt.Sprintf(
+      "%s %s %s ",
+      ui.Yellow("delete"),
+      titleOr(saved.Title),
+      ui.Dim(detail),
+    ),
+  )
   a := strings.ToLower(strings.TrimSpace(answer))
   if a != "y" && a != "yes" {
     ui.Info("kept")
@@ -237,7 +244,12 @@ func cmdResume(r *REPL, _ context.Context, args []string) {
   r.persisted = 0
   r.lastTokens = 0
   r.Loop.ElideOld(r.History)
-  ui.Info("resumed %s (%s), %d messages", titleOr(r.Meta.Title), ShortID(r.Meta.ID), len(r.History))
+  ui.Info(
+    "resumed %s (%s), %d messages",
+    titleOr(r.Meta.Title),
+    ShortID(r.Meta.ID),
+    len(r.History),
+  )
 }
 
 func cmdTitle(r *REPL, _ context.Context, args []string) {

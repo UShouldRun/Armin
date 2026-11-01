@@ -23,7 +23,10 @@ func (m *Manager) SetTier(ctx context.Context, name string, t Tier) error {
   spec, ok := m.specs[name]
   if !ok || spec.Stream == nil {
     m.mu.Unlock()
-    return fmt.Errorf("\n\t... in SetTier:\n\t model %q has no stream tier", name)
+    return fmt.Errorf(
+      "\n\t... in SetTier:\n\t model %q has no stream tier",
+      name,
+    )
   }
 
   cur := m.tiers[name]
@@ -76,7 +79,12 @@ func (m *Manager) Window(name string) *Window {
     return nil
   }
 
-  return &Window{ m: m, name: name, resident: resident, max: spec.Stream.Context }
+  return &Window{
+    m:        m,
+    name:     name,
+    resident: resident,
+    max:      spec.Stream.Context,
+  }
 }
 
 func (w *Window) Resident() int { return w.resident }

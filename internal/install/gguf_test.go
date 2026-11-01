@@ -103,7 +103,10 @@ func testMoE() []byte {
     { "testarch.expert_count", uint32(8) },
     { "testarch.expert_used_count", uint32(2) },
     { "testarch.attention.sliding_window", uint32(64) },
-    { "testarch.attention.sliding_window_pattern", []bool{ false, true, false, true } },
+    {
+      "testarch.attention.sliding_window_pattern",
+      []bool{ false, true, false, true },
+    },
   }
 
   ts := []testTensor{
@@ -124,7 +127,9 @@ func testMoE() []byte {
 
 func TestReadModel(t *testing.T) {
   data := testMoE()
-  m, err := readModel([]part{ { r: bytes.NewReader(data), size: int64(len(data)) } })
+  m, err := readModel(
+    []part{ { r: bytes.NewReader(data), size: int64(len(data)) } },
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -133,7 +138,8 @@ func TestReadModel(t *testing.T) {
     t.Errorf("identity = %q %q %q", m.Arch, m.Name, m.Quant)
   }
 
-  if m.Layers != 4 || m.Context != 65536 || m.ExpertCount != 8 || m.ExpertUsed != 2 {
+  if m.Layers != 4 ||
+      m.Context != 65536 || m.ExpertCount != 8 || m.ExpertUsed != 2 {
     t.Errorf("shape = %+v", m)
   }
 
@@ -148,8 +154,15 @@ func TestReadModel(t *testing.T) {
 
   // 2 kv heads × (32 + 32) dims × q8_0, per attention layer.
   per := 2 * 64 * kvBytesQ8
-  if m.AttnLayers != 4 || m.SWALayers != 2 || m.KVFull != 2 * per || m.KVSWA != 2 * per {
-    t.Errorf("kv: %d layers, %d swa, full %v swa %v", m.AttnLayers, m.SWALayers, m.KVFull, m.KVSWA)
+  if m.AttnLayers != 4 ||
+      m.SWALayers != 2 || m.KVFull != 2 * per || m.KVSWA != 2 * per {
+    t.Errorf(
+      "kv: %d layers, %d swa, full %v swa %v",
+      m.AttnLayers,
+      m.SWALayers,
+      m.KVFull,
+      m.KVSWA,
+    )
   }
 
   // Windowed layers stop growing at window + one batch.
@@ -175,7 +188,9 @@ func TestReadModelHybrid(t *testing.T) {
   }
 
   data := buildGGUF(kvs, []testTensor{ { "blk.0.x", []uint64{ 4 }, 64 } })
-  m, err := readModel([]part{ { r: bytes.NewReader(data), size: int64(len(data)) } })
+  m, err := readModel(
+    []part{ { r: bytes.NewReader(data), size: int64(len(data)) } },
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -199,7 +214,9 @@ func TestReadModelPerLayerKV(t *testing.T) {
   }
 
   data := buildGGUF(kvs, []testTensor{ { "blk.0.x", []uint64{ 4 }, 64 } })
-  m, err := readModel([]part{ { r: bytes.NewReader(data), size: int64(len(data)) } })
+  m, err := readModel(
+    []part{ { r: bytes.NewReader(data), size: int64(len(data)) } },
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -214,7 +231,9 @@ func TestReadModelRejects(t *testing.T) {
     "not gguf":  []byte("GGML0000000000000000000000"),
     "truncated": testMoE()[:100],
   } {
-    _, err := readModel([]part{ { r: bytes.NewReader(data), size: int64(len(data)) } })
+    _, err := readModel(
+      []part{ { r: bytes.NewReader(data), size: int64(len(data)) } },
+    )
     if err == nil {
       t.Errorf("%s: no error", name)
     }
@@ -232,7 +251,10 @@ func TestReadModelSplit(t *testing.T) {
     { "split.count", uint32(2) },
     { "x.block_count", uint32(1) },
   }, []testTensor{ { "blk.0.a", []uint64{ 4 }, 64 } })
-  b := buildGGUF([]testKV{ { "split.count", uint32(2) } }, []testTensor{ { "blk.0.b", []uint64{ 4 }, 96 } })
+  b := buildGGUF(
+    []testKV{ { "split.count", uint32(2) } },
+    []testTensor{ { "blk.0.b", []uint64{ 4 }, 96 } },
+  )
 
   m, err := readModel([]part{
     { r: bytes.NewReader(a), size: int64(len(a)) },

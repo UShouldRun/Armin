@@ -43,7 +43,9 @@ func runLSP(ctx context.Context, opts *input.Options, mind *think.Mind) error {
 
 // joinLSP serves nvim from the project's instance: symbols from a
 // local ctags index, everything that thinks from host.
-func joinLSP(ctx context.Context, opts *input.Options, host *share.Client) error {
+func joinLSP(
+  ctx context.Context, opts *input.Options, host *share.Client,
+) error {
   mind, err := think.NewSenses(opts)
   if err != nil {
     return fmt.Errorf("\n\t... in joinLSP:\n\t%w", err)

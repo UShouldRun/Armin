@@ -10,8 +10,8 @@ import (
 
 var codeTools = []toolSpec{
   {
-    id:    toolFindDefinition,
-    run:   withSymbols(tools.FindDefinition),
+    id:  toolFindDefinition,
+    run: withSymbols(tools.FindDefinition),
     def: llm.ToolFunction{
       Name: "find_definition",
       Description: "Find where a function, type, or variable is " +
@@ -34,8 +34,8 @@ var codeTools = []toolSpec{
     },
   },
   {
-    id:    toolListSymbols,
-    run:   withSymbols(tools.ListSymbols),
+    id:  toolListSymbols,
+    run: withSymbols(tools.ListSymbols),
     def: llm.ToolFunction{
       Name: "list_symbols",
       Description: "Fuzzy-search every known symbol name in the " +
@@ -53,8 +53,8 @@ var codeTools = []toolSpec{
     },
   },
   {
-    id:    toolOutlineFile,
-    run:   withSymbols(tools.OutlineFile),
+    id:  toolOutlineFile,
+    run: withSymbols(tools.OutlineFile),
     def: llm.ToolFunction{
       Name: "outline_file",
       Description: "List a file's known symbols without reading " +
@@ -73,8 +73,8 @@ var codeTools = []toolSpec{
     },
   },
   {
-    id:    toolFindReferences,
-    run:   inSandbox(tools.FindReferences),
+    id:  toolFindReferences,
+    run: inSandbox(tools.FindReferences),
     def: llm.ToolFunction{
       Name: "find_references",
       Description: "Find where an identifier is USED (not where " +
@@ -97,8 +97,8 @@ var codeTools = []toolSpec{
     },
   },
   {
-    id:    toolReadDocComment,
-    run:   withSymbolsAndSandbox(tools.ReadDocComment),
+    id:  toolReadDocComment,
+    run: withSymbolsAndSandbox(tools.ReadDocComment),
     def: llm.ToolFunction{
       Name: "read_doc_comment",
       Description: "Get just a symbol's doc comment, without " +
@@ -121,8 +121,8 @@ var codeTools = []toolSpec{
     },
   },
   {
-    id:    toolFindCallers,
-    run:   inSandbox(tools.FindCallers),
+    id:  toolFindCallers,
+    run: inSandbox(tools.FindCallers),
     def: llm.ToolFunction{
       Name: "find_callers",
       Description: "Find syntactic call sites of a Go function/" +
@@ -141,8 +141,8 @@ var codeTools = []toolSpec{
     },
   },
   {
-    id:    toolFindDeadCode,
-    run:   withSymbolsAndSandbox(tools.FindDeadCode),
+    id:  toolFindDeadCode,
+    run: withSymbolsAndSandbox(tools.FindDeadCode),
     def: llm.ToolFunction{
       Name: "find_dead_code",
       Description: "Find exported Go functions/methods with no " +
@@ -162,8 +162,8 @@ var codeTools = []toolSpec{
     },
   },
   {
-    id:    toolImpactAnalysis,
-    run:   inSandbox(tools.ImpactAnalysis),
+    id:  toolImpactAnalysis,
+    run: inSandbox(tools.ImpactAnalysis),
     def: llm.ToolFunction{
       Name: "impact_analysis",
       Description: "Find functions that transitively call a given " +
@@ -186,8 +186,8 @@ var codeTools = []toolSpec{
     },
   },
   {
-    id:    toolListDependencies,
-    run:   inSandbox(tools.ListDependencies),
+    id:  toolListDependencies,
+    run: inSandbox(tools.ListDependencies),
     def: llm.ToolFunction{
       Name: "list_dependencies",
       Description: "List the project's declared dependencies, " +
@@ -200,8 +200,8 @@ var codeTools = []toolSpec{
     },
   },
   {
-    id:    toolModuleGraph,
-    run:   inSandbox(tools.ModuleGraph),
+    id:  toolModuleGraph,
+    run: inSandbox(tools.ModuleGraph),
     def: llm.ToolFunction{
       Name: "module_graph",
       Description: "Show which of this Go module's own packages " +
@@ -214,8 +214,8 @@ var codeTools = []toolSpec{
     },
   },
   {
-    id:    toolListLanguages,
-    run:   inSandbox(tools.ListLanguages),
+    id:  toolListLanguages,
+    run: inSandbox(tools.ListLanguages),
     def: llm.ToolFunction{
       Name: "list_languages",
       Description: "Break the project down by file extension — " +
@@ -232,8 +232,8 @@ var codeTools = []toolSpec{
     },
   },
   {
-    id:    toolEnvInfo,
-    run:   inSandbox(tools.EnvInfo),
+    id:  toolEnvInfo,
+    run: inSandbox(tools.EnvInfo),
     def: llm.ToolFunction{
       Name: "env_info",
       Description: "Report the toolchain available: Go version, " +
@@ -245,8 +245,8 @@ var codeTools = []toolSpec{
     },
   },
   {
-    id:    toolProjectManifest,
-    run:   inSandbox(tools.ProjectManifest),
+    id:  toolProjectManifest,
+    run: inSandbox(tools.ProjectManifest),
     def: llm.ToolFunction{
       Name: "project_manifest",
       Description: "Get an orientation snapshot of the project: " +

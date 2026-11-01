@@ -37,7 +37,9 @@ import (
 // models of its own: a terminal shares its chat, nvim's -lsp sends
 // it chat, hover and completion. False means start normally (and
 // become the instance).
-func Join(ctx context.Context, opts *input.Options, sig *input.Signals) (bool, error) {
+func Join(
+  ctx context.Context, opts *input.Options, sig *input.Signals,
+) (bool, error) {
   if opts.Resumed != nil || opts.Has(input.FlagNew) {
     return false, nil
   }

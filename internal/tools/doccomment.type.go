@@ -10,5 +10,6 @@ type ReadDocCommentInput struct {
 type ReadDocCommentOutput struct {
   File    string `json:"file"`
   Line    int    `json:"line"`
-  Comment string `json:"comment"` // empty if no doc comment precedes the definition
+  // empty if no doc comment precedes the definition
+  Comment string `json:"comment"`
 }

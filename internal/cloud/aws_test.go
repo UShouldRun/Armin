@@ -39,7 +39,8 @@ func TestSignMatchesAWSTestSuite(t *testing.T) {
     req, _ := http.NewRequest(http.MethodGet, c.url, nil)
     awsSign(req, nil, testCreds, "us-east-1", "service", testTime)
 
-    want := "AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/20150830/us-east-1/service/aws4_request, " +
+    want := "AWS4-HMAC-SHA256 " +
+      "Credential=AKIDEXAMPLE/20150830/us-east-1/service/aws4_request, " +
       "SignedHeaders=host;x-amz-date, Signature=" + c.signature
     got := req.Header.Get("Authorization")
     if got != want {
@@ -57,7 +58,10 @@ type fakeEC2 struct {
 
 func (f *fakeEC2) handler(t *testing.T) http.HandlerFunc {
   return func(w http.ResponseWriter, r *http.Request) {
-    if !strings.HasPrefix(r.Header.Get("Authorization"), "AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/") {
+    if !strings.HasPrefix(
+      r.Header.Get("Authorization"),
+      "AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/",
+    ) {
       t.Errorf("unsigned request: %q", r.Header.Get("Authorization"))
     }
 
@@ -73,9 +77,13 @@ func (f *fakeEC2) handler(t *testing.T) http.HandlerFunc {
         ip = "<ipAddress>203.0.113.7</ipAddress>"
       }
 
-      io.WriteString(w, `<DescribeInstancesResponse><reservationSet><item><instancesSet><item>` +
-        `<instanceId>i-1</instanceId><instanceState><code>0</code><name>` + f.state + `</name></instanceState>` +
-        ip + `<privateIpAddress>10.0.0.5</privateIpAddress></item></instancesSet></item></reservationSet></DescribeInstancesResponse>`)
+      io.WriteString(w, `<DescribeInstancesResponse><reservationSet>` +
+        `<item><instancesSet><item><instanceId>i-1</instanceId>` +
+        `<instanceState><code>0</code><name>` + f.state +
+        `</name></instanceState>` + ip +
+        `<privateIpAddress>10.0.0.5</privateIpAddress></item>` +
+        `</instancesSet></item></reservationSet>` +
+        `</DescribeInstancesResponse>`)
       if f.state == "pending" {
         f.state = "running"
       }
@@ -105,7 +113,11 @@ func TestWaitRunningStartsStoppedInstance(t *testing.T) {
   var seen []string
   ctx, cancel := context.WithTimeout(context.Background(), 20 * time.Second)
   defer cancel()
-  inst, started, err := ec2.WaitRunning(ctx, "i-1", func(s string) { seen = append(seen, s) })
+  inst, started, err := ec2.WaitRunning(
+    ctx,
+    "i-1",
+    func(s string) { seen = append(seen, s) },
+  )
   if err != nil {
     t.Fatalf("WaitRunning: %v", err)
   }
@@ -131,15 +143,20 @@ func TestWaitRunningStartsStoppedInstance(t *testing.T) {
 func TestEC2ErrorIsReadable(t *testing.T) {
   server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(403)
-    io.WriteString(w, `<Response><Errors><Error><Code>UnauthorizedOperation</Code>` +
-      `<Message>You are not authorized</Message></Error></Errors></Response>`)
+    io.WriteString(w, `<Response><Errors><Error>` +
+      `<Code>UnauthorizedOperation</Code>` +
+      `<Message>You are not authorized</Message>` +
+      `</Error></Errors></Response>`)
   }))
   defer server.Close()
 
   ec2 := newEC2("eu-west-1", testCreds)
   ec2.Endpoint = server.URL
   err := ec2.StartInstance(context.Background(), "i-1")
-  if err == nil || !strings.Contains(err.Error(), "UnauthorizedOperation: You are not authorized") {
+  if err == nil || !strings.Contains(
+    err.Error(),
+    "UnauthorizedOperation: You are not authorized",
+  ) {
     t.Fatalf("err = %v", err)
   }
 }

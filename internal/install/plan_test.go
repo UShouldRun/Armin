@@ -34,7 +34,14 @@ func laptop() Machine {
 
   hw := Machine{
     GPUs:     []GPU{ g },
-    RAM:      RAM{ Total: 16 * gib, Available: 12 * gib, Type: "DDR5", Speed: 5600, Channels: 2, Bandwidth: 89.6 },
+    RAM:      RAM{
+      Total:     16 * gib,
+      Available: 12 * gib,
+      Type:      "DDR5",
+      Speed:     5600,
+      Channels:  2,
+      Bandwidth: 89.6,
+    },
     CPU:      CPU{ Cores: 8, GHz: 5, AVX2: true, AVX512: true },
     DiskFree: 100 * gib,
   }
@@ -66,7 +73,8 @@ func TestDecideFitsGPU(t *testing.T) {
     t.Errorf("context %d doesn't fit", p.Context)
   }
 
-  if p.Context < minContext || strings.Join(p.Args[:3], " ") != "--jinja -ngl 999" {
+  if p.Context < minContext ||
+      strings.Join(p.Args[:3], " ") != "--jinja -ngl 999" {
     t.Errorf("context %d args %v", p.Context, p.Args)
   }
 
@@ -145,7 +153,8 @@ func TestDecideCPUOnly(t *testing.T) {
   m, hw := dense(4 * gib), laptop()
   hw.GPUs, hw.GPU = nil, nil
   p := decide(&m, &hw, 0)
-  if p.Place != PlaceCPU || p.PreCause != CauseCPUCompute || p.GenCause != CauseRAMBus {
+  if p.Place != PlaceCPU ||
+      p.PreCause != CauseCPUCompute || p.GenCause != CauseRAMBus {
     t.Fatalf("place %d, limits %s, %s", p.Place, p.GenCause, p.PreCause)
   }
 
@@ -158,7 +167,11 @@ func TestDecideCPUOnly(t *testing.T) {
   slow.RAM.Bandwidth = 25.6
   q := decide(&m, &slow, 0)
   if q.GenEmpty >= p.GenEmpty {
-    t.Errorf("DDR4 single channel %.1f tok/s ≥ DDR5 dual %.1f", q.GenEmpty, p.GenEmpty)
+    t.Errorf(
+      "DDR4 single channel %.1f tok/s ≥ DDR5 dual %.1f",
+      q.GenEmpty,
+      p.GenEmpty,
+    )
   }
 }
 
@@ -175,7 +188,8 @@ func TestDecideDriverProblem(t *testing.T) {
 func TestScaledAlternatives(t *testing.T) {
   m := moe(15 * gib)
   s := m.scaled(0.5)
-  if s.Total != m.Total / 2 || s.Experts != m.Experts / 2 || s.Params != m.Params {
+  if s.Total != m.Total / 2 ||
+      s.Experts != m.Experts / 2 || s.Params != m.Params {
     t.Errorf("scaled: %+v", s)
   }
 }
@@ -198,7 +212,8 @@ func TestBestGroup(t *testing.T) {
     t.Errorf("picked %s", src.Groups[got].Label)
   }
 
-  if looksLikeHash("Qwen3.5-9B") || !looksLikeHash("feb5e04da4910dd56d33f0cd03747ff298c1e801") {
+  if looksLikeHash("Qwen3.5-9B") ||
+      !looksLikeHash("feb5e04da4910dd56d33f0cd03747ff298c1e801") {
     t.Error("looksLikeHash")
   }
 }

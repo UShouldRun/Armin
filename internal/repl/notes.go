@@ -27,7 +27,11 @@ func cmdMemory(r *REPL, _ context.Context, args []string) {
         return
       }
 
-      fmt.Printf("%s %s\n", ui.Bold(m.Name), ui.Dim("(" + m.Scope.String() + ") " + m.Description))
+      fmt.Printf(
+        "%s %s\n",
+        ui.Bold(m.Name),
+        ui.Dim("(" + m.Scope.String() + ") " + m.Description),
+      )
       fmt.Println(strings.TrimSpace(body))
 
       return
@@ -57,7 +61,11 @@ func cmdMemory(r *REPL, _ context.Context, args []string) {
 
   fmt.Println(ui.Bold("memories"))
   for _, m := range list {
-    fmt.Printf("  %-24s %s\n", m.Name, ui.Dim("(" + m.Scope.String() + ") " + m.Description))
+    fmt.Printf(
+      "  %-24s %s\n",
+      m.Name,
+      ui.Dim("(" + m.Scope.String() + ") " + m.Description),
+    )
   }
 }
 
@@ -95,7 +103,11 @@ func cmdSkills(r *REPL, _ context.Context, _ []string) {
       where = "project"
     }
 
-    fmt.Printf("  %-20s %s\n", sk.Name, ui.Dim("(" + where + ") " + sk.Description))
+    fmt.Printf(
+      "  %-20s %s\n",
+      sk.Name,
+      ui.Dim("(" + where + ") " + sk.Description),
+    )
   }
 }
 
@@ -193,7 +205,9 @@ func cmdScratch(r *REPL, _ context.Context, args []string) {
   for _, f := range list {
     fmt.Printf(
       "  %-24s %s\n", f.Name,
-      ui.Dim(fmt.Sprintf("%d lines, %s", f.Lines, f.Modified.Format("Jan 2 15:04"))),
+      ui.Dim(
+        fmt.Sprintf("%d lines, %s", f.Lines, f.Modified.Format("Jan 2 15:04")),
+      ),
     )
   }
 }

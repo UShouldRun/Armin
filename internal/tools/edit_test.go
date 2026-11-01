@@ -24,7 +24,11 @@ func TestWriteFileCreatesWithParents(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   tr := NewFileTracker()
 
-  out, err := WriteFile(cfg, tr, WriteFileInput{ Path: "a/b/c.txt", Content: "hi\n" })
+  out, err := WriteFile(
+    cfg,
+    tr,
+    WriteFileInput{ Path: "a/b/c.txt", Content: "hi\n" },
+  )
   if err != nil {
     t.Fatalf("WriteFile: %v", err)
   }
@@ -67,7 +71,11 @@ func TestEditFileRefusesStaleRead(t *testing.T) {
   os.WriteFile(path, []byte("beta\n"), 0o644)
   os.Chtimes(path, later, later)
 
-  _, err := EditFile(cfg, tr, EditFileInput{ Path: "x.txt", OldString: "beta", NewString: "gamma" })
+  _, err := EditFile(
+    cfg,
+    tr,
+    EditFileInput{ Path: "x.txt", OldString: "beta", NewString: "gamma" },
+  )
   if err == nil || !strings.Contains(err.Error(), "changed on disk") {
     t.Fatalf("err = %v, want a stale-read error", err)
   }
@@ -79,7 +87,11 @@ func TestEditFileExactUniqueReplace(t *testing.T) {
   tr := NewFileTracker()
   tr.Mark(filepath.Join(cfg.Root, "f.go"))
 
-  _, err := EditFile(cfg, tr, EditFileInput{ Path: "f.go", OldString: "a := 1", NewString: "a := 9" })
+  _, err := EditFile(
+    cfg,
+    tr,
+    EditFileInput{ Path: "f.go", OldString: "a := 1", NewString: "a := 9" },
+  )
   if err == nil || !strings.Contains(err.Error(), "matches 2 times") {
     t.Fatalf("err = %v, want an ambiguity error", err)
   }
@@ -95,7 +107,11 @@ func TestEditFileExactUniqueReplace(t *testing.T) {
     t.Fatalf("Replacements = %d, want 2", out.Replacements)
   }
 
-  out, err = EditFile(cfg, tr, EditFileInput{ Path: "f.go", OldString: "b := 2\n", NewString: "" })
+  out, err = EditFile(
+    cfg,
+    tr,
+    EditFileInput{ Path: "f.go", OldString: "b := 2\n", NewString: "" },
+  )
   if err != nil {
     t.Fatalf("EditFile delete: %v", err)
   }
@@ -150,7 +166,11 @@ func TestDryRunWritesNothing(t *testing.T) {
 func TestPreviewShowsChangedRegion(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "f.txt", "1\n2\n3\n4\n5\n6\n")
-  c, err := PlanEdit(cfg, nil, EditFileInput{ Path: "f.txt", OldString: "4\n", NewString: "four\n" })
+  c, err := PlanEdit(
+    cfg,
+    nil,
+    EditFileInput{ Path: "f.txt", OldString: "4\n", NewString: "four\n" },
+  )
   if err != nil {
     t.Fatal(err)
   }

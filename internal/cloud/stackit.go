@@ -126,7 +126,10 @@ func stackitEnvAuth() (*stackitAuth, error) {
 
   pemText := kf.Credentials.PrivateKey
   if pemText == "" {
-    pemText, err = readEnvOrFile("STACKIT_PRIVATE_KEY", "STACKIT_PRIVATE_KEY_PATH")
+    pemText, err = readEnvOrFile(
+      "STACKIT_PRIVATE_KEY",
+      "STACKIT_PRIVATE_KEY_PATH",
+    )
     if err != nil {
       return nil, fmt.Errorf("\n\t... in EnvTokenSource:\n\t%w", err)
     }
@@ -292,7 +295,9 @@ func (t *stackitAuth) Token(ctx context.Context) (string, error) {
 // --- IaaS v2 servers ---
 
 // newStackitClient returns a client for project and region (e.g. "eu01").
-func newStackitClient(projectID, region string, auth *stackitAuth) *stackitClient {
+func newStackitClient(
+  projectID, region string, auth *stackitAuth,
+) *stackitClient {
   return &stackitClient{
     ProjectID: projectID,
     Region:    region,
@@ -382,7 +387,9 @@ func (c *stackitClient) do(
 }
 
 // GetServer reports one server's status and addresses.
-func (c *stackitClient) GetServer(ctx context.Context, id string) (stackitServer, error) {
+func (c *stackitClient) GetServer(
+  ctx context.Context, id string,
+) (stackitServer, error) {
   var b stackitServerBody
   err := c.do(ctx, http.MethodGet, c.serverURL(id, "") + "?details=true", &b)
   if err != nil {
@@ -466,7 +473,10 @@ func (c *stackitClient) WaitRunning(
 
     select {
     case <-ctx.Done():
-      return srv, started, fmt.Errorf("\n\t... in WaitRunning:\n\t%w", ctx.Err())
+      return srv, started, fmt.Errorf(
+        "\n\t... in WaitRunning:\n\t%w",
+        ctx.Err(),
+      )
     case <-time.After(StatePoll):
     }
   }

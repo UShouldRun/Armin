@@ -45,8 +45,10 @@ type ModelSpecConfig struct {
   ScalewayServer, ScalewayZone                 string
   SSHUser, SSHKey                              string
   RemotePort                                   int
-  KeepOnDisconnect                             bool // stop_on_disconnect = false
-  Vision                                       bool // keep the --mmproj projector
+  // stop_on_disconnect = false
+  KeepOnDisconnect                             bool
+  // keep the --mmproj projector
+  Vision                                       bool
   NoLean                                       bool // lean = false
 
   // Streaming tier (see llamacpp.StreamSpec).
@@ -59,7 +61,8 @@ type ModelSpecConfig struct {
 // Config holds every value a config file may override. Zero values
 // mean "not set" — callers apply their own defaults on top.
 type Config struct {
-  Model           string // a name, resolved against Models (or LlamaURL, for the zero-config path)
+  // a name, resolved against Models (or LlamaURL, for the zero-config path)
+  Model           string
   CompletionModel string // same, but for -lsp inline completion, not chat
 
   // Minion, Copilot and Advisor name the model each role runs on

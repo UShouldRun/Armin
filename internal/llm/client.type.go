@@ -226,7 +226,8 @@ type toolCallAccumulator struct {
 // internal/llamacpp.Manager), not a field on this request.
 type CompleteOptions struct {
   Temperature float64
-  NumPredict  int // cap on generated tokens — this is a completion, not an essay
+  // cap on generated tokens — this is a completion, not an essay
+  NumPredict  int
   Stop        []string
 
   // Prompt is the text typed on the cursor's line so far. Sent apart
@@ -262,7 +263,8 @@ type infillRequest struct {
   InputPrefix string        `json:"input_prefix"`
   InputSuffix string        `json:"input_suffix"`
   InputExtra  []InfillChunk `json:"input_extra,omitempty"`
-  Prompt      string        `json:"prompt"` // required by /infill even when empty
+  // required by /infill even when empty
+  Prompt      string        `json:"prompt"`
   NPredict    int           `json:"n_predict,omitempty"`
   NIndent     int           `json:"n_indent,omitempty"`
   TMaxPredict int           `json:"t_max_predict_ms,omitempty"`

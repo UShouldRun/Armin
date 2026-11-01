@@ -17,6 +17,8 @@ type ListDependenciesOutput struct {
 type ModuleGraphInput struct{}
 
 type ModuleGraphOutput struct {
-  Module  string              `json:"module"`  // this project's own module path, from go.mod
-  Imports map[string][]string `json:"imports"` // package path -> internal packages it imports
+  // this project's own module path, from go.mod
+  Module  string              `json:"module"`
+  // package path -> internal packages it imports
+  Imports map[string][]string `json:"imports"`
 }

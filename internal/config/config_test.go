@@ -84,11 +84,13 @@ allow = curl, docker
   if cfg.Model != want.Model || cfg.CompletionModel != want.CompletionModel ||
     cfg.CtagsBinary != want.CtagsBinary || cfg.LlamaURL != want.LlamaURL ||
     cfg.CompletionLlamaURL != want.CompletionLlamaURL ||
-    cfg.Root != want.Root || cfg.Timeout != want.Timeout || cfg.MaxOutput != want.MaxOutput {
+    cfg.Root != want.Root || cfg.Timeout != want.Timeout ||
+    cfg.MaxOutput != want.MaxOutput {
     t.Fatalf("Load() = %+v, want %+v", cfg, want)
   }
 
-  if len(cfg.ExtraAllowed) != 2 || cfg.ExtraAllowed[0] != "curl" || cfg.ExtraAllowed[1] != "docker" {
+  if len(cfg.ExtraAllowed) != 2 ||
+      cfg.ExtraAllowed[0] != "curl" || cfg.ExtraAllowed[1] != "docker" {
     t.Fatalf("ExtraAllowed = %v, want [curl docker]", cfg.ExtraAllowed)
   }
 }
@@ -125,7 +127,8 @@ models.fim.args = --ctx-size 8192 --n-gpu-layers 999
   }
 
   fim := cfg.Models["fim"]
-  if fim.Binary != "llama-server" || fim.ModelPath != "/home/h/models/qwen2.5-coder.gguf" {
+  if fim.Binary != "llama-server" ||
+      fim.ModelPath != "/home/h/models/qwen2.5-coder.gguf" {
     t.Fatalf("fim = %+v", fim)
   }
 
@@ -211,7 +214,10 @@ func TestLoadRejectsBadMaxOutput(t *testing.T) {
 
 func TestLoadIgnoresBlankLinesAndComments(t *testing.T) {
   withConfigDir(t)
-  writeConfig(t, "\n# just a comment\n\nmodel = qwen3:4b\n\n# trailing comment\n")
+  writeConfig(
+    t,
+    "\n# just a comment\n\nmodel = qwen3:4b\n\n# trailing comment\n",
+  )
 
   cfg, err := Load()
   if err != nil {
@@ -235,7 +241,11 @@ func TestLoadEnvSetsUnsetVars(t *testing.T) {
     t.Fatal(err)
   }
 
-  err = os.WriteFile(path, []byte("FOO_KEY=abc123\n# a comment\n\nBAR_KEY = spaced \n"), 0o600)
+  err = os.WriteFile(
+    path,
+    []byte("FOO_KEY=abc123\n# a comment\n\nBAR_KEY = spaced \n"),
+    0o600,
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -393,11 +403,18 @@ test_cmd        = go test -race ./...
     t.Fatalf("Load: %v", err)
   }
 
-  if cfg.MaxToolRounds != 80 || cfg.ContextSize != 65536 || cfg.KeepTurns != -1 {
-    t.Errorf("ints = %d %d %d", cfg.MaxToolRounds, cfg.ContextSize, cfg.KeepTurns)
+  if cfg.MaxToolRounds != 80 ||
+      cfg.ContextSize != 65536 || cfg.KeepTurns != -1 {
+    t.Errorf(
+      "ints = %d %d %d",
+      cfg.MaxToolRounds,
+      cfg.ContextSize,
+      cfg.KeepTurns,
+    )
   }
 
-  if cfg.ReadTimeout != 10 * time.Minute || cfg.BuildTimeout != 20 * time.Minute {
+  if cfg.ReadTimeout != 10 * time.Minute ||
+      cfg.BuildTimeout != 20 * time.Minute {
     t.Errorf("durations = %s %s", cfg.ReadTimeout, cfg.BuildTimeout)
   }
 
@@ -428,8 +445,10 @@ models.qwen.model_path             = /models/q.gguf
   }
 
   q := cfg.Models["qwen"]
-  if q.AWSInstance != "i-0abc" || q.AWSRegion != "eu-west-1" || q.SSHUser != "ubuntu" ||
-    q.SSHKey != "~/.ssh/gpu.pem" || q.RemotePort != 8080 || !q.KeepOnDisconnect {
+  if q.AWSInstance != "i-0abc" ||
+    q.AWSRegion != "eu-west-1" || q.SSHUser != "ubuntu" ||
+    q.SSHKey != "~/.ssh/gpu.pem" || q.RemotePort != 8080 ||
+    !q.KeepOnDisconnect {
     t.Fatalf("qwen = %+v", q)
   }
 }
@@ -470,7 +489,8 @@ models.gpu.stop_on_disconnect = true
   }
 
   g := cfg.Models["gpu"]
-  if g.StackitServer != "0b8a-server" || g.StackitProject != "9f1c-project" || g.KeepOnDisconnect {
+  if g.StackitServer != "0b8a-server" ||
+      g.StackitProject != "9f1c-project" || g.KeepOnDisconnect {
     t.Fatalf("gpu = %+v", g)
   }
 }
@@ -507,8 +527,12 @@ models.local.stream_args      = --fit off -b 256 -ub 256
   }
 
   l := cfg.Models["local"]
-  if l.StreamBinary != "/opt/kvstream/llama-server" || l.StreamContext != 196608 ||
-    l.StreamArenaMiB != 2048 || strings.Join(l.StreamArgs, " ") != "--fit off -b 256 -ub 256" {
+  if l.StreamBinary != "/opt/kvstream/llama-server" ||
+      l.StreamContext != 196608 ||
+    l.StreamArenaMiB != 2048 || strings.Join(
+      l.StreamArgs,
+      " ",
+    ) != "--fit off -b 256 -ub 256" {
     t.Fatalf("local = %+v", l)
   }
 }

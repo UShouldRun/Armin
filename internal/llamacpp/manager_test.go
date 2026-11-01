@@ -98,14 +98,19 @@ func TestClientExternalSpecNeverSpawns(t *testing.T) {
   }
 
   if client.BaseURL != "http://example.invalid:9" {
-    t.Fatalf("BaseURL = %q, want the external spec's URL untouched", client.BaseURL)
+    t.Fatalf(
+      "BaseURL = %q, want the external spec's URL untouched",
+      client.BaseURL,
+    )
   }
 
   m.mu.Lock()
   _, tracked := m.procs["chat"]
   m.mu.Unlock()
   if tracked {
-    t.Fatal("an externally managed spec must never be tracked as a spawned process")
+    t.Fatal(
+      "an externally managed spec must never be tracked as a spawned process",
+    )
   }
 }
 
@@ -122,7 +127,10 @@ func TestClientCarriesAPIKeyFromSpec(t *testing.T) {
   }
 
   if client.APIKey != "sk-ant-test" {
-    t.Fatalf("Client.APIKey = %q, want it resolved from APIKeyEnv", client.APIKey)
+    t.Fatalf(
+      "Client.APIKey = %q, want it resolved from APIKeyEnv",
+      client.APIKey,
+    )
   }
 }
 
@@ -140,7 +148,10 @@ func TestSwitchUpdatesAPIKeyOnTheSharedClient(t *testing.T) {
   }
 
   if client.APIKey != "" {
-    t.Fatalf("Client.APIKey = %q, want empty for a spec with no APIKeyEnv", client.APIKey)
+    t.Fatalf(
+      "Client.APIKey = %q, want empty for a spec with no APIKeyEnv",
+      client.APIKey,
+    )
   }
 
   err = m.Switch(context.Background(), client, "claude")
@@ -149,7 +160,10 @@ func TestSwitchUpdatesAPIKeyOnTheSharedClient(t *testing.T) {
   }
 
   if client.APIKey != "sk-ant-test" {
-    t.Fatalf("after Switch, Client.APIKey = %q, want sk-ant-test", client.APIKey)
+    t.Fatalf(
+      "after Switch, Client.APIKey = %q, want sk-ant-test",
+      client.APIKey,
+    )
   }
 }
 
@@ -199,16 +213,29 @@ func TestReapIdleSelection(t *testing.T) {
   m := New(map[string]ModelSpec{
     "idle-long-enough": { Binary: "x", Port: 1, IdleTimeout: time.Minute },
     "idle-too-recent":  { Binary: "x", Port: 2, IdleTimeout: time.Hour },
-    "busy":              { Binary: "x", Port: 3, IdleTimeout: time.Minute },
-    "never-idle":        { Binary: "x", Port: 4, IdleTimeout: -1 },
+    "busy":             { Binary: "x", Port: 3, IdleTimeout: time.Minute },
+    "never-idle":       { Binary: "x", Port: 4, IdleTimeout: -1 },
   })
   defer m.Shutdown(context.Background())
 
   m.mu.Lock()
-  m.procs["idle-long-enough"] = &process{ cmd: exec.Command("true"), lastUsed: time.Now().Add(-2 * time.Minute) }
-  m.procs["idle-too-recent"] = &process{ cmd: exec.Command("true"), lastUsed: time.Now().Add(-2 * time.Minute) }
-  m.procs["busy"] = &process{ cmd: exec.Command("true"), lastUsed: time.Now().Add(-2 * time.Minute), refcount: 1 }
-  m.procs["never-idle"] = &process{ cmd: exec.Command("true"), lastUsed: time.Now().Add(-24 * time.Hour) }
+  m.procs["idle-long-enough"] = &process{
+    cmd:      exec.Command("true"),
+    lastUsed: time.Now().Add(-2 * time.Minute),
+  }
+  m.procs["idle-too-recent"] = &process{
+    cmd:      exec.Command("true"),
+    lastUsed: time.Now().Add(-2 * time.Minute),
+  }
+  m.procs["busy"] = &process{
+    cmd:      exec.Command("true"),
+    lastUsed: time.Now().Add(-2 * time.Minute),
+    refcount: 1,
+  }
+  m.procs["never-idle"] = &process{
+    cmd:      exec.Command("true"),
+    lastUsed: time.Now().Add(-24 * time.Hour),
+  }
   m.mu.Unlock()
 
   m.reapIdle()
@@ -225,7 +252,9 @@ func TestReapIdleSelection(t *testing.T) {
   }
 
   if !tooRecentStillTracked {
-    t.Error("idle-too-recent hasn't hit its (longer) timeout yet, should survive")
+    t.Error(
+      "idle-too-recent hasn't hit its (longer) timeout yet, should survive",
+    )
   }
 
   if !busyStillTracked {
@@ -314,7 +343,8 @@ func fakeLlamaServerBinary(t *testing.T) string {
   }
 
   script := fmt.Sprintf(
-    "#!/bin/sh\nexport GO_WANT_HELPER_PROCESS=1\nexec %q -test.run=^TestHelperProcess$ -- \"$@\"\n",
+    "#!/bin/sh\nexport GO_WANT_HELPER_PROCESS=1\nexec %q " +
+      "-test.run=^TestHelperProcess$ -- \"$@\"\n",
     testBin,
   )
   path := filepath.Join(t.TempDir(), "fake-llama-server")
@@ -495,7 +525,11 @@ func TestReadyRespawnsAStoppedModel(t *testing.T) {
   }
 
   m := New(map[string]ModelSpec{
-    "chat": { Binary: fakeLlamaServerBinary(t), ModelPath: "unused.gguf", Port: freePort(t) },
+    "chat": {
+      Binary:    fakeLlamaServerBinary(t),
+      ModelPath: "unused.gguf",
+      Port:      freePort(t),
+    },
   })
   defer m.Shutdown(context.Background())
 
@@ -536,10 +570,10 @@ func TestSwitchFreesTheGPUFromThePreviousLocalModel(t *testing.T) {
 
   bin := fakeLlamaServerBinary(t)
   m := New(map[string]ModelSpec{
-    "a":    { Binary: bin, ModelPath: "a.gguf", Port: freePort(t) },
-    "b":    { Binary: bin, ModelPath: "b.gguf", Port: freePort(t) },
-    "fim":  { Binary: bin, ModelPath: "f.gguf", Port: freePort(t) },
-    "api":  { URL: "http://127.0.0.1:1" },
+    "a":   { Binary: bin, ModelPath: "a.gguf", Port: freePort(t) },
+    "b":   { Binary: bin, ModelPath: "b.gguf", Port: freePort(t) },
+    "fim": { Binary: bin, ModelPath: "f.gguf", Port: freePort(t) },
+    "api": { URL: "http://127.0.0.1:1" },
   })
   defer m.Shutdown(context.Background())
 
@@ -567,7 +601,12 @@ func TestSwitchFreesTheGPUFromThePreviousLocalModel(t *testing.T) {
   _, fimUp := m.procs["fim"]
   m.mu.Unlock()
   if aUp || !bUp || !fimUp {
-    t.Fatalf("a=%v b=%v fim=%v; want a stopped, b and the completion model running", aUp, bUp, fimUp)
+    t.Fatalf(
+      "a=%v b=%v fim=%v; want a stopped, b and the completion model running",
+      aUp,
+      bUp,
+      fimUp,
+    )
   }
 
   // An external model isn't armin's to stop; switching to it leaves b alone.
@@ -627,7 +666,12 @@ func TestSwitchChatKeepsCompletionLocal(t *testing.T) {
   }
 
   if chat.Model != "cloud" || completion.Model != "a" || !up("a") {
-    t.Fatalf("chat %q, completion %q, a up %v; want completion kept on a", chat.Model, completion.Model, up("a"))
+    t.Fatalf(
+      "chat %q, completion %q, a up %v; want completion kept on a",
+      chat.Model,
+      completion.Model,
+      up("a"),
+    )
   }
 
   err = m.SwitchChat(ctx, chat, completion, "b")
@@ -636,7 +680,8 @@ func TestSwitchChatKeepsCompletionLocal(t *testing.T) {
   }
 
   if chat.Model != "b" || completion.Model != "b" || up("a") || !up("b") {
-    t.Fatalf("chat %q, completion %q, a up %v, b up %v; want both on b, a stopped",
+    t.Fatalf("chat %q, completion %q, a up %v, b up %v; want both on b, a " +
+      "stopped",
       chat.Model, completion.Model, up("a"), up("b"))
   }
 
@@ -667,7 +712,11 @@ func TestSwitchToHostedIDOnTheFly(t *testing.T) {
   }
 
   chat := New(map[string]ModelSpec{}).newClientFor("x", "http://127.0.0.1:1")
-  err := m.Switch(context.Background(), chat, "planner:deepseek/deepseek-v4-pro-0813")
+  err := m.Switch(
+    context.Background(),
+    chat,
+    "planner:deepseek/deepseek-v4-pro-0813",
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -676,7 +725,9 @@ func TestSwitchToHostedIDOnTheFly(t *testing.T) {
     t.Fatalf("client = %q %q %q", chat.ID, chat.Effort, chat.BaseURL)
   }
 
-  if m.Label("planner:deepseek/deepseek-v4-pro-0813") != "deepseek/deepseek-v4-pro-0813" {
+  if m.Label(
+    "planner:deepseek/deepseek-v4-pro-0813",
+  ) != "deepseek/deepseek-v4-pro-0813" {
     t.Fatalf("label = %q", m.Label("planner:deepseek/deepseek-v4-pro-0813"))
   }
 }

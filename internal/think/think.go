@@ -339,7 +339,8 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
   // and the window and context size describe the model the header
   // actually shows.
   r := opts.Resumed
-  if r != nil && r.Model != "" && r.Model != client.Model && m.Models.Has(r.Model) {
+  if r != nil && r.Model != "" &&
+      r.Model != client.Model && m.Models.Has(r.Model) {
     loop.Window = nil
     w := m.Models.Window(r.Model)
     if w != nil {

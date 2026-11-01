@@ -45,6 +45,9 @@ func TestGPUWarning(t *testing.T) {
     return out
   }
 
+  // where a kernel keeps its nvidia module
+  const nv = "/kernel/nvidia-595-open/nvidia.ko"
+
   cases := []struct {
     name  string
     files map[string]string
@@ -74,15 +77,16 @@ func TestGPUWarning(t *testing.T) {
     {
       name:  "no module for this kernel",
       files: with(map[string]string{
-        "lib/modules/6.8.0-139-generic/kernel/nvidia-595-open/nvidia.ko": "",
+        "lib/modules/6.8.0-139-generic" + nv: "",
       }),
-      want: "sudo apt full-upgrade) and reboot, or pick 6.8.0-139-generic in GRUB",
+      want: "sudo apt full-upgrade) and reboot, or pick 6.8.0-139-generic in " +
+        "GRUB",
     },
     {
       name:  "a newer kernel has one",
       files: with(map[string]string{
-        "lib/modules/6.8.0-139-generic/kernel/nvidia-595-open/nvidia.ko":     "",
-        "lib/modules/6.8.0-147-generic/kernel/nvidia-595-open/nvidia.ko.zst": "",
+        "lib/modules/6.8.0-139-generic" + nv:          "",
+        "lib/modules/6.8.0-147-generic" + nv + ".zst": "",
       }),
       want: "reboot into 6.8.0-147-generic",
     },

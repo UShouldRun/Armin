@@ -17,20 +17,39 @@ func TestParseLine(t *testing.T) {
   }{
     {
       name: "function with package scope",
-      line: "New\tinternal/agent/loop.go\t31;\"\tf\tline:31\tpackage:agent\ttyperef:typename:*Loop",
-      want: Symbol{ Name: "New", Kind: "f", File: "internal/agent/loop.go", Line: 31, Scope: "package:agent" },
+      line: "New\tinternal/agent/loop.go\t31;\"\tf\tline:31\t" +
+        "package:agent\ttyperef:typename:*Loop",
+      want: Symbol{
+        Name:  "New",
+        Kind:  "f",
+        File:  "internal/agent/loop.go",
+        Line:  31,
+        Scope: "package:agent",
+      },
       ok:   true,
     },
     {
       name: "struct field with struct scope",
-      line: "LLM\tinternal/agent/loop.go\t22;\"\tm\tline:22\tstruct:agent.Loop\ttyperef:typename:*llm.Client",
-      want: Symbol{ Name: "LLM", Kind: "m", File: "internal/agent/loop.go", Line: 22, Scope: "struct:agent.Loop" },
+      line: "LLM\tinternal/agent/loop.go\t22;\"\tm\tline:22\t" +
+        "struct:agent.Loop\ttyperef:typename:*llm.Client",
+      want: Symbol{
+        Name:  "LLM",
+        Kind:  "m",
+        File:  "internal/agent/loop.go",
+        Line:  22,
+        Scope: "struct:agent.Loop",
+      },
       ok:   true,
     },
     {
       name: "no scope field",
       line: "agent\tinternal/agent/loop.go\t4;\"\tp\tline:4",
-      want: Symbol{ Name: "agent", Kind: "p", File: "internal/agent/loop.go", Line: 4 },
+      want: Symbol{
+        Name: "agent",
+        Kind: "p",
+        File: "internal/agent/loop.go",
+        Line: 4,
+      },
       ok:   true,
     },
     {
@@ -40,7 +59,11 @@ func TestParseLine(t *testing.T) {
       ok:   true,
     },
     { name: "empty line", line: "", ok: false },
-    { name: "tag file pragma header", line: "!_TAG_FILE_FORMAT\t2\t/extended format/", ok: false },
+    {
+      name: "tag file pragma header",
+      line: "!_TAG_FILE_FORMAT\t2\t/extended format/",
+      ok:   false,
+    },
     { name: "too few columns", line: "Foo\tfile.go", ok: false },
   }
 
@@ -81,13 +104,20 @@ func TestRankSymbols(t *testing.T) {
   }
 
   // The two lowest-priority matches keep their original relative order.
-  if matches[2].File != "other/pkg/file.go" || matches[3].File != "another/file.go" {
-    t.Fatalf("expected stable order for equal-weight matches, got %+v", matches[2:])
+  if matches[2].File != "other/pkg/file.go" ||
+      matches[3].File != "another/file.go" {
+    t.Fatalf(
+      "expected stable order for equal-weight matches, got %+v",
+      matches[2:],
+    )
   }
 }
 
 func TestRankSymbolsNoFromFile(t *testing.T) {
-  matches := []Symbol{ { Name: "A", File: "a.go" }, { Name: "A", File: "b.go" } }
+  matches := []Symbol{
+    { Name: "A", File: "a.go" },
+    { Name: "A", File: "b.go" },
+  }
   original := append([]Symbol{}, matches...)
 
   rankSymbols(matches, "")
@@ -154,7 +184,10 @@ func findCtags(t *testing.T) string {
     }
   }
 
-  t.Skip("universal-ctags not found on PATH or in ~/.local/bin — skipping integration test")
+  t.Skip(
+    "universal-ctags not found on PATH or in ~/.local/bin — skipping " +
+      "integration test",
+  )
 
   return ""
 }
@@ -163,7 +196,8 @@ func TestIndexLookupAndSearch(t *testing.T) {
   binary := findCtags(t)
 
   dir := t.TempDir()
-  src := "package widget\n\nfunc NewWidget() *Widget {\n\treturn &Widget{}\n}\n\ntype Widget struct {\n\tName string\n}\n"
+  src := "package widget\n\nfunc NewWidget() *Widget {\n\treturn " +
+    "&Widget{}\n}\n\ntype Widget struct {\n\tName string\n}\n"
   err := os.WriteFile(filepath.Join(dir, "widget.go"), []byte(src), 0o644)
   if err != nil {
     t.Fatal(err)

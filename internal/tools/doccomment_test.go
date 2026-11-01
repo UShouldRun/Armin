@@ -17,7 +17,9 @@ func requireCtags(t *testing.T) string {
     return p
   }
 
-  t.Skip("universal-ctags not available — skipping real-index doc comment tests")
+  t.Skip(
+    "universal-ctags not available — skipping real-index doc comment tests",
+  )
 
   return ""
 }
@@ -58,7 +60,10 @@ func TestCommentAboveNoneWhenBlankLineBreaksIt(t *testing.T) {
   }
   got := commentAbove(lines, 3)
   if got != "" {
-    t.Fatalf("commentAbove = %q, want empty (blank line should break the run)", got)
+    t.Fatalf(
+      "commentAbove = %q, want empty (blank line should break the run)",
+      got,
+    )
   }
 }
 
@@ -84,7 +89,12 @@ func TestReadDocCommentNilIndexIsCleanError(t *testing.T) {
 func TestReadDocCommentRequiresName(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   idx := ctags.New(cfg.Root, "")
-  _, err := ReadDocComment(context.Background(), idx, cfg, ReadDocCommentInput{})
+  _, err := ReadDocComment(
+    context.Background(),
+    idx,
+    cfg,
+    ReadDocCommentInput{},
+  )
   if err == nil {
     t.Fatal("expected an error for an empty name")
   }
@@ -96,11 +106,17 @@ func TestReadDocCommentEndToEnd(t *testing.T) {
   ctagsBin := requireCtags(t)
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "a.go",
-    "package main\n\n// Greet says hello to name.\nfunc Greet(name string) string {\n  return \"hello \" + name\n}\n",
+    "package main\n\n// Greet says hello to name.\nfunc Greet(name string) " +
+      "string {\n  return \"hello \" + name\n}\n",
   )
 
   idx := ctags.New(cfg.Root, ctagsBin)
-  out, err := ReadDocComment(context.Background(), idx, cfg, ReadDocCommentInput{ Name: "Greet" })
+  out, err := ReadDocComment(
+    context.Background(),
+    idx,
+    cfg,
+    ReadDocCommentInput{ Name: "Greet" },
+  )
   if err != nil {
     t.Fatalf("ReadDocComment: %v", err)
   }

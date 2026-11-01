@@ -23,11 +23,13 @@ func TestPick(t *testing.T) {
     t.Fatalf("got %+v", got)
   }
 
-  if got[0].ID != "qwen/qwen3.8-27b" || got[1].ID != "anthropic/claude-opus-5.5" || !got[2].Free {
+  if got[0].ID != "qwen/qwen3.8-27b" ||
+      got[1].ID != "anthropic/claude-opus-5.5" || !got[2].Free {
     t.Fatalf("order = %s, %s, %s", got[0].ID, got[1].ID, got[2].ID)
   }
 
-  if got[0].In < 0.039 || got[0].In > 0.041 || got[0].Session < 0.11 || got[0].Session > 0.12 {
+  if got[0].In < 0.039 ||
+      got[0].In > 0.041 || got[0].Session < 0.11 || got[0].Session > 0.12 {
     t.Fatalf("qwen prices = %+v", got[0])
   }
 }

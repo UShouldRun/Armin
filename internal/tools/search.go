@@ -39,7 +39,10 @@ func SearchCode(
 
   args = append(args, in.Pattern, searchPath)
 
-  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "rg", Args: args, Mode: sandbox.ExecForce })
+  res, err := cfg.Exec(
+    ctx,
+    sandbox.Command{ Binary: "rg", Args: args, Mode: sandbox.ExecForce },
+  )
   if err != nil {
     return nil, fmt.Errorf("\n\t... in SearchCode:\n\t%w", err)
   }

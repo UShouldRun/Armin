@@ -115,7 +115,13 @@ func (r *REPL) view(p agent.Proposal) error {
     path := filepath.Join(dir, filepath.Base(p.Path) + ".diff")
     text, at := fileDiff(p)
     err = os.WriteFile(path, []byte(text), 0o600)
-    args = append(args, "-c", "setlocal filetype=diff", fmt.Sprintf("+%d", at), path)
+    args = append(
+      args,
+      "-c",
+      "setlocal filetype=diff",
+      fmt.Sprintf("+%d", at),
+      path,
+    )
   }
 
   if err != nil {

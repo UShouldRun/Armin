@@ -107,7 +107,14 @@ func pdfPages(ctx context.Context, cfg *sandbox.Config, path string) int {
     return 0
   }
 
-  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "pdfinfo", Args: []string{ path }, Mode: sandbox.ExecForce | sandbox.ExecFull })
+  res, err := cfg.Exec(
+    ctx,
+    sandbox.Command{
+      Binary: "pdfinfo",
+      Args:   []string{ path },
+      Mode:   sandbox.ExecForce | sandbox.ExecFull,
+    },
+  )
   if err != nil || res.ExitCode != 0 {
     return 0
   }
@@ -129,7 +136,12 @@ func markPages(text string, first int) string {
   pages := strings.Split(strings.TrimRight(text, "\f\n"), "\f")
   var b strings.Builder
   for i, p := range pages {
-    fmt.Fprintf(&b, "--- page %d ---\n%s\n", first + i, strings.TrimRight(p, "\n"))
+    fmt.Fprintf(
+      &b,
+      "--- page %d ---\n%s\n",
+      first + i,
+      strings.TrimRight(p, "\n"),
+    )
   }
 
   return b.String()

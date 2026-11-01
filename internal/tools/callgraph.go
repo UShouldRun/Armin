@@ -61,7 +61,8 @@ func scanCalls(root string) (*callGraphData, error) {
 
     file, perr := parser.ParseFile(fset, p, nil, 0)
     if perr != nil {
-      return nil // a file that doesn't parse is skipped, not fatal to the whole scan
+      // a file that doesn't parse is skipped, not fatal to the whole scan
+      return nil
     }
 
     rel, relErr := filepath.Rel(root, p)

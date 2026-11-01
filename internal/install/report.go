@@ -62,7 +62,12 @@ func printMachine(hw *Machine, dir string) {
 func printPlan(m *Model, p *Plan) {
   fmt.Println()
   if p.Verdict != VerdictWontLoad || p.Context > 0 {
-    fmt.Printf("%s %s · %dk context\n", ui.Bold("plan"), placeText(m, p), p.Context / 1024)
+    fmt.Printf(
+      "%s %s · %dk context\n",
+      ui.Bold("plan"),
+      placeText(m, p),
+      p.Context / 1024,
+    )
     fmt.Printf(
       "  VRAM %s · RAM %s · args: %s\n",
       gb(p.VRAMUse), gb(p.RAMUse), strings.Join(p.Args, " "),
@@ -78,12 +83,19 @@ func printPlan(m *Model, p *Plan) {
     )
     fmt.Printf(
       "  prefill     ~%.0f tok/s, %s per %dk tokens   limited by %s\n",
-      p.Prefill, duration(agentPrompt / p.Prefill), agentPrompt / 1000, p.PreCause,
+      p.Prefill, duration(
+        agentPrompt / p.Prefill,
+      ), agentPrompt / 1000, p.PreCause,
     )
   }
 
   for _, f := range p.Findings {
-    fmt.Printf("  %s %s: %s\n", mark(f.Level), ui.Bold(f.Cause.String()), f.Text)
+    fmt.Printf(
+      "  %s %s: %s\n",
+      mark(f.Level),
+      ui.Bold(f.Cause.String()),
+      f.Text,
+    )
   }
 
   if len(p.Fixes) > 0 {
@@ -118,7 +130,11 @@ func printAlternatives(alts []alternative) {
   }
 
   fmt.Println()
-  fmt.Println(ui.Bold("the repo's quantizations") + ui.Dim(" (estimated from this one's shape)"))
+  fmt.Println(
+    ui.Bold("the repo's quantizations") + ui.Dim(
+      " (estimated from this one's shape)",
+    ),
+  )
   for _, a := range alts {
     speed := ""
     if a.plan.Verdict != VerdictWontLoad {

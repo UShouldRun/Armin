@@ -115,7 +115,8 @@ func TestVisibleWidthSkipsStyles(t *testing.T) {
 }
 
 func TestFitLine(t *testing.T) {
-  long := "waiting for the model · 20s (it may be loading or busy) · nothing from the model for 20s"
+  long := "waiting for the model · 20s (it may be loading or busy) · " +
+    "nothing from the model for 20s"
   got := fitLine(long, 40)
   if len([]rune(got)) != 40 || got[len(got) - len("…"):] != "…" {
     t.Fatalf("fitLine = %q (%d runes)", got, len([]rune(got)))

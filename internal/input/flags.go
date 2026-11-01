@@ -261,17 +261,17 @@ func (f *resumeFlag) Set(v string) error {
 // "-name" tokens consume the following argv element and which
 // don't, the same distinction flag.Parse itself makes internally.
 var boolFlagNames = map[string]bool{
-  "dry-run":  true,
-  "mcp":      true,
-  "lsp":      true,
-  "new":      true,
-  "yes":      true,
-  "resume":   true,
-  "no-save":  true,
-  "no-color": true,
+  "dry-run":      true,
+  "mcp":          true,
+  "lsp":          true,
+  "new":          true,
+  "yes":          true,
+  "resume":       true,
+  "no-save":      true,
+  "no-color":     true,
   "library-sync": true,
-  "h":        true,
-  "help":     true,
+  "h":            true,
+  "help":         true,
 }
 
 // extractPositionalRoot pulls the first bare (non-flag) token out of

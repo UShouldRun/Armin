@@ -296,7 +296,14 @@ func runProject(
     }, nil
   }
 
-  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: argv[0], Args: argv[1:], Mode: sandbox.ExecForce | sandbox.ExecFull | sandbox.ExecBuild })
+  res, err := cfg.Exec(
+    ctx,
+    sandbox.Command{
+      Binary: argv[0],
+      Args:   argv[1:],
+      Mode:   sandbox.ExecForce | sandbox.ExecFull | sandbox.ExecBuild,
+    },
+  )
   if err != nil {
     return nil, err
   }

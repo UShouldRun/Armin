@@ -11,7 +11,11 @@ import (
 // --- find_definition / list_symbols / outline_file: nil index ---
 
 func TestFindDefinitionNilIndexIsCleanError(t *testing.T) {
-  _, err := FindDefinition(context.Background(), nil, FindDefinitionInput{ Name: "Foo" })
+  _, err := FindDefinition(
+    context.Background(),
+    nil,
+    FindDefinitionInput{ Name: "Foo" },
+  )
   if err == nil {
     t.Fatal("expected an error for a nil ctags index")
   }
@@ -48,7 +52,11 @@ func TestFindDefinitionRequiresName(t *testing.T) {
 
 func TestFindDefinitionEmptyIndexReturnsNoMatches(t *testing.T) {
   idx := ctags.New(t.TempDir(), "")
-  out, err := FindDefinition(context.Background(), idx, FindDefinitionInput{ Name: "Foo" })
+  out, err := FindDefinition(
+    context.Background(),
+    idx,
+    FindDefinitionInput{ Name: "Foo" },
+  )
   if err != nil {
     t.Fatalf("FindDefinition: %v", err)
   }
@@ -71,9 +79,18 @@ func TestOutlineFileRequiresPath(t *testing.T) {
 func TestFindReferencesFindsWordBoundaryMatches(t *testing.T) {
   requireRipgrep(t)
   cfg := newTestSandbox(t, sandbox.Options{})
-  writeFile(t, cfg.Root, "a.go", "func Needle() {}\n\nfunc main() { Needle() }\n")
+  writeFile(
+    t,
+    cfg.Root,
+    "a.go",
+    "func Needle() {}\n\nfunc main() { Needle() }\n",
+  )
 
-  out, err := FindReferences(context.Background(), cfg, FindReferencesInput{ Name: "Needle" })
+  out, err := FindReferences(
+    context.Background(),
+    cfg,
+    FindReferencesInput{ Name: "Needle" },
+  )
   if err != nil {
     t.Fatalf("FindReferences: %v", err)
   }
@@ -96,7 +113,11 @@ func TestFindReferencesNoMatches(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "a.go", "package main\n")
 
-  out, err := FindReferences(context.Background(), cfg, FindReferencesInput{ Name: "DefinitelyNotPresent" })
+  out, err := FindReferences(
+    context.Background(),
+    cfg,
+    FindReferencesInput{ Name: "DefinitelyNotPresent" },
+  )
   if err != nil {
     t.Fatalf("FindReferences: %v", err)
   }

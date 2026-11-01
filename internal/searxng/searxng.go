@@ -272,7 +272,9 @@ func containerState(ctx context.Context) (exists, running bool, err error) {
   return true, strings.TrimSpace(stdout.String()) == "true", nil
 }
 
-func runDocker(ctx context.Context, timeout time.Duration, args ...string) error {
+func runDocker(
+  ctx context.Context, timeout time.Duration, args ...string,
+) error {
   ctx, cancel := context.WithTimeout(ctx, timeout)
   defer cancel()
 
@@ -331,7 +333,8 @@ func toResults(parsed searxResponse, query string, count int) []Result {
 // characters, lowercased, without quotes or operators.
 func queryTerms(query string) []string {
   split := func(r rune) bool {
-    return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '_' || r > 127)
+    return !(r >= 'a' &&
+        r <= 'z' || r >= '0' && r <= '9' || r == '_' || r > 127)
   }
 
   var out []string
@@ -494,7 +497,10 @@ func outdated(content, current string) bool {
     return true
   }
 
-  return strings.HasPrefix(content, "use_default_settings: true\n\nserver:\n  secret_key:") &&
+  return strings.HasPrefix(
+    content,
+    "use_default_settings: true\n\nserver:\n  secret_key:",
+  ) &&
     strings.Count(content, "\n") <= 9
 }
 

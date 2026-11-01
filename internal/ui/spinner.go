@@ -48,7 +48,10 @@ func (s *Spinner) run() {
       return
     case <-ticker.C:
       frame := Cyan(frames[i % len(frames)])
-      label := fitLine(s.label(), termCols() - 3) // frame, space, a spare column
+      label := fitLine(
+        s.label(),
+        termCols() - 3,
+      ) // frame, space, a spare column
       fmt.Printf("\r\x1b[K%s %s", frame, Dim(label))
       i++
     }

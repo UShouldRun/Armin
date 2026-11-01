@@ -93,7 +93,8 @@ func TestReadMessageSequential(t *testing.T) {
     t.Fatal(err)
   }
 
-  if !strings.Contains(string(first), `"n":1`) || !strings.Contains(string(second), `"n":2`) {
+  if !strings.Contains(string(first), `"n":1`) ||
+      !strings.Contains(string(second), `"n":2`) {
     t.Fatalf("messages out of order or corrupted: %s / %s", first, second)
   }
 }

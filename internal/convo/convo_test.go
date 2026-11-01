@@ -20,12 +20,17 @@ func TestAnalyzeEmpty(t *testing.T) {
 
 func TestAnalyzeCountsMessagesToolCallsAndResults(t *testing.T) {
   history := []llm.Message{
-    { Role: "system", Content: "0123456789" }, // 10 chars -> 2 tokens @4 chars/token
+    {
+      Role:    "system",
+      Content: "0123456789",
+    }, // 10 chars -> 2 tokens @4 chars/token
     { Role: "user", Content: "hello" },
     {
-      Role:      "assistant",
-      Content:   "",
-      ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{ Name: "search_code" } } },
+      Role:    "assistant",
+      Content: "",
+      ToolCalls: []llm.ToolCall{
+        { Function: llm.ToolCallFunction{ Name: "search_code" } },
+      },
     },
     { Role: "tool", ToolName: "search_code", Content: "result" },
     { Role: "assistant", Content: "done" },
@@ -74,7 +79,9 @@ func fakeChatServer(t *testing.T, reply string) *httptest.Server {
   return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
     resp := map[string]any{
       "choices": []map[string]any{
-        { "message": map[string]string{ "role": "assistant", "content": reply } },
+        {
+          "message": map[string]string{ "role": "assistant", "content": reply },
+        },
       },
     }
     err := json.NewEncoder(w).Encode(resp)
@@ -106,24 +113,43 @@ func TestCompactPreservesSystemAndTail(t *testing.T) {
   }
 
   if history[0].Role != "system" || history[0].Content != "you are armin" {
-    t.Fatalf("history[0] = %+v, want the original system prompt preserved", history[0])
+    t.Fatalf(
+      "history[0] = %+v, want the original system prompt preserved",
+      history[0],
+    )
   }
 
   if !strings.Contains(history[1].Content, "did X") {
-    t.Fatalf("history[1] = %+v, want it to contain the model's summary", history[1])
+    t.Fatalf(
+      "history[1] = %+v, want it to contain the model's summary",
+      history[1],
+    )
   }
 
-  if !IsSummary(history[1]) || !strings.HasSuffix(history[1].Content, refetchNote) {
-    t.Fatalf("history[1] = %+v, want a summary ending in the refetch note", history[1])
+  if !IsSummary(history[1]) ||
+      !strings.HasSuffix(history[1].Content, refetchNote) {
+    t.Fatalf(
+      "history[1] = %+v, want a summary ending in the refetch note",
+      history[1],
+    )
   }
 
   tail := history[len(history) - keepLast:]
   if tail[0].Content != "recent 1" || tail[1].Content != "recent 2" {
-    t.Fatalf("tail = %+v, want the last %d messages preserved verbatim", tail, keepLast)
+    t.Fatalf(
+      "tail = %+v, want the last %d messages preserved verbatim",
+      tail,
+      keepLast,
+    )
   }
 
   if len(history) != 2 + keepLast {
-    t.Fatalf("history has %d messages after compaction, want %d (system + summary + tail)", len(history), 2 + keepLast)
+    t.Fatalf(
+      "history has %d messages after compaction, want %d (system + summary + " +
+        "tail)",
+      len(history),
+      2 + keepLast,
+    )
   }
 }
 
@@ -135,7 +161,10 @@ func TestCompactNeverSplitsToolCallFromResult(t *testing.T) {
   history := []llm.Message{
     { Role: "system", Content: "sys" },
     { Role: "user", Content: "fix the bug" },
-    { Role: "assistant", ToolCalls: []llm.ToolCall{ { ID: "a" }, { ID: "b" } } },
+    {
+      Role:      "assistant",
+      ToolCalls: []llm.ToolCall{ { ID: "a" }, { ID: "b" } },
+    },
     { Role: "tool", ToolCallID: "a", Content: "r1" },
     { Role: "tool", ToolCallID: "b", Content: "r2" },
     { Role: "assistant", Content: "done" },
@@ -148,7 +177,10 @@ func TestCompactNeverSplitsToolCallFromResult(t *testing.T) {
   }
 
   if history[1].Role != "user" {
-    t.Fatalf("summary role = %q, want user (no mid-history system message)", history[1].Role)
+    t.Fatalf(
+      "summary role = %q, want user (no mid-history system message)",
+      history[1].Role,
+    )
   }
 
   if history[2].Role != "assistant" || len(history[2].ToolCalls) != 2 {
@@ -164,7 +196,11 @@ func TestCompactNeverSplitsToolCallFromResult(t *testing.T) {
 }
 
 func TestSuggestParsesOneLinePerSuggestion(t *testing.T) {
-  server := fakeChatServer(t, "What does search_code wrap?\nHow is dry-run handled?\nWhat's the sandbox timeout?")
+  server := fakeChatServer(
+    t,
+    "What does search_code wrap?\nHow is dry-run handled?\nWhat's the " +
+      "sandbox timeout?",
+  )
   defer server.Close()
   client := llm.New(server.URL, "fake-model")
 
@@ -237,7 +273,10 @@ func TestTitleUsesModelReplyOrFallsBack(t *testing.T) {
   client := llm.New(server.URL, "fake")
   history := []llm.Message{
     { Role: "system", Content: "sys" },
-    { Role: "user", Content: "the test fails, find the bug please and fix it now" },
+    {
+      Role:    "user",
+      Content: "the test fails, find the bug please and fix it now",
+    },
   }
 
   got := Title(context.Background(), client, history)
