@@ -1,4 +1,6 @@
-// The startup logo: the wings mark and the wordmark as terminal pixels.
+// The startup logo: the mark as an image where the terminal shows one
+// (logoimage.go), else the wings mark and the wordmark as terminal
+// pixels.
 // Each character cell holds two square pixels, the top drawn with the
 // upper half block and the bottom with the lower, so the 16-row grid
 // below prints as 8 lines. White prints in the terminal's own text
@@ -60,6 +62,11 @@ var (
 // enough for all of it.
 func Logo() {
   if !Enabled || !utf8Locale() || termCols() < len(logoGrid[0]) {
+    return
+  }
+
+  if logoImage() {
+    fmt.Println()
     return
   }
 
