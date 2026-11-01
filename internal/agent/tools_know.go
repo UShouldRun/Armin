@@ -890,12 +890,20 @@ func (l *Loop) recordTurn(h []llm.Message, from int) {
     return
   }
 
+  // the reads that failed (a directory, a missing file): no evidence
+  failed := map[string]bool{}
+  for i := from; i < len(h); i++ {
+    if h[i].Role == "tool" && errorOf([]byte(h[i].Content)) != "" {
+      failed[h[i].ToolCallID] = true
+    }
+  }
+
   // the file ranges the turn read, as evidence refs
   var refs []string
   seen := map[string]bool{}
   for i := from; i < len(h); i++ {
     for _, call := range h[i].ToolCalls {
-      if call.Function.Name != "read_file" {
+      if call.Function.Name != "read_file" || failed[call.ID] {
         continue
       }
 

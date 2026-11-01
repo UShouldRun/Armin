@@ -22,6 +22,7 @@ import (
   "sync/atomic"
 
   "armin/internal/agent"
+  "armin/internal/build"
   "armin/internal/input"
   "armin/internal/mcpserver"
   "armin/internal/repl"
@@ -192,7 +193,8 @@ func runREPL(
   if err != nil {
     ui.Error("failed to save session on exit: %s", err)
   } else if r.Meta.Title != "" || len(r.History) > 1 {
-    fmt.Println(ui.Dim("resume with: armin -resume " + repl.ShortID(r.Meta.ID)))
+    id := repl.ShortID(r.Meta.ID)
+    fmt.Println(ui.Dim("resume with: " + build.Name + " -resume " + id))
   }
 
   return nil

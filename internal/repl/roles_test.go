@@ -49,3 +49,14 @@ func TestRoleCommandsDispatch(t *testing.T) {
 		}
 	}
 }
+
+func TestOpenRouterID(t *testing.T) {
+	for s, want := range map[string]bool{
+		"qwen/qwen3.8-27b": true, "/quit": false, "a/": false,
+		"two words/x": false, "plain": false,
+	} {
+		if openRouterID(s) != want {
+			t.Errorf("openRouterID(%q) = %v", s, !want)
+		}
+	}
+}

@@ -4,6 +4,7 @@ import (
   "context"
   "os"
   "path/filepath"
+  "slices"
   "strings"
   "testing"
 
@@ -366,6 +367,23 @@ func turnHistory(question, answer string, reads ...[2]int) []llm.Message {
   }
 
   return append(h, llm.Message{ Role: "assistant", Content: answer })
+}
+
+func TestRecordTurnSkipsFailedReads(t *testing.T) {
+  l, _ := knowLoop(t)
+  h := turnHistory("How does the handshake work?", "SYN, then ACK",
+    [2]int{ 3, 6 })
+  h[1].ToolCalls[0].ID = "c1"
+  h = slices.Insert(h, 2, llm.Message{
+    Role: "tool", ToolCallID: "c1",
+    Content: `{"error":"\"conn.go\" is a directory, not a file"}`,
+  })
+
+  l.recordTurn(h, 0)
+  _, ok := l.Know.Lookup("sessions/handshake-work")
+  if ok {
+    t.Fatal("a turn whose only read failed was recorded")
+  }
 }
 
 func TestRecordTurn(t *testing.T) {

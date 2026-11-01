@@ -191,12 +191,20 @@ func ChooseHosted(info share.ModelInfo, hosted string, read func(string) (string
 			return hosted
 		case numErr == nil && n >= 1 && n <= len(info.Suggested):
 			return hosted + ":" + info.Suggested[n-1].ID
-		case strings.Contains(answer, "/"):
+		case openRouterID(answer):
 			return hosted + ":" + answer
 		}
 
 		ui.Error("not a number from the list or an OpenRouter id (vendor/model)")
 	}
+}
+
+// openRouterID is a "vendor/model" id: both parts there, no spaces,
+// so a command typed at the picker ("/quit") isn't taken for a model.
+func openRouterID(s string) bool {
+	vendor, model, ok := strings.Cut(s, "/")
+
+	return ok && vendor != "" && model != "" && !strings.ContainsAny(s, " \t")
 }
 
 func cmdModel(r *REPL, ctx context.Context, args []string) {
