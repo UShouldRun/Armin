@@ -12,6 +12,7 @@ func decode(t *testing.T, s string) key {
   if err != nil {
     t.Fatalf("decodeKey(%q): %v", s, err)
   }
+
   return k
 }
 
@@ -99,6 +100,7 @@ func TestDecodeKeySequential(t *testing.T) {
   if err != nil || first.r != 'a' {
     t.Fatalf("first key = %+v, err = %v", first, err)
   }
+
   second, err := decodeKey(r)
   if err != nil || second.r != 'b' {
     t.Fatalf("second key = %+v, err = %v", second, err)

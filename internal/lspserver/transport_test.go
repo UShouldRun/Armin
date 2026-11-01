@@ -20,6 +20,7 @@ func TestWriteThenReadMessageRoundTrip(t *testing.T) {
   if err != nil {
     t.Fatalf("readMessage: %v", err)
   }
+
   if !strings.Contains(string(body), `"method":"test"`) {
     t.Fatalf("round-tripped body = %s, missing expected method field", body)
   }
@@ -41,6 +42,7 @@ func TestReadMessageHeaderCaseInsensitive(t *testing.T) {
   if err != nil {
     t.Fatalf("readMessage: %v", err)
   }
+
   if string(body) != "{}" {
     t.Fatalf("body = %q, want {}", body)
   }
@@ -62,6 +64,7 @@ func TestReadMessageIgnoresUnknownHeaders(t *testing.T) {
   if err != nil {
     t.Fatalf("readMessage: %v", err)
   }
+
   if string(body) != "{\"a\":\"bcd\"}\r\n" {
     t.Fatalf("body = %q", body)
   }
@@ -73,6 +76,7 @@ func TestReadMessageSequential(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   err = writeMessage(&buf, map[string]int{ "n": 2 })
   if err != nil {
     t.Fatal(err)
@@ -83,6 +87,7 @@ func TestReadMessageSequential(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   second, err := readMessage(r)
   if err != nil {
     t.Fatal(err)

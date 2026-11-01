@@ -16,6 +16,7 @@ func newTestConfig(t *testing.T, opts Options) *Config {
   if err != nil {
     t.Fatalf("New: %v", err)
   }
+
   return cfg
 }
 
@@ -24,12 +25,15 @@ func TestNewAppliesDefaults(t *testing.T) {
   if cfg.Timeout != 20 * time.Second {
     t.Errorf("default Timeout = %v, want 20s", cfg.Timeout)
   }
+
   if cfg.MaxOutput != 4000 {
     t.Errorf("default MaxOutput = %d, want 4000", cfg.MaxOutput)
   }
+
   if len(cfg.Allowlist) == 0 {
     t.Error("default Allowlist is empty, want DefaultAllowlist()")
   }
+
   if cfg.DryRun {
     t.Error("DryRun should default to false")
   }
@@ -46,9 +50,11 @@ func TestNewHonorsExplicitOptions(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   if cfg.Timeout != 5 * time.Second || cfg.MaxOutput != 100 || !cfg.DryRun {
     t.Fatalf("New did not honor explicit options: %+v", cfg)
   }
+
   if !cfg.Allowlist["echo"] || len(cfg.Allowlist) != 1 {
     t.Fatalf("Allowlist = %v, want exactly {echo}", cfg.Allowlist)
   }
@@ -60,6 +66,7 @@ func TestNewResolvesRootToAbsolute(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   rel, err := filepath.Rel(wd, root)
   if err != nil {
     t.Skip("temp dir not relative to cwd on this system")
@@ -69,6 +76,7 @@ func TestNewResolvesRootToAbsolute(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   if !filepath.IsAbs(cfg.Root) {
     t.Fatalf("Root = %q, want an absolute path", cfg.Root)
   }
@@ -88,6 +96,7 @@ func TestResolvePathWithinRoot(t *testing.T) {
   if err != nil {
     t.Fatalf("ResolvePath: %v", err)
   }
+
   want := filepath.Join(cfg.Root, "f.txt")
   if got != want {
     t.Fatalf("ResolvePath(f.txt) = %q, want %q", got, want)
@@ -100,6 +109,7 @@ func TestResolvePathEmptyMeansRoot(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   if got != cfg.Root {
     t.Fatalf("ResolvePath(\"\") = %q, want root %q", got, cfg.Root)
   }
@@ -128,6 +138,7 @@ func TestResolvePathAllowsAbsolutePathInsideRoot(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   err = os.WriteFile(abs, []byte("x"), 0o644)
   if err != nil {
     t.Fatal(err)
@@ -137,6 +148,7 @@ func TestResolvePathAllowsAbsolutePathInsideRoot(t *testing.T) {
   if err != nil {
     t.Fatalf("ResolvePath(%q): %v", abs, err)
   }
+
   if got != abs {
     t.Fatalf("ResolvePath(%q) = %q", abs, got)
   }
@@ -174,6 +186,7 @@ func TestResolvePathHandlesNonexistentPath(t *testing.T) {
   if err != nil {
     t.Fatalf("ResolvePath on a nonexistent-but-in-root path: %v", err)
   }
+
   if !strings.HasPrefix(got, cfg.Root) {
     t.Fatalf("ResolvePath = %q, want a path under %q", got, cfg.Root)
   }
@@ -235,9 +248,11 @@ func TestRunDryRunDoesNotExecute(t *testing.T) {
   if err != nil {
     t.Fatalf("Run: %v", err)
   }
+
   if !res.Flags.DryRun() {
     t.Fatal("expected the DryRun flag to be set")
   }
+
   if !strings.Contains(res.Stdout, "rm -rf /should/not/run") {
     t.Fatalf("dry-run output = %q, want it to describe the command", res.Stdout)
   }
@@ -250,12 +265,15 @@ func TestRunForceCapturesOutputAndExitCode(t *testing.T) {
   if err != nil {
     t.Fatalf("Exec: %v", err)
   }
+
   if strings.TrimSpace(res.Stdout) != "out" {
     t.Errorf("Stdout = %q, want \"out\"", res.Stdout)
   }
+
   if strings.TrimSpace(res.Stderr) != "err" {
     t.Errorf("Stderr = %q, want \"err\"", res.Stderr)
   }
+
   if res.ExitCode != 3 {
     t.Errorf("ExitCode = %d, want 3", res.ExitCode)
   }
@@ -295,9 +313,11 @@ func TestRunForceTruncatesLongOutput(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   if !res.Flags.Truncated() {
     t.Fatal("expected the Truncated flag to be set")
   }
+
   if !strings.Contains(res.Stdout, "truncated") {
     t.Fatalf("Stdout = %q, want a truncation notice", res.Stdout)
   }

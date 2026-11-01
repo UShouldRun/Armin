@@ -27,6 +27,7 @@ func initGitRepo(t *testing.T, cfg *sandbox.Config) {
     if err != nil {
       t.Fatalf("git %v: %v", args, err)
     }
+
     if res.ExitCode != 0 {
       t.Fatalf("git %v exited %d: %s", args, res.ExitCode, res.Stderr)
     }
@@ -51,9 +52,11 @@ func TestGitLogParsesCommits(t *testing.T) {
   if err != nil {
     t.Fatalf("GitLog: %v", err)
   }
+
   if len(out.Commits) != 1 {
     t.Fatalf("Commits = %+v, want 1", out.Commits)
   }
+
   c := out.Commits[0]
   if c.Author != "Test User" || c.Subject != "initial commit" || c.Hash == "" || c.Date == "" {
     t.Fatalf("commit = %+v, missing/wrong fields", c)
@@ -82,9 +85,11 @@ func TestGitBlameAttributesLines(t *testing.T) {
   if err != nil {
     t.Fatalf("GitBlame: %v", err)
   }
+
   if len(out.Lines) != 1 {
     t.Fatalf("Lines = %+v, want 1", out.Lines)
   }
+
   if out.Lines[0].Author != "Test User" || out.Lines[0].Line != 1 {
     t.Fatalf("Lines[0] = %+v", out.Lines[0])
   }
@@ -112,9 +117,11 @@ func TestWorkingTreeDiffShowsUncommittedAndUntracked(t *testing.T) {
   if err != nil {
     t.Fatalf("WorkingTreeDiff: %v", err)
   }
+
   if !strings.Contains(out.Diff, "world") {
     t.Fatalf("Diff = %q, want it to show the uncommitted change", out.Diff)
   }
+
   if len(out.Untracked) != 1 || out.Untracked[0] != "new.txt" {
     t.Fatalf("Untracked = %v, want [new.txt]", out.Untracked)
   }
@@ -129,6 +136,7 @@ func TestWorkingTreeDiffCleanTree(t *testing.T) {
   if err != nil {
     t.Fatalf("WorkingTreeDiff: %v", err)
   }
+
   if out.Diff != "(no uncommitted changes)" {
     t.Fatalf("Diff = %q, want the clean-tree sentinel", out.Diff)
   }
@@ -144,6 +152,7 @@ func TestGitDiffAgainstHead(t *testing.T) {
   if err != nil {
     t.Fatalf("GitDiff: %v", err)
   }
+
   if !strings.Contains(out.Diff, "changed") {
     t.Fatalf("Diff = %q, want it to show the change", out.Diff)
   }
@@ -168,6 +177,7 @@ func TestGitShowReturnsCommit(t *testing.T) {
   if err != nil {
     t.Fatalf("GitShow: %v", err)
   }
+
   if !strings.Contains(out.Show, "initial commit") {
     t.Fatalf("Show = %q, want it to contain the commit message", out.Show)
   }
@@ -192,6 +202,7 @@ func TestGrepHistoryFindsIntroducedText(t *testing.T) {
   if err != nil {
     t.Fatalf("GrepHistory: %v", err)
   }
+
   if out.Log == "(no matching commits)" {
     t.Fatal("expected to find the commit that introduced \"hello\"")
   }
@@ -208,6 +219,7 @@ func TestCodeOwnersRanksByCommitCount(t *testing.T) {
   if err != nil {
     t.Fatalf("CodeOwners: %v", err)
   }
+
   if len(out.Owners) != 1 || out.Owners[0].Author != "Test User" || out.Owners[0].Commits != 1 {
     t.Fatalf("Owners = %+v", out.Owners)
   }
@@ -222,6 +234,7 @@ func TestCommitStatsRanksHotspots(t *testing.T) {
   if err != nil {
     t.Fatalf("CommitStats: %v", err)
   }
+
   if len(out.Hotspots) != 1 || out.Hotspots[0].File != "a.txt" || out.Hotspots[0].Commits != 1 {
     t.Fatalf("Hotspots = %+v", out.Hotspots)
   }

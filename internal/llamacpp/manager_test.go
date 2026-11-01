@@ -20,6 +20,7 @@ func TestModelSpecManaged(t *testing.T) {
   if (ModelSpec{ URL: "http://x" }).managed() {
     t.Fatal("a spec with a URL should not be managed")
   }
+
   if !(ModelSpec{ Binary: "llama-server" }).managed() {
     t.Fatal("a spec without a URL should be managed")
   }
@@ -30,10 +31,12 @@ func TestModelSpecIdleTimeout(t *testing.T) {
   if got != DefaultIdleTimeout {
     t.Fatalf("zero IdleTimeout = %v, want DefaultIdleTimeout", got)
   }
+
   got = (ModelSpec{ IdleTimeout: 5 * time.Minute }).idleTimeout()
   if got != 5 * time.Minute {
     t.Fatalf("idleTimeout() = %v, want the override", got)
   }
+
   got = (ModelSpec{ IdleTimeout: -1 }).idleTimeout()
   if got >= 0 {
     t.Fatalf("idleTimeout() = %v, want a negative sentinel preserved", got)
@@ -45,6 +48,7 @@ func TestModelSpecURL(t *testing.T) {
   if got != "http://elsewhere:9000" {
     t.Fatalf("url() = %q, want the external URL unchanged", got)
   }
+
   got = (ModelSpec{ Binary: "llama-server", Port: 8081 }).url()
   if got != "http://127.0.0.1:8081" {
     t.Fatalf("url() = %q, want the local managed port", got)
@@ -66,6 +70,7 @@ func TestHasAndNames(t *testing.T) {
   if len(names) != 2 {
     t.Fatalf("Names() = %+v, want 2 entries", names)
   }
+
   for _, s := range names {
     if s.Running {
       t.Fatalf("%+v: nothing should be running before first use", s)
@@ -91,6 +96,7 @@ func TestClientExternalSpecNeverSpawns(t *testing.T) {
   if err != nil {
     t.Fatalf("Client: %v", err)
   }
+
   if client.BaseURL != "http://example.invalid:9" {
     t.Fatalf("BaseURL = %q, want the external spec's URL untouched", client.BaseURL)
   }
@@ -114,6 +120,7 @@ func TestClientCarriesAPIKeyFromSpec(t *testing.T) {
   if err != nil {
     t.Fatalf("Client: %v", err)
   }
+
   if client.APIKey != "sk-ant-test" {
     t.Fatalf("Client.APIKey = %q, want it resolved from APIKeyEnv", client.APIKey)
   }
@@ -131,6 +138,7 @@ func TestSwitchUpdatesAPIKeyOnTheSharedClient(t *testing.T) {
   if err != nil {
     t.Fatalf("Client: %v", err)
   }
+
   if client.APIKey != "" {
     t.Fatalf("Client.APIKey = %q, want empty for a spec with no APIKeyEnv", client.APIKey)
   }
@@ -139,6 +147,7 @@ func TestSwitchUpdatesAPIKeyOnTheSharedClient(t *testing.T) {
   if err != nil {
     t.Fatalf("Switch: %v", err)
   }
+
   if client.APIKey != "sk-ant-test" {
     t.Fatalf("after Switch, Client.APIKey = %q, want sk-ant-test", client.APIKey)
   }
@@ -160,6 +169,7 @@ func TestTouchUpdatesRefcountAndLastUsed(t *testing.T) {
   if refcount != 1 {
     t.Fatalf("refcount = %d, want 1", refcount)
   }
+
   if !lastUsed.After(old) {
     t.Fatal("touch should bump lastUsed")
   }
@@ -213,12 +223,15 @@ func TestReapIdleSelection(t *testing.T) {
   if longEnoughStillTracked {
     t.Error("idle-long-enough should have been reaped")
   }
+
   if !tooRecentStillTracked {
     t.Error("idle-too-recent hasn't hit its (longer) timeout yet, should survive")
   }
+
   if !busyStillTracked {
     t.Error("busy has refcount>0, must never be reaped regardless of idle time")
   }
+
   if !neverIdleStillTracked {
     t.Error("never-idle has a negative IdleTimeout, must never be reaped")
   }
@@ -237,6 +250,7 @@ func TestHelperProcess(t *testing.T) {
   if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
     return
   }
+
   defer os.Exit(0)
 
   var port string
@@ -261,6 +275,7 @@ func TestHelperProcess(t *testing.T) {
       }
     }
   }
+
   if port == "" {
     fmt.Fprintln(os.Stderr, "helper: no --port given")
     os.Exit(1)
@@ -286,6 +301,7 @@ func TestHelperProcess(t *testing.T) {
     fmt.Fprintln(os.Stderr, "helper: listen:", err)
     os.Exit(1)
   }
+
   http.Serve(ln, mux)
 }
 
@@ -306,6 +322,7 @@ func fakeLlamaServerBinary(t *testing.T) string {
   if err != nil {
     t.Fatal(err)
   }
+
   return path
 }
 
@@ -315,7 +332,9 @@ func freePort(t *testing.T) int {
   if err != nil {
     t.Fatal(err)
   }
+
   defer ln.Close()
+
   return ln.Addr().(*net.TCPAddr).Port
 }
 
@@ -338,6 +357,7 @@ func TestSpawnHealthPollAndShutdown(t *testing.T) {
   if err != nil {
     t.Fatalf("Client: %v", err)
   }
+
   err = client.Health(ctx)
   if err != nil {
     t.Fatalf("Health after spawn: %v", err)
@@ -350,6 +370,7 @@ func TestSpawnHealthPollAndShutdown(t *testing.T) {
       running = s.Running
     }
   }
+
   if !running {
     t.Fatal("Names() should report fim as running after Client spawned it")
   }
@@ -364,6 +385,7 @@ func TestSpawnHealthPollAndShutdown(t *testing.T) {
   if err != nil {
     t.Fatalf("second Client: %v", err)
   }
+
   m.mu.Lock()
   procAfter := m.procs["fim"].cmd.Process.Pid
   m.mu.Unlock()
@@ -375,6 +397,7 @@ func TestSpawnHealthPollAndShutdown(t *testing.T) {
   if err != nil {
     t.Fatalf("Shutdown: %v", err)
   }
+
   err = client.Health(context.Background())
   if err == nil {
     t.Fatal("expected Health to fail once Shutdown stopped the process")
@@ -413,14 +436,16 @@ func TestSpawnScrubsSecretEnvVars(t *testing.T) {
   if err != nil {
     t.Fatalf("querying the spawned process: %v", err)
   }
+
   defer resp.Body.Close()
   body, err := io.ReadAll(resp.Body)
   if err != nil {
     t.Fatal(err)
   }
+
   if string(body) != "0" {
     t.Fatalf(
-      "spawned process saw ARMIN_TEST_SECRET (body=%q) — a local "+
+      "spawned process saw ARMIN_TEST_SECRET (body=%q) — a local " +
         "llama-server must never inherit another model's API key",
       body,
     )
@@ -447,15 +472,18 @@ func TestSwitchMutatesClientInPlace(t *testing.T) {
   if err != nil {
     t.Fatalf("Client: %v", err)
   }
+
   original := client
 
   err = m.Switch(ctx, client, "fim")
   if err != nil {
     t.Fatalf("Switch: %v", err)
   }
+
   if client != original {
     t.Fatal("Switch must mutate the given *Client, not return a new one")
   }
+
   if client.Model != "fim" {
     t.Fatalf("Model = %q, want %q", client.Model, "fim")
   }
@@ -489,10 +517,12 @@ func TestReadyRespawnsAStoppedModel(t *testing.T) {
   if client.Ready == nil {
     t.Fatal("managed clients must carry a Ready hook")
   }
+
   err = client.Ready(ctx)
   if err != nil {
     t.Fatalf("Ready: %v", err)
   }
+
   err = client.Health(ctx)
   if err != nil {
     t.Fatalf("Ready didn't bring the model back: %v", err)
@@ -520,6 +550,7 @@ func TestSwitchFreesTheGPUFromThePreviousLocalModel(t *testing.T) {
   if err != nil {
     t.Fatalf("Client a: %v", err)
   }
+
   _, err = m.Client(ctx, "fim")
   if err != nil {
     t.Fatalf("Client fim: %v", err)
@@ -544,6 +575,7 @@ func TestSwitchFreesTheGPUFromThePreviousLocalModel(t *testing.T) {
   if err != nil {
     t.Fatalf("Switch to external: %v", err)
   }
+
   m.mu.Lock()
   _, bUp = m.procs["b"]
   m.mu.Unlock()

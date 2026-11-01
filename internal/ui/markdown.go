@@ -82,6 +82,7 @@ func (m *Markdown) finish() bool {
   if !m.inCode && mdTable.MatchString(raw) {
     m.table = append(m.table, raw)
     fmt.Print(erase + Dim(fmt.Sprintf("⋯ table, %d rows", len(m.table))) + "\r")
+
     return false
   }
 

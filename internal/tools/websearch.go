@@ -28,6 +28,7 @@ func WebSearch(
         "wasn't found on this machine when armin started",
     )
   }
+
   if strings.TrimSpace(in.Query) == "" {
     return nil, fmt.Errorf("\n\t... in WebSearch:\n\t query is required")
   }
@@ -49,5 +50,6 @@ func WebSearch(
   for i, r := range results {
     out[i] = WebSearchResult{ Title: r.Title, URL: r.URL, Snippet: r.Snippet }
   }
+
   return &WebSearchOutput{ Results: out }, nil
 }

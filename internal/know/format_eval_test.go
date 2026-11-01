@@ -443,6 +443,7 @@ func TestFormatEval(t *testing.T) {
   case "harder":
     qs = evalHarderQuestions(g, all)
   }
+
   t.Logf("fixture: %d nodes, %d edges", g.Len(), g.edges.count())
 
   // ARMIN_FORMAT_EVAL_ONLY=10,24 runs those questions only;
@@ -730,7 +731,7 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
     id = pick(func(id NodeID) bool { return len(deps(id, false)) >= 3 })
     qs = append(qs, evalQuestion{
       text: fmt.Sprintf("Of the nodes node %d depends on directly, which can " +
-        "be trusted as they are: "+
+        "be trusted as they are: " +
         "confidence checked or tested, not stale or suspect, not an " +
           "unchecked small-model claim?",
         id),
@@ -864,7 +865,7 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
 
     qs = append(qs, evalQuestion{
       text: fmt.Sprintf("Of the nodes node %d depends on directly, which are " +
-        "stale or suspect themselves, "+
+        "stale or suspect themselves, " +
         "or directly depend on a node that is stale or suspect?", id),
       shown: context(need...), want: idsAnswer(q9),
     })
@@ -1113,7 +1114,7 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
     id = pick(sized(true, 4, 12))
     up = closure(id, true)
     add(fmt.Sprintf("Of all the nodes that rest on node %d, directly or " +
-      "indirectly at any depth, which can be trusted as they are: "+
+      "indirectly at any depth, which can be trusted as they are: " +
       "confidence checked or tested, not stale or suspect, not an unchecked " +
         "small-model claim?",
       id),
@@ -1190,7 +1191,7 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
     }
 
     add(fmt.Sprintf("If node %d turned out wrong, which trusted nodes " +
-      "(confidence checked or tested, not stale or suspect, "+
+      "(confidence checked or tested, not stale or suspect, " +
       "not an unchecked small-model claim) would be affected within two " +
         "steps: resting on it directly, or through one node in between?",
       id),

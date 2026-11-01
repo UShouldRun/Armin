@@ -39,50 +39,50 @@ func withWords(base lang, quote, kw, lit, types string) lang {
 
 var langs = map[string]lang{
   "go": withWords(cLike, "",
-    "break case chan const continue default defer else fallthrough for "+
-      "func go goto if import interface map package range return select "+
+    "break case chan const continue default defer else fallthrough for " +
+      "func go goto if import interface map package range return select " +
       "struct switch type var",
     "true false nil iota",
-    "bool byte complex64 complex128 error float32 float64 int int8 int16 "+
+    "bool byte complex64 complex128 error float32 float64 int int8 int16 " +
       "int32 int64 rune string uint uint8 uint16 uint32 uint64 uintptr any"),
   "js": withWords(cLike, "",
-    "async await break case catch class const continue debugger default "+
-      "delete do else export extends finally for from function if import "+
-      "in instanceof let new of return static super switch this throw try "+
+    "async await break case catch class const continue debugger default " +
+      "delete do else export extends finally for from function if import " +
+      "in instanceof let new of return static super switch this throw try " +
       "typeof var void while with yield interface type enum implements",
     "true false null undefined NaN Infinity",
     "string number boolean any unknown never object void"),
   "c": withWords(cLike, "\"'",
-    "break case const continue default do else enum extern for goto if "+
-      "inline register restrict return sizeof static struct switch "+
-      "typedef union volatile while class namespace template typename "+
-      "public private protected virtual override constexpr noexcept using "+
-      "new delete auto #include #define #ifndef #ifdef #endif #if #else "+
+    "break case const continue default do else enum extern for goto if " +
+      "inline register restrict return sizeof static struct switch " +
+      "typedef union volatile while class namespace template typename " +
+      "public private protected virtual override constexpr noexcept using " +
+      "new delete auto #include #define #ifndef #ifdef #endif #if #else " +
       "#pragma",
     "true false NULL nullptr",
-    "void char short int long float double signed unsigned bool size_t "+
-      "u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 uint8_t uint16_t uint32_t "+
+    "void char short int long float double signed unsigned bool size_t " +
+      "u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 uint8_t uint16_t uint32_t " +
       "uint64_t int8_t int16_t int32_t int64_t"),
   "rs": withWords(cLike, "\"",
-    "as async await break const continue crate dyn else enum extern fn "+
-      "for if impl in let loop match mod move mut pub ref return self Self "+
+    "as async await break const continue crate dyn else enum extern fn " +
+      "for if impl in let loop match mod move mut pub ref return self Self " +
       "static struct super trait type unsafe use where while",
     "true false None Some Ok Err",
-    "i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize f32 f64 bool "+
+    "i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize f32 f64 bool " +
       "char str String Vec Option Result Box"),
   "py": withWords(lang{ line: "#", quote: "\"'" }, "",
-    "and as assert async await break class continue def del elif else "+
-      "except finally for from global if import in is lambda nonlocal not "+
+    "and as assert async await break class continue def del elif else " +
+      "except finally for from global if import in is lambda nonlocal not " +
       "or pass raise return try while with yield match case",
     "True False None self",
     "int float str bytes bool list dict set tuple object"),
   "sh": withWords(lang{ line: "#", quote: "\"'`" }, "",
-    "if then else elif fi for while until do done case esac in function "+
+    "if then else elif fi for while until do done case esac in function " +
       "return local export readonly set unset shift exit source alias",
     "true false", ""),
   "lua": withWords(
     lang{ line: "--", block: [2]string{ "--[[", "]]" }, quote: "\"'" }, "",
-    "and break do else elseif end for function goto if in local not or "+
+    "and break do else elseif end for function goto if in local not or " +
       "repeat return then until while",
     "true false nil", ""),
   "typ": withWords(cLike, "\"",

@@ -23,6 +23,7 @@ func TestTruncateSnippetLongStringCut(t *testing.T) {
     t.Fatalf("truncateSnippet result is %d bytes, want at most %d",
       len(got), maxSnippetChars + len("…"))
   }
+
   if !strings.HasSuffix(got, "…") {
     t.Fatalf("truncateSnippet(%d chars) = %q, want a truncation marker", len(s), got)
   }
@@ -65,13 +66,16 @@ func TestEnsureSettingsWritesFileOnce(t *testing.T) {
   if err != nil {
     t.Fatalf("ensureSettings: %v", err)
   }
+
   content1, err := os.ReadFile(path1)
   if err != nil {
     t.Fatal(err)
   }
+
   if !changed {
     t.Error("first write should report a change")
   }
+
   if !strings.Contains(string(content1), "formats") {
     t.Fatalf("settings.yml missing the json format override: %q", content1)
   }
@@ -80,10 +84,12 @@ func TestEnsureSettingsWritesFileOnce(t *testing.T) {
   if err != nil {
     t.Fatalf("ensureSettings (second call): %v", err)
   }
+
   content2, err := os.ReadFile(path2)
   if err != nil {
     t.Fatal(err)
   }
+
   if changed || string(content1) != string(content2) {
     t.Fatal("ensureSettings regenerated the file (and its secret_key) on a second call")
   }
@@ -97,6 +103,7 @@ func TestEnsureSettingsPathUnderConfigDir(t *testing.T) {
   if err != nil {
     t.Fatalf("ensureSettings: %v", err)
   }
+
   want := filepath.Join(home, "armin", "searxng", "settings.yml")
   if path != want {
     t.Fatalf("ensureSettings path = %q, want %q", path, want)
@@ -115,12 +122,14 @@ func TestEnsureSettingsUpgradesOldFileKeepingSecret(t *testing.T) {
   if err != nil || !changed {
     t.Fatalf("changed=%v err=%v, want the old template rewritten", changed, err)
   }
+
   got, _ := os.ReadFile(path)
   for _, want := range []string{ "abc123", "keep_only", "- yandex", "limiter: false" } {
     if !strings.Contains(string(got), want) {
       t.Errorf("rewritten settings missing %q:\n%s", want, got)
     }
   }
+
   if strings.Contains(string(got), "duckduckgo") {
     t.Error("the CAPTCHA-blocked engines are back")
   }

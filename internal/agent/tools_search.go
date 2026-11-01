@@ -124,10 +124,10 @@ var searchTools = []toolSpec{
     run:   runLibrarySearch,
     def: toolFunc(
       "library_search",
-      "Search the user's reference library (books, official docs, "+
-        "language standards, RFCs, man pages) for passages on a "+
-        "technical question. Returns the best passages with title, "+
-        "file, page or line, and how to read more. Cite what you use "+
+      "Search the user's reference library (books, official docs, " +
+        "language standards, RFCs, man pages) for passages on a " +
+        "technical question. Returns the best passages with title, " +
+        "file, page or line, and how to read more. Cite what you use " +
         "as [Title, page N].",
       map[string]llm.ToolProperty{
         "query": stringProp(
@@ -152,7 +152,7 @@ var searchTools = []toolSpec{
     run:   runLibraryTopics,
     def: toolFunc(
       "library_topics",
-      "Show where the library covers a topic: book, chapters or pages, "+
+      "Show where the library covers a topic: book, chapters or pages, " +
         "and what it's good for. With no topic, lists every topic.",
       map[string]llm.ToolProperty{
         "topic": stringProp(

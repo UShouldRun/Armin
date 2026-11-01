@@ -26,7 +26,7 @@ func TestSplitTrace(t *testing.T) {
 
   // a middle frame's words stay in the message, without its name
   s = fmt.Errorf("\n\t... in Turn:\n\t model call failed: %w",
-    fmt.Errorf("\n\t... in ChatStream:\n\t calling llama-server at "+
+    fmt.Errorf("\n\t... in ChatStream:\n\t calling llama-server at " +
       "http://x: %w", errors.New("connection refused"))).Error()
   message, _ = SplitTrace(s)
   want = "model call failed: calling llama-server at http://x: " +

@@ -151,6 +151,7 @@ func (s *Server) Serve(
     if err == io.EOF {
       return nil
     }
+
     if err != nil {
       return fmt.Errorf("\n\t... in Serve:\n\t%w", err)
     }
@@ -168,6 +169,7 @@ func (s *Server) Serve(
       if s.shutdownReceived {
         return nil
       }
+
       return ErrExitWithoutShutdown
     }
 
@@ -230,6 +232,7 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
       s.respondError(msg.ID, errInvalidRequest, err.Error())
       return
     }
+
     go s.hover(ctx, msg.ID, p)
 
   case "workspace/executeCommand":
@@ -239,6 +242,7 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
       s.respondError(msg.ID, errInvalidRequest, err.Error())
       return
     }
+
     go s.executeCommand(ctx, msg.ID, p)
 
   case "textDocument/inlineCompletion":
@@ -248,6 +252,7 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
       s.respondError(msg.ID, errInvalidRequest, err.Error())
       return
     }
+
     go s.inlineCompletion(ctx, msg.ID, p)
 
   case "textDocument/definition":
@@ -257,6 +262,7 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
       s.respondError(msg.ID, errInvalidRequest, err.Error())
       return
     }
+
     go s.definition(ctx, msg.ID, p)
 
   case "workspace/symbol":
@@ -266,6 +272,7 @@ func (s *Server) handle(ctx context.Context, msg rpcMessage) {
       s.respondError(msg.ID, errInvalidRequest, err.Error())
       return
     }
+
     go s.workspaceSymbol(ctx, msg.ID, p)
 
   default:
@@ -311,6 +318,7 @@ func (s *Server) dropDoc(uri string) {
 func (s *Server) doc(uri string) string {
   s.docsMu.Lock()
   defer s.docsMu.Unlock()
+
   return s.docs[uri]
 }
 
@@ -327,6 +335,7 @@ func (s *Server) relPath(uri string) string {
   if err != nil {
     return u.Path
   }
+
   return rel
 }
 
@@ -334,6 +343,7 @@ func (s *Server) respond(id json.RawMessage, result any, errObj *rpcError) {
   if len(id) == 0 {
     return // notification — nothing to respond to
   }
+
   s.write(rpcResponse{
     JSONRPC: "2.0", ID: id, Result: result, Error: errObj,
   })

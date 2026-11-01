@@ -44,7 +44,7 @@ func (s *Server) hover(
   }
 
   question := fmt.Sprintf(
-    "Explain concisely (max one short paragraph, no preamble) "+
+    "Explain concisely (max one short paragraph, no preamble) " +
       "what this code does. File: %s, near line %d%s:\n\n```\n%s\n```",
     s.relPath(p.TextDocument.URI), p.Position.Line + 1, fact, snippet,
   )
@@ -67,12 +67,14 @@ func contextWindow(
   if !ok {
     return "", ""
   }
+
   lineText = text[start:end]
 
   winStart, _, ok := lineOffset(text, line - radius)
   if !ok {
     winStart = 0
   }
+
   _, winEnd, ok := lineOffset(text, line + radius)
   if !ok {
     winEnd = len(text)
@@ -90,6 +92,7 @@ func (s *Server) cachedHover(key string) (string, bool) {
   s.hoverMu.Lock()
   defer s.hoverMu.Unlock()
   v, ok := s.hoverCache[key]
+
   return v, ok
 }
 
@@ -103,5 +106,6 @@ func capLength(s string, max int) string {
   if len(s) <= max {
     return s
   }
+
   return s[:max] + "\n\n…(truncated)"
 }

@@ -43,6 +43,7 @@ func (s *Server) definition(
       URI: s.fileURI(m.File), Range: pointRange(m.Line),
     })
   }
+
   s.respond(id, locations, nil)
 }
 
@@ -67,6 +68,7 @@ func (s *Server) workspaceSymbol(
       ContainerName: m.Scope,
     })
   }
+
   s.respond(id, results, nil)
 }
 
@@ -91,6 +93,7 @@ func (s *Server) symbolFact(ctx context.Context, word, uri string) string {
   if m.Scope != "" {
     fact += ", " + m.Scope
   }
+
   return fact + ")"
 }
 
@@ -107,7 +110,9 @@ func pointRange(line int) Range {
   if l < 0 {
     l = 0
   }
+
   point := Position{ Line: l, Character: 0 }
+
   return Range{ Start: point, End: point }
 }
 
@@ -134,6 +139,7 @@ func wordAt(line string, character int) string {
   for start > 0 && isIdent(runes[start - 1]) {
     start--
   }
+
   end := character + 1
   for end < len(runes) && isIdent(runes[end]) {
     end++
@@ -169,5 +175,6 @@ func symbolKindFor(kind string) int {
   if ok {
     return k
   }
+
   return 13 // Variable
 }

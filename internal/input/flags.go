@@ -40,25 +40,25 @@ func parseFlags(fileCfg config.Config) cliFlags {
   flag.StringVar(&f.root, "root", firstNonEmpty(fileCfg.Root, "."),
     "project root to operate in (paths are jailed to this directory)")
   flag.StringVar(&f.model, "model", defaultModel,
-    "name of the model to use for chat — either a models.<name> "+
-      "entry from config.conf, or (with no matching entry) an "+
+    "name of the model to use for chat — either a models.<name> " +
+      "entry from config.conf, or (with no matching entry) an " +
       "ad-hoc label for whatever's running at -llama-url")
   flag.StringVar(&f.completionModel, "completion-model",
     firstNonEmpty(fileCfg.CompletionModel, defaultModel),
-    "name of the model for -lsp inline completion; should be a "+
-      "fill-in-the-middle code model, not a chat model. Defaults to "+
+    "name of the model for -lsp inline completion; should be a " +
+      "fill-in-the-middle code model, not a chat model. Defaults to " +
       "-model itself, i.e. reusing one llama-server for both")
   flag.StringVar(&f.ctagsBin, "ctags-bin",
     firstNonEmpty(fileCfg.CtagsBinary, resolveCtagsBinary()),
-    "Universal Ctags binary for -lsp definition/workspace-symbol/"+
+    "Universal Ctags binary for -lsp definition/workspace-symbol/" +
       "hover grounding (empty disables those, degrading gracefully)")
   flag.StringVar(&f.llamaURL, "llama-url",
     firstNonEmpty(fileCfg.LlamaURL, "http://localhost:8080"),
-    "llama-server base URL used for -model when it has no "+
+    "llama-server base URL used for -model when it has no " +
       "matching models.<name> entry in config.conf")
   flag.StringVar(&f.completionLlamaURL, "completion-llama-url",
     fileCfg.CompletionLlamaURL,
-    "llama-server base URL used for -completion-model when it has "+
+    "llama-server base URL used for -completion-model when it has " +
       "no matching models.<name> entry; empty reuses -llama-url")
   flag.DurationVar(&f.timeout, "timeout",
     firstNonZeroDuration(fileCfg.Timeout, 20 * time.Second),
@@ -70,10 +70,10 @@ func parseFlags(fileCfg config.Config) cliFlags {
     firstNonZeroInt(fileCfg.MaxToolRounds, agent.DefaultMaxRounds),
     "max tool-call rounds per turn before the model must report back")
   flag.StringVar(&f.addDirs, "add-dir", "",
-    "comma-separated directories outside the project armin may read "+
+    "comma-separated directories outside the project armin may read " +
       "(never write), e.g. -add-dir .. for slides next to the repo")
   flag.StringVar(&f.webAddr, "web", "",
-    "serve the chat in a browser at this localhost address "+
+    "serve the chat in a browser at this localhost address " +
       "(e.g. 127.0.0.1:7777) instead of the REPL")
   flag.BoolVar(&f.autoApprove, "yes", false,
     "apply file writes without asking first")
@@ -84,47 +84,47 @@ func parseFlags(fileCfg config.Config) cliFlags {
   flag.BoolVar(&f.lspMode, "lsp", false,
     "serve hover + an ask command over LSP stdio instead of the REPL")
   flag.BoolVar(&f.newInstance, "new", false,
-    "start a separate armin even when nvim's armin serves this "+
+    "start a separate armin even when nvim's armin serves this " +
       "project (by default the TUI joins its :ArminAsk chat)")
   flag.Var((*resumeFlag)(&f.resume), "resume",
-    "resume a saved session: alone, pick from a menu of sessions; "+
+    "resume a saved session: alone, pick from a menu of sessions; " +
       "-resume <id> (or a unique prefix of it) resumes that one")
   flag.BoolVar(&f.noSave, "no-save", false,
     "don't persist the session to disk after each turn")
   flag.BoolVar(&f.noColor, "no-color", false, "disable ANSI styling")
   flag.StringVar(&f.effort, "effort", firstNonEmpty(fileCfg.Effort, "auto"),
-    "how hard the model thinks: auto (it judges each request), off, "+
+    "how hard the model thinks: auto (it judges each request), off, " +
       "low, medium or high; /effort changes it in the chat")
   flag.StringVar(&f.aids, "aids", firstNonEmpty(fileCfg.Aids, "all"),
-    "reasoning aids: all, none, or a list of stuck (step back after "+
-      "repeated failures), procedure (steps per kind of task), verify "+
+    "reasoning aids: all, none, or a list of stuck (step back after " +
+      "repeated failures), procedure (steps per kind of task), verify " +
       "(check the work before answering)")
   flag.BoolVar(&f.librarySync, "library-sync", false,
-    "index the reference library (library = in config.conf) and have "+
+    "index the reference library (library = in config.conf) and have " +
       "-model catalog the books the topic table lacks, then exit")
   flag.StringVar(&f.libraryAdd, "library-add", "",
-    "comma-separated files or folders to copy into the library, "+
+    "comma-separated files or folders to copy into the library, " +
       "then index and catalog them, and exit")
   flag.StringVar(&f.libraryTo, "library-to", "added",
     "the library folder (topic) -library-add copies into, e.g. go, math")
   flag.StringVar(&f.install, "install", "",
-    "size up a model against this machine, then download it and add "+
-      "it to config.conf: org/repo[:QUANT] on Hugging Face, "+
+    "size up a model against this machine, then download it and add " +
+      "it to config.conf: org/repo[:QUANT] on Hugging Face, " +
       "org/repo/file.gguf, or a .gguf already on disk")
   flag.StringVar(&f.uninstall, "uninstall", "",
-    "remove a model -install added (any models.<name>): its config.conf "+
-      "lines and its .gguf, unless another model uses it; "+
+    "remove a model -install added (any models.<name>): its config.conf " +
+      "lines and its .gguf, unless another model uses it; " +
       "-uninstall list shows them")
   flag.StringVar(&f.installTo, "install-to", "",
-    "the folder -install downloads into (default: where your models "+
+    "the folder -install downloads into (default: where your models " +
       "already are, else ~/models)")
 
   flag.BoolVar(&f.metrics, "metrics", false,
-    "print what armin's deterministic systems did (tree recall, dedup, "+
+    "print what armin's deterministic systems did (tree recall, dedup, " +
       "staleness, delegation checks, every tool), then exit")
   flag.StringVar(&f.know, "know", "",
-    "show or change the project's knowledge DAG, then exit: "+
-      "dump[=path] prints it, edit[=path] opens it in $EDITOR, "+
+    "show or change the project's knowledge DAG, then exit: " +
+      "dump[=path] prints it, edit[=path] opens it in $EDITOR, " +
       "import-memories moves memories that are code facts into it")
 
   flag.Usage = printUsage
@@ -146,14 +146,14 @@ func parseFlags(fileCfg config.Config) cliFlags {
       }
 
       fmt.Fprintf(os.Stderr,
-        "armin: %q isn't a directory. armin takes a project folder, not a "+
+        "armin: %q isn't a directory. armin takes a project folder, not a " +
           "command: armin [path] [flags] (armin -h lists the flags)\n",
         positional)
       os.Exit(2)
     }
 
     if rootExplicitlySet() {
-      fmt.Fprintln(os.Stderr, "armin: both -root and a positional "+
+      fmt.Fprintln(os.Stderr, "armin: both -root and a positional " +
         "path were given — use one or the other")
       os.Exit(2)
     }
@@ -180,7 +180,7 @@ func printUsage() {
 
   fmt.Fprintln(w, "Usage: armin [path] [flags]")
   fmt.Fprintln(w)
-  printWrapped(w, "", "path is shorthand for -root "+
+  printWrapped(w, "", "path is shorthand for -root " +
     "(\"armin .\" == \"armin -root .\"); giving both is an error.")
   fmt.Fprintln(w)
 
@@ -191,6 +191,7 @@ func printUsage() {
     if kind != "" {
       head += " " + kind
     }
+
     fmt.Fprintln(w, head)
 
     switch fl.DefValue {
@@ -200,6 +201,7 @@ func printUsage() {
       if kind == "string" {
         def = fmt.Sprintf("%q", def)
       }
+
       usage += " (default " + def + ")"
     }
 
@@ -226,6 +228,7 @@ func printWrapped(w *os.File, indent, text string) {
       line += " "
       width++
     }
+
     line  += word
     width += n
     empty  = false

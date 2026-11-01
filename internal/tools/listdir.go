@@ -52,6 +52,7 @@ func ListDirectory(
       "\n\t... in ListDirectory:\n\t stat %q: %w", in.Path, err,
     )
   }
+
   if !info.IsDir() {
     return nil, fmt.Errorf(
       "\n\t... in ListDirectory:\n\t %q is not a directory", in.Path,
@@ -98,6 +99,7 @@ func walk(b *strings.Builder, dir, prefix string, depthLeft int) error {
     if e.IsDir() {
       name += "/"
     }
+
     b.WriteString(prefix + connector + name + "\n")
 
     if e.IsDir() {
@@ -121,9 +123,11 @@ func keptEntries(entries []os.DirEntry) []os.DirEntry {
     if dotfile {
       continue // skip dotfiles, keep dotdirs filterable below
     }
+
     if e.IsDir() && skipDirs[e.Name()] {
       continue
     }
+
     kept = append(kept, e)
   }
 

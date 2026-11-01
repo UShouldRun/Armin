@@ -74,9 +74,9 @@ func hub(t *testing.T, name string, data []byte) *httptest.Server {
     switch {
     case strings.HasPrefix(r.URL.Path, "/api/models/org/repo/tree/main"):
       fmt.Fprintf(w,
-        `[{"type":"file","path":%q,"size":%d,"lfs":{"oid":%q,"size":%d}},`+
-          `{"type":"file","path":"README.md","size":10},`+
-          `{"type":"file","path":"mmproj-F16.gguf","size":10},`+
+        `[{"type":"file","path":%q,"size":%d,"lfs":{"oid":%q,"size":%d}},` +
+          `{"type":"file","path":"README.md","size":10},` +
+          `{"type":"file","path":"mmproj-F16.gguf","size":10},` +
           `{"type":"file","path":"mtp-m.gguf","size":10}]`,
         name, len(data), hex.EncodeToString(sum[:]), len(data),
       )

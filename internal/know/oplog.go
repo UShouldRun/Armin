@@ -168,6 +168,7 @@ func (g *Graph) apply(op opCode, payload []byte) error {
       g.index.changed(id)
       g.index.eulerDirty = true
     }
+
     if id != 0 && was != 0 && flags & FlagDeleted == 0 {
       g.pathInsert(id)
     }

@@ -24,6 +24,7 @@ func capture(t *testing.T, f func()) string {
   if err != nil {
     t.Fatal(err)
   }
+
   *os.Stdout = *wpipe
 
   done := make(chan string)
@@ -39,6 +40,7 @@ func capture(t *testing.T, f func()) string {
   if err != nil {
     t.Fatal(err)
   }
+
   *os.Stdout = saved
 
   out := <-done
@@ -61,13 +63,15 @@ func TestBanner(t *testing.T) {
     t.Fatalf("Banner printed %d lines, want 3:\n%s", len(lines), out)
   }
 
-  if !strings.Contains(lines[0], build.Name+
+  if !strings.Contains(lines[0], build.Name +
     " — terminal codebase assistant") {
     t.Errorf("first line %q lacks the name and tagline", lines[0])
   }
+
   if !strings.Contains(lines[1], "root: /proj") {
     t.Errorf("line %q lacks root", lines[1])
   }
+
   if lines[2] != "" {
     t.Errorf("line %q is not the blank separator", lines[2])
   }
@@ -101,9 +105,11 @@ func TestLogoKitty(t *testing.T) {
   if !strings.Contains(out, "\x1b_G") {
     t.Fatalf("kitty terminal got no image:\n%q", out)
   }
+
   if !strings.Contains(out, "f=100") {
     t.Errorf("kitty escape lacks f=100 (PNG): %q", out)
   }
+
   // one 4096-byte chunk at most: params and m=0 (last chunk) on it.
   // m=1 marks more-coming, so a multi-chunk image keeps the params
   // escape m=1 and ends on a bare m=0.
@@ -136,6 +142,7 @@ func writeTestPNG(t *testing.T, path string) {
   if err != nil {
     t.Fatal(err)
   }
+
   defer f.Close()
 
   err = png.Encode(f, img)

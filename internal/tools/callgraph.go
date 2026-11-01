@@ -46,12 +46,15 @@ func scanCalls(root string) (*callGraphData, error) {
     if err != nil {
       return err
     }
+
     if d.IsDir() {
       if d.Name() != "." && skipDirs[d.Name()] {
         return filepath.SkipDir
       }
+
       return nil
     }
+
     if !strings.HasSuffix(p, ".go") {
       return nil
     }
@@ -65,6 +68,7 @@ func scanCalls(root string) (*callGraphData, error) {
     if relErr != nil {
       rel = p
     }
+
     rel = filepath.ToSlash(rel)
 
     for _, decl := range file.Decls {
@@ -72,6 +76,7 @@ func scanCalls(root string) (*callGraphData, error) {
       if !ok {
         continue
       }
+
       fnName := fn.Name.Name
 
       ast.Inspect(fn, func(n ast.Node) bool {
@@ -79,21 +84,26 @@ func scanCalls(root string) (*callGraphData, error) {
         if !ok {
           return true
         }
+
         name := calleeName(call.Fun)
         if name == "" {
           return true
         }
+
         site := CallSite{ File: rel, Line: fset.Position(call.Pos()).Line }
         data.byName[name] = append(data.byName[name], site)
         data.enclosing[callSiteKey(site)] = fnName
+
         return true
       })
     }
+
     return nil
   })
   if err != nil {
     return nil, fmt.Errorf("\n\t... in scanCalls:\n\t%w", err)
   }
+
   return data, nil
 }
 
@@ -128,6 +138,7 @@ func getCallGraphCache(root string) *callGraphCache {
     c = &callGraphCache{ root: root }
     callGraphCaches[root] = c
   }
+
   return c
 }
 
@@ -143,7 +154,9 @@ func (c *callGraphCache) get() (*callGraphData, error) {
   if err != nil {
     return nil, err
   }
+
   c.data, c.builtAt = data, time.Now()
+
   return data, nil
 }
 
@@ -159,10 +172,12 @@ func FindCallers(
   if in.Name == "" {
     return nil, fmt.Errorf("\n\t... in FindCallers:\n\t name is required")
   }
+
   data, err := getCallGraphCache(cfg.Root).get()
   if err != nil {
     return nil, fmt.Errorf("\n\t... in FindCallers:\n\t%w", err)
   }
+
   return &FindCallersOutput{ Calls: data.byName[in.Name] }, nil
 }
 
@@ -201,19 +216,24 @@ func FindDeadCode(
     if sym.Kind != "f" && sym.Kind != "m" {
       continue // only functions/methods are meaningfully "dead code" here
     }
+
     if !isExportedGo(sym.Name) {
       continue
     }
+
     if in.Path != "" && !strings.HasPrefix(sym.File, in.Path) {
       continue
     }
+
     if len(data.byName[sym.Name]) > 0 {
       continue // has at least one syntactic call site
     }
+
     out.Candidates = append(out.Candidates, DeadCodeCandidate{
       Name: sym.Name, File: sym.File, Line: sym.Line,
     })
   }
+
   return out, nil
 }
 
@@ -240,10 +260,12 @@ func ImpactAnalysis(
   if in.Name == "" {
     return nil, fmt.Errorf("\n\t... in ImpactAnalysis:\n\t name is required")
   }
+
   depth := in.Depth
   if depth <= 0 {
     depth = defaultImpactDepth
   }
+
   if depth > maxImpactDepth {
     depth = maxImpactDepth
   }
@@ -266,15 +288,18 @@ func ImpactAnalysis(
         if !ok || visited[caller] {
           continue
         }
+
         visited[caller] = true
         if len(affected) >= maxImpactResults {
           truncated = true
           continue
         }
+
         affected = append(affected, caller)
         next = append(next, caller)
       }
     }
+
     frontier = next
   }
 

@@ -287,8 +287,8 @@ func TestTreeBench(t *testing.T) {
             name := fmt.Sprintf("%s/%s-%s-%d.md", dump, pair.name,
               armFiles[cond], si + 1)
             os.WriteFile(name, []byte(fmt.Sprintf(
-              "%s\n\nright %v, %d prompt (%d cached), %d completion, "+
-                "$%.5f, %d rounds, %d tools\n\n"+
+              "%s\n\nright %v, %d prompt (%d cached), %d completion, " +
+                "$%.5f, %d rounds, %d tools\n\n" +
                 "## answer\n%s\n\n## calls\n%s\n\n## tree after\n%s\n",
               q, run.right, run.prompt, run.cached, run.completion, run.cost,
               run.rounds, run.tools, run.answer, strings.Join(run.calls, "\n"),
@@ -312,7 +312,7 @@ func TestTreeBench(t *testing.T) {
       for si := 0; si < sessions; si++ {
         r := results[pi][cond][si]
         t.Logf(
-          "%-13s %-7s s%d  right %-5v  in %7d (cached %7d)  out %6d  "+
+          "%-13s %-7s s%d  right %-5v  in %7d (cached %7d)  out %6d  " +
             "$%.5f  rounds %2d  tools %2d",
           pair.name, armNames[cond], si + 1, r.right,
           r.prompt, r.cached, r.completion, r.cost, r.rounds, r.tools,
@@ -343,7 +343,7 @@ func TestTreeBench(t *testing.T) {
 
       tot := total[cond][si]
       t.Logf(
-        "TOTAL %-7s session %d: %d/%d right, in %d (cached %d), out %d, "+
+        "TOTAL %-7s session %d: %d/%d right, in %d (cached %d), out %d, " +
           "$%.4f, rounds %d, tools %d",
         armNames[cond], si + 1, right, len(benchPairs),
         tot.prompt, tot.cached, tot.completion, tot.cost, tot.rounds, tot.tools,
@@ -384,7 +384,7 @@ func TestTreeBench(t *testing.T) {
       pair[cond] += cons.Sum / float64(len(trees))
     }
 
-    t.Logf("CONSOLIDATE calls %d, $%.4f, pointers %d, claims %d, "+
+    t.Logf("CONSOLIDATE calls %d, $%.4f, pointers %d, claims %d, " +
       "linked %d, empty %d",
       cons.Count, cons.Sum, snap["know.consolidate.pointers"].Count,
       snap["know.consolidate.claims"].Count,

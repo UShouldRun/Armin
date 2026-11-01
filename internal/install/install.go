@@ -498,9 +498,9 @@ func ramSpeed(hw *Machine, hint string) {
     typ, speed, ch, _ = parseRAM(guess)
     r.Source = "assumed"
     hw.Notes = append(hw.Notes, fmt.Sprintf(
-      "RAM type and speed need root to read; assumed %s dual-channel. "+
-        "For exact numbers re-run ./install.sh, or set ram = "+
-        "<type>-<speed> (ddr5-5600, lpddr5x-7500, ddr4-3200 1ch, …) "+
+      "RAM type and speed need root to read; assumed %s dual-channel. " +
+        "For exact numbers re-run ./install.sh, or set ram = " +
+        "<type>-<speed> (ddr5-5600, lpddr5x-7500, ddr4-3200 1ch, …) " +
         "in config.conf", strings.ToUpper(guess),
     ))
   }

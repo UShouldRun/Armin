@@ -151,6 +151,7 @@ func runREPL(
       mind.Loop.Role = role
     }
   }
+
   completing := mind.Completion.Model
   r.SetCompleting(completing)
 

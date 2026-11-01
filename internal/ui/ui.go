@@ -52,6 +52,7 @@ func isTTY(f *os.File) bool {
   if err != nil {
     return false
   }
+
   return info.Mode() & os.ModeCharDevice != 0
 }
 
@@ -59,6 +60,7 @@ func style(code, s string) string {
   if !Enabled {
     return s
   }
+
   return code + s + reset
 }
 
@@ -173,8 +175,9 @@ func Logo() {
       params = "f=100,c=" + fmt.Sprint(LogoCols) +
         ",r=" + fmt.Sprint(LogoRows) + ","
     }
+
     m := "m=1;"
-    if i == chunks-1 {
+    if i == chunks - 1 {
       m = "m=0;"
     }
 
@@ -249,8 +252,10 @@ func formatArgs(args map[string]any) string {
     if len(s) > maxValue {
       s = fmt.Sprintf("%s… (%d bytes)", s[:maxValue], len(s))
     }
+
     parts = append(parts, k + "=" + s)
   }
+
   return "(" + strings.Join(parts, ", ") + ")"
 }
 

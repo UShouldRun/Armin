@@ -23,6 +23,7 @@ func toSymbolLocations(syms []ctags.Symbol) []SymbolLocation {
   for i, s := range syms {
     out[i] = toSymbolLocation(s)
   }
+
   return out
 }
 
@@ -32,7 +33,7 @@ func toSymbolLocations(syms []ctags.Symbol) []SymbolLocation {
 // web_search uses for a nil *searxng.Manager.
 func ctagsUnavailable(fn string) error {
   return fmt.Errorf(
-    "\n\t... in %s:\n\t symbol lookup unavailable — no "+
+    "\n\t... in %s:\n\t symbol lookup unavailable — no " +
       "universal-ctags binary was found at startup", fn,
   )
 }
@@ -48,11 +49,13 @@ func FindDefinition(
   if idx == nil {
     return nil, ctagsUnavailable("FindDefinition")
   }
+
   if in.Name == "" {
     return nil, fmt.Errorf("\n\t... in FindDefinition:\n\t name is required")
   }
 
   matches := idx.Lookup(ctx, in.Name, in.FromFile)
+
   return &FindDefinitionOutput{ Matches: toSymbolLocations(matches) }, nil
 }
 
@@ -75,7 +78,9 @@ func ListSymbols(
     matches = matches[:maxListSymbolsResults]
     out.Truncated = true
   }
+
   out.Matches = toSymbolLocations(matches)
+
   return out, nil
 }
 
@@ -91,6 +96,7 @@ func OutlineFile(
   if idx == nil {
     return nil, ctagsUnavailable("OutlineFile")
   }
+
   if in.Path == "" {
     return nil, fmt.Errorf("\n\t... in OutlineFile:\n\t path is required")
   }
@@ -102,6 +108,7 @@ func OutlineFile(
       out.Symbols = append(out.Symbols, toSymbolLocation(m))
     }
   }
+
   return &out, nil
 }
 
@@ -131,9 +138,11 @@ func FindReferences(
   if err != nil {
     return nil, fmt.Errorf("\n\t... in FindReferences:\n\t%w", err)
   }
+
   if res.ExitCode == 1 && res.Stdout == "" {
     return &FindReferencesOutput{ Matches: "(no references found)" }, nil
   }
+
   if res.ExitCode > 1 {
     return nil, fmt.Errorf(
       "\n\t... in FindReferences:\n\t rg failed: %s", res.Stderr,

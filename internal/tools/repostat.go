@@ -38,12 +38,15 @@ func walkStats(cfg *sandbox.Config, path string) (*repoStats, error) {
     if err != nil {
       return err
     }
+
     if d.IsDir() {
       if d.Name() != "." && skipDirs[d.Name()] {
         return filepath.SkipDir
       }
+
       return nil
     }
+
     if strings.HasPrefix(d.Name(), ".") {
       return nil
     }
@@ -60,6 +63,7 @@ func walkStats(cfg *sandbox.Config, path string) (*repoStats, error) {
     if relErr != nil {
       rel = p
     }
+
     top := topDir(rel)
     tc := stats.byTopDir[top]
     tc.files++
@@ -70,6 +74,7 @@ func walkStats(cfg *sandbox.Config, path string) (*repoStats, error) {
     if ext == "" {
       ext = "(none)"
     }
+
     ec := stats.byExt[ext]
     ec.files++
     ec.lines += lines
@@ -80,6 +85,7 @@ func walkStats(cfg *sandbox.Config, path string) (*repoStats, error) {
   if err != nil {
     return nil, err
   }
+
   return stats, nil
 }
 
@@ -90,6 +96,7 @@ func topDir(rel string) string {
   if len(parts) == 1 {
     return "."
   }
+
   return parts[0]
 }
 
@@ -102,6 +109,7 @@ func isBinary(data []byte) bool {
       return true
     }
   }
+
   return false
 }
 
@@ -113,6 +121,7 @@ func countFileLines(path string) (int, bool) {
   if err != nil {
     return 0, false
   }
+
   defer f.Close()
 
   head := make([]byte, 512)
@@ -120,6 +129,7 @@ func countFileLines(path string) (int, bool) {
   if isBinary(head[:n]) {
     return 0, false
   }
+
   _, err = f.Seek(0, io.SeekStart)
   if err != nil {
     return 0, false
@@ -131,6 +141,7 @@ func countFileLines(path string) (int, bool) {
   for scanner.Scan() {
     lines++
   }
+
   return lines, true
 }
 
@@ -155,6 +166,7 @@ func CountLines(
   for d := range stats.byTopDir {
     dirs = append(dirs, d)
   }
+
   sort.Strings(dirs)
   for _, d := range dirs {
     dc := stats.byTopDir[d]
@@ -162,6 +174,7 @@ func CountLines(
       out.ByTopDir, DirLineCount{ Dir: d, Files: dc.files, Lines: dc.lines },
     )
   }
+
   return out, nil
 }
 
@@ -179,6 +192,7 @@ func ListLanguages(
   for e := range stats.byExt {
     exts = append(exts, e)
   }
+
   sort.Slice(exts, func(i, j int) bool {
     return stats.byExt[exts[i]].lines > stats.byExt[exts[j]].lines
   })
@@ -190,6 +204,7 @@ func ListLanguages(
       out.Languages, LanguageCount{ Extension: e, Files: c.files, Lines: c.lines },
     )
   }
+
   return out, nil
 }
 
@@ -206,6 +221,7 @@ func FindFiles(
   if in.Pattern == "" {
     return nil, fmt.Errorf("\n\t... in FindFiles:\n\t pattern is required")
   }
+
   resolved, err := cfg.ResolvePath(in.Path)
   if err != nil {
     return nil, fmt.Errorf("\n\t... in FindFiles:\n\t%w", err)
@@ -216,10 +232,12 @@ func FindFiles(
     if err != nil {
       return err
     }
+
     if d.IsDir() {
       if d.Name() != "." && skipDirs[d.Name()] {
         return filepath.SkipDir
       }
+
       return nil
     }
 
@@ -227,9 +245,11 @@ func FindFiles(
     if matchErr != nil {
       return fmt.Errorf("bad pattern %q: %w", in.Pattern, matchErr)
     }
+
     if !matched {
       return nil
     }
+
     if len(out.Files) >= maxFindFilesResults {
       out.Truncated = true
       return filepath.SkipAll
@@ -239,12 +259,15 @@ func FindFiles(
     if relErr != nil {
       rel = p
     }
+
     out.Files = append(out.Files, filepath.ToSlash(rel))
+
     return nil
   })
   if walkErr != nil {
     return nil, fmt.Errorf("\n\t... in FindFiles:\n\t%w", walkErr)
   }
+
   return out, nil
 }
 
@@ -265,6 +288,7 @@ func FileStat(
   if err != nil {
     return nil, fmt.Errorf("\n\t... in FileStat:\n\t%w", err)
   }
+
   if info.IsDir() {
     return nil, fmt.Errorf(
       "\n\t... in FileStat:\n\t %q is a directory, not a file — use " +
@@ -282,6 +306,7 @@ func FileStat(
   } else {
     out.Lines = lines
   }
+
   return out, nil
 }
 
@@ -299,6 +324,7 @@ func FindTodoFixme(
   if err != nil {
     return nil, fmt.Errorf("\n\t... in FindTodoFixme:\n\t%w", err)
   }
+
   return &FindTodoFixmeOutput{ Matches: res.Matches, Truncated: res.Truncated }, nil
 }
 
@@ -316,9 +342,11 @@ func EnvInfo(
   if err == nil && res.ExitCode == 0 {
     out.GoVersion = strings.TrimSpace(res.Stdout)
   }
+
   out.HasGit = onPath("git")
   out.HasRg = onPath("rg")
   out.HasDocker = onPath("docker")
+
   return out, nil
 }
 
@@ -360,6 +388,7 @@ func ProjectManifest(
     if err != nil {
       continue
     }
+
     fmt.Fprintf(
       &b, "\n\n%s (first %d lines):\n%s", name, out.TotalLines, out.Content,
     )

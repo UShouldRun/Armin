@@ -424,7 +424,7 @@ func (m *Mind) refreshLibrary(ctx context.Context) {
   pending := len(lib.Pending(nil))
   metrics.Since("startup.library-scan.ms", t0)
   if pending > 0 {
-    m.notice(fmt.Sprintf("library: %d books aren't in the topic "+
+    m.notice(fmt.Sprintf("library: %d books aren't in the topic " +
       "table yet — /library catalog", pending))
   }
 

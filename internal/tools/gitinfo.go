@@ -36,6 +36,7 @@ func firstLine(s string) string {
   if i >= 0 {
     return s[:i]
   }
+
   return s
 }
 
@@ -65,6 +66,7 @@ func GitLog(
     if err != nil {
       return nil, fmt.Errorf("\n\t... in GitLog:\n\t%w", err)
     }
+
     args = append(args, "--", resolved)
   }
 
@@ -72,6 +74,7 @@ func GitLog(
   if err != nil {
     return nil, fmt.Errorf("\n\t... in GitLog:\n\t%w", err)
   }
+
   if res.ExitCode != 0 {
     return nil, fmt.Errorf(
       "\n\t... in GitLog:\n\t git log failed: %s", firstLine(res.Stderr),
@@ -83,14 +86,17 @@ func GitLog(
     if line == "" {
       continue
     }
+
     parts := strings.SplitN(line, gitLogSeparator, 4)
     if len(parts) != 4 {
       continue
     }
+
     out.Commits = append(out.Commits, GitCommit{
       Hash: parts[0], Author: parts[1], Date: parts[2], Subject: parts[3],
     })
   }
+
   return out, nil
 }
 
@@ -107,6 +113,7 @@ func GitBlame(
   if in.Path == "" {
     return nil, fmt.Errorf("\n\t... in GitBlame:\n\t path is required")
   }
+
   resolved, err := cfg.ResolvePath(in.Path)
   if err != nil {
     return nil, fmt.Errorf("\n\t... in GitBlame:\n\t%w", err)
@@ -116,6 +123,7 @@ func GitBlame(
   if start < 1 {
     start = 1
   }
+
   end := in.EndLine
   if end == 0 || end < start || end - start + 1 > maxBlameLines {
     end = start + maxBlameLines - 1
@@ -129,6 +137,7 @@ func GitBlame(
   if err != nil {
     return nil, fmt.Errorf("\n\t... in GitBlame:\n\t%w", err)
   }
+
   if res.ExitCode != 0 {
     return nil, fmt.Errorf(
       "\n\t... in GitBlame:\n\t git blame failed: %s", firstLine(res.Stderr),
@@ -170,6 +179,7 @@ func parseBlame(porcelain string, startLine int) []BlameLine {
       cur.Summary = strings.TrimPrefix(line, "summary ")
     }
   }
+
   return out
 }
 
@@ -191,11 +201,13 @@ func GitDiff(
   } else {
     args = append(args, from)
   }
+
   if in.Path != "" {
     resolved, err := cfg.ResolvePath(in.Path)
     if err != nil {
       return nil, fmt.Errorf("\n\t... in GitDiff:\n\t%w", err)
     }
+
     args = append(args, "--", resolved)
   }
 
@@ -203,6 +215,7 @@ func GitDiff(
   if err != nil {
     return nil, fmt.Errorf("\n\t... in GitDiff:\n\t%w", err)
   }
+
   if res.ExitCode > 1 {
     return nil, fmt.Errorf(
       "\n\t... in GitDiff:\n\t git diff failed: %s", firstLine(res.Stderr),
@@ -213,6 +226,7 @@ func GitDiff(
   if diff == "" {
     diff = "(no differences)"
   }
+
   return &GitDiffOutput{ Diff: diff, Truncated: res.Flags.Truncated() }, nil
 }
 
@@ -230,11 +244,13 @@ func GitShow(
   if err != nil {
     return nil, fmt.Errorf("\n\t... in GitShow:\n\t%w", err)
   }
+
   if res.ExitCode != 0 {
     return nil, fmt.Errorf(
       "\n\t... in GitShow:\n\t git show failed: %s", firstLine(res.Stderr),
     )
   }
+
   return &GitShowOutput{
     Show: res.Stdout, Truncated: res.Flags.Truncated(),
   }, nil
@@ -254,6 +270,7 @@ func WorkingTreeDiff(
     if err != nil {
       return nil, fmt.Errorf("\n\t... in WorkingTreeDiff:\n\t%w", err)
     }
+
     args = append(args, "--", resolved)
   }
 
@@ -261,6 +278,7 @@ func WorkingTreeDiff(
   if err != nil {
     return nil, fmt.Errorf("\n\t... in WorkingTreeDiff:\n\t%w", err)
   }
+
   if res.ExitCode > 1 {
     return nil, fmt.Errorf(
       "\n\t... in WorkingTreeDiff:\n\t git diff failed: %s", firstLine(res.Stderr),
@@ -283,6 +301,7 @@ func WorkingTreeDiff(
       }
     }
   }
+
   return out, nil
 }
 
@@ -301,6 +320,7 @@ func GrepHistory(
   if in.Term == "" {
     return nil, fmt.Errorf("\n\t... in GrepHistory:\n\t term is required")
   }
+
   count := clampCount(in.Count, defaultGrepHistoryCount, maxGrepHistoryCount)
 
   args := []string{
@@ -311,6 +331,7 @@ func GrepHistory(
     if err != nil {
       return nil, fmt.Errorf("\n\t... in GrepHistory:\n\t%w", err)
     }
+
     args = append(args, "--", resolved)
   }
 
@@ -318,6 +339,7 @@ func GrepHistory(
   if err != nil {
     return nil, fmt.Errorf("\n\t... in GrepHistory:\n\t%w", err)
   }
+
   if res.ExitCode != 0 {
     return nil, fmt.Errorf(
       "\n\t... in GrepHistory:\n\t git log failed: %s", firstLine(res.Stderr),
@@ -328,6 +350,7 @@ func GrepHistory(
   if log == "" {
     log = "(no matching commits)"
   }
+
   return &GrepHistoryOutput{ Log: log, Truncated: res.Flags.Truncated() }, nil
 }
 
@@ -345,6 +368,7 @@ func CodeOwners(
     if err != nil {
       return nil, fmt.Errorf("\n\t... in CodeOwners:\n\t%w", err)
     }
+
     args = append(args, "--", resolved)
   }
 
@@ -352,6 +376,7 @@ func CodeOwners(
   if err != nil {
     return nil, fmt.Errorf("\n\t... in CodeOwners:\n\t%w", err)
   }
+
   if res.ExitCode != 0 {
     return nil, fmt.Errorf(
       "\n\t... in CodeOwners:\n\t git log failed: %s", firstLine(res.Stderr),
@@ -369,12 +394,15 @@ func CodeOwners(
   for author, n := range counts {
     out.Owners = append(out.Owners, AuthorCount{ Author: author, Commits: n })
   }
+
   sort.Slice(out.Owners, func(i, j int) bool {
     if out.Owners[i].Commits != out.Owners[j].Commits {
       return out.Owners[i].Commits > out.Owners[j].Commits
     }
+
     return out.Owners[i].Author < out.Owners[j].Author
   })
+
   return out, nil
 }
 
@@ -399,6 +427,7 @@ func CommitStats(
     if err != nil {
       return nil, fmt.Errorf("\n\t... in CommitStats:\n\t%w", err)
     }
+
     args = append(args, "--", resolved)
   }
 
@@ -406,6 +435,7 @@ func CommitStats(
   if err != nil {
     return nil, fmt.Errorf("\n\t... in CommitStats:\n\t%w", err)
   }
+
   if res.ExitCode != 0 {
     return nil, fmt.Errorf(
       "\n\t... in CommitStats:\n\t git log failed: %s", firstLine(res.Stderr),
@@ -423,14 +453,17 @@ func CommitStats(
   for f, c := range counts {
     files = append(files, FileChangeCount{ File: f, Commits: c })
   }
+
   sort.Slice(files, func(i, j int) bool {
     if files[i].Commits != files[j].Commits {
       return files[i].Commits > files[j].Commits
     }
+
     return files[i].File < files[j].File
   })
   if len(files) > n {
     files = files[:n]
   }
+
   return &CommitStatsOutput{ Hotspots: files }, nil
 }

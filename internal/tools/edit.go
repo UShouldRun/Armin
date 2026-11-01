@@ -58,7 +58,7 @@ func (t *FileTracker) check(resolved, path string) error {
 
   if !ok {
     return fmt.Errorf(
-      "%q exists and hasn't been read this session — read_file "+
+      "%q exists and hasn't been read this session — read_file " +
         "it first so the change is based on its real content",
       path,
     )
@@ -66,7 +66,7 @@ func (t *FileTracker) check(resolved, path string) error {
 
   if !info.ModTime().Equal(at) {
     return fmt.Errorf(
-      "%q changed on disk since you last read it — read_file "+
+      "%q changed on disk since you last read it — read_file " +
         "it again before changing it",
       path,
     )
@@ -209,8 +209,8 @@ func PlanEdit(
     )
   case n > 1 && !in.ReplaceAll:
     return nil, fmt.Errorf(
-      "\n\t... in PlanEdit:\n\t old_string matches %d times in %q "+
-        "— add surrounding lines to make it unique, or set "+
+      "\n\t... in PlanEdit:\n\t old_string matches %d times in %q " +
+        "— add surrounding lines to make it unique, or set " +
         "replace_all",
       n, in.Path,
     )
@@ -258,7 +258,7 @@ func nearMiss(content, oldString string) string {
   }
 
   return fmt.Sprintf(
-    " — its first line appears (ignoring indentation) at line %s; "+
+    " — its first line appears (ignoring indentation) at line %s; " +
       "re-read there and copy whitespace exactly",
     strings.Join(hits, ", "),
   )

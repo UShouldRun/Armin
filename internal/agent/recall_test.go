@@ -13,7 +13,7 @@ func recallLoop(t *testing.T) *Loop {
   t.Helper()
   g := know.New()
   tools, _ := g.AddNode(0, "tools", "", know.KindTopic, know.ConfChecked, 0)
-  g.AddNode(tools, "golden", "each role's tool list is pinned in "+
+  g.AddNode(tools, "golden", "each role's tool list is pinned in " +
     "testdata/definitions.<role>.json, regenerated with -update",
     know.KindFact, know.ConfChecked, 0)
 

@@ -99,11 +99,11 @@ var runTools = []toolSpec{
     run:   inSandbox(tools.RunTests),
     def: projectRunFunc(
       "run_tests",
-      "Run the project's test command (detected from Makefile, "+
-        "go.mod, Cargo.toml, package.json, or Python config; or "+
-        "user-configured). Reports pass/fail, a failure summary, "+
+      "Run the project's test command (detected from Makefile, " +
+        "go.mod, Cargo.toml, package.json, or Python config; or " +
+        "user-configured). Reports pass/fail, a failure summary, " +
         "and the end of the output.",
-      `Extra arguments replacing the default target, e.g. `+
+      `Extra arguments replacing the default target, e.g. ` +
         `["./internal/tools", "-run", "TestX"] or ["-k", "parser"]`,
     ),
   },
@@ -113,9 +113,9 @@ var runTools = []toolSpec{
     run:   inSandbox(tools.BuildCheck),
     def: projectRunFunc(
       "build_check",
-      "Run the project's build or type-check command and report "+
+      "Run the project's build or type-check command and report " +
         "pass/fail plus errors. Run it after editing code.",
-      `Extra arguments replacing the default target, e.g. `+
+      `Extra arguments replacing the default target, e.g. ` +
         `["./cmd/..."]`,
     ),
   },
@@ -125,7 +125,7 @@ var runTools = []toolSpec{
     run:   inSandbox(tools.LintCheck),
     def: projectRunFunc(
       "lint_check",
-      "Run the project's linter; reports available:false if the "+
+      "Run the project's linter; reports available:false if the " +
         "project has none.",
       "Extra arguments replacing the default target",
     ),

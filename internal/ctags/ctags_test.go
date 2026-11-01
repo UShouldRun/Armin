@@ -50,9 +50,11 @@ func TestParseLine(t *testing.T) {
       if ok != c.ok {
         t.Fatalf("parseLine(%q) ok = %v, want %v", c.line, ok, c.ok)
       }
+
       if !ok {
         return
       }
+
       if got != c.want {
         t.Fatalf("parseLine(%q) = %+v, want %+v", c.line, got, c.want)
       }
@@ -73,9 +75,11 @@ func TestRankSymbols(t *testing.T) {
   if matches[0].File != "same/dir/target.go" {
     t.Fatalf("expected exact-file match first, got %+v", matches[0])
   }
+
   if matches[1].File != "same/dir/other.go" {
     t.Fatalf("expected same-directory match second, got %+v", matches[1])
   }
+
   // The two lowest-priority matches keep their original relative order.
   if matches[2].File != "other/pkg/file.go" || matches[3].File != "another/file.go" {
     t.Fatalf("expected stable order for equal-weight matches, got %+v", matches[2:])
@@ -125,6 +129,7 @@ func TestKindLabel(t *testing.T) {
   if got != "function" {
     t.Fatalf("KindLabel(f) = %q, want function", got)
   }
+
   got = KindLabel("z")
   if got != "z" {
     t.Fatalf("KindLabel(z) = %q, want fallback z", got)
@@ -139,6 +144,7 @@ func findCtags(t *testing.T) string {
   if err == nil {
     return p
   }
+
   home, err := os.UserHomeDir()
   if err == nil {
     p := filepath.Join(home, ".local", "bin", "universal-ctags")
@@ -147,7 +153,9 @@ func findCtags(t *testing.T) string {
       return p
     }
   }
+
   t.Skip("universal-ctags not found on PATH or in ~/.local/bin — skipping integration test")
+
   return ""
 }
 
@@ -168,6 +176,7 @@ func TestIndexLookupAndSearch(t *testing.T) {
   if len(matches) != 1 {
     t.Fatalf("Lookup(NewWidget) = %+v, want exactly 1 match", matches)
   }
+
   if matches[0].File != "widget.go" || matches[0].Line != 3 {
     t.Fatalf("Lookup(NewWidget) = %+v, want widget.go:3", matches[0])
   }
@@ -195,6 +204,7 @@ func TestIndexRebuildOnMissingBinary(t *testing.T) {
   if len(matches) != 0 {
     t.Fatalf("Lookup with a broken binary = %+v, want empty", matches)
   }
+
   if idx.LastError() == nil {
     t.Fatal("LastError() = nil, want a recorded scan failure")
   }

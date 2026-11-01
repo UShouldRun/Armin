@@ -25,6 +25,7 @@ func ReadDocComment(
   if idx == nil {
     return nil, ctagsUnavailable("ReadDocComment")
   }
+
   if in.Name == "" {
     return nil, fmt.Errorf("\n\t... in ReadDocComment:\n\t name is required")
   }
@@ -35,18 +36,21 @@ func ReadDocComment(
       "\n\t... in ReadDocComment:\n\t no definition found for %q", in.Name,
     )
   }
+
   sym := matches[0] // Lookup already ranks the most relevant match first
 
   resolved, err := cfg.ResolvePath(sym.File)
   if err != nil {
     return nil, fmt.Errorf("\n\t... in ReadDocComment:\n\t%w", err)
   }
+
   lines, err := readAllLines(resolved)
   if err != nil {
     return nil, fmt.Errorf("\n\t... in ReadDocComment:\n\t%w", err)
   }
 
   comment := commentAbove(lines, sym.Line)
+
   return &ReadDocCommentOutput{ File: sym.File, Line: sym.Line, Comment: comment }, nil
 }
 
@@ -55,6 +59,7 @@ func readAllLines(path string) ([]string, error) {
   if err != nil {
     return nil, err
   }
+
   defer f.Close()
 
   var lines []string
@@ -63,6 +68,7 @@ func readAllLines(path string) ([]string, error) {
   for scanner.Scan() {
     lines = append(lines, scanner.Text())
   }
+
   return lines, scanner.Err()
 }
 
@@ -87,9 +93,11 @@ func commentAbove(lines []string, defLine int) string {
     if !strings.HasPrefix(trimmed, "//") {
       break
     }
+
     collected = append([]string{ trimmed }, collected...)
     i--
   }
+
   return strings.Join(collected, "\n")
 }
 
@@ -98,8 +106,10 @@ func blockCommentAbove(lines []string, endIdx int) string {
   for start >= 0 && !strings.Contains(lines[start], "/*") {
     start--
   }
+
   if start < 0 {
     return ""
   }
+
   return strings.Join(lines[start:endIdx + 1], "\n")
 }

@@ -93,8 +93,8 @@ func LoadEnv() error {
   perm := info.Mode().Perm()
   if perm & 0o077 != 0 {
     return fmt.Errorf(
-      "\n\t... in LoadEnv:\n\t %s is readable by group/other (mode %#o) "+
-        "— it may hold API keys; fix this before armin will read it: "+
+      "\n\t... in LoadEnv:\n\t %s is readable by group/other (mode %#o) " +
+        "— it may hold API keys; fix this before armin will read it: " +
         "chmod 600 %s",
       path, perm, path,
     )
@@ -373,7 +373,7 @@ func applyModel(cfg *Config, name, field, value string) error {
   case "region":
     if value != "auto" && value != "eu" && value != "us" && value != "off" {
       return fmt.Errorf(
-        "\n\t... in applyModel:\n\t models.%s.region: "+
+        "\n\t... in applyModel:\n\t models.%s.region: " +
           "want auto, eu, us or off",
         name,
       )

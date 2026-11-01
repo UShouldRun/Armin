@@ -27,15 +27,18 @@ func TestLineOffset(t *testing.T) {
       if ok != c.wantOK {
         t.Fatalf("ok = %v, want %v", ok, c.wantOK)
       }
+
       if !ok {
         return
       }
+
       if start != c.wantStart || end != c.wantEnd {
         t.Fatalf(
           "lineOffset(_, %d) = (%d, %d), want (%d, %d)",
           c.line, start, end, c.wantStart, c.wantEnd,
         )
       }
+
       want := "line" + strconv.Itoa(c.line)
       got := sampleDoc[start:end]
       if got != want {
@@ -58,6 +61,7 @@ func TestContextWindow(t *testing.T) {
   if lineText != "line2" {
     t.Fatalf("lineText = %q, want line2", lineText)
   }
+
   want := "line1\nline2\nline3"
   if snippet != want {
     t.Fatalf("snippet = %q, want %q", snippet, want)
@@ -69,6 +73,7 @@ func TestContextWindowClampsAtDocumentEdges(t *testing.T) {
   if lineText != "line0" {
     t.Fatalf("lineText = %q, want line0", lineText)
   }
+
   if snippet != "line0\nline1\nline2\nline3" {
     t.Fatalf("snippet at start-of-doc = %q", snippet)
   }
@@ -77,6 +82,7 @@ func TestContextWindowClampsAtDocumentEdges(t *testing.T) {
   if lineText != "line4" {
     t.Fatalf("lineText = %q, want line4", lineText)
   }
+
   if snippet != "line1\nline2\nline3\nline4\n" {
     t.Fatalf("snippet at end-of-doc = %q", snippet)
   }
@@ -101,6 +107,7 @@ func TestContextWindowAllocationsStayBounded(t *testing.T) {
   for i := 0; i < 20000; i++ {
     b = append(b, []byte("some line of source code here\n")...)
   }
+
   big := string(b)
 
   const allocLimit = 4 // two string headers out (snippet, lineText) plus slack
@@ -109,7 +116,7 @@ func TestContextWindowAllocationsStayBounded(t *testing.T) {
   })
   if allocs > allocLimit {
     t.Fatalf(
-      "contextWindow on a 20000-line document allocated %.0f times, want <= %d "+
+      "contextWindow on a 20000-line document allocated %.0f times, want <= %d " +
         "(this is the strings.Split-per-line regression check)",
       allocs, allocLimit,
     )

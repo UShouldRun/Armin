@@ -33,6 +33,7 @@ func readMessage(r *bufio.Reader) ([]byte, error) {
     if !ok {
       continue
     }
+
     if strings.EqualFold(strings.TrimSpace(name), "Content-Length") {
       n, err := strconv.Atoi(strings.TrimSpace(value))
       if err != nil {
@@ -41,6 +42,7 @@ func readMessage(r *bufio.Reader) ([]byte, error) {
           value, err,
         )
       }
+
       length = n
     }
   }
@@ -56,6 +58,7 @@ func readMessage(r *bufio.Reader) ([]byte, error) {
   if err != nil {
     return nil, fmt.Errorf("\n\t... in readMessage:\n\t%w", err)
   }
+
   return body, nil
 }
 
@@ -70,9 +73,11 @@ func writeMessage(w io.Writer, v any) error {
   if err != nil {
     return fmt.Errorf("\n\t... in writeMessage:\n\t%w", err)
   }
+
   _, err = w.Write(body)
   if err != nil {
     return fmt.Errorf("\n\t... in writeMessage:\n\t%w", err)
   }
+
   return nil
 }

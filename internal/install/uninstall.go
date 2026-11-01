@@ -41,7 +41,7 @@ func Uninstall(req Request) error {
   } {
     if use.value == name {
       return fmt.Errorf(
-        "\n\t... in Uninstall:\n\t %s is config.conf's %s = — point %s at "+
+        "\n\t... in Uninstall:\n\t %s is config.conf's %s = — point %s at " +
           "another model first, or armin would start with none",
         name, use.key, use.key,
       )

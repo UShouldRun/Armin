@@ -77,6 +77,7 @@ func TestExtractPositionalRootVariousOrderings(t *testing.T) {
       if positional != tc.wantPositional {
         t.Errorf("positional = %q, want %q", positional, tc.wantPositional)
       }
+
       if !reflect.DeepEqual(rest, tc.wantRest) {
         t.Errorf("rest = %v, want %v", rest, tc.wantRest)
       }

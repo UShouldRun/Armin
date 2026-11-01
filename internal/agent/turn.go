@@ -145,7 +145,7 @@ func (l *Loop) Turn(
   reply, err := t.client.ChatStream(ctx, *history, nil, stream)
   if err != nil {
     return "", fmt.Errorf(
-      "\n\t... in Turn:\n\t stopping the turn (tool-round limit %d or "+
+      "\n\t... in Turn:\n\t stopping the turn (tool-round limit %d or " +
         "repeated calls), and the closing summary call failed: %w",
       l.maxRounds(), err,
     )

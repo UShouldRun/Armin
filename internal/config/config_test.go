@@ -12,6 +12,7 @@ func withConfigDir(t *testing.T) string {
   t.Helper()
   dir := t.TempDir()
   t.Setenv("XDG_CONFIG_HOME", dir)
+
   return dir
 }
 
@@ -21,10 +22,12 @@ func writeConfig(t *testing.T, contents string) {
   if err != nil {
     t.Fatal(err)
   }
+
   err = os.MkdirAll(filepath.Dir(path), 0o755)
   if err != nil {
     t.Fatal(err)
   }
+
   err = os.WriteFile(path, []byte(contents), 0o644)
   if err != nil {
     t.Fatal(err)
@@ -38,6 +41,7 @@ func TestLoadMissingFileReturnsZeroValue(t *testing.T) {
   if err != nil {
     t.Fatalf("Load on a missing config file returned an error: %v", err)
   }
+
   if cfg.Model != "" || cfg.LlamaURL != "" || cfg.Timeout != 0 ||
     cfg.MaxOutput != 0 || cfg.ExtraAllowed != nil || cfg.Models != nil {
     t.Fatalf("Load() = %+v, want every field zero-valued", cfg)
@@ -83,6 +87,7 @@ allow = curl, docker
     cfg.Root != want.Root || cfg.Timeout != want.Timeout || cfg.MaxOutput != want.MaxOutput {
     t.Fatalf("Load() = %+v, want %+v", cfg, want)
   }
+
   if len(cfg.ExtraAllowed) != 2 || cfg.ExtraAllowed[0] != "curl" || cfg.ExtraAllowed[1] != "docker" {
     t.Fatalf("ExtraAllowed = %v, want [curl docker]", cfg.ExtraAllowed)
   }
@@ -114,6 +119,7 @@ models.fim.args = --ctx-size 8192 --n-gpu-layers 999
   if chat.URL != "http://localhost:8080" {
     t.Fatalf("chat.URL = %q", chat.URL)
   }
+
   if chat.APIKeyEnv != "ANTHROPIC_API_KEY" {
     t.Fatalf("chat.APIKeyEnv = %q, want ANTHROPIC_API_KEY", chat.APIKeyEnv)
   }
@@ -122,16 +128,20 @@ models.fim.args = --ctx-size 8192 --n-gpu-layers 999
   if fim.Binary != "llama-server" || fim.ModelPath != "/home/h/models/qwen2.5-coder.gguf" {
     t.Fatalf("fim = %+v", fim)
   }
+
   if fim.Port != 8081 {
     t.Fatalf("fim.Port = %d, want 8081", fim.Port)
   }
+
   if fim.IdleTimeout != 5 * time.Minute {
     t.Fatalf("fim.IdleTimeout = %v, want 5m", fim.IdleTimeout)
   }
+
   want := []string{ "--ctx-size", "8192", "--n-gpu-layers", "999" }
   if len(fim.Args) != len(want) {
     t.Fatalf("fim.Args = %v, want %v", fim.Args, want)
   }
+
   for i := range want {
     if fim.Args[i] != want[i] {
       t.Fatalf("fim.Args = %v, want %v", fim.Args, want)
@@ -207,6 +217,7 @@ func TestLoadIgnoresBlankLinesAndComments(t *testing.T) {
   if err != nil {
     t.Fatalf("Load: %v", err)
   }
+
   if cfg.Model != "qwen3:4b" {
     t.Fatalf("Model = %q, want qwen3:4b", cfg.Model)
   }
@@ -218,10 +229,12 @@ func TestLoadEnvSetsUnsetVars(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   err = os.MkdirAll(filepath.Dir(path), 0o755)
   if err != nil {
     t.Fatal(err)
   }
+
   err = os.WriteFile(path, []byte("FOO_KEY=abc123\n# a comment\n\nBAR_KEY = spaced \n"), 0o600)
   if err != nil {
     t.Fatal(err)
@@ -240,6 +253,7 @@ func TestLoadEnvSetsUnsetVars(t *testing.T) {
   if got != "abc123" {
     t.Fatalf("FOO_KEY = %q, want abc123", got)
   }
+
   got = os.Getenv("BAR_KEY")
   if got != "spaced" {
     t.Fatalf("BAR_KEY = %q, want \"spaced\" (trimmed)", got)
@@ -252,10 +266,12 @@ func TestLoadEnvDoesNotOverrideRealEnvironment(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   err = os.MkdirAll(filepath.Dir(path), 0o755)
   if err != nil {
     t.Fatal(err)
   }
+
   err = os.WriteFile(path, []byte("PRESET_KEY=from-dotenv\n"), 0o600)
   if err != nil {
     t.Fatal(err)
@@ -267,6 +283,7 @@ func TestLoadEnvDoesNotOverrideRealEnvironment(t *testing.T) {
   if err != nil {
     t.Fatalf("LoadEnv: %v", err)
   }
+
   got := os.Getenv("PRESET_KEY")
   if got != "from-real-env" {
     t.Fatalf("PRESET_KEY = %q, want the real environment to win over .env", got)
@@ -287,10 +304,12 @@ func TestLoadEnvRejectsMalformedLine(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   err = os.MkdirAll(filepath.Dir(path), 0o755)
   if err != nil {
     t.Fatal(err)
   }
+
   err = os.WriteFile(path, []byte("not a key value line\n"), 0o600)
   if err != nil {
     t.Fatal(err)
@@ -308,10 +327,12 @@ func TestLoadEnvRejectsLoosePermissions(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   err = os.MkdirAll(filepath.Dir(path), 0o755)
   if err != nil {
     t.Fatal(err)
   }
+
   err = os.WriteFile(path, []byte("FOO_KEY=abc123\n"), 0o644)
   if err != nil {
     t.Fatal(err)
@@ -321,6 +342,7 @@ func TestLoadEnvRejectsLoosePermissions(t *testing.T) {
   if err == nil {
     t.Fatal("expected an error for a group/other-readable .env")
   }
+
   if !strings.Contains(err.Error(), "chmod 600") {
     t.Fatalf("error = %v, want it to tell the user how to fix permissions", err)
   }
@@ -333,6 +355,7 @@ func TestEnvPathIsAlongsideConfigConf(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   want := filepath.Join(dir, "armin", ".env")
   if envPath != want {
     t.Fatalf("EnvPath() = %q, want %q", envPath, want)
@@ -346,6 +369,7 @@ func TestPathHonorsXDGConfigHome(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   want := filepath.Join(dir, "armin", "config.conf")
   if path != want {
     t.Fatalf("Path() = %q, want %q", path, want)
@@ -368,15 +392,19 @@ test_cmd        = go test -race ./...
   if err != nil {
     t.Fatalf("Load: %v", err)
   }
+
   if cfg.MaxToolRounds != 80 || cfg.ContextSize != 65536 || cfg.KeepTurns != -1 {
     t.Errorf("ints = %d %d %d", cfg.MaxToolRounds, cfg.ContextSize, cfg.KeepTurns)
   }
+
   if cfg.ReadTimeout != 10 * time.Minute || cfg.BuildTimeout != 20 * time.Minute {
     t.Errorf("durations = %s %s", cfg.ReadTimeout, cfg.BuildTimeout)
   }
+
   if !cfg.AutoApprove {
     t.Error("AutoApprove = false")
   }
+
   if strings.Join(cfg.TestCmd, " ") != "go test -race ./..." {
     t.Errorf("TestCmd = %v", cfg.TestCmd)
   }
@@ -398,6 +426,7 @@ models.qwen.model_path             = /models/q.gguf
   if err != nil {
     t.Fatalf("Load: %v", err)
   }
+
   q := cfg.Models["qwen"]
   if q.AWSInstance != "i-0abc" || q.AWSRegion != "eu-west-1" || q.SSHUser != "ubuntu" ||
     q.SSHKey != "~/.ssh/gpu.pem" || q.RemotePort != 8080 || !q.KeepOnDisconnect {
@@ -439,6 +468,7 @@ models.gpu.stop_on_disconnect = true
   if err != nil {
     t.Fatalf("Load: %v", err)
   }
+
   g := cfg.Models["gpu"]
   if g.StackitServer != "0b8a-server" || g.StackitProject != "9f1c-project" || g.KeepOnDisconnect {
     t.Fatalf("gpu = %+v", g)
@@ -455,6 +485,7 @@ models.l40s.scaleway_zone   = fr-par-2
   if err != nil {
     t.Fatalf("Load: %v", err)
   }
+
   l := cfg.Models["l40s"]
   if l.ScalewayServer != "5f2e-server" || l.ScalewayZone != "fr-par-2" {
     t.Fatalf("l40s = %+v", l)
@@ -474,6 +505,7 @@ models.local.stream_args      = --fit off -b 256 -ub 256
   if err != nil {
     t.Fatalf("Load: %v", err)
   }
+
   l := cfg.Models["local"]
   if l.StreamBinary != "/opt/kvstream/llama-server" || l.StreamContext != 196608 ||
     l.StreamArenaMiB != 2048 || strings.Join(l.StreamArgs, " ") != "--fit off -b 256 -ub 256" {

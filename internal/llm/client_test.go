@@ -859,10 +859,10 @@ func TestUsageReadsCostAndCache(t *testing.T) {
     var req map[string]any
     json.NewDecoder(r.Body).Decode(&req)
     _, asked = req["usage"]
-    io.WriteString(w, `data: {"choices":[{"delta":{"content":"hi"}}]}`+"\n\n")
-    io.WriteString(w, `data: {"choices":[],"usage":{"prompt_tokens":1000,`+
-      `"completion_tokens":50,"cost":0.0001234,`+
-      `"prompt_tokens_details":{"cached_tokens":800}}}`+"\n\n")
+    io.WriteString(w, `data: {"choices":[{"delta":{"content":"hi"}}]}` + "\n\n")
+    io.WriteString(w, `data: {"choices":[],"usage":{"prompt_tokens":1000,` +
+      `"completion_tokens":50,"cost":0.0001234,` +
+      `"prompt_tokens_details":{"cached_tokens":800}}}` + "\n\n")
     io.WriteString(w, "data: [DONE]\n\n")
   }
 

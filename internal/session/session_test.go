@@ -72,9 +72,11 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
   if got.ID != m.ID || got.Root != m.Root || got.Title != m.Title || got.Model != "local" {
     t.Fatalf("meta = %+v", got.Meta)
   }
+
   if len(got.History) != 3 || got.History[2].Content != "hello" || got.Messages != 3 {
     t.Fatalf("history = %+v", got.History)
   }
+
   if got.CreatedAt.IsZero() || time.Since(got.UpdatedAt) > time.Minute {
     t.Fatalf("timestamps = %v / %v", got.CreatedAt, got.UpdatedAt)
   }
@@ -96,10 +98,12 @@ func TestLoadByUniquePrefixAndAmbiguity(t *testing.T) {
   if err == nil || !strings.Contains(err.Error(), "matches 2 sessions") {
     t.Fatalf("ambiguous prefix err = %v", err)
   }
+
   _, err = Load("zzzz")
   if err == nil || !strings.Contains(err.Error(), "no session") {
     t.Fatalf("missing err = %v", err)
   }
+
   _, err = Load("../etc/passwd")
   if err == nil {
     t.Fatal("a path-like id was accepted")
@@ -120,6 +124,7 @@ func TestListNewestFirstWithCounts(t *testing.T) {
   if err != nil || len(list) != 2 {
     t.Fatalf("List = %v, %v", list, err)
   }
+
   if list[0].ID != recent.ID || list[0].Messages != 4 || list[1].Messages != 3 {
     t.Fatalf("order/counts = %+v", list)
   }
@@ -162,6 +167,7 @@ func TestAppendFirstCallDoesFullSave(t *testing.T) {
   if err != nil {
     t.Fatalf("Append: %v", err)
   }
+
   if persisted != 3 || lineCount(t, m.ID) != 4 {
     t.Fatalf("persisted = %d, lines = %d; want 3 and meta+3", persisted, lineCount(t, m.ID))
   }
@@ -179,6 +185,7 @@ func TestAppendOnlyWritesNewMessages(t *testing.T) {
   if err != nil {
     t.Fatalf("Append: %v", err)
   }
+
   if persisted != 4 || lineCount(t, m.ID) != 5 {
     t.Fatalf("persisted = %d, lines = %d", persisted, lineCount(t, m.ID))
   }
@@ -207,6 +214,7 @@ func TestAppendCostIsIndependentOfHistorySize(t *testing.T) {
   for i := 0; i < seedMessages; i++ {
     history = append(history, llm.Message{ Role: "user", Content: "filler message" })
   }
+
   err = Append(m, history, &persisted)
   if err != nil {
     t.Fatalf("bulk Append: %v", err)
@@ -227,7 +235,7 @@ func TestAppendCostIsIndependentOfHistorySize(t *testing.T) {
 
   if allocs > perAppendAllocLimit {
     t.Fatalf(
-      "Append allocated %.0f times to append 1 message onto a %d-message history; "+
+      "Append allocated %.0f times to append 1 message onto a %d-message history; " +
         "want at most %d, independent of history length",
       allocs, len(history), perAppendAllocLimit,
     )
@@ -264,10 +272,12 @@ func TestDelete(t *testing.T) {
   if err != nil || got.ID != m.ID || got.Title != "to delete" {
     t.Fatalf("Delete = %+v, %v", got, err)
   }
+
   _, err = Load(m.ID)
   if err == nil {
     t.Fatal("the session is still loadable after Delete")
   }
+
   _, err = Delete(m.ID)
   if err == nil {
     t.Fatal("deleting twice should fail")

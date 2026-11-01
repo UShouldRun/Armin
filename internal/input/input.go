@@ -68,7 +68,7 @@ func Parse() (*Options, error) {
   aids, ok := agent.ParseAids(f.aids)
   if !ok {
     return nil, fmt.Errorf(
-      "\n\t... in Parse:\n\t aids %q: want all, none or a list of "+
+      "\n\t... in Parse:\n\t aids %q: want all, none or a list of " +
         "stuck, procedure, verify",
       f.aids,
     )

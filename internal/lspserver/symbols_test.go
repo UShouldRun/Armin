@@ -35,6 +35,7 @@ func TestSymbolKindFor(t *testing.T) {
   if got != 12 {
     t.Fatalf("symbolKindFor(f) = %d, want 12 (Function)", got)
   }
+
   got = symbolKindFor("nonsense-kind")
   if got != 13 {
     t.Fatalf("symbolKindFor(unknown) = %d, want 13 (Variable fallback)", got)
@@ -46,6 +47,7 @@ func TestPointRange(t *testing.T) {
   if r.Start.Line != 4 || r.End.Line != 4 {
     t.Fatalf("pointRange(5) = %+v, want 0-indexed line 4", r)
   }
+
   if r.Start.Character != 0 || r.End.Character != 0 {
     t.Fatalf("pointRange should be zero-width at column 0, got %+v", r)
   }

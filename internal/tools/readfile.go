@@ -40,12 +40,14 @@ func ReadFile(
       "\n\t... in ReadFile:\n\t opening %q: %w", in.Path, err,
     )
   }
+
   defer f.Close()
 
   info, err := f.Stat()
   if err != nil {
     return nil, fmt.Errorf("\n\t... in ReadFile:\n\t%w", err)
   }
+
   if info.IsDir() {
     return nil, fmt.Errorf(
       "\n\t... in ReadFile:\n\t %q is a directory, not a file — use " +
@@ -60,17 +62,19 @@ func ReadFile(
       "\n\t... in ReadFile:\n\t reading %q: %w", in.Path, err,
     )
   }
+
   s_lines := len(lines)
 
   if in.StartLine == 0 && in.EndLine == 0 {
     if s_lines > maxWholeFileLines {
       return nil, fmt.Errorf(
-        "\n\t... in ReadFile:\n\t %q has %d lines, above the "+
-          "%d-line threshold — search first (search_code), then "+
+        "\n\t... in ReadFile:\n\t %q has %d lines, above the " +
+          "%d-line threshold — search first (search_code), then " +
           "re-read with start_line/end_line",
         in.Path, s_lines, maxWholeFileLines,
       )
     }
+
     return capRead(lines, 1, s_lines), nil
   }
 
@@ -78,15 +82,18 @@ func ReadFile(
   if start < 1 {
     start = 1
   }
+
   if end == 0 || end > s_lines {
     end = s_lines
   }
+
   if start > s_lines {
     return nil, fmt.Errorf(
       "\n\t... in ReadFile:\n\t start_line %d is beyond end of file (%d lines)",
       start, s_lines,
     )
   }
+
   if start > end {
     return nil, fmt.Errorf(
       "\n\t... in ReadFile:\n\t start_line %d is after end_line %d",

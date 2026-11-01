@@ -40,11 +40,11 @@ var knowTools = []toolSpec{
     run:   runKnowFind,
     def: toolFunc(
       "know_find",
-      "Search the knowledge DAG before exploring code: what is already "+
-        "known about the project, as one line per node (id, path, kind, "+
-        "confidence, what it needs and what uses it, the claim). Read "+
-        "code only for what it doesn't cover or marks STALE. With ids, "+
-        "read those nodes in full instead: the whole claim, the evidence "+
+      "Search the knowledge DAG before exploring code: what is already " +
+        "known about the project, as one line per node (id, path, kind, " +
+        "confidence, what it needs and what uses it, the claim). Read " +
+        "code only for what it doesn't cover or marks STALE. With ids, " +
+        "read those nodes in full instead: the whole claim, the evidence " +
         "and who wrote it.",
       map[string]llm.ToolProperty{
         "query": stringProp("Words to look for; a word's start matches too"),
@@ -68,14 +68,14 @@ var knowTools = []toolSpec{
     run:   runKnowWrite,
     def: toolFunc(
       "know_write",
-      "Add what you established to the knowledge DAG, so it isn't "+
-        "rediscovered — or change what is there. Search first: don't "+
-        "add what a node already says, update or link it instead. "+
-        "Every concept needs a definition as its claim. Put reasoning "+
-        "in edges: needs (what it requires), derived_from (what you "+
+      "Add what you established to the knowledge DAG, so it isn't " +
+        "rediscovered — or change what is there. Search first: don't " +
+        "add what a node already says, update or link it instead. " +
+        "Every concept needs a definition as its claim. Put reasoning " +
+        "in edges: needs (what it requires), derived_from (what you " +
         "concluded it from).",
       map[string]llm.ToolProperty{
-        "path": stringProp("Add a node here, e.g. agent/loop/retries; "+
+        "path": stringProp("Add a node here, e.g. agent/loop/retries; " +
           "missing parents are added as topics"),
         "kind": {
           Type:        "string",
@@ -156,7 +156,7 @@ var knowTools = []toolSpec{
     run:   runKnowTrace,
     def: toolFunc(
       "know_trace",
-      "When a conclusion looks wrong: follow what it was derived from, "+
+      "When a conclusion looks wrong: follow what it was derived from, " +
         "weakest first (unverified minion claims, low confidence, stale).",
       map[string]llm.ToolProperty{
         "id":    stringProp("Node id or path"),
@@ -200,6 +200,7 @@ func (l *Loop) checkCycles(id know.NodeID, out map[string]string) {
       ". " + cycleFix(l.Role)
     l.cyclesOpen = true
     metrics.Add("know.cycle.opened", 1)
+
     return
   }
 }
@@ -558,6 +559,7 @@ func (l *Loop) minionLimits(kind know.Kind, conf *know.Conf) (string, error) {
   if *conf > know.ConfInferred {
     *conf = know.ConfInferred
     metrics.Add("know.minion.capped", 1)
+
     return "confidence capped at inferred: a minion's claim is checked " +
       "by the copilot or advisor", nil
   }
@@ -972,6 +974,7 @@ func (l *Loop) recordTurn(h []llm.Message, from int) {
     }
 
     l.Know.Touch(have)
+
     return
   }
 

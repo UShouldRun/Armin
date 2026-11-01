@@ -43,6 +43,7 @@ func SemanticSearch(
   if strings.TrimSpace(in.Query) == "" {
     return nil, fmt.Errorf("\n\t... in SemanticSearch:\n\t query is required")
   }
+
   count := clampCount(in.Count, defaultSemanticCount, maxSemanticCount)
 
   terms := tokenize(in.Query)
@@ -57,10 +58,12 @@ func SemanticSearch(
     if err != nil {
       return err
     }
+
     if d.IsDir() {
       if d.Name() != "." && skipDirs[d.Name()] {
         return filepath.SkipDir
       }
+
       return nil
     }
 
@@ -73,6 +76,7 @@ func SemanticSearch(
     if err != nil {
       return nil
     }
+
     if isBinary(data[:min(len(data), 512)]) {
       return nil
     }
@@ -83,6 +87,7 @@ func SemanticSearch(
     for _, term := range terms {
       score += strings.Count(lower, term)
     }
+
     if score == 0 {
       return nil
     }
@@ -91,10 +96,12 @@ func SemanticSearch(
     if relErr != nil {
       rel = p
     }
+
     results = append(results, SemanticSearchResult{
       File: filepath.ToSlash(rel), Score: score,
       Snippet: firstMatchingSnippet(content, lower, terms),
     })
+
     return nil
   })
   if err != nil {
@@ -105,6 +112,7 @@ func SemanticSearch(
     if results[i].Score != results[j].Score {
       return results[i].Score > results[j].Score
     }
+
     return results[i].File < results[j].File
   })
   if len(results) > count {
@@ -127,9 +135,11 @@ func tokenize(s string) []string {
       cur.Reset()
     }
   }
+
   if cur.Len() > 0 {
     terms = append(terms, cur.String())
   }
+
   return terms
 }
 
@@ -139,10 +149,13 @@ func firstMatchingSnippet(content, lower string, terms []string) string {
     if idx < 0 {
       continue
     }
+
     start := max(0, idx - 40)
     end := min(len(content), idx + len(term) + maxSemanticSnippet - 40)
     snippet := strings.TrimSpace(content[start:end])
+
     return strings.ReplaceAll(snippet, "\n", " ")
   }
+
   return ""
 }

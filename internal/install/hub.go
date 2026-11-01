@@ -76,8 +76,8 @@ func resolve(ctx context.Context, c *http.Client, arg string) (*source, error) {
   s.Groups = groupQuants(files)
   if len(s.Groups) == 0 {
     return nil, fmt.Errorf(
-      "\n\t... in resolve:\n\t %s has no .gguf files: armin runs models "+
-        "through llama.cpp, so look for a GGUF conversion of it "+
+      "\n\t... in resolve:\n\t %s has no .gguf files: armin runs models " +
+        "through llama.cpp, so look for a GGUF conversion of it " +
         "(often <org>/<name>-GGUF)",
       s.Repo,
     )
@@ -142,7 +142,7 @@ func parseHub(arg string) (hubRef, error) {
   parts := strings.Split(strings.Trim(rest, "/"), "/")
   if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
     return ref, fmt.Errorf(
-      "%q: want a .gguf path, a model from armin -install list, "+
+      "%q: want a .gguf path, a model from armin -install list, " +
         "org/repo[:QUANT] or a Hugging Face link", arg,
     )
   }
@@ -202,7 +202,7 @@ func direct(ctx context.Context, c *http.Client, link string) (*source, error) {
   base := path.Base(u.Path)
   if !strings.HasSuffix(strings.ToLower(base), ".gguf") {
     return nil, fmt.Errorf(
-      "\n\t... in direct:\n\t %s: not a .gguf — link the file itself "+
+      "\n\t... in direct:\n\t %s: not a .gguf — link the file itself " +
         "(outside Hugging Face, armin can't list a repo)", link,
     )
   }
@@ -550,7 +550,7 @@ func download(
 
     if time.Since(progressed) > giveUpAfter {
       return fmt.Errorf(
-        "\n\t... in download:\n\t no progress for %s (%v) — %s kept; "+
+        "\n\t... in download:\n\t no progress for %s (%v) — %s kept; " +
           "run it again to resume",
         giveUpAfter, err, filepath.Base(partPath),
       )

@@ -98,6 +98,7 @@ func (e *edges) remove(from uint32, tgt uint32) {
       last := len(e.delta) - 1
       e.delta[i] = e.delta[last]
       e.delta = e.delta[:last]
+
       return
     }
   }

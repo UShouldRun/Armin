@@ -106,6 +106,7 @@ func (s *Server) inlineCompletion(
 
     s.warnCompletionFailure(err)
     s.respondError(id, errInternal, firstLine(err))
+
     return
   }
 
@@ -275,6 +276,7 @@ func (s *Server) otherChunks(uri string) []llm.InfillChunk {
       picks[oldest] = p
     }
   }
+
   s.docsMu.Unlock()
 
   if n == 0 {
@@ -322,6 +324,7 @@ func (s *Server) startCompletion(
   gen := s.nextGen
   ctx, cancel := context.WithCancel(parent)
   s.inflight[uri] = inflightEntry{ gen: gen, cancel: cancel }
+
   return ctx, cancel, gen
 }
 
@@ -354,11 +357,13 @@ func firstLines(s string, n int) string {
     if s[i] != '\n' {
       continue
     }
+
     count++
     if count == n {
       return s[:i]
     }
   }
+
   return s
 }
 

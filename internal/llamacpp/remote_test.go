@@ -34,7 +34,7 @@ func (f *fakeEC2) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       ip = "<ipAddress>203.0.113.7</ipAddress>"
     }
 
-    fmt.Fprintf(w, `<R><reservationSet><item><instancesSet><item><instanceId>i-1</instanceId>`+
+    fmt.Fprintf(w, `<R><reservationSet><item><instancesSet><item><instanceId>i-1</instanceId>` +
       `<instanceState><name>%s</name></instanceState>%s</item></instancesSet></item></reservationSet></R>`, f.state, ip)
     if f.state == "pending" {
       f.state = "running"

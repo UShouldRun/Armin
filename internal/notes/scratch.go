@@ -51,7 +51,7 @@ func (p *Scratchpad) Write(
 
   if len(data) > maxScratchBytes {
     return ScratchFile{}, fmt.Errorf(
-      "\n\t... in Write:\n\t %q would be %d bytes, over the %d cap — "+
+      "\n\t... in Write:\n\t %q would be %d bytes, over the %d cap — " +
         "rewrite it shorter or split it",
       safe, len(data), maxScratchBytes,
     )

@@ -23,9 +23,11 @@ func lineOffset(text string, n int) (start, end int, ok bool) {
     if text[i] != '\n' {
       continue
     }
+
     if line == n {
       return start, i, true
     }
+
     line++
     start = i + 1
   }
@@ -33,5 +35,6 @@ func lineOffset(text string, n int) (start, end int, ok bool) {
   if line == n {
     return start, len(text), true
   }
+
   return 0, 0, false
 }

@@ -21,9 +21,9 @@ var noteTools = []toolSpec{
     run:   runMemorySave,
     def: toolFunc(
       "memory_save",
-      "Save a durable fact for future sessions: user preferences, "+
-        "project conventions, decisions and their reasons. Not "+
-        "for task progress (use the scratchpad). Overwrites a "+
+      "Save a durable fact for future sessions: user preferences, " +
+        "project conventions, decisions and their reasons. Not " +
+        "for task progress (use the scratchpad). Overwrites a " +
         "memory of the same name.",
       map[string]llm.ToolProperty{
         "name":        stringProp("Short kebab-case name"),
@@ -70,9 +70,9 @@ var noteTools = []toolSpec{
     run:   runScratchWrite,
     def: toolFunc(
       "scratchpad_write",
-      "Write working notes to a scratch file outside the "+
-        "project: plans, findings, long reasoning, checklists. "+
-        "Keep only the file name in mind afterwards and re-read "+
+      "Write working notes to a scratch file outside the " +
+        "project: plans, findings, long reasoning, checklists. " +
+        "Keep only the file name in mind afterwards and re-read " +
         "it when needed — this frees context for the work.",
       map[string]llm.ToolProperty{
         "name":    stringProp("File name, e.g. plan or findings"),
@@ -116,9 +116,9 @@ var noteTools = []toolSpec{
     run:   runRequestAccess,
     def: toolFunc(
       "request_access",
-      "Ask the user for read access to a directory outside the project "+
-        "(e.g. slides or docs in the parent folder). The user approves "+
-        "or declines; on approval, read tools accept absolute paths in "+
+      "Ask the user for read access to a directory outside the project " +
+        "(e.g. slides or docs in the parent folder). The user approves " +
+        "or declines; on approval, read tools accept absolute paths in " +
         "it. Read-only: writes stay inside the project.",
       map[string]llm.ToolProperty{
         "dir": stringProp("Directory: absolute, ~/..., or " +
@@ -134,8 +134,8 @@ var noteTools = []toolSpec{
     run:   runUseSkill,
     def: toolFunc(
       "use_skill",
-      "Load a skill's instructions (see the skill index) before "+
-        "doing a task it covers. With file, read one of its "+
+      "Load a skill's instructions (see the skill index) before " +
+        "doing a task it covers. With file, read one of its " +
         "supporting files instead.",
       map[string]llm.ToolProperty{
         "name": stringProp("Skill name"),

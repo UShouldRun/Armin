@@ -34,6 +34,7 @@ func fakeChatServer(t *testing.T, reply string) *httptest.Server {
           },
         })
         fmt.Fprintf(w, "data: %s\n\ndata: [DONE]\n\n", delta)
+
         return
       }
 
@@ -64,6 +65,7 @@ func newTestServer(t *testing.T, chatURL string, modelNames ...string) *Server {
   for _, name := range modelNames {
     specs[name] = llamacpp.ModelSpec{ URL: chatURL }
   }
+
   models := llamacpp.New(specs)
   t.Cleanup(func() { models.Shutdown(context.Background()) })
 
@@ -72,12 +74,14 @@ func newTestServer(t *testing.T, chatURL string, modelNames ...string) *Server {
   if err != nil {
     t.Fatal(err)
   }
+
   completionClient, err := models.Client(ctx, modelNames[0])
   if err != nil {
     t.Fatal(err)
   }
 
   loop := agent.New(client, sb)
+
   return New(loop, sb, "system prompt", completionClient, models, ctags.New(root, ""))
 }
 
@@ -137,6 +141,7 @@ func TestExecuteModelSwitchesLive(t *testing.T) {
   if info.Current != "coder" {
     t.Fatalf("Current = %q, want coder", info.Current)
   }
+
   if s.loop.LLM.Model != "coder" {
     t.Fatalf("the shared client's Model wasn't actually updated: %q", s.loop.LLM.Model)
   }
@@ -154,6 +159,7 @@ func TestExecuteModelRejectsUnconfiguredName(t *testing.T) {
   if resp.Error == nil {
     t.Fatal("expected an error for a name with no matching models.<name> entry")
   }
+
   if s.loop.LLM.Model != "chat" {
     t.Fatalf("a rejected switch must not mutate the client: Model = %q", s.loop.LLM.Model)
   }
@@ -174,9 +180,11 @@ func TestExecuteModelReportsCurrentAndConfigured(t *testing.T) {
   if info.Current != "chat" {
     t.Fatalf("Current = %q, want chat", info.Current)
   }
+
   if len(info.Configured) != 2 {
     t.Fatalf("Configured = %v, want 2 entries", info.Configured)
   }
+
   for _, c := range info.Configured {
     if c.Managed {
       t.Fatalf("%+v: an external (URL-only) spec must report Managed=false", c)
@@ -214,9 +222,11 @@ func TestExecuteAskToolsUnsupportedShowsCleanMessage(t *testing.T) {
   if resp.Error == nil {
     t.Fatal("expected an error response")
   }
+
   if strings.Contains(resp.Error.Message, "\t") || strings.Contains(resp.Error.Message, "\n") {
     t.Fatalf("error message wasn't cleaned up: %q", resp.Error.Message)
   }
+
   if !strings.Contains(resp.Error.Message, "fake-model") ||
     !strings.Contains(resp.Error.Message, ":ArminModel") {
     t.Fatalf("error message = %q, want it to name the model and mention :ArminModel", resp.Error.Message)
@@ -229,6 +239,7 @@ func remarshalLSP(t *testing.T, from any, to any) {
   if err != nil {
     t.Fatal(err)
   }
+
   err = json.Unmarshal(b, to)
   if err != nil {
     t.Fatal(err)

@@ -26,11 +26,11 @@ var teachTools = []toolSpec{
     run:   runLearnExplained,
     def: toolFunc(
       "learn_explained",
-      "After the user explains how they think about something (typed or "+
-        "spoken), record what it shows about what they know: concepts "+
-        "they used correctly, misconceptions, and gaps (concepts the "+
-        "explanation needed but never touched). Concepts are paths in the "+
-        "learner tree; a concept not there yet needs its definition in "+
+      "After the user explains how they think about something (typed or " +
+        "spoken), record what it shows about what they know: concepts " +
+        "they used correctly, misconceptions, and gaps (concepts the " +
+        "explanation needed but never touched). Concepts are paths in the " +
+        "learner tree; a concept not there yet needs its definition in " +
         "define.",
       map[string]llm.ToolProperty{
         "correct": {

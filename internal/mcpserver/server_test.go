@@ -20,10 +20,12 @@ func newTestServer(t *testing.T) *Server {
   if err != nil {
     t.Fatal(err)
   }
+
   cfg, err := sandbox.New(root, sandbox.Options{})
   if err != nil {
     t.Fatal(err)
   }
+
   return New(cfg, nil, ctags.New(root, ""))
 }
 
@@ -38,6 +40,7 @@ func call(t *testing.T, s *Server, id int, method string, params any) rpcRespons
     if err != nil {
       t.Fatal(err)
     }
+
     paramsRaw = b
   }
 
@@ -55,6 +58,7 @@ func call(t *testing.T, s *Server, id int, method string, params any) rpcRespons
   if err != nil {
     t.Fatalf("decoding response to %s: %v (raw: %s)", method, err, out.String())
   }
+
   return resp
 }
 
@@ -75,6 +79,7 @@ func TestInitialize(t *testing.T) {
   if result.ProtocolVersion != protocolVersion {
     t.Fatalf("ProtocolVersion = %q, want %q", result.ProtocolVersion, protocolVersion)
   }
+
   if result.ServerInfo.Name != "armin" {
     t.Fatalf("ServerInfo.Name = %q, want armin", result.ServerInfo.Name)
   }
@@ -98,6 +103,7 @@ func TestToolsList(t *testing.T) {
       t.Fatal("run_program is listed, but MCP can't run it")
     }
   }
+
   // noPropsOK are tools with no meaningful parameters at all
   // (list_directory's only param is optional, the rest take
   // nothing) — every other tool should declare at least one
@@ -114,6 +120,7 @@ func TestToolsList(t *testing.T) {
       t.Errorf("tool %q has no input schema properties", tl.Name)
     }
   }
+
   for _, want := range []string{
     "search_code", "read_file", "list_directory", "run_command", "web_search",
     "count_lines", "list_languages", "find_files", "file_stat", "find_todo_fixme",
@@ -146,6 +153,7 @@ func TestToolsCallSuccess(t *testing.T) {
   if result.IsError {
     t.Fatalf("expected success, got an error result: %+v", result)
   }
+
   if len(result.Content) != 1 || !strings.Contains(result.Content[0].Text, "hello") {
     t.Fatalf("Content = %+v, want it to contain the file's text", result.Content)
   }
@@ -241,12 +249,14 @@ func TestServeEndToEnd(t *testing.T) {
     if err != nil {
       t.Fatalf("decoding response line %q: %v", line, err)
     }
+
     byID[string(resp.ID)] = line
   }
 
   if !strings.Contains(byID["1"], `"protocolVersion"`) {
     t.Fatalf("response to id=1 = %s, want the initialize result", byID["1"])
   }
+
   if !strings.Contains(byID["2"], `"tools"`) {
     t.Fatalf("response to id=2 = %s, want the tools/list result", byID["2"])
   }
@@ -258,6 +268,7 @@ func remarshal(t *testing.T, from any, to any) {
   if err != nil {
     t.Fatal(err)
   }
+
   err = json.Unmarshal(b, to)
   if err != nil {
     t.Fatal(err)

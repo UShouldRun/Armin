@@ -264,7 +264,7 @@ func (c *Config) ResolvePath(path string) (string, error) {
 
 func (e *OutsideError) Error() string {
   return fmt.Sprintf(
-    "path %q is outside the project %q and not readable yet: call "+
+    "path %q is outside the project %q and not readable yet: call " +
       "request_access with its directory to ask the user for read access",
     e.Path, e.Root,
   )

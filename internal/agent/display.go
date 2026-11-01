@@ -136,6 +136,7 @@ func CallLine(name string, args map[string]any) string {
     }
 
     n := lines(args["content"])
+
     return fmt.Sprintf("%s  %s %s (%d lines)", name, verb, str("name"), n)
   }
 
@@ -312,6 +313,7 @@ func ResultLine(name, result string) string {
     }
 
     titles := libraryTitles(results, 2)
+
     return fmt.Sprintf("%d passages — %s", len(results), titles)
 
   case toolLibraryTopics:
@@ -405,6 +407,7 @@ func ResultLine(name, result string) string {
     }
 
     added, removed := num("lines_added"), num("lines_removed")
+
     return fmt.Sprintf("+%d −%d lines", added, removed)
   }
 

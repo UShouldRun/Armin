@@ -334,7 +334,7 @@ func errResult(err error) map[string]string {
 func malformed(toolName string, err error) map[string]string {
   return map[string]string{
     "error": fmt.Sprintf(
-      "malformed arguments for %s: %s — check the parameter "+
+      "malformed arguments for %s: %s — check the parameter " +
         "names and types against the tool schema and try again",
       toolName, err,
     ),

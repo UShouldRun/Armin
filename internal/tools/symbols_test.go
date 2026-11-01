@@ -52,6 +52,7 @@ func TestFindDefinitionEmptyIndexReturnsNoMatches(t *testing.T) {
   if err != nil {
     t.Fatalf("FindDefinition: %v", err)
   }
+
   if len(out.Matches) != 0 {
     t.Fatalf("Matches = %+v, want none", out.Matches)
   }
@@ -76,6 +77,7 @@ func TestFindReferencesFindsWordBoundaryMatches(t *testing.T) {
   if err != nil {
     t.Fatalf("FindReferences: %v", err)
   }
+
   if out.Matches == "(no references found)" {
     t.Fatal("expected to find references to Needle")
   }
@@ -98,6 +100,7 @@ func TestFindReferencesNoMatches(t *testing.T) {
   if err != nil {
     t.Fatalf("FindReferences: %v", err)
   }
+
   if out.Matches != "(no references found)" {
     t.Fatalf("Matches = %q, want the no-references sentinel", out.Matches)
   }

@@ -111,7 +111,7 @@ func Compact(
 
   if cut <= 1 || len(h) <= keepLast + 1 {
     return fmt.Errorf(
-      "\n\t... in Compact:\n\t nothing to compact yet — only %d "+
+      "\n\t... in Compact:\n\t nothing to compact yet — only %d " +
         "messages, keeping the last %d",
       len(h), keepLast,
     )

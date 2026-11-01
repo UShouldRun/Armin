@@ -36,6 +36,7 @@ func SearchCode(
   if in.FileType != "" {
     args = append(args, "--type", in.FileType)
   }
+
   args = append(args, in.Pattern, searchPath)
 
   res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "rg", Args: args, Mode: sandbox.ExecForce })
@@ -48,6 +49,7 @@ func SearchCode(
   if res.ExitCode == 1 && res.Stdout == "" {
     return &SearchCodeOutput{ Matches: "(no matches)" }, nil
   }
+
   if res.ExitCode > 1 {
     return nil, fmt.Errorf(
       "\n\t... in SearchCode:\n\t rg failed: %s", res.Stderr,

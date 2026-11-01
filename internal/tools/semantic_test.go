@@ -16,6 +16,7 @@ func TestTokenize(t *testing.T) {
   if len(got) != len(want) {
     t.Fatalf("tokenize = %v, want %v", got, want)
   }
+
   for i := range want {
     if got[i] != want[i] {
       t.Fatalf("tokenize[%d] = %q, want %q", i, got[i], want[i])
@@ -33,9 +34,11 @@ func TestSemanticSearchRanksByTermFrequency(t *testing.T) {
   if err != nil {
     t.Fatalf("SemanticSearch: %v", err)
   }
+
   if len(out.Results) != 2 {
     t.Fatalf("Results = %+v, want 2 matches (c.go has no hits)", out.Results)
   }
+
   if out.Results[0].File != "a.go" {
     t.Fatalf("Results[0] = %+v, want a.go first (3 mentions > 1)", out.Results[0])
   }
@@ -57,6 +60,7 @@ func TestSemanticSearchNoMatches(t *testing.T) {
   if err != nil {
     t.Fatalf("SemanticSearch: %v", err)
   }
+
   if len(out.Results) != 0 {
     t.Fatalf("Results = %+v, want none", out.Results)
   }

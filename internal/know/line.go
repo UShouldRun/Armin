@@ -69,7 +69,7 @@ func (g *Graph) Line(b *strings.Builder, id NodeID, full bool) {
   if !full && hasFile {
     fmt.Fprintf(b, " at %s", g.Str(fileEv.Ref))
 
-    if n.Flags&(FlagStale|FlagSuspect) == 0 {
+    if n.Flags & (FlagStale | FlagSuspect) == 0 {
       b.WriteString(" current")
     }
   }

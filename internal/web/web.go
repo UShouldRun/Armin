@@ -145,7 +145,7 @@ func Serve(ctx context.Context, cfg Config) error {
   ip := net.ParseIP(host)
   if host != "localhost" && (ip == nil || !ip.IsLoopback()) {
     return fmt.Errorf(
-      "\n\t... in Serve:\n\t refusing to listen on %q: the web UI runs "+
+      "\n\t... in Serve:\n\t refusing to listen on %q: the web UI runs " +
         "tools on this machine, so it only binds to localhost",
       cfg.Addr,
     )

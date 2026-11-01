@@ -47,6 +47,7 @@ func ReadPDF(
   if last < first {
     last = first + pdfPagesPerCall - 1
   }
+
   if total > 0 {
     if first > total {
       return nil, fmt.Errorf(

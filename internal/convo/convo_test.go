@@ -36,12 +36,15 @@ func TestAnalyzeCountsMessagesToolCallsAndResults(t *testing.T) {
   if s.Messages != 5 {
     t.Errorf("Messages = %d, want 5", s.Messages)
   }
+
   if s.ToolCalls != 1 {
     t.Errorf("ToolCalls = %d, want 1", s.ToolCalls)
   }
+
   if s.ToolResults != 1 {
     t.Errorf("ToolResults = %d, want 1", s.ToolResults)
   }
+
   if s.ApproxTokens <= 0 {
     t.Errorf("ApproxTokens = %d, want > 0", s.ApproxTokens)
   }
@@ -57,6 +60,7 @@ func TestCompactRefusesWhenTooShort(t *testing.T) {
   if err == nil {
     t.Fatal("expected an error when there's nothing meaningful to compact")
   }
+
   if len(history) != 2 {
     t.Fatal("Compact must not mutate history when it refuses to run")
   }
@@ -104,9 +108,11 @@ func TestCompactPreservesSystemAndTail(t *testing.T) {
   if history[0].Role != "system" || history[0].Content != "you are armin" {
     t.Fatalf("history[0] = %+v, want the original system prompt preserved", history[0])
   }
+
   if !strings.Contains(history[1].Content, "did X") {
     t.Fatalf("history[1] = %+v, want it to contain the model's summary", history[1])
   }
+
   if !IsSummary(history[1]) || !strings.HasSuffix(history[1].Content, refetchNote) {
     t.Fatalf("history[1] = %+v, want a summary ending in the refetch note", history[1])
   }
@@ -144,9 +150,11 @@ func TestCompactNeverSplitsToolCallFromResult(t *testing.T) {
   if history[1].Role != "user" {
     t.Fatalf("summary role = %q, want user (no mid-history system message)", history[1].Role)
   }
+
   if history[2].Role != "assistant" || len(history[2].ToolCalls) != 2 {
     t.Fatalf("tail starts with %+v, want the assistant tool call", history[2])
   }
+
   summary := history[1].Content
   for _, want := range []string{ "summary", "fix the bug", "scratch: plan" } {
     if !strings.Contains(summary, want) {
@@ -165,9 +173,11 @@ func TestSuggestParsesOneLinePerSuggestion(t *testing.T) {
   if err != nil {
     t.Fatalf("Suggest: %v", err)
   }
+
   if len(got) != 3 {
     t.Fatalf("Suggest returned %d suggestions, want 3: %v", len(got), got)
   }
+
   if got[0] != "What does search_code wrap?" {
     t.Fatalf("got[0] = %q", got[0])
   }
@@ -182,6 +192,7 @@ func TestSuggestCapsAtMax(t *testing.T) {
   if err != nil {
     t.Fatalf("Suggest: %v", err)
   }
+
   if len(got) != maxSuggestions {
     t.Fatalf("got %d suggestions, want the cap of %d", len(got), maxSuggestions)
   }
@@ -196,6 +207,7 @@ func TestSuggestSkipsBlankLines(t *testing.T) {
   if err != nil {
     t.Fatalf("Suggest: %v", err)
   }
+
   if len(got) != 2 || got[0] != "one" || got[1] != "two" {
     t.Fatalf("got = %v, want [one two]", got)
   }

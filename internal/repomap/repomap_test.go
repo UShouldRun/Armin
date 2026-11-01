@@ -36,9 +36,9 @@ func TestBuildRanksWhatIsUsed(t *testing.T) {
     os.WriteFile(filepath.Join(root, name), []byte(src), 0o644)
   }
 
-  write("store.go", "package kv\n\ntype Store struct{}\n\n"+
+  write("store.go", "package kv\n\ntype Store struct{}\n\n" +
     "func (s *Store) Put(k string) {}\n\nfunc Open() *Store { return nil }\n")
-  write("main.go", "package kv\n\nfunc main() {\n  s := Open()\n"+
+  write("main.go", "package kv\n\nfunc main() {\n  s := Open()\n" +
     "  s.Put(\"a\")\n  s.Put(\"b\")\n}\n")
   write("unused.go", "package kv\n\nfunc lonely() {}\n")
 

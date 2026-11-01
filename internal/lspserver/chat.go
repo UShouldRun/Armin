@@ -32,8 +32,10 @@ func (s *Server) respondAskError(id json.RawMessage, err error) {
     s.respondError(id, errInternal, fmt.Sprintf(
       "%s doesn't support tool calling — switch models with :ArminModel", model,
     ))
+
     return
   }
+
   s.respondError(id, errInternal, err.Error())
 }
 
@@ -77,6 +79,7 @@ func (s *Server) executeAsk(
     s.respondError(id, errInvalidRequest, err.Error())
     return
   }
+
   if strings.TrimSpace(args.Question) == "" {
     s.respondError(id, errInvalidRequest, "question is empty")
     return
@@ -96,6 +99,7 @@ func (s *Server) executeAsk(
     }
 
     s.respond(id, "", nil)
+
     return
   }
 
@@ -472,5 +476,6 @@ func (s *Server) ask(
     { Role: "system", Content: system },
     { Role: "user", Content: question },
   }
+
   return s.loop.Turn(askCtx, &history, hooks)
 }

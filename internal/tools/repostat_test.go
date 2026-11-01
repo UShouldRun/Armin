@@ -18,9 +18,11 @@ func TestCountLinesTotals(t *testing.T) {
   if err != nil {
     t.Fatalf("CountLines: %v", err)
   }
+
   if out.TotalFiles != 2 {
     t.Fatalf("TotalFiles = %d, want 2", out.TotalFiles)
   }
+
   if out.TotalLines != 5 {
     t.Fatalf("TotalLines = %d, want 5", out.TotalLines)
   }
@@ -35,6 +37,7 @@ func TestCountLinesSkipsBinary(t *testing.T) {
   if err != nil {
     t.Fatalf("CountLines: %v", err)
   }
+
   if out.TotalFiles != 1 {
     t.Fatalf("TotalFiles = %d, want 1 (binary file skipped)", out.TotalFiles)
   }
@@ -55,12 +58,15 @@ func TestListLanguagesGroupsByExtension(t *testing.T) {
   for _, l := range out.Languages {
     byExt[l.Extension] = l
   }
+
   if byExt[".go"].Files != 2 || byExt[".go"].Lines != 3 {
     t.Fatalf(".go = %+v, want 2 files/3 lines", byExt[".go"])
   }
+
   if byExt[".py"].Files != 1 || byExt[".py"].Lines != 4 {
     t.Fatalf(".py = %+v, want 1 file/4 lines", byExt[".py"])
   }
+
   // Ranked by lines, most first: .py (4 lines) unambiguously outranks .go (3).
   if out.Languages[0].Extension != ".py" {
     t.Fatalf("Languages[0] = %q, want .py first", out.Languages[0].Extension)
@@ -79,6 +85,7 @@ func TestFindFilesMatchesGlob(t *testing.T) {
   if err != nil {
     t.Fatalf("FindFiles: %v", err)
   }
+
   if len(out.Files) != 2 {
     t.Fatalf("Files = %v, want 2 matches", out.Files)
   }
@@ -102,9 +109,11 @@ func TestFileStatReportsSizeAndLines(t *testing.T) {
   if err != nil {
     t.Fatalf("FileStat: %v", err)
   }
+
   if out.Lines != 3 || out.IsBinary {
     t.Fatalf("FileStat = %+v, want 3 lines, not binary", out)
   }
+
   if out.SizeBytes != int64(len("one\ntwo\nthree")) {
     t.Fatalf("SizeBytes = %d, want %d", out.SizeBytes, len("one\ntwo\nthree"))
   }
@@ -130,6 +139,7 @@ func TestFindTodoFixmeFindsMarkers(t *testing.T) {
   if err != nil {
     t.Fatalf("FindTodoFixme: %v", err)
   }
+
   if out.Matches == "(no matches)" {
     t.Fatal("expected the TODO marker to be found")
   }
@@ -143,6 +153,7 @@ func TestEnvInfoReportsOSAndArch(t *testing.T) {
   if err != nil {
     t.Fatalf("EnvInfo: %v", err)
   }
+
   if out.OS == "" || out.Arch == "" {
     t.Fatalf("EnvInfo = %+v, want non-empty OS/Arch", out)
   }
@@ -159,6 +170,7 @@ func TestProjectManifestIncludesReadmeAndTree(t *testing.T) {
   if err != nil {
     t.Fatalf("ProjectManifest: %v", err)
   }
+
   if out.Note == "" {
     t.Fatal("expected a non-empty manifest note")
   }

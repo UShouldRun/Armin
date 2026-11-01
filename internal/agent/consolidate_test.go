@@ -21,7 +21,7 @@ func pointerLoop(t *testing.T, reply string) (*Loop, know.NodeID) {
   })
   os.MkdirAll(filepath.Join(root, "internal", "session"), 0o755)
   os.WriteFile(filepath.Join(root, "internal", "session", "store.go"),
-    []byte("package session\n\n// Append writes new messages only.\n"+
+    []byte("package session\n\n// Append writes new messages only.\n" +
       "func Append() {}\n"), 0o644)
 
   l.Know = know.New()
@@ -43,7 +43,7 @@ func pointerLoop(t *testing.T, reply string) (*Loop, know.NodeID) {
 
 func TestConsolidateWritesClaims(t *testing.T) {
   l, pointer := pointerLoop(t,
-    "Sessions are appended, never rewritten @ internal/session/store.go:1-4\n"+
+    "Sessions are appended, never rewritten @ internal/session/store.go:1-4\n" +
       "Made up @ internal/session/other.go:1-9\n")
 
   n, err := l.Consolidate(context.Background(), 5)

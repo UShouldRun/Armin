@@ -16,7 +16,9 @@ func requireCtags(t *testing.T) string {
   if err == nil {
     return p
   }
+
   t.Skip("universal-ctags not available — skipping real-index doc comment tests")
+
   return ""
 }
 
@@ -102,6 +104,7 @@ func TestReadDocCommentEndToEnd(t *testing.T) {
   if err != nil {
     t.Fatalf("ReadDocComment: %v", err)
   }
+
   if !strings.Contains(out.Comment, "Greet says hello") {
     t.Fatalf("Comment = %q, want it to contain the doc comment", out.Comment)
   }

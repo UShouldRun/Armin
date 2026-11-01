@@ -38,8 +38,8 @@ func minimalPDF(page1, page2 string) string {
   }
 
   page := func(contents int) string {
-    return fmt.Sprintf("<< /Type /Page /Parent 2 0 R "+
-      "/MediaBox [0 0 612 792] /Contents %d 0 R "+
+    return fmt.Sprintf("<< /Type /Page /Parent 2 0 R " +
+      "/MediaBox [0 0 612 792] /Contents %d 0 R " +
       "/Resources << /Font << /F1 7 0 R >> >> >>", contents)
   }
 
@@ -58,26 +58,26 @@ func testLibrary(t *testing.T) *Library {
   t.Helper()
   root := t.TempDir()
   writeDoc(t, root, "go/Effective Go.md",
-    "# Introduction\nGo is a new language.\n\n"+
-      "# Concurrency\nShare memory by communicating. "+
-      "Goroutines are multiplexed onto threads; "+
-      "channels synchronize them.\n\n"+
+    "# Introduction\nGo is a new language.\n\n" +
+      "# Concurrency\nShare memory by communicating. " +
+      "Goroutines are multiplexed onto threads; " +
+      "channels synchronize them.\n\n" +
       "# Errors\nError values are returned, not thrown.\n")
   writeDoc(t, root, "c/man2/open.2.txt",
-    "NAME\n  open - open and possibly create a file\n"+
-      "SYNOPSIS\n  int open(const char *path, int flags);\n"+
-      "DESCRIPTION\n  The open() system call opens the file "+
+    "NAME\n  open - open and possibly create a file\n" +
+      "SYNOPSIS\n  int open(const char *path, int flags);\n" +
+      "DESCRIPTION\n  The open() system call opens the file " +
       "specified by pathname.\n")
   writeDoc(t, root, "web/HTTP Guide.html",
-    "<html><head><style>h1{color:red}</style>"+
-      "<script>var x = 'channel';</script></head><body>\n"+
-      "<h1 id=\"intro\">Intro</h1><p>Hypertext &amp; transfer.</p>\n"+
-      "<h2>Caching</h2><p>The Cache-Control header controls "+
+    "<html><head><style>h1{color:red}</style>" +
+      "<script>var x = 'channel';</script></head><body>\n" +
+      "<h1 id=\"intro\">Intro</h1><p>Hypertext &amp; transfer.</p>\n" +
+      "<h2>Caching</h2><p>The Cache-Control header controls " +
       "caching.</p>\n</body></html>\n")
   writeDoc(t, root, "os/OSTEP/threads-intro.md",
     "# Threads\nA thread shares the address space of its process.\n")
   writeDoc(t, root, "os/OSTEP/vm-intro.md",
-    "# Address spaces\nVirtual memory gives each process an "+
+    "# Address spaces\nVirtual memory gives each process an " +
       "address space.\n")
   writeDoc(t, root, ".git/ignored.md",
     "# Concurrency\nshould never be indexed\n")
@@ -189,7 +189,7 @@ func TestStaleAndCache(t *testing.T) {
   }
 
   writeDoc(t, l.Root, "go/Go Memory Model.md",
-    "# Happens before\nA send on a channel happens before the "+
+    "# Happens before\nA send on a channel happens before the " +
       "receive completes.\n")
   if !l.Stale() {
     t.Fatal("Stale() = false after adding a document")

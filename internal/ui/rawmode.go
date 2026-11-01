@@ -19,6 +19,7 @@ func enableRawMode(fd int) (*rawState, error) {
   if err != nil {
     return nil, err
   }
+
   prev := *termios
 
   raw := *termios
@@ -36,6 +37,7 @@ func enableRawMode(fd int) (*rawState, error) {
   if err != nil {
     return nil, err
   }
+
   return &rawState{ termios: prev }, nil
 }
 
@@ -68,5 +70,6 @@ func restoreMode(fd int, state *rawState) error {
   if state == nil {
     return nil
   }
+
   return unix.IoctlSetTermios(fd, ioctlSetTermios, &state.termios)
 }

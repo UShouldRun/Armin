@@ -44,18 +44,22 @@ func ListDependencies(
     if err != nil {
       continue
     }
+
     data, err := os.ReadFile(resolved)
     if err != nil {
       continue
     }
+
     deps, err := p.parse(data)
     if err != nil {
       return nil, fmt.Errorf(
         "\n\t... in ListDependencies:\n\t parsing %s: %w", p.file, err,
       )
     }
+
     return &ListDependenciesOutput{ Manifest: p.file, Dependencies: deps }, nil
   }
+
   return nil, fmt.Errorf(
     "\n\t... in ListDependencies:\n\t no recognized manifest " +
       "(go.mod, package.json, requirements.txt, Cargo.toml, " +
@@ -84,6 +88,7 @@ func parseGoMod(data []byte) ([]Dependency, error) {
       }
     }
   }
+
   return deps, scanner.Err()
 }
 
@@ -101,10 +106,13 @@ func parsePackageJSON(data []byte) ([]Dependency, error) {
   for name, ver := range pkg.Dependencies {
     deps = append(deps, Dependency{ Name: name, Version: ver })
   }
+
   for name, ver := range pkg.DevDependencies {
     deps = append(deps, Dependency{ Name: name, Version: ver + " (dev)" })
   }
+
   sort.Slice(deps, func(i, j int) bool { return deps[i].Name < deps[j].Name })
+
   return deps, nil
 }
 
@@ -118,15 +126,18 @@ func parseRequirementsTxt(data []byte) ([]Dependency, error) {
     if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
       continue
     }
+
     name, version, found := cutAny(line, seps)
     if !found {
       deps = append(deps, Dependency{ Name: line })
       continue
     }
+
     deps = append(deps, Dependency{
       Name: strings.TrimSpace(name), Version: strings.TrimSpace(version),
     })
   }
+
   return deps, scanner.Err()
 }
 
@@ -137,6 +148,7 @@ func cutAny(s string, seps []string) (before, after string, found bool) {
       return s[:i], s[i:], true
     }
   }
+
   return s, "", false
 }
 
@@ -156,18 +168,22 @@ func parseTomlDepsSection(data []byte, section string) []Dependency {
       inSection = line == section
       continue
     }
+
     if !inSection || line == "" || strings.HasPrefix(line, "#") {
       continue
     }
+
     key, value, ok := strings.Cut(line, "=")
     if !ok {
       continue
     }
+
     deps = append(deps, Dependency{
       Name:    strings.TrimSpace(key),
       Version: strings.Trim(strings.TrimSpace(value), `"'`),
     })
   }
+
   return deps
 }
 
@@ -180,6 +196,7 @@ func parsePyprojectToml(data []byte) ([]Dependency, error) {
   if len(deps) == 0 {
     deps = parseTomlDepsSection(data, "[project.dependencies]")
   }
+
   return deps, nil
 }
 
@@ -207,6 +224,7 @@ func ModuleGraph(
   if err != nil {
     return nil, fmt.Errorf("\n\t... in ModuleGraph:\n\t%w", err)
   }
+
   if res.ExitCode != 0 {
     return nil, fmt.Errorf(
       "\n\t... in ModuleGraph:\n\t go list failed: %s", firstLine(res.Stderr),
@@ -217,6 +235,7 @@ func ModuleGraph(
   if err != nil {
     return nil, fmt.Errorf("\n\t... in ModuleGraph:\n\t%w", err)
   }
+
   return &ModuleGraphOutput{ Module: modPath, Imports: imports }, nil
 }
 
@@ -225,10 +244,12 @@ func readModulePath(cfg *sandbox.Config) (string, error) {
   if err != nil {
     return "", fmt.Errorf("no go.mod at the project root: %w", err)
   }
+
   data, err := os.ReadFile(resolved)
   if err != nil {
     return "", err
   }
+
   for _, line := range strings.Split(string(data), "\n") {
     line = strings.TrimSpace(line)
     after, ok := strings.CutPrefix(line, "module ")
@@ -236,6 +257,7 @@ func readModulePath(cfg *sandbox.Config) (string, error) {
       return strings.TrimSpace(after), nil
     }
   }
+
   return "", fmt.Errorf("no module directive found in go.mod")
 }
 
@@ -257,6 +279,7 @@ func parseModuleGraph(output, modPath string) (map[string][]string, error) {
     if err != nil {
       return nil, err
     }
+
     if !strings.HasPrefix(pkg.ImportPath, modPath) {
       continue
     }
@@ -267,8 +290,10 @@ func parseModuleGraph(output, modPath string) (map[string][]string, error) {
         internal = append(internal, imp)
       }
     }
+
     sort.Strings(internal)
     imports[pkg.ImportPath] = internal
   }
+
   return imports, nil
 }

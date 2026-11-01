@@ -274,7 +274,7 @@ func runProject(
   if !cmd.set() {
     return &ProjectRunOutput{
       Hint: fmt.Sprintf(
-        "no %s command detected for this project — the user can "+
+        "no %s command detected for this project — the user can " +
           "set %s_cmd in %s or config.conf",
         kind, kind, projectConfFile,
       ),

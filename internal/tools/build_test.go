@@ -25,7 +25,7 @@ func writePassingModule(t *testing.T, root string) {
   writeFile(t, root, "go.mod", "module fixture\n\ngo 1.21\n")
   writeFile(t, root, "fixture.go", "package fixture\n\nfunc Add(a, b int) int { return a + b }\n")
   writeFile(t, root, "fixture_test.go",
-    "package fixture\n\nimport \"testing\"\n\n"+
+    "package fixture\n\nimport \"testing\"\n\n" +
       "func TestAdd(t *testing.T) {\n  if Add(2, 3) != 5 {\n    t.Fatal(\"bad\")\n  }\n}\n",
   )
 }
@@ -35,7 +35,7 @@ func writeFailingModule(t *testing.T, root string) {
   writeFile(t, root, "go.mod", "module fixture\n\ngo 1.21\n")
   writeFile(t, root, "fixture.go", "package fixture\n\nfunc Add(a, b int) int { return a + b }\n")
   writeFile(t, root, "fixture_test.go",
-    "package fixture\n\nimport \"testing\"\n\n"+
+    "package fixture\n\nimport \"testing\"\n\n" +
       "func TestAdd(t *testing.T) {\n  if Add(2, 3) != 999 {\n    t.Fatal(\"bad\")\n  }\n}\n",
   )
 }
@@ -51,6 +51,7 @@ func TestRunTestsPassing(t *testing.T) {
   if err != nil {
     t.Fatalf("RunTests: %v", err)
   }
+
   if !out.Passed {
     t.Fatalf("Passed = false, want true — output: %s", out.Output)
   }
@@ -65,9 +66,11 @@ func TestRunTestsFailing(t *testing.T) {
   if err != nil {
     t.Fatalf("RunTests: %v", err)
   }
+
   if out.Passed {
     t.Fatal("Passed = true, want false for a failing test")
   }
+
   if out.Summary == "(no per-package result lines found)" {
     t.Fatal("expected a FAIL summary line")
   }
@@ -84,6 +87,7 @@ func TestBuildCheckPassing(t *testing.T) {
   if err != nil {
     t.Fatalf("BuildCheck: %v", err)
   }
+
   if !out.Passed {
     t.Fatalf("Passed = false, want true — output: %s", out.Output)
   }
@@ -99,6 +103,7 @@ func TestBuildCheckFailingReportsTail(t *testing.T) {
   if err != nil {
     t.Fatalf("BuildCheck: %v", err)
   }
+
   if out.Passed || out.Command != "go build ./..." {
     t.Fatalf("out = %+v, want a failing go build ./...", out)
   }
@@ -111,12 +116,14 @@ func TestLintCheckUnavailableIsNotAnError(t *testing.T) {
   if err == nil {
     t.Skip("golangci-lint is installed — this test only covers the absent case")
   }
+
   cfg := newTestSandbox(t, sandbox.Options{})
 
   out, err := LintCheck(context.Background(), cfg, LintCheckInput{})
   if err != nil {
     t.Fatalf("LintCheck: %v", err)
   }
+
   if out.Available {
     t.Fatal("Available = true, but golangci-lint isn't installed in this environment")
   }
@@ -136,14 +143,17 @@ func TestDetectCommandsPrecedence(t *testing.T) {
   if got != "go test -race ./..." {
     t.Errorf("test = %q, want the project file's command", got)
   }
+
   got = strings.Join(pc.Build.argv(nil), " ")
   if got != "make build" {
     t.Errorf("build = %q, want the Makefile target", got)
   }
+
   got = strings.Join(pc.Lint.argv(nil), " ")
   if got != "mylint --strict" {
     t.Errorf("lint = %q, want the user's config", got)
   }
+
   got = strings.Join(pc.Test.argv([]string{ "./x" }), " ")
   if got != "go test -race ./... ./x" {
     t.Errorf("test with args = %q", got)
@@ -160,6 +170,7 @@ func TestDetectCommandsNode(t *testing.T) {
   if got != "npm run test -- -t foo" {
     t.Errorf("test = %q", got)
   }
+
   got = strings.Join(pc.Build.argv(nil), " ")
   if got != "npx tsc --noEmit" {
     t.Errorf("build = %q, want the tsconfig fallback", got)
@@ -172,6 +183,7 @@ func TestRunProjectWithNoCommandIsAHint(t *testing.T) {
   if err != nil {
     t.Fatal(err)
   }
+
   if out.Available || out.Hint == "" {
     t.Fatalf("out = %+v, want available:false with a hint", out)
   }

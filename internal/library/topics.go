@@ -172,7 +172,7 @@ func (l *Library) TopicRows(topic string) []Topic {
 // so the prompt prefix stays byte-stable.
 func (l *Library) PromptIndex() string {
   var b strings.Builder
-  fmt.Fprintf(&b, "Reference library at %s: books, official docs, "+
+  fmt.Fprintf(&b, "Reference library at %s: books, official docs, " +
     "standards, RFCs, man pages.\n", l.Root)
   b.WriteString("- For technical facts (language rules, APIs, " +
     "syscalls, commands, protocols, algorithms, math, physics), " +

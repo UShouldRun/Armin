@@ -359,6 +359,7 @@ func (m *Manager) fallback(from, to string) {
       m.specs[name] = spec
     }
   }
+
   m.mu.Unlock()
 
   m.status("%s refused (in-region routing needs a Business plan) — using %s", from, to)

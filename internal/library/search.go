@@ -44,7 +44,7 @@ func (l *Library) Search(
     l.mu.Unlock()
     if b != "" {
       return nil, fmt.Errorf(
-        "\n\t... in Search:\n\t the library is being indexed (%s); "+
+        "\n\t... in Search:\n\t the library is being indexed (%s); " +
           "try again in a minute, or use web_search meanwhile",
         b,
       )
@@ -66,7 +66,7 @@ func (l *Library) Search(
   allowed := l.allowedDocs(idx, topic)
   if allowed != nil && len(allowed) == 0 {
     return nil, fmt.Errorf(
-      "\n\t... in Search:\n\t no books for topic %q; "+
+      "\n\t... in Search:\n\t no books for topic %q; " +
         "library_topics lists the topics",
       topic,
     )

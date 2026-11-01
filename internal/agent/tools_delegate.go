@@ -46,12 +46,12 @@ var delegateTools = []toolSpec{
     },
     def: toolFunc(
       "delegate",
-      "Hand a small, well-defined task to the minion, the local model: a "+
-        "search, a summary of some files, a small contained edit. First rule "+
-        "out that a script or a deterministic tool does it better "+
-        "(search_code, find_references, run_command...). It must be a task "+
-        "the minion gets right almost every time, with an acceptance check "+
-        "the result has to pass. What it adds to the tree stays marked as "+
+      "Hand a small, well-defined task to the minion, the local model: a " +
+        "search, a summary of some files, a small contained edit. First rule " +
+        "out that a script or a deterministic tool does it better " +
+        "(search_code, find_references, run_command...). It must be a task " +
+        "the minion gets right almost every time, with an acceptance check " +
+        "the result has to pass. What it adds to the tree stays marked as " +
         "the minion's until you verify it.",
       map[string]llm.ToolProperty{
         "task": stringProp("What to do, precisely: files, names, the " +

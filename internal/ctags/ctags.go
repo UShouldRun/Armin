@@ -78,6 +78,7 @@ func (idx *Index) Lookup(
   idx.mu.Unlock()
 
   rankSymbols(matches, fromFile)
+
   return matches
 }
 
@@ -99,6 +100,7 @@ func (idx *Index) Search(ctx context.Context, query string) []Symbol {
       matches = append(matches, syms...)
     }
   }
+
   return matches
 }
 
@@ -109,14 +111,17 @@ func containsFold(s, substr string) bool {
   if len(substr) == 0 {
     return true
   }
+
   if len(substr) > len(s) {
     return false
   }
+
   for i := 0; i + len(substr) <= len(s); i++ {
     if hasPrefixFold(s[i:], substr) {
       return true
     }
   }
+
   return false
 }
 
@@ -126,6 +131,7 @@ func hasPrefixFold(s, prefix string) bool {
       return false
     }
   }
+
   return true
 }
 
@@ -133,6 +139,7 @@ func lowerASCII(b byte) byte {
   if b >= 'A' && b <= 'Z' {
     return b + ('a' - 'A')
   }
+
   return b
 }
 
@@ -142,6 +149,7 @@ func lowerASCII(b byte) byte {
 func (idx *Index) LastError() error {
   idx.mu.Lock()
   defer idx.mu.Unlock()
+
   return idx.lastErr
 }
 
@@ -176,6 +184,7 @@ func scan(
   for _, dir := range excludeDirs {
     args = append(args, "--exclude=" + dir)
   }
+
   args = append(args, ".")
 
   cmd := exec.CommandContext(ctx, binary, args...)
@@ -194,8 +203,10 @@ func scan(
     if !ok {
       continue
     }
+
     byName[sym.Name] = append(byName[sym.Name], sym)
   }
+
   return byName, nil
 }
 
@@ -226,6 +237,7 @@ func parseLine(line string) (Symbol, bool) {
     if !hasKey {
       continue
     }
+
     switch key {
     case "line":
       n, err := strconv.Atoi(value)
@@ -258,6 +270,7 @@ func rankSymbols(matches []Symbol, fromFile string) {
   if fromFile == "" || len(matches) < 2 {
     return
   }
+
   fromDir := filepath.Dir(fromFile)
 
   weight := func(s Symbol) int {
@@ -285,6 +298,7 @@ func rankSymbols(matches []Symbol, fromFile string) {
       matches[j + 1] = matches[j]
       j--
     }
+
     matches[j + 1] = current
   }
 }
@@ -307,5 +321,6 @@ func KindLabel(kind string) string {
   if ok {
     return label
   }
+
   return kind
 }

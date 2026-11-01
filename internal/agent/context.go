@@ -362,7 +362,7 @@ func (l *Loop) manageContext(
 
   if act & ActGrow != 0 {
     notice(hooks,
-      "context ~%dk of %dk is mostly this turn's work — growing the "+
+      "context ~%dk of %dk is mostly this turn's work — growing the " +
         "window to %dk with KV streaming (one reload + re-prefill)",
       after / 1000, l.window() / 1000, l.Window.Max() / 1000,
     )
@@ -399,7 +399,7 @@ func (l *Loop) manageContext(
     saved := l.trimTurn(*history)
     if saved > 0 {
       notice(hooks,
-        "this task alone fills the context — archived its older tool "+
+        "this task alone fills the context — archived its older tool " +
           "results and reasoning (~%dk tokens)",
         saved / 4000,
       )
@@ -541,7 +541,7 @@ func (l *Loop) saveBeforeCompact(
     return
   }
 
-  notice(hooks, "context nearly full — letting the model save "+
+  notice(hooks, "context nearly full — letting the model save " +
     "notes before compacting")
   ask := make([]llm.Message, len(history), len(history) + 1 + saveRounds * 2)
   copy(ask, history)

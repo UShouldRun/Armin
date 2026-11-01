@@ -107,9 +107,9 @@ func (m *Manager) Search(
     }
 
     return nil, fmt.Errorf(
-      "\n\t... in Search:\n\t no results, and these search engines "+
-        "failed: %s. Web search is degraded right now: try topic "+
-        "general or a simpler query, and tell the user if it keeps "+
+      "\n\t... in Search:\n\t no results, and these search engines " +
+        "failed: %s. Web search is degraded right now: try topic " +
+        "general or a simpler query, and tell the user if it keeps " +
         "failing rather than answering as if you had searched",
       strings.Join(failed, ", "),
     )

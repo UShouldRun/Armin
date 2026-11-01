@@ -33,6 +33,7 @@ func TestFindCallersFindsCallSites(t *testing.T) {
   if err != nil {
     t.Fatalf("FindCallers: %v", err)
   }
+
   if len(out.Calls) != 1 || out.Calls[0].Line != 5 {
     t.Fatalf("Calls = %+v, want one call at line 5", out.Calls)
   }
@@ -46,6 +47,7 @@ func TestFindCallersNoCallSites(t *testing.T) {
   if err != nil {
     t.Fatalf("FindCallers: %v", err)
   }
+
   if len(out.Calls) != 0 {
     t.Fatalf("Calls = %+v, want none", out.Calls)
   }
@@ -70,6 +72,7 @@ func TestImpactAnalysisTransitiveCallers(t *testing.T) {
   if err != nil {
     t.Fatalf("ImpactAnalysis: %v", err)
   }
+
   if len(out.Affected) != 1 || out.Affected[0] != "CallsHelper" {
     t.Fatalf("Affected (depth 1) = %v, want [CallsHelper]", out.Affected)
   }
@@ -79,6 +82,7 @@ func TestImpactAnalysisTransitiveCallers(t *testing.T) {
   if err != nil {
     t.Fatalf("ImpactAnalysis: %v", err)
   }
+
   if len(out.Affected) != 2 {
     t.Fatalf("Affected (depth 2) = %v, want 2 entries", out.Affected)
   }
@@ -117,6 +121,7 @@ func TestFindDeadCodeEmptyIndexReturnsNoCandidates(t *testing.T) {
   if err != nil {
     t.Fatalf("FindDeadCode: %v", err)
   }
+
   if len(out.Candidates) != 0 {
     t.Fatalf("Candidates = %+v, want none (empty ctags index)", out.Candidates)
   }
