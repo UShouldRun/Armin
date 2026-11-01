@@ -42,7 +42,10 @@ holds:
 - how it runs
 - which paths it reads
 
-The specs are grouped by topic: files, search, code, git, run, notes.
+The specs are grouped by topic: files, search, code, git, run,
+notes, the knowledge DAG (`tools_know.go`), delegation
+(`tools_delegate.go`) and teaching (`tools_teach.go`). Which ones a
+turn offers depends on the role ([roles](roles.md)).
 
 - Most run through an adapter around a `tools.*` function; the rest
   need the agent: writes wait for approval, `run_program` too, notes
@@ -76,10 +79,18 @@ After every model call (`context.go`, `policy.go`):
   it can be done as asked".
 - **verify**: one quick check of a turn that changed or ran something.
 
+## The knowledge DAG in a turn
+
+Before the model sees a message, armin searches the DAG with it and
+puts the best matches above it (`recall.go`); after a turn that read
+files, it records where the answer lives (`recordTurn`), and a later
+start turns those records into claims (`consolidate.go`). See
+[the knowledge DAG](knowledge.md).
+
 ## Connections
 
 - built by: `think.buildLoop`
 - uses: `llm` (the model), `tools` and `sandbox` (the
   implementations), `notes`, `library`, `searxng`, `ctags`, `convo`
-  (summaries)
+  (summaries), `know`, `learner`, `metrics`
 - used by: `repl`, `web`, `lspserver`, `mcpserver`

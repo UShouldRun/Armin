@@ -17,6 +17,8 @@ A hand-rolled terminal layer: ANSI codes, no TUI framework.
 - **The composer** (`composer.go`): the input bar under a running turn.
 - **Errors** (`trace.go`): the message first, the `... in Func` trace
   folded away until you expand it.
+- **Highlighting** (`highlight.go`): code in proposed changes, the
+  same tokenizer the web UI uses.
 
 ## Config (`internal/config`)
 
@@ -30,6 +32,11 @@ Main groups:
   `reasoning`, `region`, `private`) or a cloud machine (`aws_instance`,
   `stackit_server`, `scaleway_server`, ...)
 - `effort`, `aids`: how hard models think, the reasoning aids
+- `minion`, `copilot`, `advisor`: each role's model
+  ([roles](roles.md))
+- `recall`, `repo_map`: armin's own search of the knowledge DAG, and
+  the static map in the prompt ([the knowledge DAG](knowledge.md))
+- `stt`, `stt_record`: speech to text for `/voice`
 - `library`: the reference library's folder
 - agent and sandbox limits: `max_tool_rounds`, `context_size`,
   `keep_turns`, `timeout`, `build_timeout`, `allow`, `allow_exec`,

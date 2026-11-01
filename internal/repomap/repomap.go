@@ -8,7 +8,6 @@
 //   Build    the map: definitions, references, ranking, rendering
 //   refs     how often each defined name appears outside its file
 //   render   the ranked files and their best definitions, in budget
-
 package repomap
 
 import (

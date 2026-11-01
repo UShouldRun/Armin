@@ -23,11 +23,19 @@ display).
      use
    - `buildLoop`: the agent loop (`internal/agent`) on the chat
      model, with the sandbox's services, the notes (memories, skills,
-     scratchpad), the reasoning aids and the library
+     scratchpad), the reasoning aids, the library, the roles' models,
+     the knowledge DAG (opened, checked for stale references, then
+     consolidated in the background) and the learner
+
+Nothing slow holds up the prompt: a local chat model loads in the
+background and says when it's ready, the repo map and the library's
+change scan run beside the rest (`startup.go`), and their notices
+reach the frontend through `Mind.Notices`.
 
 `Mind.SystemPrompt` builds the system prompt: the base instructions,
 then the project's instruction file, the memory and skill indexes,
-and the library's "where to look" (`prompt.go`).
+the library's "where to look", the knowledge DAG's outline and rules,
+and the repo map (`prompt.go`).
 
 `Mind.Shutdown` stops only what armin started: llama-server
 processes, cloud machines, the SearXNG container. It also runs on
@@ -40,10 +48,13 @@ SIGTERM, so a killed armin never leaves a GPU billing.
 | `think.go` | `New`, `NewSenses`, `wake` (`startModels`, `buildLoop`), `Shutdown` |
 | `models.go` | `models.<name>` config entries → model specs |
 | `prompt.go` | the system prompts and what's appended to them |
+| `know.go` | opening and closing the knowledge DAG and the learner, consolidation in the background |
+| `stale.go` | the start-of-session check of cited files |
+| `startup.go` | timing each step, the background model load, notices |
 
 ## Connections
 
 - reads: `input.Options`
-- builds: `sandbox`, `searxng`, `ctags`, `library`, `llamacpp`,
-  `agent`, `notes`
+- builds: `sandbox`, `searxng`, `ctags`, `repomap`, `library`,
+  `llamacpp`, `agent`, `notes`, `know`, `learner`
 - read by: `display`, which runs the frontends on the `Mind`

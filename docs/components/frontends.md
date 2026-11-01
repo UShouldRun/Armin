@@ -41,6 +41,9 @@ own, and a question from any of them shows in all of them.
     (`proposal.go`) and asks for approval;
   - keeps an input bar open, so what you type reaches the model at its
     next step.
+- `/voice` records you and puts the transcript in the input
+  (`voice.go`, through `internal/stt`); `/minion`, `/copilot` and
+  `/advisor` switch roles (`roles.go`).
 
 ## The browser (`web`)
 
