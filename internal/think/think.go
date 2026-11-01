@@ -33,6 +33,7 @@ import (
   "armin/internal/llamacpp"
   "armin/internal/llm"
   "armin/internal/metrics"
+  "armin/internal/repomap"
   "armin/internal/sandbox"
   "armin/internal/searxng"
   "armin/internal/session"
@@ -113,6 +114,9 @@ func NewSenses(opts *input.Options) (*Mind, error) {
   t0 := time.Now()
   m.Symbols = ctags.New(sb.Root, opts.CtagsBin)
   m.took("senses.symbols", t0)
+  if cfg.RepoMap && opts.CtagsBin != "" {
+    m.startRepoMap()
+  }
 
   // The reference library: its folder is readable like the project,
   // so read_pdf and read_file can follow a citation.
@@ -378,7 +382,36 @@ func (m *Mind) SystemPrompt(readOnly bool) string {
   return buildSystemPrompt(
     base, m.Sandbox.Root, m.Memories, m.Skills, m.Library, m.Know,
     m.Loop != nil && m.Loop.Recall,
-  )
+  ) + mapSection(m.RepoMap())
+}
+
+// mapBytes is the repo map's budget in the prompt, about 2k tokens:
+// aider's default map is 1k, and ours has no chat files to focus it.
+const mapBytes = 8000
+
+// startRepoMap builds the repo map in the background, so the ctags
+// scan overlaps the rest of starting.
+func (m *Mind) startRepoMap() {
+  m.mapReady = make(chan struct{})
+  go func() {
+    defer close(m.mapReady)
+
+    t0 := time.Now()
+    m.repoMap = repomap.Build(context.Background(), m.Symbols, mapBytes)
+    metrics.Since("startup.repo-map.ms", t0)
+  }()
+}
+
+// RepoMap is the static repo map, waiting for it if it is still
+// being built; "" when repo_map is off or ctags is missing.
+func (m *Mind) RepoMap() string {
+  if m.mapReady == nil {
+    return ""
+  }
+
+  <-m.mapReady
+
+  return m.repoMap
 }
 
 // refreshLibrary reindexes a library that changed since its index

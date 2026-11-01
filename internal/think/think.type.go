@@ -39,6 +39,12 @@ type Mind struct {
   Know     *know.Graph // the project's knowledge DAG; nil if it can't open
   knowOnce sync.Once
 
+  // repoMap is the static repo map for the system prompt (repo_map =
+  // on), built in the background from New; mapReady closes when it's
+  // done, nil when there is no map to wait for.
+  repoMap  string
+  mapReady chan struct{}
+
   // Startup is how long each step of starting took (startup.go).
   Startup []Stage
 

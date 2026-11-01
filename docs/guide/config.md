@@ -27,6 +27,22 @@ models.coder.args        = --ctx-size 8192 --n-gpu-layers 999
 `allow` appends to the default binary allowlist; it doesn't replace it.
 `allow_exec` does the same for `run_program`'s list.
 
+## Repo map
+
+```
+repo_map = on
+```
+
+puts a static map of the project in the system prompt: its files
+ranked by how often the rest of the project names what they define,
+each with its main definitions and their lines, in about 2k tokens
+(internal/repomap). It needs Universal Ctags (`ctags_bin`, or
+`universal-ctags` on the PATH or in ~/.local/bin). It is built in the
+background as armin starts (0.25 s on armin itself) and fixed for the
+session, so the prompt stays cacheable. Off by default; in the tree
+benchmark's round 10 it cut tool calls by 26% from the first session
+(docs/design/restructure-tree-economics.md).
+
 ## Speech
 
 ```

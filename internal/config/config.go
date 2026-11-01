@@ -238,6 +238,15 @@ func apply(cfg *Config, key, value string) error {
     default:
       return fmt.Errorf("recall = %q: want on or off", value)
     }
+  case "repo_map":
+    switch value {
+    case "on", "true", "yes":
+      cfg.RepoMap = true
+    case "off", "false", "no":
+      cfg.RepoMap = false
+    default:
+      return fmt.Errorf("repo_map = %q: want on or off", value)
+    }
   case "ctags_bin":
     cfg.CtagsBinary = value
   case "llama_url":

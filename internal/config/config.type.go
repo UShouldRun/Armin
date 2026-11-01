@@ -76,6 +76,13 @@ type Config struct {
   // searches with know_find itself. Recall is on by default: it pays
   // from the second session in an area (tree benchmark, round 8).
   NoRecall bool
+
+  // RepoMap (repo_map = on) puts a static map of the project in the
+  // system prompt: its files ranked by how much the rest refers to
+  // them, with their main definitions (internal/repomap). Off by
+  // default; in the tree benchmark's round 10 it cut tool calls by
+  // 26% from the first session.
+  RepoMap bool
   Terminal        string // how to open a new terminal window: "ghostty -e"
   CtagsBinary     string // used only by -lsp definition/symbol/hover
 

@@ -67,10 +67,6 @@ var (
   armFiles = [arms]string{ "plain", "tree", "map" }
 )
 
-// mapBytes is the repo map's budget, about 2k tokens: aider's default
-// map is 1k, and ours has no chat files to focus it.
-const mapBytes = 8000
-
 var benchPairs = []benchPair{
   {
     name: "repeat-guard",
@@ -130,7 +126,7 @@ var benchPairs = []benchPair{
     firstWant: []string{ `append` },
     second: "How does armin name the per-project folders it keeps for " +
       "memory, the scratchpad and the knowledge DAG?",
-    secondWant: []string{ `ProjectKey`, `hash` },
+    secondWant: []string{ `ProjectKey`, `hash|sha` },
     // the same area as the first two (internal/session): an earlier
     // third question asked about internal/know, which no node could
     // cover, so it didn't test compounding
