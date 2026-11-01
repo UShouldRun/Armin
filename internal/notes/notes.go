@@ -59,9 +59,7 @@ func parseFile(raw string) (header, string) {
   for _, line := range strings.Split(rest[:end], "\n") {
     key, value, ok := strings.Cut(line, ":")
     if ok {
-      h[strings.TrimSpace(key)] = strings.Trim(
-        strings.TrimSpace(value), `"'`,
-      )
+      h[strings.TrimSpace(key)] = strings.Trim(strings.TrimSpace(value), `"'`)
     }
   }
 
@@ -95,9 +93,7 @@ func readHeader(path string) (header, error) {
 
     key, value, ok := strings.Cut(line, ":")
     if ok {
-      h[strings.TrimSpace(key)] = strings.Trim(
-        strings.TrimSpace(value), `"'`,
-      )
+      h[strings.TrimSpace(key)] = strings.Trim(strings.TrimSpace(value), `"'`)
     }
   }
 

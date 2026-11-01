@@ -286,13 +286,14 @@ func evalQuestions(g *Graph, all []NodeID) []evalQuestion {
       ok := n.Conf() >= ConfChecked &&
         n.Flags & (FlagStale | FlagSuspect) == 0 && !unverified(id)
       q = evalQuestion{
-        text:  fmt.Sprintf(
+        text: fmt.Sprintf(
           "Can node %d be trusted as it is: confidence checked or tested, " +
             "not stale or suspect, and not an unchecked small-model claim? " +
               "yes or no.",
           id,
         ),
-        shown: context(id), want: map[bool]string{
+        shown: context(id),
+        want: map[bool]string{
           true: "yes", false: "no",
         }[ok],
       }
@@ -389,8 +390,8 @@ type evalReply struct {
 
 func ask(base, model, key, system, user string) (evalReply, error) {
   body := map[string]any{
-    "model":       model,
-    "messages":    []map[string]string{
+    "model": model,
+    "messages": []map[string]string{
       { "role": "system", "content": system },
       { "role": "user", "content": user },
     },
@@ -519,7 +520,8 @@ func TestFormatEval(t *testing.T) {
               "want %s, got %q, %v, finish %s, %d completion tokens\n\n=== " +
                 "reasoning\n%s%s\n\n=== content\n%s\n",
               q.want, got, ok, ch.Finish, reply.Usage.Completion,
-              ch.Message.Reasoning, ch.Message.ReasoningContent, ch.Message.Content,
+              ch.Message.Reasoning, ch.Message.ReasoningContent,
+              ch.Message.Content,
             ),
           ),
           0o644,
@@ -717,9 +719,9 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
     qs = append(
       qs,
       evalQuestion{
-        text:  fmt.Sprintf(
-          "Which nodes does node %d depend on, directly or through exactly one " +
-            "node in between?",
+        text: fmt.Sprintf(
+          "Which nodes does node %d depend on, directly or through " +
+            "exactly one node in between?",
           id,
         ),
         shown: context(append([]NodeID{ id }, two...)...), want: idsAnswer(two),
@@ -737,7 +739,7 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
     qs = append(
       qs,
       evalQuestion{
-        text:  fmt.Sprintf(
+        text: fmt.Sprintf(
           "If node %d turned out wrong, which nodes rest on it, directly or " +
             "indirectly at any depth?",
           id,
@@ -783,8 +785,8 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
     qs = append(
       qs,
       evalQuestion{
-        text:  "Which of the nodes shown are unchecked small-model claims that " +
-          "at least one other node shown depends on?",
+        text: "Which of the nodes shown are unchecked small-model " +
+          "claims that at least one other node shown depends on?",
         shown: shown, want: idsAnswer(q4),
       },
     )
@@ -813,8 +815,8 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
     qs = append(
       qs,
       evalQuestion{
-        text:  "Which facts shown, with confidence checked or tested, directly " +
-          "depend on a node shown that is stale or suspect?",
+        text: "Which facts shown, with confidence checked or tested, " +
+          "directly depend on a node shown that is stale or suspect?",
         shown: shown, want: idsAnswer(q5),
       },
     )
@@ -833,7 +835,7 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
     qs = append(
       qs,
       evalQuestion{
-        text:  "How many of the nodes shown are decisions with confidence " +
+        text: "How many of the nodes shown are decisions with confidence " +
           "guess or inferred? Answer with a number.",
         shown: shown, want: fmt.Sprint(count),
       },
@@ -857,7 +859,7 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
         qs = append(
           qs,
           evalQuestion{
-            text:  "Which node shown has the most nodes depending on it " +
+            text: "Which node shown has the most nodes depending on it " +
               "directly (count every dependent listed in its line)? Answer " +
                 "with one id.",
             shown: shown, want: fmt.Sprint(best),
@@ -886,7 +888,7 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
     qs = append(
       qs,
       evalQuestion{
-        text:  fmt.Sprintf(
+        text: fmt.Sprintf(
           "Which nodes under %s/ depend directly on a node outside %s/?",
           topic, topic,
         ),
@@ -952,12 +954,14 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
     qs = append(
       qs,
       evalQuestion{
-        text:  fmt.Sprintf(
+        text: fmt.Sprintf(
           "Which nodes does node %d depend on directly that in turn depend " +
             "directly on node %d?",
           a, b,
         ),
-        shown: context(append([]NodeID{ a, b }, mid...)...), want: idsAnswer(mid),
+        shown: context(
+          append([]NodeID{ a, b }, mid...)...,
+        ), want: idsAnswer(mid),
       },
     )
   }
@@ -1127,8 +1131,9 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
     up := closure(id, true)
     add(
       fmt.Sprintf(
-        "Of all the nodes that rest on node %d, directly or indirectly at any " +
-          "depth, which are unchecked small-model claims?",
+        "Of all the nodes that rest on node %d, directly or " +
+          "indirectly at any depth, which are unchecked small-model " +
+          "claims?",
         id,
       ),
       idsAnswer(filter(up, unverified)),
@@ -1159,9 +1164,7 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
         a, b,
       ),
       idsAnswer(both),
-      append(
-        append(closure(a, false), closure(b, false)...), a, b,
-      )...,
+      append(append(closure(a, false), closure(b, false)...), a, b)...,
     )
 
     // 5. does one depend on the other at any depth: one yes, one no
@@ -1180,8 +1183,8 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
 
     add(
       fmt.Sprintf(
-        "Does node %d depend on node %d, directly or indirectly at any depth? " +
-          "yes or no.",
+        "Does node %d depend on node %d, directly or indirectly at " +
+          "any depth? yes or no.",
         id, target,
       ),
       want,
@@ -1195,7 +1198,8 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
       fmt.Sprintf(
         "Of all the nodes that rest on node %d, directly or " +
           "indirectly at any depth, which can be trusted as they are: " +
-          "confidence checked or tested, not stale or suspect, not an unchecked " +
+          "confidence checked or tested, not stale or suspect, not an " +
+            "unchecked " +
             "small-model claim?",
         id,
       ),
@@ -1243,9 +1247,9 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
     )
     add(
       fmt.Sprintf(
-        "Among the nodes node %d depends on at any depth, which are stale or " +
-          "suspect while depending on nothing stale or suspect themselves, at " +
-            "any depth?",
+        "Among the nodes node %d depends on at any depth, which are " +
+          "stale or suspect while depending on nothing stale or " +
+          "suspect themselves, at any depth?",
         id,
       ),
       idsAnswer(roots),

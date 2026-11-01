@@ -1,7 +1,7 @@
-package agent
-
 // Tools on the Loop's own state: memories, the scratchpad, skills,
 // and asking the user for read access outside the project.
+
+package agent
 
 import (
   "context"
@@ -26,7 +26,7 @@ var noteTools = []toolSpec{
         "for task progress (use the scratchpad). Overwrites a " +
         "memory of the same name.",
       map[string]llm.ToolProperty{
-        "name":        stringProp("Short kebab-case name"),
+        "name": stringProp("Short kebab-case name"),
         "description": stringProp(
           "One line — shown in the index every " +
             "session",
@@ -35,10 +35,10 @@ var noteTools = []toolSpec{
           "The fact, plus why it matters and how to apply it",
         ),
         "scope": {
-          Type:        "string",
+          Type: "string",
           Description: "project (this codebase, default) or user (every " +
             "project)",
-          Enum:        []string{ "project", "user" },
+          Enum: []string{ "project", "user" },
         },
       },
       "name", "description", "content",
@@ -360,7 +360,7 @@ func (l *Loop) requestAccess(raw []byte, hooks Hooks) any {
   return map[string]any{
     "granted":  resolved,
     "contents": names,
-    "note":     "read tools accept absolute paths under " + resolved + " " +
+    "note": "read tools accept absolute paths under " + resolved + " " +
       "now (e.g. " + filepath.Join(resolved, "<file>") + ")",
   }
 }

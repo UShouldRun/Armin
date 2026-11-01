@@ -1,3 +1,8 @@
+// The topic table (.armin/topics.tsv): which book covers what, as a
+// model wrote it; reloaded when the file changes, answered by
+// library_topics, and summarized into the system prompt
+// (PromptIndex).
+
 package library
 
 import (

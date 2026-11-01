@@ -94,7 +94,9 @@ func TestKeyFlowSignsVerifiableJWTAndCachesToken(t *testing.T) {
         exchanges++
         raw, _ := io.ReadAll(r.Body)
         form, _ := url.ParseQuery(string(raw))
-        if form.Get("grant_type") != "urn:ietf:params:oauth:grant-type:jwt-bearer" {
+        if form.Get(
+          "grant_type",
+        ) != "urn:ietf:params:oauth:grant-type:jwt-bearer" {
           t.Errorf("grant_type = %q", form.Get("grant_type"))
         }
 

@@ -15,14 +15,22 @@ import (
 // rates are the derived figures, num per den.
 var rates = []rate{
   { "recall attached, of turns", "recall.attached", "recall.turns" },
-  { "recall cited by the model, of attached", "recall.cited", "recall.attached" },
+  {
+    "recall cited by the model, of attached",
+    "recall.cited",
+    "recall.attached",
+  },
   {
     "recall's files read without a citation, of attached",
     "recall.read",
     "recall.attached",
   },
   { "dedup held a write back, of adds", "know.dedup.held", "know.write.add" },
-  { "dedup overridden (force), of held", "know.dedup.forced", "know.dedup.held" },
+  {
+    "dedup overridden (force), of held",
+    "know.dedup.forced",
+    "know.dedup.held",
+  },
   { "auto-recorded turns, of turns", "know.record.turns", "turn.count" },
   {
     "pointers consolidated, of pending",

@@ -1,3 +1,10 @@
+// Extraction: a document's text cut into labeled pieces (a page of a
+// PDF, a section of HTML, Markdown or a man page), ready to index.
+//
+//   extract       by kind: pdftotext per page, HTML by headings,
+//                 plain text by heading lines
+//   windows       a long section split into overlapping windows
+
 package library
 
 import (
@@ -51,9 +58,7 @@ func extractPDF(ctx context.Context, path string) ([]piece, error) {
   ctx, cancel := context.WithTimeout(ctx, pdfTimeout)
   defer cancel()
 
-  cmd := exec.CommandContext(
-    ctx, "pdftotext", "-enc", "UTF-8", "-q", path, "-",
-  )
+  cmd := exec.CommandContext(ctx, "pdftotext", "-enc", "UTF-8", "-q", path, "-")
   out, err := cmd.Output()
   if err != nil && len(out) == 0 {
     return nil, fmt.Errorf(

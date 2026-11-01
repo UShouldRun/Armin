@@ -1,5 +1,3 @@
-package agent
-
 // The tool table: every tool the model can call, one toolSpec each,
 // indexed by ToolID. The specs live by topic in tools_files.go,
 // tools_search.go, tools_code.go, tools_git.go, tools_run.go and
@@ -15,6 +13,8 @@ package agent
 //
 // A tool's flow: the model names it, Turn (loop.go) looks the name up
 // here, execute runs it, and display.go renders the call and result.
+
+package agent
 
 import (
   "context"

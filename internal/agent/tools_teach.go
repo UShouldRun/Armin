@@ -1,11 +1,11 @@
-package agent
-
 // The advisor's teaching tools, on the learner tree: what the user
 // knows (package learner).
 //
 //   learn_explained   record what one of the user's explanations shows:
 //                     concepts used correctly, misconceptions (each a
 //                     question node, so teaching targets it), gaps
+
+package agent
 
 import (
   "context"
@@ -49,10 +49,10 @@ var teachTools = []toolSpec{
           Items:       &llm.ToolProperty{ Type: "string" },
         },
         "define": {
-          Type:        "array",
+          Type: "array",
           Description: "\"path: definition\" for concepts to add to the " +
             "learner tree first",
-          Items:       &llm.ToolProperty{ Type: "string" },
+          Items: &llm.ToolProperty{ Type: "string" },
         },
       },
     ),

@@ -185,7 +185,9 @@ func parseRSAKey(text string) (*rsa.PrivateKey, error) {
 
   k, err := x509.ParsePKCS1PrivateKey(block.Bytes)
   if err != nil {
-    return nil, fmt.Errorf("parsing private key: %w", err)
+    return nil, fmt.Errorf(
+      "\n\t... in parseRSAKey:\n\t parsing private key: %w", err,
+    )
   }
 
   return k, nil

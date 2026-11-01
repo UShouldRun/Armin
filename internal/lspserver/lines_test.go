@@ -125,7 +125,8 @@ func TestContextWindowAllocationsStayBounded(t *testing.T) {
   )
   if allocs > allocLimit {
     t.Fatalf(
-      "contextWindow on a 20000-line document allocated %.0f times, want <= %d " +
+      "contextWindow on a 20000-line document allocated %.0f times, " +
+        "want <= %d " +
         "(this is the strings.Split-per-line regression check)",
       allocs, allocLimit,
     )

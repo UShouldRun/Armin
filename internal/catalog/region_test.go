@@ -73,7 +73,9 @@ func TestRegionalFor(t *testing.T) {
   }
 
   // a forced region leaves a non-OpenRouter URL alone
-  if got := RegionalFor("https://api.anthropic.com/v1", "eu"); got != "https://api.anthropic.com/v1" {
+  const anthropic = "https://api.anthropic.com/v1"
+  got := RegionalFor(anthropic, "eu")
+  if got != anthropic {
     t.Errorf("RegionalFor on another provider = %q", got)
   }
 }

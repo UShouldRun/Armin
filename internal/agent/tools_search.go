@@ -1,6 +1,6 @@
-package agent
-
 // Tools that search: the code, the web, the reference library.
+
+package agent
 
 import (
   "context"
@@ -28,7 +28,7 @@ var searchTools = []toolSpec{
             Description: "Regex or literal pattern to search for",
           },
           "path": {
-            Type:        "string",
+            Type: "string",
             Description: "Directory or file to search under (default: " +
               "project root)",
           },
@@ -62,11 +62,11 @@ var searchTools = []toolSpec{
             Description: "Number of results to return (default 5, max 10)",
           },
           "topic": {
-            Type:        "string",
+            Type: "string",
             Description: "general: web pages and docs (default); code: " +
               "Stack Overflow and GitHub; science: papers (arXiv, Semantic " +
               "Scholar, OpenAlex)",
-            Enum:        []string{ "general", "code", "science" },
+            Enum: []string{ "general", "code", "science" },
           },
         },
         Required: []string{ "query" },
@@ -84,7 +84,7 @@ var searchTools = []toolSpec{
         Type: "object",
         Properties: map[string]llm.ToolProperty{
           "path": {
-            Type:        "string",
+            Type: "string",
             Description: "Directory or file to search under (default: " +
               "project root)",
           },
@@ -105,7 +105,7 @@ var searchTools = []toolSpec{
         Type: "object",
         Properties: map[string]llm.ToolProperty{
           "query": {
-            Type:        "string",
+            Type: "string",
             Description: "Natural-language description of what you're " +
               "looking for",
           },

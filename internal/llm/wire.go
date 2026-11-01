@@ -69,7 +69,8 @@ func fromWireMessage(wm owaiMessage) (Message, error) {
       err := json.Unmarshal([]byte(tc.Function.Arguments), &args)
       if err != nil {
         return Message{}, fmt.Errorf(
-          "parsing tool call arguments for %q: %w",
+          "\n\t... in fromWireMessage:\n\t parsing tool call " +
+            "arguments for %q: %w",
           tc.Function.Name, err,
         )
       }

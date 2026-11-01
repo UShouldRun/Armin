@@ -1,3 +1,10 @@
+// Merging topics: once the table grows past a size, a model folds
+// near-duplicate topic names into one, kept as aliases so later
+// catalog rows land on the canonical name.
+//
+//   NeedsMerge    the table has grown enough to merge
+//   MergeTopics   ask the model, apply its aliases to the rows
+
 package library
 
 import (

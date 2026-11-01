@@ -82,7 +82,10 @@ func fakeChatServer(t *testing.T, reply string) *httptest.Server {
         resp := map[string]any{
           "choices": []map[string]any{
             {
-              "message": map[string]string{ "role": "assistant", "content": reply },
+              "message": map[string]string{
+                "role":    "assistant",
+                "content": reply,
+              },
             },
           },
         }

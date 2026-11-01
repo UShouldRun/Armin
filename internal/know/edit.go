@@ -291,7 +291,7 @@ func parseEdit(r io.Reader) ([]*editBlock, error) {
 
     f, err := fields(trimmed)
     if err != nil {
-      return nil, fmt.Errorf("line %d: %w", line, err)
+      return nil, fmt.Errorf("\n\t... in parseEdit:\n\t line %d: %w", line, err)
     }
 
     indented := text[0] == ' ' || text[0] == '\t'
@@ -316,7 +316,7 @@ func parseEdit(r io.Reader) ([]*editBlock, error) {
 
     err = cur.attr(f)
     if err != nil {
-      return nil, fmt.Errorf("line %d: %w", line, err)
+      return nil, fmt.Errorf("\n\t... in parseEdit:\n\t line %d: %w", line, err)
     }
   }
 
@@ -351,7 +351,7 @@ func parseHeader(f []string, line int) (*editBlock, error) {
   for _, part := range strings.Split(b.path, "/") {
     err := validName(part)
     if err != nil {
-      return nil, fmt.Errorf("line %d: %w", line, err)
+      return nil, fmt.Errorf("\n\t... in parseEdit:\n\t line %d: %w", line, err)
     }
   }
 

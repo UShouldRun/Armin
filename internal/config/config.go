@@ -135,9 +135,7 @@ func LoadEnv() error {
 
     err := os.Setenv(key, value)
     if err != nil {
-      return fmt.Errorf(
-        "\n\t... in LoadEnv:\n\t setting %s: %w", key, err,
-      )
+      return fmt.Errorf("\n\t... in LoadEnv:\n\t setting %s: %w", key, err)
     }
   }
 

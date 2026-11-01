@@ -47,8 +47,8 @@ func Run(ctx context.Context, req Request) error {
 
   client := &http.Client{
     Transport: &http.Transport{
-      Proxy:                 http.ProxyFromEnvironment,
-      DialContext:           (&net.Dialer{
+      Proxy: http.ProxyFromEnvironment,
+      DialContext: (&net.Dialer{
         Timeout: 15 * time.Second,
       }).DialContext,
       TLSHandshakeTimeout:   15 * time.Second,

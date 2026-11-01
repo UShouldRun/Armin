@@ -22,9 +22,7 @@ func (s *Server) hover(
     return
   }
 
-  snippet, lineText := contextWindow(
-    text, p.Position.Line, hoverContextLines,
-  )
+  snippet, lineText := contextWindow(text, p.Position.Line, hoverContextLines)
   if strings.TrimSpace(lineText) == "" {
     s.respond(id, nil, nil)
     return

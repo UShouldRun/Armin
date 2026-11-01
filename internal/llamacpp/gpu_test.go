@@ -77,7 +77,7 @@ func TestGPUWarning(t *testing.T) {
       ),
     },
     {
-      name:  "no module for this kernel",
+      name: "no module for this kernel",
       files: with(
         map[string]string{
           "lib/modules/6.8.0-139-generic" + nv: "",
@@ -87,7 +87,7 @@ func TestGPUWarning(t *testing.T) {
         "GRUB",
     },
     {
-      name:  "a newer kernel has one",
+      name: "a newer kernel has one",
       files: with(
         map[string]string{
           "lib/modules/6.8.0-139-generic" + nv:          "",
@@ -97,7 +97,7 @@ func TestGPUWarning(t *testing.T) {
       want: "reboot into 6.8.0-147-generic",
     },
     {
-      name:  "installed but not loaded",
+      name: "installed but not loaded",
       files: with(
         map[string]string{
           "lib/modules/6.8.0-142-generic/updates/dkms/nvidia.ko.zst": "",
@@ -106,7 +106,7 @@ func TestGPUWarning(t *testing.T) {
       want: "installed for kernel 6.8.0-142-generic but not loaded",
     },
     {
-      name:  "upgraded without a reboot",
+      name: "upgraded without a reboot",
       files: with(
         map[string]string{
           "sys/module/nvidia/version":                          "595.84\n",

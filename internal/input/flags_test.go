@@ -52,7 +52,7 @@ func TestExtractPositionalRootVariousOrderings(t *testing.T) {
       wantPositional: ".",
     },
     {
-      name:           "-- stops extraction, everything from it on passed " +
+      name: "-- stops extraction, everything from it on passed " +
         "through verbatim",
       args:           []string{ "-mcp", "--", "." },
       wantRest:       []string{ "-mcp", "--", "." },
@@ -65,7 +65,7 @@ func TestExtractPositionalRootVariousOrderings(t *testing.T) {
       wantPositional: "a",
     },
     {
-      name:           "path-like value after a value-taking flag isn't " +
+      name: "path-like value after a value-taking flag isn't " +
         "mistaken for the positional",
       args:           []string{ "-root", ".", "-mcp" },
       wantRest:       []string{ "-root", ".", "-mcp" },

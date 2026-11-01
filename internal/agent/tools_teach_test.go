@@ -47,11 +47,11 @@ func TestLearnExplained(t *testing.T) {
         "tcp/seqnum: each byte gets a number",
         "tcp/window: how much the receiver can take",
       },
-      "correct":        []any{ "tcp/handshake" },
+      "correct": []any{ "tcp/handshake" },
       "misconceptions": []any{
         "tcp/seqnum: thinks segments are numbered, not bytes",
       },
-      "gaps":           []any{ "tcp/window" },
+      "gaps": []any{ "tcp/window" },
     },
   )
 
@@ -73,9 +73,7 @@ func TestLearnExplained(t *testing.T) {
     t.Fatalf(
       "states: %v %v %v",
       l.Learner.State(hs, today),
-      l.Learner.State(
-        seq, today,
-      ),
+      l.Learner.State(seq, today),
       l.Learner.State(win, today),
     )
   }

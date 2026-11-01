@@ -173,13 +173,15 @@ type initializeResultT struct {
 }
 
 type capabilities struct {
+  ExecuteCommandProvider executeCommandOptions `json:"executeCommandProvider"`
+
   // 1 = Full
-  TextDocumentSync         int                   `json:"textDocumentSync"`
-  HoverProvider            bool                  `json:"hoverProvider"`
-  ExecuteCommandProvider   executeCommandOptions `json:"executeCommandProvider"`
-  InlineCompletionProvider bool                  `json:"inlineCompletionProvider"`
-  DefinitionProvider       bool                  `json:"definitionProvider"`
-  WorkspaceSymbolProvider  bool                  `json:"workspaceSymbolProvider"`
+  TextDocumentSync int `json:"textDocumentSync"`
+
+  HoverProvider            bool `json:"hoverProvider"`
+  InlineCompletionProvider bool `json:"inlineCompletionProvider"`
+  DefinitionProvider       bool `json:"definitionProvider"`
+  WorkspaceSymbolProvider  bool `json:"workspaceSymbolProvider"`
 }
 
 type executeCommandOptions struct {

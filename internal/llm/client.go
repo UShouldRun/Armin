@@ -97,9 +97,7 @@ func (c *Client) Chat(
   ctx context.Context, messages []Message,
   tools []ToolDefinition, onToken OnToken,
 ) (*Message, error) {
-  return c.ChatStream(
-    ctx, messages, tools, StreamHandlers{ Token: onToken },
-  )
+  return c.ChatStream(ctx, messages, tools, StreamHandlers{ Token: onToken })
 }
 
 // Chore returns c for background work (summaries, saving notes,
@@ -212,9 +210,7 @@ func (c *Client) ChatStream(
   }
 
   if err != nil {
-    return nil, fmt.Errorf(
-      "\n\t... in ChatStream:\n\t%w", idle.explain(err),
-    )
+    return nil, fmt.Errorf("\n\t... in ChatStream:\n\t%w", idle.explain(err))
   }
 
   return msg, nil

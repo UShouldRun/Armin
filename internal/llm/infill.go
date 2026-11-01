@@ -82,9 +82,7 @@ func (c *Client) Complete(
     io.LimitReader(idleReader{ r: resp.Body, w: idle }, maxReply),
   )
   if err != nil {
-    return "", fmt.Errorf(
-      "\n\t... in Complete:\n\t%w", idle.explain(err),
-    )
+    return "", fmt.Errorf("\n\t... in Complete:\n\t%w", idle.explain(err))
   }
 
   if resp.StatusCode != http.StatusOK {

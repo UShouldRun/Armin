@@ -55,7 +55,8 @@ func terminalCmd(configured string) ([]string, error) {
     )
   }
 
-  if t := os.Getenv("TERMINAL"); t != "" {
+  t := os.Getenv("TERMINAL")
+  if t != "" {
     for _, known := range terminals {
       if filepath.Base(t) == known.name {
         return append([]string{ t }, known.args...), nil

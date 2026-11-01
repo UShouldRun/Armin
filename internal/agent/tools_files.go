@@ -1,6 +1,6 @@
-package agent
-
 // Tools that read, list and change files.
+
+package agent
 
 import (
   "context"
@@ -53,7 +53,7 @@ var fileTools = []toolSpec{
         Type: "object",
         Properties: map[string]llm.ToolProperty{
           "path": {
-            Type:        "string",
+            Type: "string",
             Description: "PDF path, relative to the project or absolute in " +
               "a directory the user added",
           },

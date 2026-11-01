@@ -369,9 +369,7 @@ func (g *Graph) Delete(id NodeID) error {
 
   var kids [1]NodeID
   if len(g.Children(id, kids[:0])) > 0 {
-    return fmt.Errorf(
-      "\n\t... in Delete:\n\t%s still has children", g.Path(id),
-    )
+    return fmt.Errorf("\n\t... in Delete:\n\t%s still has children", g.Path(id))
   }
 
   return g.SetFlags(id, FlagDeleted, 0)

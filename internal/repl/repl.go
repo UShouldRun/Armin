@@ -254,9 +254,9 @@ func (r *REPL) Run(ctx context.Context) error {
   case r.resumedAt != nil:
     ui.Info(
       "  session: %s (%s), last saved %s",
-      ui.Bold(
-        titleOr(r.Meta.Title),
-      ), ShortID(r.Meta.ID), r.resumedAt.Format(
+      ui.Bold(titleOr(r.Meta.Title)),
+      ShortID(r.Meta.ID),
+      r.resumedAt.Format(
         "Jan 2 " +
           "15:04",
       ),

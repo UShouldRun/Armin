@@ -145,15 +145,17 @@ func TestLegacyPerProjectFileStillLists(t *testing.T) {
   legacy := filepath.Join(dir, "fox-apsp-mpi-1a2b3c4d.jsonl")
   head, _ := json.Marshal(
     map[string]any{
-      "root": "/home/u/fox-apsp-mpi", "model": "local", "updated_at": time.Now(),
+      "root":       "/home/u/fox-apsp-mpi",
+      "model":      "local",
+      "updated_at": time.Now(),
     },
   )
   body, _ := json.Marshal(llm.Message{ Role: "user", Content: "hi" })
   os.WriteFile(legacy, []byte(string(head) + "\n" + string(body) + "\n"), 0o644)
 
   list, _ := List()
-  if len(list) != 1 ||
-      list[0].ID != "fox-apsp-mpi-1a2b3c4d" || list[0].Root != "/home/u/fox-apsp-mpi" {
+  if len(list) != 1 || list[0].ID != "fox-apsp-mpi-1a2b3c4d" ||
+    list[0].Root != "/home/u/fox-apsp-mpi" {
     t.Fatalf("legacy listing = %+v", list)
   }
 

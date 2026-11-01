@@ -1,5 +1,3 @@
-package agent
-
 // delegate: the copilot or advisor hands a small, well-defined task to
 // the minion (the local model). The minion runs its own short turn in
 // a fresh Loop (same sandbox, tools and tree, role minion, its own
@@ -11,6 +9,8 @@ package agent
 // ChoreClient picks the model for armin's own small helper calls:
 // the minion when chat runs on a hosted model (free, and the GPU is
 // idle), the chat model otherwise.
+
+package agent
 
 import (
   "context"
@@ -59,28 +59,28 @@ var delegateTools = []toolSpec{
             "expected shape of the answer",
         ),
         "check": {
-          Type:        "string",
+          Type: "string",
           Description: "The acceptance check run afterwards: tests, build, " +
             "lint, command (check_args is the command), or none when you'll " +
             "check the answer yourself",
-          Enum:        []string{ "tests", "build", "lint", "command", "none" },
+          Enum: []string{ "tests", "build", "lint", "command", "none" },
         },
         "check_args": {
-          Type:        "array",
+          Type: "array",
           Description: "Arguments for the check: test or build args, or the " +
             "command's binary then its arguments",
-          Items:       &llm.ToolProperty{ Type: "string" },
+          Items: &llm.ToolProperty{ Type: "string" },
         },
         "edits": {
-          Type:        "boolean",
+          Type: "boolean",
           Description: "Let the minion change files (each change is still " +
             "approved); default false",
         },
         "nodes": {
-          Type:        "array",
+          Type: "array",
           Description: "Tree nodes the task builds on (ids or paths); their " +
             "lines go in the task",
-          Items:       &llm.ToolProperty{ Type: "string" },
+          Items: &llm.ToolProperty{ Type: "string" },
         },
       },
       "task", "check",

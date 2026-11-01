@@ -84,7 +84,7 @@ func (s *Server) inlineCompletion(
       Key:    uri,
       Prefix: w.prefix,
       Suffix: w.suffix,
-      Opts:   llm.CompleteOptions{
+      Opts: llm.CompleteOptions{
         Prompt:       w.prompt,
         Extra:        extra,
         Indent:       w.indent,
@@ -104,9 +104,7 @@ func (s *Server) inlineCompletion(
     if compCtx.Err() != nil {
       // Superseded by a newer completion request for the same file
       // — the client already has something more current in flight.
-      s.respondError(
-        id, errRequestCancelled, "superseded by a newer request",
-      )
+      s.respondError(id, errRequestCancelled, "superseded by a newer request")
       return
     }
 
@@ -116,9 +114,7 @@ func (s *Server) inlineCompletion(
     return
   }
 
-  cleaned := fitToLine(
-    cleanCompletion(raw, completionMaxLines), w.rest, w.next,
-  )
+  cleaned := fitToLine(cleanCompletion(raw, completionMaxLines), w.rest, w.next)
   if cleaned == "" {
     s.respond(id, []InlineCompletionItem{}, nil)
     return

@@ -87,9 +87,7 @@ func (l *Loop) Turn(
 
     reply, err := t.client.ChatStream(ctx, *history, defs, stream)
     if err != nil {
-      return "", fmt.Errorf(
-        "\n\t... in Turn:\n\t model call failed: %w", err,
-      )
+      return "", fmt.Errorf("\n\t... in Turn:\n\t model call failed: %w", err)
     }
 
     last = reply.Usage
@@ -333,9 +331,7 @@ func (t *turn) run(ctx context.Context, call llm.ToolCall) []byte {
   out, err := json.Marshal(result)
   if err != nil {
     out = []byte(
-      fmt.Sprintf(
-        `{"error":"failed to encode tool result: %s"}`, err,
-      ),
+      fmt.Sprintf(`{"error":"failed to encode tool result: %s"}`, err),
     )
   }
 

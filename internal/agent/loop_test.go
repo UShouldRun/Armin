@@ -348,7 +348,10 @@ func TestTurnDispatchesWebSearchWithNilManager(t *testing.T) {
           },
         }
       } else {
-        reply = llm.Message{ Role: "assistant", Content: "search is unavailable" }
+        reply = llm.Message{
+          Role:    "assistant",
+          Content: "search is unavailable",
+        }
       }
 
       writeChatResponse(t, w, reply)
@@ -522,7 +525,7 @@ func TestTurnAsksBeforeReadingOutside(t *testing.T) {
             ToolCalls: []llm.ToolCall{
               {
                 Function: llm.ToolCallFunction{
-                  Name:      "read_file",
+                  Name: "read_file",
                   Arguments: map[string]any{
                     "path":       target,
                     "start_line": float64(round),

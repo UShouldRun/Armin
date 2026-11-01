@@ -207,7 +207,8 @@ func ListLanguages(
   for _, e := range exts {
     c := stats.byExt[e]
     out.Languages = append(
-      out.Languages, LanguageCount{
+      out.Languages,
+      LanguageCount{
         Extension: e,
         Files:     c.files,
         Lines:     c.lines,

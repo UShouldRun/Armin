@@ -33,8 +33,8 @@ func laptop() Machine {
   }
 
   hw := Machine{
-    GPUs:     []GPU{ g },
-    RAM:      RAM{
+    GPUs: []GPU{ g },
+    RAM: RAM{
       Total:     16 * gib,
       Available: 12 * gib,
       Type:      "DDR5",

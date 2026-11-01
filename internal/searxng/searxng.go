@@ -72,9 +72,7 @@ func (m *Manager) Search(
   client := &http.Client{ Timeout: queryTimeout }
   resp, err := client.Do(req)
   if err != nil {
-    return nil, fmt.Errorf(
-      "\n\t... in Search:\n\t querying searxng: %w", err,
-    )
+    return nil, fmt.Errorf("\n\t... in Search:\n\t querying searxng: %w", err)
   }
 
   defer resp.Body.Close()

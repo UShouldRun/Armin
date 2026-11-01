@@ -47,9 +47,7 @@ func (r *REPL) turnAs(ctx context.Context, input, shown, origin string) error {
   r.emit(share.Event{ Type: "user", Delta: shown, Origin: origin })
 
   r.lastSuggestions = nil
-  r.History = append(
-    r.History, llm.Message{ Role: "user", Content: input },
-  )
+  r.History = append(r.History, llm.Message{ Role: "user", Content: input })
 
   turnCtx, cancel := context.WithCancel(ctx)
   r.turnMu.Lock()

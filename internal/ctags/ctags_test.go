@@ -26,7 +26,7 @@ func TestParseLine(t *testing.T) {
         Line:  31,
         Scope: "package:agent",
       },
-      ok:   true,
+      ok: true,
     },
     {
       name: "struct field with struct scope",
@@ -39,7 +39,7 @@ func TestParseLine(t *testing.T) {
         Line:  22,
         Scope: "struct:agent.Loop",
       },
-      ok:   true,
+      ok: true,
     },
     {
       name: "no scope field",
@@ -50,7 +50,7 @@ func TestParseLine(t *testing.T) {
         File: "internal/agent/loop.go",
         Line: 4,
       },
-      ok:   true,
+      ok: true,
     },
     {
       name: "line number recovered from third column when line: field missing",

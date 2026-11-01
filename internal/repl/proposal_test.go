@@ -45,7 +45,11 @@ func TestShowProposal(t *testing.T) {
     t,
     func() {
       r.showProposal(
-        agent.Proposal{ Tool: "run_program", Command: "make -j4", Dir: "/p/src" },
+        agent.Proposal{
+          Tool:    "run_program",
+          Command: "make -j4",
+          Dir:     "/p/src",
+        },
       )
     },
   )
@@ -106,10 +110,8 @@ func TestViewOpensNvim(t *testing.T) {
     t.Fatal(err)
   }
 
-  if args := waitFile(t, log); !strings.HasSuffix(
-    strings.TrimSpace(args),
-    "nvim -R /p/gen.py",
-  ) {
+  args = waitFile(t, log)
+  if !strings.HasSuffix(strings.TrimSpace(args), "nvim -R /p/gen.py") {
     t.Fatalf("script opened as %q", args)
   }
 }
@@ -159,7 +161,7 @@ func TestChooseHosted(t *testing.T) {
     Configured: []share.ModelChoice{
       { Name: "planner", Model: "qwen/qwen3.8-27b" },
     },
-    Suggested:  []catalog.Suggestion{
+    Suggested: []catalog.Suggestion{
       { ID: "z-ai/glm-5.3" },
       { ID: "deepseek/deepseek-v4-pro-0813" },
     },

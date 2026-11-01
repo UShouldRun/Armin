@@ -126,7 +126,8 @@ func TestFirstLines(t *testing.T) {
   got = firstLines(text, 100)
   if got != text {
     t.Fatalf(
-      "firstLines with n > line count should return the input unchanged, got %q",
+      "firstLines with n > line count should return the input " +
+        "unchanged, got %q",
       got,
     )
   }

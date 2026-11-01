@@ -350,9 +350,12 @@ func TestChatStreamingAssemblesDeltasAndToolCallFragments(t *testing.T) {
               Delta: owaiStreamDelta{
                 ToolCalls: []owaiStreamToolCall{
                   {
-                    Index:    0,
-                    ID:       "call_1",
-                    Function: owaiToolCallFunc{ Name: "search_code", Arguments: `{"que` },
+                    Index: 0,
+                    ID:    "call_1",
+                    Function: owaiToolCallFunc{
+                      Name:      "search_code",
+                      Arguments: `{"que`,
+                    },
                   },
                 },
               },
@@ -366,7 +369,10 @@ func TestChatStreamingAssemblesDeltasAndToolCallFragments(t *testing.T) {
             {
               Delta: owaiStreamDelta{
                 ToolCalls: []owaiStreamToolCall{
-                  { Index: 0, Function: owaiToolCallFunc{ Arguments: `ry":"foo"}` } },
+                  {
+                    Index:    0,
+                    Function: owaiToolCallFunc{ Arguments: `ry":"foo"}` },
+                  },
                 },
               },
             },
@@ -801,7 +807,7 @@ func TestChatSendsReasoningBack(t *testing.T) {
           Choices: []owaiChoice{
             { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
           },
-          Usage:   &Usage{ PromptTokens: 7 },
+          Usage: &Usage{ PromptTokens: 7 },
         },
       )
     },
@@ -916,14 +922,17 @@ func TestChatStreamReportsPromptProgress(t *testing.T) {
         `data: {"choices":[{"delta":{}}],` +
           `"prompt_progress":{"total":4096,"processed":4096}}` + "\n\n",
       )
-      io.WriteString(w, `data: {"choices":[{"delta":{"content":"hi"}}]}` + "\n\n")
+      io.WriteString(
+        w,
+        `data: {"choices":[{"delta":{"content":"hi"}}]}` + "\n\n",
+      )
       io.WriteString(w, "data: [DONE]\n\n")
     },
   )
 
   var seen []string
   h := StreamHandlers{
-    Token:    func(string) {},
+    Token: func(string) {},
     Progress: func(done, total int) { seen = append(
       seen,
       fmt.Sprintf("%d/%d", done, total),

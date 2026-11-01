@@ -103,7 +103,9 @@ func TestDelegatePassingCheck(t *testing.T) {
   out := delegate(
     t, l,
     map[string]any{
-      "task": "find the retry count", "check": "command", "check_args": []any{
+      "task":  "find the retry count",
+      "check": "command",
+      "check_args": []any{
         "ls", "f.txt",
       },
     },

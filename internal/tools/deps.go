@@ -256,7 +256,11 @@ func ModuleGraph(
 func readModulePath(cfg *sandbox.Config) (string, error) {
   resolved, err := cfg.ResolvePath("go.mod")
   if err != nil {
-    return "", fmt.Errorf("no go.mod at the project root: %w", err)
+    return "", fmt.Errorf(
+      "\n\t... in readModulePath:\n\t no go.mod at the project " +
+        "root: %w",
+      err,
+    )
   }
 
   data, err := os.ReadFile(resolved)

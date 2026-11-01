@@ -61,7 +61,10 @@ func TestRecallAttachesAndSettles(t *testing.T) {
     ToolCalls: []llm.ToolCall{
       {
         Function: llm.ToolCallFunction{
-          Name: "read_file", Arguments: map[string]any{ "path": "testdata/x.json" },
+          Name: "read_file",
+          Arguments: map[string]any{
+            "path": "testdata/x.json",
+          },
         },
       },
     },
@@ -78,7 +81,8 @@ func TestRecallAttachesAndSettles(t *testing.T) {
     ToolCalls: []llm.ToolCall{
       {
         Function: llm.ToolCallFunction{
-          Name: "know_write", Arguments: map[string]any{
+          Name: "know_write",
+          Arguments: map[string]any{
             "path": "tools/more", "derived_from": []any{ "tools/golden" },
           },
         },

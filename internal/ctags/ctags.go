@@ -192,9 +192,7 @@ func scan(
 
   out, err := cmd.Output()
   if err != nil {
-    return nil, fmt.Errorf(
-      "\n\t... in scan:\n\t running %s: %w", binary, err,
-    )
+    return nil, fmt.Errorf("\n\t... in scan:\n\t running %s: %w", binary, err)
   }
 
   byName := make(map[string][]Symbol)

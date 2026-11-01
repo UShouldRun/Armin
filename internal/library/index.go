@@ -1,3 +1,10 @@
+// The index: every document's pieces as chunks on disk, and a term
+// table for BM25, rebuilt only for what changed.
+//
+//   Build         extract new or changed docs (cached), write chunks
+//                 and terms, prune the cache
+//   load          open the index for Search
+
 package library
 
 import (

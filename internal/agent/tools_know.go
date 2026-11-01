@@ -1,5 +1,3 @@
-package agent
-
 // The knowledge DAG tools: what armin knows about the project, kept
 // as nodes with evidence, confidence and authorship (package know).
 // Results are node lines (know.Graph.Line), one per node.
@@ -17,6 +15,8 @@ package agent
 // A minion's writes are capped: confidence at most inferred (checked
 // only with a passing acceptance check, see delegation), no decision
 // nodes, no verifying.
+
+package agent
 
 import (
   "context"
@@ -53,10 +53,10 @@ var knowTools = []toolSpec{
           Type: "integer", Description: "How many, up to 20 (default 10)",
         },
         "ids": {
-          Type:        "array",
+          Type: "array",
           Description: "Read these nodes in full (ids n42 or paths), " +
             "instead of searching",
-          Items:       &llm.ToolProperty{ Type: "string" },
+          Items: &llm.ToolProperty{ Type: "string" },
         },
       },
       "query",
@@ -82,7 +82,7 @@ var knowTools = []toolSpec{
         "kind": {
           Type:        "string",
           Description: "What the added node is (or the node id's new kind)",
-          Enum:        []string{
+          Enum: []string{
             "topic",
             "concept",
             "fact",
@@ -97,16 +97,16 @@ var knowTools = []toolSpec{
             "definition",
         ),
         "confidence": {
-          Type:        "string",
+          Type: "string",
           Description: "guess, inferred (default), checked (you read it), " +
             "tested (a test or run showed it)",
-          Enum:        []string{ "guess", "inferred", "checked", "tested" },
+          Enum: []string{ "guess", "inferred", "checked", "tested" },
         },
         "evidence": {
-          Type:        "array",
+          Type: "array",
           Description: "What supports it: file ranges (path:12-40), URLs, " +
             "commits",
-          Items:       &llm.ToolProperty{ Type: "string" },
+          Items: &llm.ToolProperty{ Type: "string" },
         },
         "needs": {
           Type:        "array",
@@ -126,24 +126,24 @@ var knowTools = []toolSpec{
           "Change this node instead of adding: kind, claim, " +
             "confidence, move_to, verified, current or delete",
         ),
-        "move_to":    stringProp("Move it to this new path"),
-        "verified":   {
+        "move_to": stringProp("Move it to this new path"),
+        "verified": {
           Type: "boolean", Description: "You checked a minion's claim",
         },
-        "current":    {
+        "current": {
           Type: "boolean", Description: "Clear STALE and SUSPECT",
         },
-        "delete":     {
+        "delete": {
           Type: "boolean", Description: "Delete it (no children)",
         },
         "edge": {
-          Type:        "string",
+          Type: "string",
           Description: "Add (or remove) an edge between two nodes " +
             "instead: from and to, this kind. requires: from needs to " +
             "before it makes sense; derived-from: from was concluded " +
             "from to; explains; implements (project code → a general " +
             "concept); contradicts",
-          Enum:        []string{
+          Enum: []string{
             "requires", "implements", "explains", "contradicts", "derived-from",
           },
         },
@@ -472,9 +472,7 @@ func knowAdd(l *Loop, in knowArgs) any {
       _, taken := l.Know.Child(parent, name)
       if taken {
         return errResult(
-          fmt.Errorf(
-            "%s exists; know_write it with its id instead", path,
-          ),
+          fmt.Errorf("%s exists; know_write it with its id instead", path),
         )
       }
     }
@@ -500,7 +498,7 @@ func knowAdd(l *Loop, in knowArgs) any {
 
       return map[string]string{
         "similar": b.String(),
-        "next":    "not added: know_write the existing one with id " +
+        "next": "not added: know_write the existing one with id " +
           "(an edge with edge, a new claim with claim), or know_write " +
           "again with force: true if it really is different",
       }

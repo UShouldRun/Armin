@@ -258,7 +258,7 @@ func TestExecuteAskToolsUnsupportedShowsCleanMessage(t *testing.T) {
   resp := callExecuteCommand(
     t, s,
     ExecuteCommandParams{
-      Command:   "armin.ask",
+      Command: "armin.ask",
       Arguments: []json.RawMessage{
         json.RawMessage(`{"question":"what does this do?"}`),
       },
@@ -306,7 +306,7 @@ func TestExecuteAskKeepsConversation(t *testing.T) {
     resp := callExecuteCommand(
       t, s,
       ExecuteCommandParams{
-        Command:   "armin.ask",
+        Command: "armin.ask",
         Arguments: []json.RawMessage{
           json.RawMessage(`{"question":"` + q + `"}`),
         },

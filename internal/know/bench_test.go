@@ -47,9 +47,7 @@ func bigTree(tb testing.TB, dir string) {
       g.AddEvidence(
         ids[i % len(ids)],
         RefFile,
-        fmt.Sprintf(
-          "internal/pkg%d/file.go:%d-%d", i % 50, i, i + 40,
-        ),
+        fmt.Sprintf("internal/pkg%d/file.go:%d-%d", i % 50, i, i + 40),
         uint32(i),
       ),
     )

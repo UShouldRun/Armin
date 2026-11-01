@@ -30,9 +30,12 @@ func fakeModel(t *testing.T) *httptest.Server {
         w.Header().Set("Content-Type", "text/event-stream")
         var chunk string
         if round == 1 {
-          chunk = `{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"write_file","arguments":"{\"path\":\"new.txt\",\"content\":\"hi\\n\"}"}}]}}]}`
+          chunk = `{"choices":[{"delta":{"tool_calls":[{"index":0,` +
+            `"id":"c1","function":{"name":"write_file","arguments":` +
+            `"{\"path\":\"new.txt\",\"content\":\"hi\\n\"}"}}]}}]}`
         } else {
-          chunk = `{"choices":[{"delta":{"content":"Created it, see new.txt:1"}}]}`
+          chunk = `{"choices":[{"delta":` +
+            `{"content":"Created it, see new.txt:1"}}]}`
         }
 
         w.Write([]byte("data: " + chunk + "\n\ndata: [DONE]\n\n"))
@@ -255,10 +258,8 @@ func TestChatSavesAndResumes(t *testing.T) {
   }
 
   json.NewDecoder(resp.Body).Decode(&h)
-  if h.ID != saved.ID ||
-      len(
-        h.Entries,
-      ) != 3 || h.Entries[0].Text != "make new.txt" || h.Entries[1].Role != "tool" {
+  if h.ID != saved.ID || len(h.Entries) != 3 ||
+    h.Entries[0].Text != "make new.txt" || h.Entries[1].Role != "tool" {
     t.Fatalf("history = %+v", h)
   }
 }

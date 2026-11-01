@@ -1,6 +1,6 @@
-package agent
-
 // Tools that read git history. All read-only.
+
+package agent
 
 import (
   "armin/internal/llm"

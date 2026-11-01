@@ -242,7 +242,10 @@ func TestKnowLinkUpdateTrace(t *testing.T) {
   out = call(
     "know_write",
     map[string]any{
-      "id": "a", "claim": "alpha, re-read", "current": true, "move_to": "base/a",
+      "id":      "a",
+      "claim":   "alpha, re-read",
+      "current": true,
+      "move_to": "base/a",
     },
   )
   if strings.Contains(out["now"], "STALE") ||
@@ -320,7 +323,10 @@ func TestKnowLoopReportedAndReminded(t *testing.T) {
   call(
     "know_write",
     map[string]any{
-      "path": "b", "kind": "concept", "claim": "beta thing", "needs": []any{
+      "path":  "b",
+      "kind":  "concept",
+      "claim": "beta thing",
+      "needs": []any{
         "a",
       },
     },
@@ -371,7 +377,10 @@ func TestMinionLeavesLoops(t *testing.T) {
   call(
     "know_write",
     map[string]any{
-      "path": "b", "kind": "concept", "claim": "beta thing", "needs": []any{
+      "path":  "b",
+      "kind":  "concept",
+      "claim": "beta thing",
+      "needs": []any{
         "a",
       },
     },

@@ -309,9 +309,8 @@ func WorkingTreeDiff(
 
   if res.ExitCode > 1 {
     return nil, fmt.Errorf(
-      "\n\t... in WorkingTreeDiff:\n\t git diff failed: %s", firstLine(
-        res.Stderr,
-      ),
+      "\n\t... in WorkingTreeDiff:\n\t git diff failed: %s",
+      firstLine(res.Stderr),
     )
   }
 

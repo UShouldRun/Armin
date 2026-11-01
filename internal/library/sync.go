@@ -1,3 +1,6 @@
+// Sync: the whole -library-sync job in order: index, catalog the
+// pending books, merge topics when the table has grown.
+
 package library
 
 import (

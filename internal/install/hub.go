@@ -232,7 +232,7 @@ func direct(ctx context.Context, c *http.Client, link string) (*source, error) {
   f := hubFile{ Path: base, Size: size }
 
   return &source{
-    URL:    link,
+    URL: link,
     Groups: []quantGroup{
       { Label: quantLabel(base), Files: []hubFile{ f }, Size: size },
     },

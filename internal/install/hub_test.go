@@ -195,7 +195,7 @@ func TestParseHub(t *testing.T) {
   for in, want := range map[string]hubRef{
     "org/repo":        { "org/repo", "main", "", "" },
     "org/repo:Q4_K_M": { "org/repo", "main", "", "Q4_K_M" },
-    "org/repo/sub/m-Q8_0.gguf":         {
+    "org/repo/sub/m-Q8_0.gguf": {
       "org/repo",
       "main",
       "sub/m-Q8_0.gguf",

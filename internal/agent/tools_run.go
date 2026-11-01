@@ -1,7 +1,7 @@
-package agent
-
 // Tools that run programs: read-only commands, the project's
 // tests, build and linter, and programs the user approves.
+
+package agent
 
 import (
   "context"
@@ -34,10 +34,10 @@ var runTools = []toolSpec{
             Description: "Bare binary name, e.g. git, wc, find",
           },
           "args": {
-            Type:        "array",
+            Type: "array",
             Description: `Arguments as separate array entries, e.g. ` +
               `["log", "--oneline", "-5"]`,
-            Items:       &llm.ToolProperty{ Type: "string" },
+            Items: &llm.ToolProperty{ Type: "string" },
           },
         },
         Required: []string{ "binary" },
@@ -63,28 +63,28 @@ var runTools = []toolSpec{
         Type: "object",
         Properties: map[string]llm.ToolProperty{
           "binary": {
-            Type:        "string",
+            Type: "string",
             Description: "Program: a bare name (make, gcc, mpirun) or a " +
               "relative path inside the project (./fox)",
           },
           "args": {
-            Type:        "array",
+            Type: "array",
             Description: `Arguments as separate entries, e.g. ["-O2", ` +
               `"-o", "fox", "src/fox.c"]`,
-            Items:       &llm.ToolProperty{ Type: "string" },
+            Items: &llm.ToolProperty{ Type: "string" },
           },
           "dir": {
-            Type:        "string",
+            Type: "string",
             Description: "Working directory inside the project (default: " +
               "project root), e.g. \"build\"",
           },
           "stdin": {
-            Type:        "string",
+            Type: "string",
             Description: "Project file to feed as the program's input, " +
               "like < file, e.g. \"tests/input/input6\"",
           },
           "stdout": {
-            Type:        "string",
+            Type: "string",
             Description: "Project file to write the program's output to, " +
               "like > file, e.g. \"build/out6.txt\"",
           },

@@ -1,3 +1,10 @@
+// Cataloging: a model reads each new or changed book's contents and
+// writes topic rows for it, so the agent knows where a subject is
+// covered.
+//
+//   Pending   the books not cataloged yet, or changed since
+//   Catalog   ask the model per book, parse its rows, save them
+
 package library
 
 import (

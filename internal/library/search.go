@@ -1,3 +1,6 @@
+// Search: BM25 over the index's terms, narrowed to a topic's books
+// when one is given, each result a cited passage with a snippet.
+
 package library
 
 import (

@@ -17,20 +17,20 @@ import (
 var catalog = map[string]catalogEntry{
   // Qwen and its fine-tunes; qwen35 layers are hybrid: one in four
   // keeps a KV cache.
-  "qwen3.8-27b":        {
+  "qwen3.8-27b": {
     "unsloth/Qwen3.8-27B-GGUF",
     "27B dense, hybrid attention, 256k",
   },
   "qwen3.8-flash-next": { "unsloth/Qwen3.8-Flash-Next-GGUF", "177B MoE, 256k" },
-  "qwen3.6-35b-a3b":    {
+  "qwen3.6-35b-a3b": {
     "unsloth/Qwen3.6-35B-A3B-GGUF",
     "35B MoE, 3B active, 256k",
   },
-  "qwen3.5-9b":         {
+  "qwen3.5-9b": {
     "unsloth/Qwen3.5-9B-GGUF",
     "9B dense, hybrid attention, 256k",
   },
-  "qwen3.5-4b":         {
+  "qwen3.5-4b": {
     "unsloth/Qwen3.5-4B-GGUF",
     "4B dense, hybrid attention, 256k",
   },
@@ -38,7 +38,7 @@ var catalog = map[string]catalogEntry{
     "unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF",
     "30B MoE, 3B active, code, 256k",
   },
-  "ornith-1.5-9b":      {
+  "ornith-1.5-9b": {
     "ornith-ai/Ornith-1.5-9B-GGUF",
     "9B dense, hybrid attention, 256k",
   },
@@ -46,25 +46,25 @@ var catalog = map[string]catalogEntry{
     "ornith-ai/Ornith-1.5-35B-A3B-GGUF",
     "35B MoE, 3B active, 256k",
   },
-  "ornith-1.5-397b":    { "ornith-ai/Ornith-1.5-397B-GGUF", "403B MoE, 256k" },
+  "ornith-1.5-397b": { "ornith-ai/Ornith-1.5-397B-GGUF", "403B MoE, 256k" },
 
   // Google
-  "gemma-4-e4b":     {
+  "gemma-4-e4b": {
     "ggml-org/gemma-4-E4B-it-GGUF",
     "8B (4B effective), 128k",
   },
-  "gemma-4-12b":     { "unsloth/gemma-4-12b-it-GGUF", "12B dense, 256k" },
+  "gemma-4-12b": { "unsloth/gemma-4-12b-it-GGUF", "12B dense, 256k" },
   "gemma-4-26b-a4b": {
     "unsloth/gemma-4-26B-A4B-it-GGUF",
     "25B MoE, 4B active, 256k",
   },
 
   // OpenAI, NVIDIA, Mistral, JetBrains
-  "gpt-oss-20b":     {
+  "gpt-oss-20b": {
     "ggml-org/gpt-oss-20b-GGUF",
     "21B MoE, sliding window, 128k",
   },
-  "gpt-oss-120b":    {
+  "gpt-oss-120b": {
     "ggml-org/gpt-oss-120b-GGUF",
     "117B MoE, sliding window, 128k",
   },
@@ -72,7 +72,7 @@ var catalog = map[string]catalogEntry{
     "ggml-org/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-GGUF",
     "32B MoE, 3B active, Mamba hybrid, 1M",
   },
-  "ministral-3-14b":     {
+  "ministral-3-14b": {
     "mistralai/Ministral-3-14B-Instruct-2512-GGUF",
     "14B dense, 256k",
   },
@@ -83,15 +83,15 @@ var catalog = map[string]catalogEntry{
 
   // Liquid: convolution layers with a few attention ones, so a small
   // KV cache and good CPU speed.
-  "lfm2.5-2.6b":     {
+  "lfm2.5-2.6b": {
     "LiquidAI/LFM2.5-2.6B-GGUF",
     "2.7B liquid hybrid, 128k",
   },
-  "lfm2.5-8b-a1b":   {
+  "lfm2.5-8b-a1b": {
     "LiquidAI/LFM2.5-8B-A1B-GGUF",
     "8.5B liquid MoE, 1B active, 128k",
   },
-  "lfm2.5-24b-a2b":  {
+  "lfm2.5-24b-a2b": {
     "LiquidAI/LFM2.5-24B-A2B-GGUF",
     "24B liquid MoE, 2B active, 128k",
   },

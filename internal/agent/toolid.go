@@ -1,3 +1,7 @@
+// ToolID: a tool's index into the tool table (tools.go), a uint8 so
+// the table is a fixed array, and the flags saying when each tool is
+// offered.
+
 package agent
 
 // Tool IDs, in the order the model sees the tools (Definitions walks

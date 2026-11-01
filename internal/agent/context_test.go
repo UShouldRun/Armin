@@ -59,7 +59,10 @@ func TestEditNeedsReadThenAsksApproval(t *testing.T) {
           ),
         )
       default:
-        writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "done" })
+        writeChatResponse(
+          t, w,
+          llm.Message{ Role: "assistant", Content: "done" },
+        )
       }
     },
   )
@@ -217,7 +220,10 @@ func TestTrimUnderPressureKeepsRecentTurns(t *testing.T) {
       Role: "assistant",
       ToolCalls: []llm.ToolCall{
         call("a", "read_file", map[string]any{ "path": "big.go" }),
-        call("b", "write_file", map[string]any{ "path": "n.go", "content": big }),
+        call(
+          "b", "write_file",
+          map[string]any{ "path": "n.go", "content": big },
+        ),
       },
     },
     { Role: "tool", ToolName: "read_file", ToolCallID: "a", Content: big },
@@ -282,7 +288,10 @@ func TestAutoCompactBeforeOverflow(t *testing.T) {
         return
       }
 
-      writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "answer" })
+      writeChatResponse(
+        t, w,
+        llm.Message{ Role: "assistant", Content: "answer" },
+      )
     },
   )
   loop.ContextSize = 1000

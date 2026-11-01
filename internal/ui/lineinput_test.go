@@ -242,9 +242,7 @@ func TestReadLinePlainTrueEOF(t *testing.T) {
 func TestReadLineWithGhostTextFallsBackWhenSuggestIsNil(t *testing.T) {
   reader := bufio.NewReader(strings.NewReader("plain input\n"))
 
-  line, err := ReadLineWithGhostText(
-    context.Background(), reader, "> ", nil,
-  )
+  line, err := ReadLineWithGhostText(context.Background(), reader, "> ", nil)
   if err != nil || line != "plain input" {
     t.Fatalf("ReadLineWithGhostText(nil suggest) = (%q, %v)", line, err)
   }
@@ -299,7 +297,8 @@ func TestLineStateLargePasteFolds(t *testing.T) {
     t.Fatalf("text = %q", s.text())
   }
 
-  if got := string(s.display()); got != "look: [pasted 20 lines] ok" {
+  got := string(s.display())
+  if got != "look: [pasted 20 lines] ok" {
     t.Fatalf("display = %q", got)
   }
 
@@ -317,7 +316,8 @@ func TestLineStateLargePasteFolds(t *testing.T) {
 func TestLineStateLongSingleLinePasteFolds(t *testing.T) {
   var s lineState
   s.apply(key{ control: keyPaste, paste: []rune(strings.Repeat("x", 1500)) })
-  if got := string(s.display()); got != "[pasted 1500 chars]" {
+  got := string(s.display())
+  if got != "[pasted 1500 chars]" {
     t.Fatalf("display = %q", got)
   }
 }

@@ -173,9 +173,7 @@ func benchKey(envName string) string {
     return ""
   }
 
-  re := regexp.MustCompile(
-    `(?m)^` + regexp.QuoteMeta(envName) + `\s*=\s*(.+)$`,
-  )
+  re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(envName) + `\s*=\s*(.+)$`)
   m := re.FindStringSubmatch(string(data))
   if m != nil {
     return strings.TrimSpace(m[1])
@@ -302,8 +300,9 @@ func TestTreeBench(t *testing.T) {
                   "%s\n\nright %v, %d prompt (%d cached), %d completion, " +
                     "$%.5f, %d rounds, %d tools\n\n" +
                     "## answer\n%s\n\n## calls\n%s\n\n## tree after\n%s\n",
-                  q, run.right, run.prompt, run.cached, run.completion, run.cost,
-                  run.rounds, run.tools, run.answer, strings.Join(run.calls, "\n"),
+                  q, run.right, run.prompt, run.cached, run.completion,
+                  run.cost, run.rounds, run.tools, run.answer,
+                  strings.Join(run.calls, "\n"),
                   run.tree,
                 ),
               ),

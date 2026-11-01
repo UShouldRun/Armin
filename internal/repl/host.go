@@ -162,7 +162,11 @@ func (h host) Ask(_ context.Context, question, file, origin string) error {
       fmt.Println(ui.Dim("  " + origin + " asked:"))
       fmt.Println(ui.UserLine(question))
 
-      err := r.turnAs(r.runCtx, share.Question(question, file), question, origin)
+      err := r.turnAs(
+        r.runCtx,
+        share.Question(question, file),
+        question, origin,
+      )
       if err != nil {
         ui.Err(err)
       }
@@ -213,7 +217,9 @@ func (h host) Models() share.ModelInfo {
 
   current := *r.current.Load()
   info := share.ModelInfo{
-    Current: current, Completion: *r.completing.Load(), Warning: r.Models.Warning,
+    Current:    current,
+    Completion: *r.completing.Load(),
+    Warning:    r.Models.Warning,
   }
   if r.hub != nil {
     info.Instance = r.hub.Instance
@@ -294,7 +300,8 @@ func (h host) Explain(ctx context.Context, question string) (string, error) {
   if r.explain == nil {
     l := agent.New(r.LLM, r.Sandbox)
     l.WebSearch, l.Symbols = r.Loop.WebSearch, r.Loop.Symbols
-    l.Memories, l.Skills, l.Scratch = r.Loop.Memories, r.Loop.Skills, r.Loop.Scratch
+    l.Memories, l.Skills = r.Loop.Memories, r.Loop.Skills
+    l.Scratch = r.Loop.Scratch
     l.MaxRounds = r.Loop.MaxRounds
     l.ReadOnly = true
     r.explain = l

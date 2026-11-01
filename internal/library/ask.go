@@ -1,3 +1,7 @@
+// Ask: the one model call the library makes, behind a function type
+// so cataloging and merging can run on any client (AskWith) and be
+// tested without one.
+
 package library
 
 import (

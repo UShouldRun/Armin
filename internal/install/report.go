@@ -83,9 +83,10 @@ func printPlan(m *Model, p *Plan) {
     )
     fmt.Printf(
       "  prefill     ~%.0f tok/s, %s per %dk tokens   limited by %s\n",
-      p.Prefill, duration(
-        agentPrompt / p.Prefill,
-      ), agentPrompt / 1000, p.PreCause,
+      p.Prefill,
+      duration(agentPrompt / p.Prefill),
+      agentPrompt / 1000,
+      p.PreCause,
     )
   }
 

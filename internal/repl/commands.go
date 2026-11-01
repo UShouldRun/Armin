@@ -398,9 +398,7 @@ func cmdCompact(r *REPL, ctx context.Context, args []string) {
 func cmdTools(r *REPL, _ context.Context, _ []string) {
   fmt.Println(ui.Bold("tools"))
   for _, t := range r.Loop.Definitions() {
-    fmt.Printf(
-      "  %-16s %s\n", t.Function.Name, ui.Dim(t.Function.Description),
-    )
+    fmt.Printf("  %-16s %s\n", t.Function.Name, ui.Dim(t.Function.Description))
   }
 }
 

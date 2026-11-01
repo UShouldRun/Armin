@@ -321,9 +321,7 @@ func (e *ec2Client) StartInstance(ctx context.Context, id string) error {
 
 // StopInstance asks EC2 to stop id; it returns before it's stopped.
 func (e *ec2Client) StopInstance(ctx context.Context, id string) error {
-  err := e.call(
-    ctx, "StopInstances", url.Values{ "InstanceId.1": { id } }, nil,
-  )
+  err := e.call(ctx, "StopInstances", url.Values{ "InstanceId.1": { id } }, nil)
   if err != nil {
     return fmt.Errorf("\n\t... in StopInstance:\n\t%w", err)
   }

@@ -422,9 +422,7 @@ func TestWebSearchNilManagerIsCleanError(t *testing.T) {
 }
 
 func TestWebSearchRequiresQuery(t *testing.T) {
-  _, err := WebSearch(
-    context.Background(), searxng.New(), WebSearchInput{},
-  )
+  _, err := WebSearch(context.Background(), searxng.New(), WebSearchInput{})
   if err == nil {
     t.Fatal("expected an error for an empty query")
   }

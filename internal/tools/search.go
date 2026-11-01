@@ -18,9 +18,7 @@ func SearchCode(
   ctx context.Context, cfg *sandbox.Config, in SearchCodeInput,
 ) (*SearchCodeOutput, error) {
   if in.Pattern == "" {
-    return nil, fmt.Errorf(
-      "\n\t... in SearchCode:\n\t pattern is required",
-    )
+    return nil, fmt.Errorf("\n\t... in SearchCode:\n\t pattern is required")
   }
 
   searchPath, err := cfg.ResolvePath(in.Path)

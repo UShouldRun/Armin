@@ -32,7 +32,9 @@ func (s *Server) respondAskError(id json.RawMessage, err error) {
     s.respondError(
       id, errInternal,
       fmt.Sprintf(
-        "%s doesn't support tool calling — switch models with :ArminModel", model,
+        "%s doesn't support tool calling — switch models with " +
+          ":ArminModel",
+        model,
       ),
     )
 
@@ -378,7 +380,7 @@ func (s *Server) relay() {
   s.notify(
     "window/showMessage",
     map[string]any{
-      "type":    1,
+      "type": 1,
       "message": fmt.Sprintf(
         "armin: instance %d went away — :ArminStop then :ArminLsp to start " +
           "one here",

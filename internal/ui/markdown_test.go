@@ -82,7 +82,8 @@ func TestTableWrapsCellsToFit(t *testing.T) {
   )
 
   for _, r := range rows {
-    if n := len([]rune(r)); n > 40 {
+    n := len([]rune(r))
+    if n > 40 {
       t.Fatalf("row %d wide: %q", n, r)
     }
 

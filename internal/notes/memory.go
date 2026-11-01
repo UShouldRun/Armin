@@ -205,9 +205,7 @@ func (m *Memories) Index() string {
       break
     }
 
-    fmt.Fprintf(
-      &b, "- %s (%s): %s\n", mem.Name, mem.Scope, mem.Description,
-    )
+    fmt.Fprintf(&b, "- %s (%s): %s\n", mem.Name, mem.Scope, mem.Description)
   }
 
   return b.String()

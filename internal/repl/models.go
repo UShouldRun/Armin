@@ -94,7 +94,9 @@ func printSuggestions(info share.ModelInfo) {
       fmt.Sprintf(
         "suggested on OpenRouter — /model %s:<id>; $ in / out per 1M tokens, " +
           "~ a deep session (%.1fM in, %dk out):",
-        info.Hosted, float64(catalog.SessionIn) / 1e6, catalog.SessionOut / 1000,
+        info.Hosted,
+        float64(catalog.SessionIn) / 1e6,
+        catalog.SessionOut / 1000,
       ),
     ),
   )

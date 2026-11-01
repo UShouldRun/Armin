@@ -102,7 +102,9 @@ func (m *Manager) spawnRemote(
     cmd.Env = m.scrubbedEnviron()
     proc, err := startProcess(cmd)
     if err != nil {
-      return fail(fmt.Errorf("starting ssh: %w", err))
+      return fail(
+        fmt.Errorf("\n\t... in spawnRemote:\n\t starting ssh: %w", err),
+      )
     }
 
     proc.remote, proc.lastUsed = run, time.Now()
@@ -123,7 +125,12 @@ func (m *Manager) spawnRemote(
     out := proc.out.String()
     retry := proc.exited() && ctx.Err() == nil && sshRetryable(out)
     if !retry {
-      return fail(fmt.Errorf("%w\n\t ssh output: %s", err, lastLines(out, 8)))
+      return fail(
+        fmt.Errorf(
+          "\n\t... in spawnRemote:\n\t%w\n\t ssh output: %s",
+          err, lastLines(out, 8),
+        ),
+      )
     }
 
     select {

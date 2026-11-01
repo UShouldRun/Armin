@@ -20,9 +20,9 @@ func Install(ctx context.Context, opts *input.Options) error {
       Binary:    m.Binary,
       ModelPath: m.ModelPath,
       Port:      m.Port,
-      Remote:    m.AWSInstance != "" ||
+      Remote: m.AWSInstance != "" ||
           m.StackitServer != "" || m.ScalewayServer != "",
-      External:  m.URL != "",
+      External: m.URL != "",
     }
   }
 

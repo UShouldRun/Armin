@@ -1,7 +1,7 @@
-package agent
-
 // Tools that understand the project: its symbols, structure and
 // dependencies.
+
+package agent
 
 import (
   "armin/internal/llm"
@@ -24,7 +24,7 @@ var codeTools = []toolSpec{
             Description: "Symbol name to look up",
           },
           "from_file": {
-            Type:        "string",
+            Type: "string",
             Description: "File you're currently looking at, to rank " +
               "same-file/same-dir matches first",
           },
@@ -44,7 +44,7 @@ var codeTools = []toolSpec{
         Type: "object",
         Properties: map[string]llm.ToolProperty{
           "query": {
-            Type:        "string",
+            Type: "string",
             Description: "Substring to match against symbol names (empty " +
               "lists everything, capped)",
           },
@@ -87,7 +87,7 @@ var codeTools = []toolSpec{
             Description: "Identifier to search for",
           },
           "path": {
-            Type:        "string",
+            Type: "string",
             Description: "Directory or file to search under (default: " +
               "project root)",
           },
@@ -111,7 +111,7 @@ var codeTools = []toolSpec{
             Description: "Symbol name to look up",
           },
           "from_file": {
-            Type:        "string",
+            Type: "string",
             Description: "File you're currently looking at, to " +
               "disambiguate a common name",
           },
