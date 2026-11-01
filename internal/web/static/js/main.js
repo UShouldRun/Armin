@@ -16,6 +16,7 @@ $("form").addEventListener("submit", (e) => {
   }
 
   $("input").value = "";
+  grow();
   if (state.busy) {
     hold(text);   // mid-run: sent when the turn ends
 
@@ -23,6 +24,15 @@ $("form").addEventListener("submit", (e) => {
     send(text);   // plain send otherwise
   }
 });
+
+// the message box grows with what's typed, up to its max-height
+const grow = () => {
+  const box = $("input");
+  box.style.height = "auto";
+  box.style.height = box.scrollHeight + "px";
+};
+
+$("input").addEventListener("input", grow);
 
 $("input").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
@@ -99,7 +109,7 @@ $("approve").addEventListener("click", async () => {
     const r  = await api("/api/command", { name: "approve" });
     const on = r.result.startsWith("approvals on");
     add("notice", esc(r.result));
-    $("approve").textContent = on ? "approve on" : "approve off";
+    $("approve").textContent = on ? "Approve all: on" : "Approve all: off";
 
   } catch (err) {
     console.error("[ERROR]: approveAll - ", err);

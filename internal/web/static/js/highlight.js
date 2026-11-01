@@ -159,6 +159,25 @@ const langs = {
   },
 };
 
+// kfWords are the keywords nvim's everblush colors apart from the
+// rest (@keyword.function, @keyword.return): defining a function and
+// returning from one.
+const kfWords = {
+  go:   words("func return"),
+  js:   words("function return"),
+  c:    words("return"),
+  rs:   words("fn return"),
+  java: words("return"),
+  py:   words("def return lambda"),
+  sh:   words("function return"),
+  lua:  words("function return"),
+  typ:  words("return"),
+};
+
+// booleans get their own color; the other literals (nil, null, None)
+// share the function keywords'.
+const booleans = words("true false True False TRUE FALSE");
+
 const byExt = {
   go: "go", js: "js", mjs: "js", cjs: "js", jsx: "js", ts: "js", tsx: "js",
   c: "c", h: "c", cc: "c", cpp: "c", cxx: "c", hpp: "c", hh: "c", inl: "c",
@@ -183,6 +202,7 @@ export function highlight(text, ext) {
     return text.split("\n").map(esc);
   }
 
+  const kf   = kfWords[byExt[ext]] || new Set();
   const out  = [];
   let   line = "";
   const put  = (cls, tok) => {
@@ -239,7 +259,15 @@ export function highlight(text, ext) {
       }
 
       j = Math.min(n, j + close.length);
-      put("s", text.slice(i, j));
+
+      // escapes (\n, \") in their own color; a Go raw string has none
+      const raw = ch === "`" && byExt[ext] === "go";
+      for (const part of text.slice(i, j).split(/(\\.)/)) {
+        if (part !== "") {
+          put(!raw && /^\\./.test(part) ? "e" : "s", part);
+        }
+      }
+
       i = j;
       continue;
     }
@@ -260,11 +288,18 @@ export function highlight(text, ext) {
       const after  = text.slice(i + word.length, i + word.length + 4);
       const goType = byExt[ext] === "go" && /^[A-Z]/.test(word) &&
         text[i - 1] !== ".";
-      if (lang.kw.has(key)) {
+      if (kf.has(key)) {
+        cls = "kf";
+
+      } else if (lang.kw.has(key)) {
         cls = "k";
 
       } else if (lang.lit.has(key)) {
-        cls = "num";
+        cls = booleans.has(key) ? "b" : "nil";
+
+      } else if (text[i - 1] === ".") {
+        // a field or method after a dot, as tree-sitter colors it
+        cls = "f";
 
       } else if (lang.types.has(key)) {
         cls = "t";

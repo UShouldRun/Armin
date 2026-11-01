@@ -41,6 +41,10 @@ const (
   fgMagenta = "\x1b[35m"
   fgCyan    = "\x1b[36m"
   fgGray    = "\x1b[90m"
+
+  // strongCode is **bold** in an answer: bold in everblush's yellow,
+  // the same color the web UI gives it
+  strongCode = "\x1b[1;38;2;229;199;107m"
 )
 
 // Enabled controls whether style codes are emitted at all. Computed
@@ -66,6 +70,10 @@ func style(code, s string) string {
 }
 
 func Bold(s string) string    { return style(bold, s) }
+
+// Strong is an answer's **bold**: charged, not just heavier.
+func Strong(s string) string { return style(strongCode, s) }
+
 func Dim(s string) string     { return style(dimCode, s) }
 func Red(s string) string     { return style(fgRed, s) }
 func Green(s string) string   { return style(fgGreen, s) }
@@ -152,6 +160,8 @@ func Logo() {
       LogoCols * 8, LogoRows * 16,
       base64.StdEncoding.EncodeToString(data),
     )
+    fmt.Println()
+
     return
   }
 
@@ -168,9 +178,11 @@ func Logo() {
       end = len(enc)
     }
 
+    // a=T transmits and displays: kitty's default, a=t, only stores
+    // the image, and nothing shows
     params := ""
     if i == 0 {
-      params = "f=100,c=" + fmt.Sprint(LogoCols) +
+      params = "a=T,f=100,c=" + fmt.Sprint(LogoCols) +
         ",r=" + fmt.Sprint(LogoRows) + ","
     }
 
@@ -181,6 +193,10 @@ func Logo() {
 
     fmt.Print("\x1b_G" + params + m + enc[start:end] + "\x1b\\")
   }
+
+  // the cursor ends beside the image's last row: the header starts
+  // on the line under it
+  fmt.Println()
 }
 
 // Banner prints the startup summary: the logo (a real image on

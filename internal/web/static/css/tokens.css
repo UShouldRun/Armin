@@ -1,25 +1,27 @@
 /* The design's tokens, light and dark: colors, type, radii and spacing.
-   Restyle armin here; the other files only use these names. The s*
-   colors are syntax highlighting. */
+   Restyle armin here; the other files only use these names. Code is
+   always on everblush's dark background with its tree-sitter colors,
+   the same as the user's nvim. */
 
 :root {
   /* surfaces, from the page back to raised cards */
-  --bg:     #f6f6f4;
+  --bg:     #fafaf9;
   --panel:  #ffffff;
   --raised: #ffffff;
-  --code:   #f0f0ed;
-  --line:   #e4e3df;
-  --line2:  #d2d1cc;
+  --sunk:   #f2f2f0;
+  --line:   #e7e6e3;
+  --line2:  #d6d5d1;
 
   /* text */
-  --text:  #1c1c1a;
-  --dim:   #6b6a66;
-  --faint: #9b9a95;
+  --text:   #1b1d1e;
+  --dim:    #61676a;
+  --faint:  #969c9e;
+  --strong: #a8650a;
 
   /* the accent and its tints */
-  --accent:      #3b5bdb;
+  --accent:      #2f6fb6;
   --accent-text: #ffffff;
-  --accent-soft: #e8ecfb;
+  --accent-soft: #e6eff8;
 
   /* diff and highlight */
   --add:  #e5f4e8;
@@ -27,70 +29,81 @@
   --del:  #fbe9e8;
   --delt: #b3261e;
   --hl:   #fff3c4;
-  --warn: #b7791f;
-
-  /* syntax */
-  --sk: #7c3aed;
-  --ss: #1f7a3a;
-  --sc: #8f8e89;
-  --sn: #b5561a;
-  --st: #0e7c86;
-  --sf: #2f5bd3;
+  --warn: #a8650a;
 
   /* type */
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: "JetBrainsMono Nerd Font", "JetBrains Mono", ui-monospace,
-          "SF Mono", Menlo, Consolas, monospace;
-  --size:  17.4px;
-  --small: 15px;
+  --sans:  "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+           sans-serif;
+  --mono:  "JetBrainsMono Nerd Font", "JetBrains Mono", ui-monospace,
+           "SF Mono", Menlo, Consolas, monospace;
+  --size:  15px;
+  --small: 13px;
+  --code-size: 13px;
 
   /* shape and space */
   --r:      8px;
-  --r-lg:   12px;
-  --gap:    12px;
-  --shadow: 0 1px 2px rgb(0 0 0 / 5%), 0 4px 16px rgb(0 0 0 / 5%);
-  --column: 820px;
+  --r-lg:   14px;
+  --ctl:    32px;
+  --shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px rgb(0 0 0 / 6%);
+  --column: 780px;
+
+  /* code: everblush, as in nvim */
+  --code-bg:   #141b1e;
+  --code-fg:   #b3b9b8;
+  --code-line: #232a2d;
+  --code-num:  #5b6466;
+  --code-hl:   #2c3333;
+  --code-add:  #1d2e22;
+  --code-del:  #3a2224;
+
+  --sk:  #c47fd5;   /* keywords */
+  --skf: #67b0e8;   /* func, return; nil */
+  --ss:  #8ccf7e;   /* strings */
+  --se:  #67b0e8;   /* escapes in strings */
+  --sc:  #404749;   /* comments, italic */
+  --sn:  #e5c76b;   /* numbers */
+  --st:  #e5c76b;   /* types */
+  --sf:  #e57474;   /* functions, methods, fields after a dot */
+  --sb:  #6cbfbf;   /* true, false */
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg:     #121212;
-    --panel:  #181817;
-    --raised: #1f1f1e;
-    --code:   #232322;
-    --line:   #2b2b29;
-    --line2:  #3a3a37;
+    --bg:     #111416;
+    --panel:  #15191b;
+    --raised: #1b2023;
+    --sunk:   #1f2427;
+    --line:   #252b2e;
+    --line2:  #333a3e;
 
-    --text:  #e9e8e4;
-    --dim:   #a09f99;
-    --faint: #75746f;
+    --text:   #e3e6e5;
+    --dim:    #9aa2a1;
+    --faint:  #687173;
+    --strong: #e5c76b;
 
-    --accent:      #7b96ff;
-    --accent-text: #0e1220;
-    --accent-soft: #1f2640;
+    --accent:      #67b0e8;
+    --accent-text: #0c1216;
+    --accent-soft: rgb(103 176 232 / 14%);
 
-    --add:  #14301d;
-    --addt: #86d79d;
-    --del:  #3a1716;
-    --delt: #f29d97;
-    --hl:   #3b3412;
-    --warn: #e0b04b;
+    --add:  #1d2e22;
+    --addt: #8ccf7e;
+    --del:  #3a2224;
+    --delt: #ef7e7e;
+    --hl:   #3a3418;
+    --warn: #e5c76b;
 
-    --sk: #c4a1ff;
-    --ss: #8fd19e;
-    --sc: #7c7b76;
-    --sn: #f0a868;
-    --st: #6cd3dc;
-    --sf: #8ab4ff;
-
-    --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 4px 16px rgb(0 0 0 / 30%);
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 35%);
   }
 }
 
-/* syntax highlighting */
-.k { color: var(--sk); }
-.s { color: var(--ss); }
-.c { color: var(--sc); font-style: italic; }
+/* syntax highlighting (js/highlight.js's classes) */
+.k   { color: var(--sk); }
+.kf  { color: var(--skf); }
+.s   { color: var(--ss); }
+.e   { color: var(--se); }
+.c   { color: var(--sc); font-style: italic; }
 .num { color: var(--sn); }
-.t { color: var(--st); }
-.f { color: var(--sf); }
+.t   { color: var(--st); }
+.f   { color: var(--sf); }
+.b   { color: var(--sb); }
+.nil { color: var(--skf); }

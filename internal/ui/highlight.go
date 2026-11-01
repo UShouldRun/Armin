@@ -1,9 +1,9 @@
 // Syntax highlighting for the terminal: a small tokenizer per language
 // family (comments, strings, numbers, keywords, types, calls), the
-// same one the web UI uses (static/js/highlight.js), coloring with the
-// 16 basic colors so any theme keeps it readable. A whole file is
-// tokenized at once, so a block comment or a string spanning lines
-// stays colored on every line.
+// same one the web UI uses (static/js/highlight.js), in the colors the
+// user's nvim draws code with (everblush, by tree-sitter capture), as
+// 24-bit color. A whole file is tokenized at once, so a block comment
+// or a string spanning lines stays colored on every line.
 //
 //   Highlight   a file's lines, colored, by its extension
 
@@ -16,6 +16,34 @@ import (
 
 // highlightMax: bigger files come back plain, fast.
 const highlightMax = 300000
+
+// The everblush colors nvim gives each tree-sitter capture.
+const (
+  synKeyword = "\x1b[38;2;196;127;213m"  // #c47fd5 @keyword
+  synFuncKw  = "\x1b[38;2;103;176;232m"  // #67b0e8 func, return, nil, escapes
+  synString  = "\x1b[38;2;140;207;126m"  // #8ccf7e @string
+  synComment = "\x1b[3;38;2;64;71;73m"   // #404749 @comment, italic
+  synNumber  = "\x1b[38;2;229;199;107m"  // #e5c76b @number, @type
+  synFunc    = "\x1b[38;2;229;116;116m"  // #e57474 @function, after a dot
+  synBool    = "\x1b[38;2;108;191;191m"  // #6cbfbf @boolean
+)
+
+// funcWords are the keywords everblush colors apart from the rest
+// (@keyword.function, @keyword.return), by language family.
+var funcWords = map[string]map[string]bool{
+  "go":   words("func return"),
+  "js":   words("function return"),
+  "c":    words("return"),
+  "rs":   words("fn return"),
+  "java": words("return"),
+  "py":   words("def return lambda"),
+  "sh":   words("function return"),
+  "lua":  words("function return"),
+  "typ":  words("return"),
+}
+
+// booleans get their own color; the other literals share func's.
+var booleans = words("true false True False TRUE FALSE")
 
 func words(s string) map[string]bool {
   m := map[string]bool{}
@@ -163,7 +191,7 @@ func Highlight(path string, lines []string) []string {
         j = i + len(lg.block[0]) + end + len(lg.block[1])
       }
 
-      put(fgGray, text[i:j])
+      put(synComment, text[i:j])
       i = j
 
     case lg.line != "" && strings.HasPrefix(text[i:], lg.line):
@@ -172,12 +200,12 @@ func Highlight(path string, lines []string) []string {
         j = n - i
       }
 
-      put(fgGray, text[i:i + j])
+      put(synComment, text[i:i + j])
       i += j
 
     case strings.IndexByte(lg.quote, c) >= 0:
       j := endOfString(text, i, py)
-      put(fgGreen, text[i:j])
+      putString(put, text[i:j], c == '`' && byExt[ext] == "go")
       i = j
 
     case c >= '0' && c <= '9' && (i == 0 || !isWord(text[i - 1])):
@@ -186,7 +214,7 @@ func Highlight(path string, lines []string) []string {
         j++
       }
 
-      put(fgYellow, text[i:j])
+      put(synNumber, text[i:j])
       i = j
 
     case isWordStart(c) || c == '#' && i + 1 < n && isWordStart(text[i + 1]):
@@ -195,7 +223,8 @@ func Highlight(path string, lines []string) []string {
         j++
       }
 
-      put(wordColor(lg, text, i, j, byExt[ext] == "go"), text[i:j])
+      fw := funcWords[byExt[ext]]
+      put(wordColor(lg, fw, text, i, j, byExt[ext] == "go"), text[i:j])
       i = j
 
     default:
@@ -207,6 +236,24 @@ func Highlight(path string, lines []string) []string {
   out = append(out, line.String())
 
   return out
+}
+
+// putString puts a string, its escapes (\n, \") in their own color;
+// a Go raw string has none.
+func putString(put func(code, tok string), s string, raw bool) {
+  start := 0
+  for i := 0; i < len(s) - 1; i++ {
+    if raw || s[i] != '\\' {
+      continue
+    }
+
+    put(synString, s[start:i])
+    put(synFuncKw, s[i:i + 2])
+    start = i + 2
+    i++
+  }
+
+  put(synString, s[start:])
 }
 
 // endOfString finds where the string opened at i ends: its closing
@@ -234,9 +281,12 @@ func endOfString(text string, i int, py bool) int {
   return min(n, j + len(closer))
 }
 
-// wordColor colors a word: keyword, literal, type, a call (followed by
-// "("), or in Go an exported name used as a type.
-func wordColor(lg lang, text string, i, j int, goLang bool) string {
+// wordColor colors a word: a function keyword, keyword, literal,
+// type, a field or method after a dot, a call (followed by "("), or
+// in Go an exported name used as a type.
+func wordColor(
+  lg lang, fw map[string]bool, text string, i, j int, goLang bool,
+) string {
   w := text[i:j]
   key := w
   if lg.fold {
@@ -244,19 +294,24 @@ func wordColor(lg lang, text string, i, j int, goLang bool) string {
   }
 
   switch {
+  case fw[key]:
+    return synFuncKw
   case lg.kw[key]:
-    return fgMagenta
+    return synKeyword
+  case lg.lit[key] && booleans[key]:
+    return synBool
   case lg.lit[key]:
-    return fgYellow
+    return synFuncKw
   case lg.types[key]:
-    return fgCyan
+    return synNumber
+  case i > 0 && text[i - 1] == '.':
+    return synFunc
   case strings.HasPrefix(
     strings.TrimLeft(text[j:min(len(text), j + 4)], " "), "(",
   ):
-    return fgBlue
-  case goLang && w[0] >= 'A' && w[0] <= 'Z' &&
-    (i == 0 || text[i - 1] != '.'):
-    return fgCyan
+    return synFunc
+  case goLang && w[0] >= 'A' && w[0] <= 'Z':
+    return synNumber
   }
 
   return ""

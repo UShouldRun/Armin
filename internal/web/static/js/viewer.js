@@ -71,7 +71,10 @@ export function filesChanged(call) {
   clearTimeout(reloadTimer);
   reloadTimer = setTimeout(async () => {
     await loadFiles();
-    if (!state.current) {
+
+    // only a viewer already open showing the file is refreshed: a tool
+    // ending never opens it
+    if (!state.current || !viewerOpen()) {
       return;
     }
 
@@ -92,7 +95,7 @@ export function renderFiles() {
   // a filtered list stays flat: matches may live anywhere in the tree,
   // so collapsing would hide them.
   if (q) {
-    $("files").innerHTML = list.map(row).join("");
+    $("files").innerHTML = list.map((f) => row(f)).join("");
     return;
   }
 
@@ -127,49 +130,64 @@ export function renderFiles() {
     node(dir).files.push(f);
   }
 
-  const render = (dir, node) => {
-    let html = dirHeader(dir, node.open);
+  // depth indents a row under its directory; the root's own rows
+  // (depth 0) sit at the edge
+  const render = (dir, node, depth) => {
+    let html = dirHeader(dir, node.open, depth - 1);
     if (!node.open) {
       return html;
     }
 
     for (const [ name, sub ] of node.dirs) {
-      html += render(sub, root.get(sub));
+      html += render(sub, root.get(sub), depth + 1);
     }
 
     for (const f of node.files) {
-      html += row(f);
+      html += row(f, depth);
     }
 
     return html;
   };
 
-  $("files").innerHTML = render("", root.get(""));
+  $("files").innerHTML = render("", root.get(""), 0);
 }
 
-function row(f) {
-  const cut  = f.lastIndexOf("/") + 1;
-  const dir  = `<span class = "dir">${ esc(f.slice(0, cut)) }</span>`;
-  const name = dir + esc(f.slice(cut));
-  const on   = f === state.current ? "on" : "";
+// indent is a row's left padding at a depth in the tree.
+const indent = (depth) => `style = "padding-left: ${ 8 + depth * 14 }px"`;
 
-  return `<div data-path = "${ esc(f) }" class = "${ on }" ` +
+// row is one file: its whole path in a flat (filtered) list, its name
+// alone under its directory in the tree.
+function row(f, depth) {
+  const cut  = f.lastIndexOf("/") + 1;
+  const on   = f === state.current ? "on" : "";
+  let   name = esc(f.slice(cut));
+  let   pad  = "";
+  if (depth === undefined) {
+    name = `<span class = "dir">${ esc(f.slice(0, cut)) }</span>` + name;
+
+  } else {
+    pad = indent(depth + 1) + " ";
+  }
+
+  return `<div data-path = "${ esc(f) }" class = "${ on }" ${ pad }` +
     `title = "${ esc(f) }">${ name }</div>`;
 }
 
-// A directory header: a twistie, the directory path, a count of the
-// files under it. Clicking toggles it; the state survives re-renders.
-function dirHeader(dir, open) {
+// A directory header: a twistie and the directory's own name.
+// Clicking toggles it; the state survives re-renders.
+function dirHeader(dir, open, depth) {
   if (!dir) {
     return "";
   }
 
-  const name  = esc(dir.slice(0, -1));
-  const twist = open ? "▾" : "▸";
+  const path  = esc(dir.slice(0, -1));
+  const name  = esc(dir.slice(0, -1).split("/").pop());
+  const twist = open ? "▼" : "▶";
   const shut  = open ? "" : " shut";
 
-  return `<div class = "dirhead${ shut }" data-dir = "${ name }" ` +
-    `title = "${ name }"><span class = "twist">${ twist }</span>` +
+  return `<div class = "dirhead${ shut }" data-dir = "${ path }" ` +
+    `${ indent(depth) } title = "${ path }">` +
+    `<span class = "twist">${ twist }</span>` +
     `<span class = "dirname">${ name }</span></div>`;
 }
 
@@ -254,7 +272,8 @@ export async function preview(path, line, keepScroll) {
   try {
     const text = await api(url);
     if ((ext === "md" || ext === "markdown") && !line) {
-      box.innerHTML = `<div class = "md">${ markdown(text) }</div>`;
+      const dir = full.slice(0, Math.max(0, full.lastIndexOf("/")));
+      box.innerHTML = `<div class = "md">${ markdown(text, dir) }</div>`;
       return;
     }
 
@@ -322,8 +341,13 @@ const diffRow = (cls, n, html) => {
 
 // showChange shows a proposed edit in the file viewer: the whole
 // file, highlighted, the removed lines in red where they are and the
-// new ones in green right after, scrolled into view.
-export async function showChange(ch) {
+// new ones in green right after, scrolled into view. A closed viewer
+// stays closed unless open asks for it (a click on the approval).
+export async function showChange(ch, open) {
+  if (!open && !viewerOpen()) {
+    return;
+  }
+
   showViewer(true);
   state.current = ch.path;
   renderFiles();

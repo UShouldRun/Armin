@@ -516,7 +516,7 @@ func inline(text string) []span {
       }
 
       flush()
-      out = append(out, styled(inline(body), Bold)...)
+      out = append(out, styled(inline(body), Strong)...)
       i += n - 1
       continue
 

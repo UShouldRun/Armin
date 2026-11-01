@@ -1,34 +1,42 @@
 /* The conversation: messages, tool lines, approvals, the status bar
-   and the input. The column is capped at --column for reading. */
+   and the composer. The column is capped at --column for reading. */
 
-#log { flex: 1; overflow: auto; padding: 24px 20px 12px; }
+#log { flex: 1; overflow: auto; padding: 28px 24px 16px; }
 
 #log > * { max-width: var(--column); margin-left: auto; margin-right: auto; }
 
-.msg { margin: 0 auto 18px; }
+.msg { margin: 0 auto 20px; }
 
 /* your messages: a tinted bubble at the column's right edge */
 #log > .msg.user {
-  width: fit-content; max-width: min(85%, var(--column));
+  width: fit-content;
+  max-width: min(85%, var(--column));
   margin-right: max(0px, calc((100% - var(--column)) / 2));
-  background: var(--accent-soft); padding: 9px 14px;
+  padding: 10px 14px;
+  background: var(--accent-soft);
   border-radius: var(--r-lg) var(--r-lg) 4px var(--r-lg);
   white-space: pre-wrap;
 }
 
 /* tool calls: compact monospace rows with an accent edge */
 .tool, .notice {
-  color: var(--dim); font: var(--small)/1.5 var(--mono); margin: 2px auto;
-  white-space: pre-wrap; word-break: break-all;
+  margin: 2px auto;
+  color: var(--dim);
+  font: var(--small)/1.5 var(--mono);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .tool:not(.result):not(.err) {
-  padding: 3px 10px; border-left: 2px solid var(--accent);
-  background: var(--panel); border-radius: 0 6px 6px 0;
-  margin-top: 8px;
+  margin-top: 10px;
+  padding: 4px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 6px 6px 0;
 }
 
-.tool + .msg, .result + .msg { margin-top: 12px; }
+.tool + .msg, .result + .msg { margin-top: 14px; }
 
 .tool b { color: var(--text); font-weight: 600; }
 .tool .dot { color: var(--accent); }
@@ -36,62 +44,107 @@
 .tool.err { padding-left: 14px; color: var(--delt); }
 
 .notice {
-  width: fit-content; max-width: var(--column); padding: 2px 10px;
-  border-radius: 99px; background: var(--accent-soft); color: var(--accent);
-  margin: 8px auto;
+  width: fit-content;
+  max-width: var(--column);
+  margin: 10px auto;
+  padding: 3px 12px;
+  border-radius: 99px;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .err { color: var(--delt); }
 
-details.think { color: var(--dim); margin: 6px auto; font-size: 13px; }
+details.think { margin: 6px auto; color: var(--dim); font-size: var(--small); }
+
 details.think summary, details.trace summary {
-  cursor: pointer; width: fit-content; color: var(--faint);
-  font: var(--small) var(--mono); list-style: none;
+  width: fit-content;
+  color: var(--faint);
+  font: var(--small) var(--sans);
+  list-style: none;
+  cursor: pointer;
 }
 
-details.think summary::before, details.trace summary::before { content: "▸ "; }
-details[open].think summary::before, details[open].trace summary::before { content: "▾ "; }
+details.think summary::before, details.trace summary::before {
+  content: "▸ ";
+}
+
+details[open].think summary::before, details[open].trace summary::before {
+  content: "▾ ";
+}
 
 details.think div {
-  white-space: pre-wrap; border-left: 2px solid var(--line2);
-  padding: 2px 0 2px 10px; margin-top: 4px;
+  margin-top: 4px;
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid var(--line2);
+  white-space: pre-wrap;
 }
 
-details.trace { margin: 6px 0; font-size: 13px; }
-details.trace pre { margin: 4px 0; color: var(--dim); white-space: pre-wrap; }
+details.trace { margin: 6px 0; font-size: var(--small); }
 
-/* approvals: a raised card with the primary action first */
+details.trace pre {
+  margin: 4px 0;
+  color: var(--dim);
+  white-space: pre-wrap;
+}
+
+/* approvals: a raised card, the question, the change, then the
+   answer row: the primary action first */
 .approve {
-  border: 1px solid var(--line); border-radius: var(--r-lg); padding: 12px 14px;
-  margin: 10px auto; background: var(--raised); box-shadow: var(--shadow);
+  margin: 12px auto;
+  padding: 14px 16px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
 }
 
 .approve pre {
-  margin: 8px 0; max-height: 320px; overflow: auto; font: var(--small)/1.5 var(--mono);
-  background: var(--code); border-radius: var(--r); padding: 8px 10px;
+  max-height: 320px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  overflow: auto;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  border-radius: var(--r);
+  font: var(--code-size)/1.55 var(--mono);
 }
 
-.approve .add { background: var(--add); color: var(--addt); display: block; }
-.approve .del { background: var(--del); color: var(--delt); display: block; }
+.approve .add { display: block; background: var(--code-add); color: #8ccf7e; }
+.approve .del { display: block; background: var(--code-del); color: #ef7e7e; }
 
-.approve button[data-ok = "1"] {
-  background: var(--accent); color: var(--accent-text); border-color: var(--accent);
+.approve .answer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
 }
 
-.approve input {
-  width: 60%; padding: 4px 8px; margin-left: 4px; font: inherit; font-size: 13px;
-  border: 1px solid var(--line); border-radius: var(--r);
-  background: var(--bg); color: var(--text);
+.approve input { flex: 1; min-width: 0; }
+
+.approve .view {
+  margin: 8px 0 0;
+  color: var(--accent);
+  font: var(--small) var(--sans);
+  cursor: pointer;
 }
+
+.approve .view:hover { text-decoration: underline; }
 
 /* the status bar: what the turn is doing */
 #status {
-  padding: 5px 20px; color: var(--dim); font: var(--small) var(--mono);
-  border-top: 1px solid var(--line); background: var(--panel);
+  padding: 6px 24px;
+  color: var(--dim);
+  font: var(--small) var(--sans);
+  font-variant-numeric: tabular-nums;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
 }
 
 #status::before {
-  content: "●"; color: var(--accent); margin-right: 8px;
+  content: "●";
+  margin-right: 8px;
+  color: var(--accent);
   animation: pulse 1.2s ease-in-out infinite;
 }
 
@@ -100,75 +153,92 @@ details.trace pre { margin: 4px 0; color: var(--dim); white-space: pre-wrap; }
 
 @keyframes pulse { 50% { opacity: .25; } }
 
-/* the composer */
-form {
-  display: flex; gap: 8px; align-items: center; padding: 12px 20px 16px;
-  border-top: 1px solid var(--line); background: var(--panel);
-}
+/* ---------- the composer ---------- */
 
-form > * { max-width: var(--column); }
-form::before, form::after { content: ""; flex: 1; max-width: none; }
+/* one rounded box: the message on top, the context readout, the
+   menu and Send on a row under it */
+form { padding: 12px 24px 18px; background: var(--bg); }
 
-textarea {
-  flex: 1 1 var(--column); resize: none; height: 54px; padding: 12px 14px;
-  font: inherit; line-height: 1.5;
-  border: 1px solid var(--line2); border-radius: var(--r-lg);
-  background: var(--raised); color: var(--text);
+form .box {
+  max-width: var(--column);
+  margin: 0 auto;
+  padding: 10px 10px 8px 14px;
+  background: var(--raised);
+  border: 1px solid var(--line2);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
   transition: border-color .12s, box-shadow .12s;
 }
 
-textarea:focus {
-  outline: none; border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+form .box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow);
 }
 
-form button {
-  height: 54px; padding: 0 22px; border: 0; border-radius: var(--r-lg);
-  background: var(--accent); color: var(--accent-text);
-  font: inherit; font-weight: 600; cursor: pointer;
+textarea {
+  display: block;
+  width: 100%;
+  min-height: 26px;
+  max-height: 220px;
+  padding: 2px 0;
+  resize: none;
+  font: var(--size)/1.55 var(--sans);
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  outline: none;
 }
 
-form button:disabled { opacity: .45; cursor: default; }
+textarea::placeholder { color: var(--faint); }
+
+form .row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
 
 /* the context gauge: tokens used of the model's window, like the REPL
-   prompt's; yellow past half, red where compaction starts (75%). */
+   prompt's; yellow past half, red where compaction starts (75%) */
 form .ctx {
-  flex: none; min-width: 96px; text-align: right;
-  color: var(--dim); font: var(--small) var(--mono);
-  font-variant-numeric: tabular-nums; white-space: nowrap;
-}
-form .ctx.hot { color: #d4a017; }
-form .ctx.full { color: var(--delt); }
-/* the ⋯→↑ dropup right of Send: header-style buttons stacked in a menu
-   that opens upward, centered on its arrow button */
-.dropup {
-  position: relative; flex: none; align-self: center;
+  margin-right: auto;
+  color: var(--faint);
+  font: 12px var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.dropup > button {
-  width: 40px; padding: 0;
-  font-weight: 600; text-align: center; line-height: 1;
-  border: 1px solid var(--line2); background: var(--raised); color: var(--text);
-}
+form .ctx.hot { color: var(--warn); }
+form .ctx.full { color: var(--delt); }
+
+/* the menu right of the gauge: actions in a list that opens upward */
+.dropup { position: relative; }
 
 .dropup .menu {
-  position: absolute; left: 50%; transform: translateX(-50%);
-  bottom: calc(100% + 6px);
-  display: none; flex-direction: column; gap: 2px;
-  padding: 6px; border-radius: var(--r-lg);
-  border: 1px solid var(--line); background: var(--panel);
-  box-shadow: 0 6px 24px rgb(0 0 0 / .25);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
   z-index: 5;
+  display: none;
+  min-width: 168px;
+  padding: 4px;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
 }
 
 .dropup.open .menu { display: flex; }
 
 .dropup .menu button {
-  display: block; width: 100%; box-sizing: border-box;
-  padding: 6px 18px; border: 0; border-radius: var(--r);
-  font: inherit; font-size: 13px; font-weight: 600;
-  cursor: pointer; text-align: center;
-  background: transparent; color: var(--text);
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  font-weight: 400;
+  background: transparent;
+  border-color: transparent;
 }
 
-.dropup .menu button:hover { background: var(--hl); color: var(--text); }
+.dropup .menu button:hover { background: var(--sunk); }

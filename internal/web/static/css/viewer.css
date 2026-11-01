@@ -1,48 +1,57 @@
 /* The file viewer: its bar, previews and code tables. */
 
 .bar {
-  display: flex; gap: 8px; align-items: center; padding: 7px 12px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 48px;
+  padding: 0 10px 0 16px;
   border-bottom: 1px solid var(--line);
 }
 
 .bar span {
-  flex: 1; font: var(--small) var(--mono); color: var(--dim);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1;
+  overflow: hidden;
+  color: var(--dim);
+  font: var(--small) var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-.bar .close {
-  border: 0; background: none; color: var(--dim); font-size: 18px; line-height: 1;
-  padding: 2px 6px;
-}
-
-.bar .close:hover { color: var(--text); }
 
 #preview { flex: 1; overflow: auto; }
 #preview iframe { width: 100%; height: 100%; border: 0; }
-#preview img { max-width: 100%; display: block; margin: 16px auto; }
-#preview .md { padding: 8px 24px; max-width: var(--column); }
+#preview > img { display: block; max-width: 100%; margin: 20px auto; }
+#preview .md { max-width: var(--column); padding: 12px 28px 28px; }
+
+/* code: everblush's background and colors, as in nvim */
+#preview:has(table.code) { background: var(--code-bg); }
 
 table.code {
-  border-collapse: collapse; font: var(--small)/1.55 var(--mono); width: 100%;
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--code-fg);
+  background: var(--code-bg);
+  font: var(--code-size)/1.6 var(--mono);
   tab-size: 4;
 }
 
-table.code td { padding: 0 10px; white-space: pre; vertical-align: top; }
+table.code td { padding: 0 12px; white-space: pre; vertical-align: top; }
 
 table.code td.n {
-  color: var(--faint); text-align: right; user-select: none; width: 1%;
-  border-right: 1px solid var(--line); background: var(--panel);
-  position: sticky; left: 0;
+  position: sticky;
+  left: 0;
+  width: 1%;
+  color: var(--code-num);
+  text-align: right;
+  background: var(--code-bg);
+  border-right: 1px solid var(--code-line);
+  user-select: none;
 }
 
-table.code tr:hover td:not(.n) { background: var(--code); }
-table.code tr.hl td { background: var(--hl); }
-table.code tr.add td { background: var(--add); }
-table.code tr.del td { background: var(--del); }
-table.code tr.add td.n, table.code tr.del td.n { color: var(--text); }
+table.code tr:hover td:not(.n) { background: var(--code-line); }
+table.code tr.hl td { background: var(--code-hl); }
+table.code tr.add td { background: var(--code-add); }
+table.code tr.del td { background: var(--code-del); }
+table.code tr.add td.n, table.code tr.del td.n { color: var(--code-fg); }
 
-.approve .view {
-  font: var(--small) var(--mono); color: var(--accent); cursor: pointer; margin: 6px 0;
-}
-
-.empty { color: var(--dim); padding: 28px 24px; }
+.empty { padding: 32px 28px; color: var(--dim); }

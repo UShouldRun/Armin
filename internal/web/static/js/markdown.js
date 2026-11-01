@@ -31,8 +31,9 @@ const fileRef  = new RegExp(
 const codeRef  = new RegExp("^" + pathLine.source);
 
 // The patterns inline rewrites, in order.
-const rawImg     =
-  /&lt;img([^&]*?)src=(&quot;|")([^"&]+)(&quot;|")([^&]*?)&gt;/g;
+const htmlImg    = /<img\b([^>]*)>/gi;
+const htmlWrap   = /<\/?(p|div|center|picture|source|span|br)\b[^>]*>/gi;
+const htmlAttr   = /([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 const mdImg      = /!\[([^\]]*)\]\(([^\s)]+)\)/g;
 const mdLink     = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
 const bold       = /\*\*([^*]+)\*\*/g;
@@ -42,14 +43,58 @@ const tableRow   = /^\s*\|.*\|\s*$/;
 const tableSep   = /^\s*\|[\s:|-]+\|\s*$/;
 const blockStart = /^(```|#{1,6}\s|>|\s*([-*]|\d+\.)\s)/;
 
-// imgSrc is where an image loads from: a URL or an absolute path as
-// written, a repo path through /api/raw.
+// base is the folder of the file being rendered, so an image's
+// relative path resolves the way the file's own viewer would.
+let base = "";
+
+// resolve joins a relative path onto base, folding "." and "..".
+const resolve = (path) => {
+  const parts = [];
+  for (const p of (base + "/" + path).split("/")) {
+    if (p === "..") {
+      parts.pop();
+
+    } else if (p !== "" && p !== ".") {
+      parts.push(p);
+    }
+  }
+
+  return parts.join("/");
+};
+
+// imgSrc is where an image loads from: a URL as written, a project
+// path (relative to the file, or to the root with a leading "/")
+// through /api/raw.
 const imgSrc = (src) => {
-  if (src.startsWith("http") || src.startsWith("/")) {
+  if (/^(https?:|data:image\/)/.test(src)) {
     return src;
   }
 
-  return `/api/raw?path=${ encodeURIComponent(src) }`;
+  const path = src.startsWith("/") ? src.slice(1) : resolve(src);
+
+  return `/api/raw?path=${ encodeURIComponent(path) }`;
+};
+
+// imgTag is a safe <img>: the source resolved, the alt text and a
+// plain width kept, every other attribute dropped.
+const imgTag = (src, alt, width) => {
+  let tag = `<img class = "md-img" src = "${ esc(imgSrc(src)) }" ` +
+    `alt = "${ esc(alt || "") }" loading = "lazy"`;
+  if (/^\d+%?$/.test(width || "")) {
+    tag += ` width = "${ width }"`;
+  }
+
+  return tag + ">";
+};
+
+// htmlImage reads an <img> a Markdown file wrote as HTML.
+const htmlImage = (attrs) => {
+  const a = {};
+  for (const m of attrs.matchAll(htmlAttr)) {
+    a[m[1].toLowerCase()] = m[2] ?? m[3];
+  }
+
+  return a.src ? imgTag(a.src, a.alt, a.width) : "";
 };
 
 // known says whether a path is one of the project's files.
@@ -72,20 +117,17 @@ function inline(s) {
     return "\u0000" + (codes.length - 1) + "\u0000";
   });
 
-  s = esc(s);
+  // HTML the file wrote itself: its images kept (rebuilt safe), the
+  // tags that only wrap or center them dropped, the rest escaped
+  const images = [];
+  s = s.replace(htmlImg, (_, attrs) => {
+    images.push(htmlImage(attrs));
 
-  // raw HTML images from the file itself (&lt;img&gt; after esc):
-  // unescape just the tag, and route repo paths through /api/raw
-  s = s.replace(rawImg, (_, pre, _q1, src, _q2, post) => {
-    return `<img class = "md-img" src = "${ imgSrc(src) }"${ pre }${ post }>`;
+    return "\u0001" + (images.length - 1) + "\u0001";
   });
 
-  s = s.replace(mdImg, (_, a, src) => {
-    const img = esc(imgSrc(src));
-
-    return `<img class = "md-img" src = "${ img }" alt = "${ esc(a) }" ` +
-      `loading = "lazy">`;
-  });
+  s = esc(s.replace(htmlWrap, ""));
+  s = s.replace(mdImg, (_, a, src) => imgTag(src, a));
 
   s = s.replace(mdLink, (_, t, u) => {
     return `<a href = "${ u }" target = "_blank" rel = "noopener">${ t }</a>`;
@@ -99,6 +141,8 @@ function inline(s) {
 
     return pre + refLink(path, line, m.slice(pre.length));
   });
+
+  s = s.replace(/\u0001(\d+)\u0001/g, (_, i) => images[+i]);
 
   return s.replace(/\u0000(\d+)\u0000/g, (_, i) => {
     const c    = codes[+i];
@@ -128,7 +172,10 @@ const table = (lines, i) => {
   return [ t + "</table>", i ];
 };
 
-export function markdown(src) {
+// markdown renders src; dir is the folder of the file it came from
+// ("" for answers), which relative image paths are read against.
+export function markdown(src, dir = "") {
+  base = dir;
   const lines = src.replace(/\r/g, "").split("\n");
   const out   = [];
   let i       = 0;

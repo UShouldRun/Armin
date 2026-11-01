@@ -82,25 +82,32 @@ function approvalBox(ev) {
   const change = parseChange(ev.preview);
   const ask    = approvalText[ev.tool] || approvalText.edit;
 
-  let body = `<pre>${ ev.preview.split("\n").map(diffLine).join("\n") }</pre>`;
+  // the change shows in the viewer when it's open; the card shows it
+  // too, so a closed viewer loses nothing, and a click opens it
+  const diff = ev.preview.split("\n").map(diffLine).join("\n");
+  const body = `<pre>${ diff }</pre>`;
+  let view = "";
   if (change) {
-    const first = esc(ev.preview.split("\n")[0]);
-    body = `<div class = "view">${ first } — shown in the viewer ` +
-      `(click to show again)</div>`;
-    showChange(change);
+    view = `<div class = "view">Show in the viewer</div>`;
+    showChange(change, false);
   }
 
   const box = add(
     "approve",
     `<div><b>${ esc(ev.tool) }</b> ${ ask.what }</div>
-    ${ body }
-    <button data-ok = "1">${ ask.yes }</button>
-    <button data-ok = "0">Decline</button>
-    <input placeholder = "or tell the model what to do instead">`,
+    ${ body }${ view }
+    <div class = "answer">
+      <button
+        data-ok = "1"
+        class   = "primary"
+      >${ ask.yes }</button>
+      <button data-ok = "0">Decline</button>
+      <input placeholder = "or tell the model what to do instead">
+    </div>`,
   );
   box.addEventListener("click", async (e) => {
     if (change && e.target.classList.contains("view")) {
-      showChange(change);
+      showChange(change, true);
       return;
     }
 

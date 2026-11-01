@@ -117,8 +117,8 @@ func TestLogoKitty(t *testing.T) {
     t.Fatalf("kitty terminal got no image:\n%q", out)
   }
 
-  if !strings.Contains(out, "f=100") {
-    t.Errorf("kitty escape lacks f=100 (PNG): %q", out)
+  if !strings.Contains(out, "a=T,f=100") {
+    t.Errorf("kitty escape doesn't display a PNG (a=T,f=100): %q", out)
   }
 
   // one 4096-byte chunk at most: params and m=0 (last chunk) on it.
