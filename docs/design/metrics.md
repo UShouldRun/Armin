@@ -29,7 +29,7 @@ off).
 | `recall.attached` | turns it attached at least one node |
 | `recall.empty` | turns nothing matched well enough |
 | `recall.nodes` | nodes attached per turn (avg, min, max) |
-| `recall.cited` | turns the model cited one of the attached `[nN]` |
+| `recall.cited` | turns the model cited an attached node: its `[nN]` in the answer, or a `know_write` naming it (id, from, to, needs, derived_from) |
 | `recall.cited.nodes` | attached nodes cited per such turn |
 | `recall.read` | turns it cited none but read a recalled node's file: a weak sign, since it often reads that file anyway |
 | event `recall.attach`, `recall.settle` | debug: per turn, which nodes, how many cited, whether read |

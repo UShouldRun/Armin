@@ -60,6 +60,19 @@ func TestRecallAttachesAndSettles(t *testing.T) {
   if snap["recall.cited"].Count != 1 || snap["recall.read"].Count != 1 {
     t.Fatalf("a read without a citation: %+v", snap)
   }
+
+  // a know_write deriving from the recalled node by path: cited
+  history[2] = llm.Message{ Role: "assistant", ToolCalls: []llm.ToolCall{
+    { Function: llm.ToolCallFunction{
+      Name: "know_write", Arguments: map[string]any{
+        "path": "tools/more", "derived_from": []any{ "tools/golden" },
+      },
+    } },
+  } }
+  l.recallSettle(history, 2)
+  if metrics.Snapshot()["recall.cited"].Count != 2 {
+    t.Fatal("a know_write building on a recalled node wasn't a citation")
+  }
 }
 
 func TestRecallNothingMatches(t *testing.T) {

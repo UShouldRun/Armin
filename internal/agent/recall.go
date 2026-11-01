@@ -81,23 +81,44 @@ func (l *Loop) recall(history []llm.Message) {
 }
 
 // recallSettle counts whether the turn used what recall attached. A
-// citation of one of the nodes is the only sure sign: reading a
-// recalled node's file is counted apart, since the model often reads
-// that file anyway.
+// citation of one of the nodes is the only sure sign: [nN] in an
+// answer, or a know_write building on the node. Reading a recalled
+// node's file is counted apart, since the model often reads that file
+// anyway.
 func (l *Loop) recallSettle(history []llm.Message, from int) {
   if len(l.recalled) == 0 {
     return
   }
 
+  // the nodes a know_write in the turn named (id, from, to, needs,
+  // derived_from): building on a recalled node is citing it
+  var named []string
+  for _, m := range history[min(from, len(history)):] {
+    for _, c := range m.ToolCalls {
+      if c.Function.Name == "know_write" {
+        named = knowWriteNames(c.Function.Arguments, named)
+      }
+    }
+  }
+
   cited := 0
   read := false
   for _, id := range l.recalled {
-    tag := fmt.Sprintf("[n%d]", id)
+    l.knowMu.Lock()
+    path := l.Know.Path(id)
+    l.knowMu.Unlock()
+
+    short := fmt.Sprintf("n%d", id)
+    tag := "[" + short + "]"
+    used := slices.Contains(named, short) || slices.Contains(named, path)
     for _, m := range history[min(from, len(history)):] {
       if m.Role == "assistant" && strings.Contains(m.Content, tag) {
-        cited++
-        break
+        used = true
       }
+    }
+
+    if used {
+      cited++
     }
   }
 
@@ -120,4 +141,27 @@ func (l *Loop) recallSettle(history []llm.Message, from int) {
 
   metrics.Event("recall.settle",
     "cited", cited, "read", read, "nodes", len(l.recalled))
+}
+
+// knowWriteNames appends the node references in a know_write call's
+// arguments to out.
+func knowWriteNames(args map[string]any, out []string) []string {
+  for _, key := range []string{ "id", "from", "to" } {
+    v, _ := args[key].(string)
+    if v != "" {
+      out = append(out, v)
+    }
+  }
+
+  for _, key := range []string{ "needs", "derived_from" } {
+    list, _ := args[key].([]any)
+    for _, v := range list {
+      s, _ := v.(string)
+      if s != "" {
+        out = append(out, s)
+      }
+    }
+  }
+
+  return out
 }

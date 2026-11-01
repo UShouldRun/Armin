@@ -194,8 +194,8 @@ func (l *Loop) consolidateOne(
     return false, err
   }
 
-  for i, c := range claims {
-    err = l.writeClaim(id, i, c.text, c.ref, author)
+  for _, c := range claims {
+    err = l.writeClaim(id, c.text, c.ref, author)
     if err != nil {
       return false, err
     }
@@ -211,7 +211,7 @@ func (l *Loop) consolidateOne(
 // package, derived from the pointer; a similar existing node gets the
 // link instead.
 func (l *Loop) writeClaim(
-  pointer know.NodeID, i int, text, ref string, author know.AuthorID,
+  pointer know.NodeID, text, ref string, author know.AuthorID,
 ) error {
   // the cited range must hash before anything is written, or a
   // claim would be left with no evidence and no pointer
@@ -242,7 +242,7 @@ func (l *Loop) writeClaim(
 
   // the pointer's name, or the next free "-2", "-3"...
   name := base
-  for n := 2 + i; ; n++ {
+  for n := 2; ; n++ {
     _, taken := l.Know.Child(parent, name)
     if !taken {
       break
