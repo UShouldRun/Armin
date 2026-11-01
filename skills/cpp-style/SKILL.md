@@ -1,16 +1,16 @@
 ---
 name: cpp-style
-description: The user's C++ — written as close to C as possible, low abstraction so the compiler sees everything; header-only libraries with .inl implementations, fixed-width types, templates only for compile-time widths, HLS-friendly code. Load before writing or editing C++.
+description: The user's C++ - written as close to C as possible, low abstraction so the compiler sees everything; header-only libraries with .inl implementations, fixed-width types, templates only for compile-time widths, HLS-friendly code. Load before writing or editing C++.
 ---
 The rule: **C++ is C plus the few features that help.** Use a
 feature only when it removes real duplication or gives the compiler
-more information; otherwise write the C. Load c-style too — its
+more information; otherwise write the C. Load c-style too - its
 naming, layout and spacing rules all apply.
 
 ## Features that earn their place
 - Templates over compile-time integers, for widths and formats:
   `template<u8 n, u8 i, u8 f> struct lns { uint_t<n> bits; ... };`
-  — one definition for lns8/lns16, fully resolved at compile time.
+  - one definition for lns8/lns16, fully resolved at compile time.
 - Operator overloading on numeric value types (`+ - * /`, compound
   assignment, comparisons), so arithmetic code reads like math.
 - `explicit` conversion operators; `const` member functions;

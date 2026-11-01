@@ -7,13 +7,13 @@ the first of main's three steps (input → think → display).
 
 `input.Parse` reads, in this order:
 
-1. **`~/.config/armin/.env`** — API keys (refused if group- or
+1. **`~/.config/armin/.env`** - API keys (refused if group- or
    world-readable). A variable already exported in the shell wins.
-2. **`~/.config/armin/config.conf`** — `key = value` defaults
+2. **`~/.config/armin/config.conf`** - `key = value` defaults
    (package `internal/config`).
-3. **The command line** — every flag, its default taken from
+3. **The command line** - every flag, its default taken from
    config.conf; a bare path (`armin .`) is the project root.
-4. **`-resume`** — alone, a menu of saved sessions; with an id, that
+4. **`-resume`** - alone, a menu of saved sessions; with an id, that
    session (which may move the project root).
 
 The result is one `Options` struct: the root, the model names, the

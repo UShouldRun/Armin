@@ -14,7 +14,7 @@ text section by section.
   index in `<folder>/.armin/index` (only a small term table is kept
   in memory; postings and text are read from disk per query). Each
   result has the title, file, page or line, the passage, and the
-  `read_pdf` / `read_file` call that reads on — the folder is
+  `read_pdf` / `read_file` call that reads on - the folder is
   readable without asking. `topic` keeps a search to one topic's
   books.
 - **`library_topics`** answers "where is X covered": book, chapters

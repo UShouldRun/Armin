@@ -1,6 +1,6 @@
 ---
 name: commit-message
-description: Write commits the user's way — "vX.Y.Z - what changed" subjects with semver bumps, short lowercase summaries, no AI attribution. Load before committing.
+description: Write commits the user's way - "vX.Y.Z - what changed" subjects with semver bumps, short lowercase summaries, no AI attribution. Load before committing.
 ---
 ## Format
 ```
@@ -21,7 +21,7 @@ v0.3.4 - chess.com-style pieces and board, title-screen menu
 ## Steps
 1. `git status` and `git diff` (staged and not): know exactly what
    goes in. Don't commit build output, secrets (.env, keys, tokens)
-   or unrelated changes — ask about anything unexpected.
+   or unrelated changes - ask about anything unexpected.
 2. `git log --oneline -10` for the current version and wording.
 3. Stage specific paths, not `git add .`, unless everything shown is
    meant to go in.

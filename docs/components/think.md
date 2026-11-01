@@ -9,7 +9,7 @@ display).
 
 `think.New(opts)` builds a `Mind` in two stages:
 
-1. **Senses** (`NewSenses`) — no models yet, so `-mcp` stops here:
+1. **Senses** (`NewSenses`) - no models yet, so `-mcp` stops here:
    - the **sandbox**: the project root as a jail, the command
      allowlists, timeouts (`internal/sandbox`)
    - **web search**, if docker exists (`internal/searxng`)

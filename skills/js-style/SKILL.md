@@ -1,6 +1,6 @@
 ---
 name: js-style
-description: The user's JavaScript style — 2-space, semicolons, double quotes, aligned "=" / "from" / object values, padded ${ x }, arrow functions. Load before writing or editing JS or TS (non-markup).
+description: The user's JavaScript style - 2-space, semicolons, double quotes, aligned "=" / "from" / object values, padded ${ x }, arrow functions. Load before writing or editing JS or TS (non-markup).
 ---
 ## Basics
 - 2-space indentation, semicolons, double quotes.
@@ -79,8 +79,8 @@ description: The user's JavaScript style — 2-space, semicolons, double quotes,
 ## Blank lines between blocks
 - A blank line after every closing `}` of an `if` / `for` / `switch`
   / function when more code follows at that level (not before
-  `else`, `catch`, `finally` — those get the blank line *inside*,
-  per the try/catch rule — or another `}`).
+  `else`, `catch`, `finally` - those get the blank line *inside*,
+  per the try/catch rule - or another `}`).
 - A blank line before a `return` that follows a group of statements.
 
   ```js

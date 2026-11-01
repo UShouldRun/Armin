@@ -1,10 +1,10 @@
 ---
 name: riscv-asm
-description: Read, write and debug RISC-V assembly (RV32IM and custom extensions) — encodings, the calling convention, custom-instruction opcode space, and checking against the ISA manual. Load when working with RISC-V assembly, encodings or simulators.
+description: Read, write and debug RISC-V assembly (RV32IM and custom extensions) - encodings, the calling convention, custom-instruction opcode space, and checking against the ISA manual. Load when working with RISC-V assembly, encodings or simulators.
 ---
 ## Ground truth
 Check encodings against the ISA manual (the project may keep one,
-e.g. `riscv_isa.pdf`) or the official spec — never from memory
+e.g. `riscv_isa.pdf`) or the official spec - never from memory
 alone. Show the bit layout when encoding by hand.
 
 ## Encoding formats (32-bit)

@@ -1,6 +1,6 @@
 ---
 name: research-paper
-description: Help write and revise research papers (systems / hardware / ML venues) — structure, honest claims backed by numbers, related work found with web_search, figures and tables, Typst or LaTeX. Load when working on a paper, abstract or poster text.
+description: Help write and revise research papers (systems / hardware / ML venues) - structure, honest claims backed by numbers, related work found with web_search, figures and tables, Typst or LaTeX. Load when working on a paper, abstract or poster text.
 ---
 ## Structure
 - **Abstract** (150–250 words): problem, why it's hard, the
@@ -24,7 +24,7 @@ description: Help write and revise research papers (systems / hardware / ML venu
   improves". No result the experiments don't support; flag gaps for
   the user instead of papering over them.
 - Author order, affiliations, venue rules and page limits come from
-  the user or the call for papers — ask, don't assume.
+  the user or the call for papers - ask, don't assume.
 
 ## Related work
 Use `web_search` for candidate papers, then cite only what was

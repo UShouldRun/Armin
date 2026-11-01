@@ -1,16 +1,17 @@
-<p align="center"><img src="assets/banner.svg" alt="armin — wings of freedom mark" width="100%"></p>
+<p align="center"><img src="assets/banner_theme.svg" alt="armin - wings of freedom mark" width="100%"></p>
 
 # armin
 A terminal coding assistant, backed by a llama.cpp model (local, on a
 remote box, or hosted) that reads, searches and edits your codebase,
 runs its build and tests, and grounds every answer in what's actually
-there — not generic training data. Named after the *Attack on Titan*
+there - not generic training data. Named after the *Attack on Titan*
 strategist: the one who reads the terrain before anyone moves.
 
-The wings mark is the project's logo (assets/, in light and dark
-variants; the dark one is the default). The README banner above is the
-same mark the web UI's header draws, on a transparent background,
-and the web UI's pages carry the mark as their icon.
+The wings mark is the project's logo (assets/, in light, dark and
+white variants). The banner above is the web UI's icon in the
+readme's style: the same mark, in the banner crop, drawn in the
+icon's own tones on dark themes and the exact inverse on light
+themes, on a transparent background.
 
 One sandboxed tool layer, four front ends:
 

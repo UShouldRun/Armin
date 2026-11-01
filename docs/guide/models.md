@@ -3,18 +3,18 @@
 ## Model lifecycle
 
 Unlike Ollama (a single daemon juggling many pulled models), a
-`llama-server` process serves exactly one already-loaded model — so
+`llama-server` process serves exactly one already-loaded model - so
 `/model <name>` (or `:ArminModel`/`armin.model` over LSP) means
 "point at a different URL", not "ask the same daemon for a different
 model". Two kinds of `models.<name>` entry:
 
-- **External** (`models.<name>.url = ...`) — something you already
+- **External** (`models.<name>.url = ...`) - something you already
   run yourself, e.g. on a beefy always-on box. armin only ever talks
   to it; it never starts or stops that process.
 - **Managed** (`models.<name>.binary`/`.model_path`/`.port`, `.args`
-  optional) — armin spawns `llama-server` itself on first use,
-  health-polls it before handing back a client, and — mirroring
-  `internal/searxng`'s Docker container lifecycle — stops only what
+  optional) - armin spawns `llama-server` itself on first use,
+  health-polls it before handing back a client, and - mirroring
+  `internal/searxng`'s Docker container lifecycle - stops only what
   it started. A managed model left idle (no in-flight request) past
   its `idle_timeout` (default 20m; a negative value disables this) is
   stopped by a background reaper and respawned lazily next time it's
@@ -23,7 +23,7 @@ model". Two kinds of `models.<name>` entry:
 
 `-model`/`-completion-model` with no matching `models.<name>` entry
 fall back to an external, unmanaged spec at `-llama-url`/
-`-completion-llama-url` — the zero-config path, for "I already
+`-completion-llama-url` - the zero-config path, for "I already
 started a `llama-server`, just talk to it".
 
 ### Installing a model
@@ -40,7 +40,7 @@ machine before downloading it. `<model>` is any of:
   `/tree/<branch>/<folder>`, `/blob/…` or `/resolve/…` file link,
   `hf.co` short links;
 - a direct link to a `.gguf` on any other server (ModelScope, a
-  GitHub release, your own) — it must serve byte ranges;
+  GitHub release, your own) - it must serve byte ranges;
 - a `.gguf` already on disk.
 
 1. It reads the model's `.gguf` header (a few MB by HTTP range, not
@@ -54,13 +54,13 @@ machine before downloading it. `<model>` is any of:
    `ram = ddr4-3200 1ch`, which `./install.sh` sets up with `sudo
    dmidecode` or by asking; else from SMBIOS when armin runs as
    root; else assumed), CPU cores and AVX2/AVX-512, free disk.
-3. A decision tree places the weights — all in VRAM at the largest
+3. A decision tree places the weights - all in VRAM at the largest
    window that fits; for a MoE, the experts of the fewest layers in
    RAM; for a dense model, as many layers in VRAM as fit; or all on
-   the CPU — and estimates generation (bound by memory bandwidth)
+   the CPU - and estimates generation (bound by memory bandwidth)
    and prompt reading (bound by compute, or by PCIe when weights live
    in RAM).
-4. It prints the verdict — fine, slow, too slow or won't load — with
+4. It prints the verdict - fine, slow, too slow or won't load - with
    what limits each and the numbers: the GPU's memory bus, system
    RAM's bus, the context memory read every token, GPU or CPU
    compute, the PCIe copies, free RAM, disk, or a llama-server build
@@ -69,7 +69,7 @@ machine before downloading it. `<model>` is any of:
 5. At the download question you can also type another quantization
    from the list (`Q4_0`): it reads that one and shows its verdict
    instead. On your yes it downloads (SHA-256 checked; a dropped or
-   stalled connection — 30 s without data — is retried from where it
+   stalled connection - 30 s without data - is retried from where it
    stopped, waiting 5 s doubling to 60 s, for up to 30 minutes
    without progress; after that, or after Ctrl-C, running the same
    command resumes from the `.part` file) and appends a
@@ -80,7 +80,7 @@ machine before downloading it. `<model>` is any of:
 `armin -uninstall <name>` takes one out again: it shows the
 `models.<name>` lines and the files it would delete (every part of a
 split model, any half-finished `.part`), and on your yes removes the
-lines — with the comment `-install` wrote above them — and deletes
+lines - with the comment `-install` wrote above them - and deletes
 the files. A file another model also points at is kept; a hosted or
 cloud model only loses its lines; and it refuses to remove your
 `model =` or `completion_model =` until you point those elsewhere.
@@ -94,7 +94,7 @@ and refused: llama-server can't serve them.
 ### Authenticated / remote models (e.g. Claude)
 
 An external `models.<name>.url` isn't limited to a `llama-server` you
-run yourself — any OpenAI-compatible `/v1/chat/completions` endpoint
+run yourself - any OpenAI-compatible `/v1/chat/completions` endpoint
 works, including
 [Anthropic's own](https://docs.anthropic.com/en/api/openai-sdk), so
 armin can run entirely against Claude instead of a local model. The
@@ -118,7 +118,7 @@ models.claude.api_key_env = ANTHROPIC_API_KEY
 A hosted model usually has its own name for the model: put it in
 `id` (armin's alias stays the config name), and for a reasoning
 model cap its thinking with `reasoning` (`none`, `minimal`, `low`,
-`medium`, `high`, `xhigh`, `max`) — Qwen3.8 thinks at `xhigh` by
+`medium`, `high`, `xhigh`, `max`) - Qwen3.8 thinks at `xhigh` by
 default, which costs time and tokens. A base URL may or may not end
 in `/v1`. For example, a big planning model on OpenRouter beside the
 local one:
@@ -133,16 +133,16 @@ models.planner.region      = auto
 
 When the machine's time zone is in a region OpenRouter routes
 in-region (the EU or the US), an `openrouter.ai` URL is sent to that
-region's host instead — `eu.openrouter.ai` or `us.openrouter.ai` —
+region's host instead - `eu.openrouter.ai` or `us.openrouter.ai` -
 so prompts and completions are decrypted and served only there.
 `models.<name>.region` decides: `auto` (the default) picks by time
 zone, `eu` or `us` forces that region's host whatever the time zone
-says, and `off` never leaves the global host — most accounts can't
+says, and `off` never leaves the global host - most accounts can't
 use the regional ones, so `off` is the sane setting for them.
 In-region routing needs OpenRouter's Business plan: without it the
 region refuses (403), and armin says so and moves to the global host
 for the rest of the session. A URL written as `eu.openrouter.ai` (or
-`us.`) in the config never falls back — it stays in the region or
+`us.`) in the config never falls back - it stays in the region or
 fails.
 
 OpenRouter forwards each request to a provider that hosts the model,
@@ -155,8 +155,8 @@ own privacy settings (openrouter.ai/settings/privacy) do the same for
 every request from the key.
 
 `/model planner` (or `:ArminModel planner`) first asks which
-OpenRouter model to use — its own id first, Enter keeps it, a number
-picks a suggestion, any `vendor/model` id works — and the same
+OpenRouter model to use - its own id first, Enter keeps it, a number
+picks a suggestion, any `vendor/model` id works - and the same
 question comes up when armin starts on it (`model = planner`),
 before anything connects. Then it switches chat to it;
 inline completion stays on the local model, and `/model local`
@@ -167,17 +167,17 @@ key and reasoning with that id.
 
 With an OpenRouter model configured, `/model` (and nvim's
 `:ArminModel` picker, and the web UI's model menu) also lists
-suggestions from OpenRouter's live catalog — each vendor's newest
+suggestions from OpenRouter's live catalog - each vendor's newest
 tool-capable model and its cheapest recent one, with free ones last
-— tagged with their price per 1M tokens and what a deep planning
+- tagged with their price per 1M tokens and what a deep planning
 session costs (~1.2M input, 30k output tokens), and shows what's
 left on the account (through the same key) with a help line on how
 to switch. The catalog is cached a day in armin's data directory;
 the balance is asked at most once a minute. Run `/compact` or `/clear` before a switch to keep
 a long local conversation from being billed as input.
 
-`api_key_env` names an environment variable — populated from `.env`
-above if it isn't already set some other way — never the key itself.
+`api_key_env` names an environment variable - populated from `.env`
+above if it isn't already set some other way - never the key itself.
 Keep it out of `config.conf`: that file is plain text people back up,
 sync, and paste into issues without thinking twice; `.env` (next to
 it, same `~/.config/armin` directory) is where a secret belongs.
@@ -188,12 +188,12 @@ further than it has to:
 - **`.env` must be readable only by you.** `config.LoadEnv` refuses
   to read a group- or other-readable `.env` at all (a wrong umask
   leaving it world-readable is exactly the kind of mistake that
-  should fail loud, not quietly work) — `./install.sh` creates it at
+  should fail loud, not quietly work) - `./install.sh` creates it at
   mode 600 from the start and re-tightens an existing one on every
   run, so this shouldn't come up in practice.
 - **A key configured for one model never reaches another model's
   process.** Spawning a child process inherits the *entire*
-  environment by default — so without this, a managed local
+  environment by default - so without this, a managed local
   `llama-server` would see `ANTHROPIC_API_KEY` too, despite having
   nothing to do with Claude. `internal/llamacpp.Manager` strips every
   name any `models.<name>.api_key_env` names from a spawned
@@ -202,12 +202,12 @@ further than it has to:
 
 ## A model on a cloud machine armin starts and stops
 
-Give armin cloud credentials and a machine id — an AWS EC2 instance,
-a STACKIT server or a Scaleway instance — and it runs the whole
+Give armin cloud credentials and a machine id - an AWS EC2 instance,
+a STACKIT server or a Scaleway instance - and it runs the whole
 lifecycle: on first use
 it starts the machine (if it's off), waits for it to boot, launches
 llama-server on it over SSH with a tunnel to your machine, and when
-armin exits it stops the machine again. Nothing listens on a public port — llama-server binds to the
+armin exits it stops the machine again. Nothing listens on a public port - llama-server binds to the
 instance's loopback and the traffic goes through SSH.
 
 ```
@@ -230,12 +230,12 @@ models.qwen.idle_timeout = 30m
 
 | Key | Default | |
 |---|---|---|
-| `aws_instance` | — | the EC2 instance to use; makes the model AWS-hosted |
+| `aws_instance` | - | the EC2 instance to use; makes the model AWS-hosted |
 | `aws_region` | `$AWS_REGION` | |
-| `stackit_server` | — | the STACKIT server id; makes the model STACKIT-hosted |
+| `stackit_server` | - | the STACKIT server id; makes the model STACKIT-hosted |
 | `stackit_project` | `$STACKIT_PROJECT_ID` | |
 | `stackit_region` | `eu01` | |
-| `scaleway_server` | — | the Scaleway instance id; makes the model Scaleway-hosted |
+| `scaleway_server` | - | the Scaleway instance id; makes the model Scaleway-hosted |
 | `scaleway_zone` | `$SCW_DEFAULT_ZONE`, else `fr-par-2` | |
 | `ssh_user` | `ubuntu` (`root` on Scaleway) | |
 | `ssh_key` | ssh's own defaults | private key for the instance |
@@ -251,8 +251,8 @@ What to know:
   running when armin got to it is used and left running.
 - **Dead man's switch.** When armin started the instance, the remote
   side runs llama-server under `trap 'sudo -n shutdown -h now' HUP`:
-  if the SSH session drops — armin killed with `-9`, laptop asleep,
-  network gone for about a minute — the instance shuts itself down
+  if the SSH session drops - armin killed with `-9`, laptop asleep,
+  network gone for about a minute - the instance shuts itself down
   instead of billing. armin restarts it on the next request. Needs
   passwordless `sudo` for `ssh_user` (the default on Ubuntu AMIs);
   turn it off with `stop_on_disconnect = false`.

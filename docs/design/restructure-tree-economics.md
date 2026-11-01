@@ -44,7 +44,7 @@ throughout (scattered 3–5/5, never systematically worse; the two
 round-5 misses were borderline regex checks on correct-looking
 answers).
 
-† round 3 measured nothing new — see the postmortem.
+† round 3 measured nothing new - see the postmortem.
 
 ## What went wrong, in order
 
@@ -62,7 +62,7 @@ answers).
 
 3. **A whole round measured a feature that was off.** recordTurn
    read a nonexistent argument key (`file`; read_file's argument is
-   `path`), so round 3 silently re-measured round 2 — and we read
+   `path`), so round 3 silently re-measured round 2 - and we read
    its +42% as "auto-record makes it worse" for a while. Lesson two:
    a feature whose effect is "nothing changed" must be proven on
    before its cost is believed. (The test was wrong the same way as
@@ -82,7 +82,7 @@ answers).
    (find → find ids → one 106-line read → answer), but only where
    s1's model had written a real node; the auto-recorded pointers
    under `sessions/` mostly weren't what s2 used. s1 dropped to
-   +17% — mostly because pointer recording is cheap — but s2's
+   +17% - mostly because pointer recording is cheap - but s2's
    +27% says the standing overhead rides whether the tree helps
    or not.
 
@@ -92,7 +92,7 @@ answers).
   outline, every request, every session). Unknown how much of the
   +17%/+21% is this.
 - **s1 recording** (model-written claims): pays back only if a
-  later session lands in the same area — two sessions may be too
+  later session lands in the same area - two sessions may be too
   short to amortize it.
 - **s2's usage is fine.** Where the tree had a real node, s2 was
   cheap and fast. The read side (at-refs, current, find guidance)
@@ -100,7 +100,7 @@ answers).
 
 ## Hypotheses and next experiments
 
-**H1 — the gap is mostly cache-discounted tokens, not dollars.**
+**H1 - the gap is mostly cache-discounted tokens, not dollars.**
 OpenRouter serves the cached prefix at a steep discount; the
 standing overhead sits in the system prompt (cached), while any s2
 savings land on fresh tokens. If true, the tree is already cheaper
@@ -108,34 +108,34 @@ than the token table says and chat-side work is done.
 *Test:* plumb `prompt_tokens_details.cached_tokens` into the usage
 hook (one field through llm.Usage; 15–25 min if the stream decode
 has one path, an hour if it's split), rerun one round, re-score by
-estimated cost. The old logs can't be re-scored — the field wasn't
+estimated cost. The old logs can't be re-scored - the field wasn't
 captured.
 
-**H2 — the descriptions can move into the cached prefix.** The
+**H2 - the descriptions can move into the cached prefix.** The
 how-to (writing rules, edge semantics, dedup protocol) can live in
 the tree section of the system prompt instead of the tool
 descriptions, leaving one-liners. *Test:* measure the definitions'
 byte drop (goldens), one benchmark round.
 
-**H3 — two sessions is too short to amortize.** The standing cost
+**H3 - two sessions is too short to amortize.** The standing cost
 is per session; the tree compounds. *Test:* add a third session per
 pair ("week later" style) and see whether s3 tree beats s3 no-tree.
 If it does, the pair framing was the artifact. If it doesn't, the
 honest conclusion: the tree doesn't pay for chat and its job is the
 advisor/teaching flow, where the plan already gives it structure.
 
-**H4 — the wrong currency.** Tokens are a proxy; what we actually
+**H4 - the wrong currency.** Tokens are a proxy; what we actually
 care about is dollars and wall time. After H1, re-score every round
 by cost, not tokens.
 
-Order: H1 first (cheapest, possibly decisive — if the standing
+Order: H1 first (cheapest, possibly decisive - if the standing
 overhead is nearly free in dollars, H2 is moot and H3 is the only
 remaining question). Then H3. H2 only if H1 says the gap is real
 dollars.
 
 Separately from all of this: the branch is unpushed and untested in
 daily use. One real day of the roles plus the tree, by the user,
-would tell more than another benchmark round — and anything broken
+would tell more than another benchmark round - and anything broken
 surfaces before step 10 (teaching) builds on it.
 
 ## Costs so far
@@ -159,11 +159,11 @@ LongMemEval) instead of token cost.
   conversations, consolidate, retrieve on demand. Their LOCOMO
   numbers: ~26% better answer accuracy than OpenAI's memory, with
   ~91% lower p95 latency than stuffing full conversation history
-  into context, and large token savings — the selective-retrieval
+  into context, and large token savings - the selective-retrieval
   trade on LOCOMO was 66.9% accuracy at 1.44s with ~90% fewer
   tokens, vs 72.9% at 17.12s for full context (atlan's summary of
   the paper). The graph variant (Mem0g) beat the flat variant by
-  ~2-4% on multi-hop questions — structure helps, a little.
+  ~2-4% on multi-hop questions - structure helps, a little.
 - **Zep / Graphiti** (arXiv 2501.13956): memory as a temporally
   aware knowledge graph; beats MemGPT on the Deep Memory Retrieval
   benchmark and on latency. Their argument matches our design:
@@ -172,7 +172,7 @@ LongMemEval) instead of token cost.
   Our staleness-by-hash is the code-native version of their
   temporal invalidation.
 - **Letta / MemGPT sleep-time compute**: consolidation happens
-  *asynchronously, while the user is away* — memory formation is
+  *asynchronously, while the user is away* - memory formation is
   incremental and gets messy, so a background agent reorganizes it
   off the critical path. This is the literature's version of our
   "armin records at end of turn, model writes when it chooses":
@@ -181,20 +181,20 @@ LongMemEval) instead of token cost.
   in-turn latency or tokens.
 
 **What this line says for us**: nobody evaluates memory by
-*per-session input-token delta on a two-session pair* — our
+*per-session input-token delta on a two-session pair* - our
 benchmark is unusually harsh. The standard metrics are accuracy on
 multi-session questions (which our tree condition mostly matched)
 plus latency plus total token cost over a whole workload. Also:
 the systems that work all do *extraction and consolidation outside
 the turn* (Mem0's pipeline, Letta's sleep-time, Zep's async graph
-updates). Our round-4 mistake — Q/A blobs recorded in-turn — is
+updates). Our round-4 mistake - Q/A blobs recorded in-turn - is
 what happens without a consolidation step; Mem0's answer is an
 extract-then-consolidate pipeline, not better in-turn recording.
 
 ### The coding-agent line (what actually got measured on code)
 
 - **AGENTS.md evaluation** (arXiv 2602.11988): a controlled study of
-  repository-level context files — the productized cousin of our
+  repository-level context files - the productized cousin of our
   frozen outline. Finding: context files *encourage broader
   exploration* (more files traversed, more thorough testing) and
   mixed-to-positive accuracy effects; they do not reliably reduce
@@ -202,30 +202,30 @@ extract-then-consolidate pipeline, not better in-turn recording.
   *more confidently*. A companion ablation (realm-1.5 workshop)
   found effectiveness "contradictory" across setups. This is
   precisely our s2 result: give the model a map and it still walks
-  the terrain — sometimes more of it.
+  the terrain - sometimes more of it.
 - **SWE-Explore** (arXiv 2606.07297): a benchmark isolating *how*
   agents explore repos (navigation, localization), independent of
-  patching. It exists because exploration is the unmeasured cost —
+  patching. It exists because exploration is the unmeasured cost -
   the same gap our benchmark targets. Their framing supports our
   benchmark design: exploration efficiency is a capability to
   measure in isolation, and binary resolved/not-resolved hides it.
 - **aider's repo map** (tree-sitter): the practical proof that a
   *compact structural map* (like our outline, but static and
-  syntax-derived) is the sweet spot for coding agents — aider
+  syntax-derived) is the sweet spot for coding agents - aider
   ships a map computed with graph ranking, not accumulated from
   sessions. Static, recomputed cheaply, no trust question.
 - **Agent KB** (arXiv 2507.06229) and **XferAgent**: cross-task,
-  cross-agent *experience reuse* — capture execution traces,
+  cross-agent *experience reuse* - capture execution traces,
   abstract them into reusable strategies, retrieve at planning
   time. Agent KB's key result: retrieving *abstracted lessons*
   (named strategies) at plan time works; retrieving raw traces
   doesn't. This is the strongest external support for our round-5
-  finding — pointers/lessons the model can weigh beat blobs of
+  finding - pointers/lessons the model can weigh beat blobs of
   transcript.
 
 ### The skill/experience line
 
-- **Voyager** (arXiv 2305.16291): the classic result — a *skill
+- **Voyager** (arXiv 2305.16291): the classic result - a *skill
   library* (verified, reusable, executable code) is the memory that
   compounds. Skills are validated by execution before being stored,
   which is why the agent trusts them. Our `tested` confidence level
@@ -246,18 +246,18 @@ extract-then-consolidate pipeline, not better in-turn recording.
    total-cost-per-workload, not per-pair input tokens. Our benchmark
    shows the tree matching accuracy at +21% pair tokens; Mem0's
    LOCOMO table would call that "competitive on accuracy, cost TBD
-   until amortized" — their own wins are amortized over hundreds of
+   until amortized" - their own wins are amortized over hundreds of
    interactions.
 2. **Consolidate outside the turn** (Letta's sleep-time, Mem0's
-   pipeline): a background pass — on session start, on the local
-   GPU (our minion!), or on close — that distills the sessions/
+   pipeline): a background pass - on session start, on the local
+   GPU (our minion!), or on close - that distills the sessions/
    pointers into the model-written tree: merge duplicates, promote
    oft-read pointers to proper claims with evidence, delete what
    nothing cited. This replaces "hope the model records well" with
    a scheduled digestion step, and it costs no chat tokens.
 3. **Store what's verified, not what's said** (Voyager, our `tested`
    level): pointer nodes with hash-backed `current` are the right
-   primitive — the at-ref staleness design is stronger than most of
+   primitive - the at-ref staleness design is stronger than most of
    the literature, which timestamps facts but doesn't verify them
    against the source. Keep leaning on it.
 4. **Abstracted lessons, not traces** (Agent KB): when the
@@ -267,13 +267,13 @@ extract-then-consolidate pipeline, not better in-turn recording.
    exactly this difference.
 5. **Static maps are the competition** (aider, AGENTS.md): before
    claiming the tree beats no-tree, compare against the cheap
-   alternative — a recomputed repo map in the system prompt, no
+   alternative - a recomputed repo map in the system prompt, no
    session state at all. If a static map gets most of s2's value,
    the tree's remaining job is the *cross-session* delta, which is
    H3's three-session measurement.
 
 And one cautionary thread: **memory poisoning** (arXiv 2606.24322
-and the GraphRAG extraction-attack line) — persistent memory
+and the GraphRAG extraction-attack line) - persistent memory
 inherits wrong or hostile content across sessions. Our authorship
 bits and minion-verification caps are already the right shape; the
 learner tree (user's own knowledge) is the sensitive one.
@@ -284,7 +284,7 @@ learner tree (user's own knowledge) is the sensitive one.
   cost, and our two-session pair may be measuring the wrong thing
   *by the field's own standards*. H1 (cached-token scoring) plus H3
   (three sessions) together are the honest measurement.
-- New experiment, from Letta: **sleep-time consolidation** — at
+- New experiment, from Letta: **sleep-time consolidation** - at
   session start (or on the minion between sessions), a cheap pass
   over `sessions/` that merges, promotes and prunes. This is
   plausibly where round 4's failure gets fixed without touching
@@ -328,7 +328,7 @@ wasn't kept, so they can't be re-scored.
 **What this changes.** The pair is no longer a loss; the remaining
 question is whether the tree *wins*, which needs either a longer
 horizon (H3) or a cheaper read side. Proposed next, ahead of
-consolidation: **automatic retrieval** (Mem0's shape) — armin runs
+consolidation: **automatic retrieval** (Mem0's shape) - armin runs
 know_find on the user's message itself (BM25, no model call) and
 puts the top node lines at the head of that message, so reading the
 tree costs no tool round and no read-side tool descriptions; the
@@ -390,7 +390,7 @@ logs reports/treebench8-run*.log. About $0.58 for 90 sessions.
 | all three | $0.320 | $0.263 | **−17.7%** | 276 vs 245 |
 
 Accuracy: tree 44/45, no tree 45/45. Each run on its own: −15.0%,
-−23.7%, −13.3% — the first round where every run agrees on the sign.
+−23.7%, −13.3% - the first round where every run agrees on the sign.
 Recall attached on 27 of 45 tree turns (every s2 and s3, no s1: the
 tree is empty there) and was used in 16 of 27.
 
@@ -462,7 +462,7 @@ it worse.** Accuracy tree 45/45, no tree 43/45.
 
 Where the money went, per run (pair costs already carry the
 consolidation charge, $0.0065 ± 0.001/run, ~41 calls over three runs
-at ~$0.0005 each — the pass itself is not the problem):
+at ~$0.0005 each - the pass itself is not the problem):
 
 - **run 3 is the whole regression.** No runaway session this time
   (largest tree turn $0.0164, in 118958, out 1758); instead the
@@ -478,7 +478,7 @@ Did consolidation work mechanically? Yes, on its own terms: ~41
 pointers consolidated into 51 claims + 4 links across the three
 runs (13-14 calls each, 1-2 empty), the promoted claims cite ranges
 that were actually shown, and run 3's staleness s3 answered largely
-from the tree's new `fact` nodes (8 tools vs plain's 6 — but see the
+from the tree's new `fact` nodes (8 tools vs plain's 6 - but see the
 next section). But it did not move the two numbers that matter:
 **s3 tools tree 76 vs plain 78** (round 8: 76 vs 99), and s3 dollars.
 
@@ -492,7 +492,7 @@ Two readings, and the data does not separate them yet:
    pairs' plain sides got cheap too (staleness plain s3: 6, 6, 11;
    roles: 8, 8, 9 vs round 8's 14, 8, 8). The variance is the confound.
 2. **Consolidation's claims arrived too late to help s3 in the pairs
-   that needed them** — the pass runs between s1 and s2 with at most 10
+   that needed them** - the pass runs between s1 and s2 with at most 10
    pointers per call and 3 claims per pointer, and the promoted claims
    answer *s1's question and its follow-up* (consolidatePrompt:
    "the follow-up most likely after it"), not s3's week-later question.

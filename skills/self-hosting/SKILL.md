@@ -1,6 +1,6 @@
 ---
 name: self-hosting
-description: Deploy and run self-hosted apps — Docker Compose stacks, Cloudflare Tunnel instead of open ports, JWT auth, secrets in .env, backups and restores, health checks. Load when working on deployment, containers or infrastructure.
+description: Deploy and run self-hosted apps - Docker Compose stacks, Cloudflare Tunnel instead of open ports, JWT auth, secrets in .env, backups and restores, health checks. Load when working on deployment, containers or infrastructure.
 ---
 ## Docker Compose
 - One service per process; pinned image versions, never `latest` in
@@ -30,7 +30,7 @@ description: Deploy and run self-hosted apps — Docker Compose stacks, Cloudfla
 ## Data
 - Backups on a schedule (e.g. `mysqldump` from a cron container),
   compressed, dated, copied off the host; retention policy.
-- Test restores — a backup never restored is a guess. Keep the
+- Test restores - a backup never restored is a guess. Keep the
   restore procedure in a script.
 - Migrations versioned and applied in order; never edit an applied
   one.

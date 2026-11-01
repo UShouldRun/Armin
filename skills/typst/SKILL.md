@@ -1,6 +1,6 @@
 ---
 name: typst
-description: Write and fix Typst documents (CVs, cover letters, reports, papers) in the user's conventions — set-rule preamble, small #let helpers with named none defaults, dense one-page CVs, justified letters — and compile to check. Load before touching any .typ file.
+description: Write and fix Typst documents (CVs, cover letters, reports, papers) in the user's conventions - set-rule preamble, small #let helpers with named none defaults, dense one-page CVs, justified letters - and compile to check. Load before touching any .typ file.
 ---
 ## Workflow
 1. Read the existing .typ first; reuse its helpers (`section`, `entry`,

@@ -1,6 +1,6 @@
 ---
 name: markdown
-description: Write and edit Markdown (READMEs, docs, notes, changelogs) in the user's conventions — prose wrapped at 80 columns or less if asked, tables exempt but column-aligned, fenced code with a language, one blank line between blocks. Load before writing or reformatting any .md file.
+description: Write and edit Markdown (READMEs, docs, notes, changelogs) in the user's conventions - prose wrapped at 80 columns or less if asked, tables exempt but column-aligned, fenced code with a language, one blank line between blocks. Load before writing or reformatting any .md file.
 ---
 ## Line width
 - Wrap every prose line at **80 characters or fewer**. If the user
@@ -40,7 +40,7 @@ description: Write and edit Markdown (READMEs, docs, notes, changelogs) in the u
 - One `#` title per file, then `##` sections; don't skip levels.
 - One blank line between blocks: before and after headings, lists,
   code fences, tables and block quotes. Never two blank lines.
-- `-` for bullets, `1.` for ordered steps (numbered 1, 2, 3 — not all
+- `-` for bullets, `1.` for ordered steps (numbered 1, 2, 3 - not all
   1s). Nested lists indent two spaces under the text.
 - Fenced code blocks with a language tag (` ```go `, ` ```sh `,
   ` ```text ` for plain output). No indented code blocks.
@@ -66,5 +66,5 @@ description: Write and edit Markdown (READMEs, docs, notes, changelogs) in the u
 ## Checking
 - Find lines over the limit (tables and code fences excepted) with
   read_file and count, or run_command:
-  `{"binary":"grep","args":["-nE",".{81,}","README.md"]}` — then
+  `{"binary":"grep","args":["-nE",".{81,}","README.md"]}` - then
   ignore matches inside tables (`|`-lines) and code fences.

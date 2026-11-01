@@ -1,11 +1,11 @@
-# Typst documents in the "Tuna" house style — Henrique's richest
+# Typst documents in the "Tuna" house style - Henrique's richest
 # Typst form. The plain typst skill covers CVs and letters; this one
 # covers the *designed document*: formal reports, riders, project
 # roadmaps. Everything below is extracted from
 # ~/Documents/tuna/sida.typ (the master example) and rider.typ.
 
 ## Workflow
-1. Read an existing .typ in this style before writing a new one —
+1. Read an existing .typ in this style before writing a new one -
    reuse the helpers instead of inventing new ones.
 2. Write the document with the structure below.
 3. `typst compile file.typ` must exit clean. A snap-installed typst
@@ -58,22 +58,22 @@
 
 ## Helper components (copy these, don't reinvent)
 
-- `note-box(body, bg: warn, border: warn-border, label: "Nota")` —
+- `note-box(body, bg: warn, border: warn-border, label: "Nota")` -
   a callout with a 3pt left stroke:
   `block(width: 100%, fill: bg, stroke: (left: 3pt + border),
   inset: 10pt/8pt, radius: 2pt)` with a bold colored label line.
   Variants: `label: "Importante"`, `label: "Atenção"` with
   `bg: red-bg, border: red-border`.
-- `step-block(num, title, body)` — a numbered process step:
+- `step-block(num, title, body)` - a numbered process step:
   `block(fill: accent, stroke: (left: 3pt + secondary))` holding a
   2-column grid: a 22pt circle box (`radius: 11pt`, `fill:
   secondary`) with the white number, and bold `primary` title + body.
-- `decision(condition, yes, no)` — a decision diamond: an italic
+- `decision(condition, yes, no)` - a decision diamond: an italic
   `⬦ Decisão: condition` header block, then a 2-column grid of a
   green `✓ Sim` panel and a red `✗ Não` panel, each
   `block(fill: green-bg, stroke: (left: 3pt + green-border),
   inset: 8pt, radius: 2pt)`.
-- `legend-item(color, label)` — a swatch + label 2-column grid.
+- `legend-item(color, label)` - a swatch + label 2-column grid.
 
 ## Tables (the house table)
 
@@ -94,7 +94,7 @@ white/light-grey body rows, thin grey strokes, generous inset.
 
 ## Figures
 
-`#figure(image("file.png", width: 100%), caption: [...])` —
+`#figure(image("file.png", width: 100%), caption: [...])` -
 numbered, referenceable from text ("na Figura 1"). For diagrams
 without an image file, draw with native Typst shapes (`rect`,
 `line`, `circle` inside a `ceti` block) or build the "figure" from
@@ -106,7 +106,7 @@ grids and boxes.
   technical ones. Match the existing document's language.
 - Section titles sentence-cased and short; the comment banner
   above each carries the numbering.
-- Em-dash `---` in Typst source renders as "—".
+- Em-dash `---` in Typst source renders as "-".
 - `\\` forces a line break where a grid cell needs it.
 - No filler: each section opens with its purpose in one sentence,
   then the structured content.
@@ -117,6 +117,6 @@ grids and boxes.
   (`$ls$`, `$callers$` are *unknown variables*). Use `code` or
   quotes: `` `ls` ``, `$O("cond")$` not `$O(cond)$`.
 - `#` in math mode is a function call, never use as a sigil.
-- `|word|` is absolute-value math, still an unknown variable —
+- `|word|` is absolute-value math, still an unknown variable -
   use quoted strings inside `$...$`.
 - A `snap` typst can't read `~/.config`, `~/.cache` or `/tmp`.

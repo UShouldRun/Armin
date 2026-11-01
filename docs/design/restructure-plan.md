@@ -16,7 +16,7 @@ Constraints for everything below: data structures as compact as
 possible, the most efficient algorithms that fit, no dependencies
 beyond `golang.org/x/sys`, and no JSON for the trees.
 
-## 1. Roles — settled
+## 1. Roles - settled
 
 | role | runs on | for | tools |
 |---|---|---|---|
@@ -62,7 +62,7 @@ chat model: there it is already in the provider's prompt cache, and a
 9B would read 50k+ tokens cold and summarize a bigger model's work
 worse. (Changed while building step 6.)
 
-## 2. The graph — settled
+## 2. The graph - settled
 
 Two stores, one type:
 
@@ -87,7 +87,7 @@ derived-from.
 **Authors** are interned once per (role, model, session, delegation)
 and referenced by a `uint16`.
 
-## 3. Layout and storage — settled
+## 3. Layout and storage - settled
 
 IDs are array indexes. Strings live in one arena (uvarint length +
 bytes); records hold 4-byte offsets.
@@ -153,7 +153,7 @@ change (a one-byte edit is always caught); FNV can be collided on
 purpose by a hostile repo; and it must never be used as an identity
 or dedup key.
 
-## 4. Algorithms — settled
+## 4. Algorithms - settled
 
 **a) `know_find(query, under?)`**: BM25 over name + claim with the
 library's tokenizer. Postings in CSR with the term frequency in 3 top
@@ -307,7 +307,7 @@ Open questions:
 5. ~~Fading at all?~~ Yes, read-only, with crystallized knowledge
    that never fades.
 
-## 5. Using the trees in context — settled
+## 5. Using the trees in context - settled
 
 **Outline (decided)**: the system prompt gets a depth-2 outline of
 the project tree with per-branch node counts, frozen at session
@@ -391,8 +391,8 @@ understood); output shrinks mostly through references.
 
 Measured, five rounds so far, and still open: the pair costs +21%
 input tokens, the read side works, and the gap is standing overhead
-plus amortization. The full experiment log — rounds, postmortems,
-hypotheses H1–H4 and their order — lives in
+plus amortization. The full experiment log - rounds, postmortems,
+hypotheses H1–H4 and their order - lives in
 **docs/design/restructure-tree-economics.md**. What the rounds
 settled for this plan: three tools not six (`know_find` with `ids`,
 `know_write` doing all writes, `know_trace`), auto-record as
@@ -401,7 +401,7 @@ the `at`-ref and `current` mark on node lines, and the trust rule on
 find results. What they left open: whether the tree pays for chat at
 all, or only in the advisor/teaching flow.
 
-## 6. The advisor flow — settled
+## 6. The advisor flow - settled
 
 **Probe (decided)**, in two stages:
 1. **self-report** per top-level area: never heard / heard of it /
@@ -552,7 +552,7 @@ static/js/markdown.js, highlight.js   rendering
 later: tree.js, learn.js (questions, plan panel), record.js (mic)
 ```
 
-## 7. Package layout — settled
+## 7. Package layout - settled
 
 ```
 internal/know/     NEW  the graph engine for both trees; imports only x/sys

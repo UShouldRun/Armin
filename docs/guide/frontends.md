@@ -13,7 +13,7 @@ not have in a terminal:
 - **Files** on the left (filter as you type); click one to preview it
   on the right: PDFs in the browser's own viewer, Markdown rendered,
   code with line numbers and syntax highlighting (Go, JS/TS, Python,
-  C/C++, Rust, Java, Lua, shell, SQL, Typst, JSON — a small built-in
+  C/C++, Rust, Java, Lua, shell, SQL, Typst, JSON - a small built-in
   highlighter, no library), images inline. The viewer opens with a
   file and closes with `×` or the **viewer** button; the browser
   remembers which.
@@ -42,7 +42,7 @@ not have in a terminal:
   file" puts the previewed file into your message.
 
 It's one HTML file with inline CSS and plain JavaScript, embedded in
-the binary — no build step, no libraries, nothing fetched from the
+the binary - no build step, no libraries, nothing fetched from the
 internet. It only binds to a loopback address, and rejects requests
 whose `Host` or `Origin` isn't local, so another site open in your
 browser can't drive it. Previewed project files are served as plain
@@ -61,7 +61,7 @@ session. `-add-dir` works here too.
 ```
 
 Exposes all 37 tools (see [tools.md](tools.md)) as MCP tools over stdio
-— point any MCP client at this command to reuse the same sandboxed
+- point any MCP client at this command to reuse the same sandboxed
 tool layer the REPL uses directly.
 
 ## LSP server mode
@@ -70,33 +70,33 @@ tool layer the REPL uses directly.
 ./armin -lsp -root /path/to/your/project
 ```
 
-A minimal Language Server, no diagnostics — this runs *alongside*
+A minimal Language Server, no diagnostics - this runs *alongside*
 your real language server, not instead of it:
 
-- **`textDocument/hover`** — explains the code under your cursor,
+- **`textDocument/hover`** - explains the code under your cursor,
   through the same agent loop and tools as the REPL (no streaming;
   LSP hover isn't incremental). Grounded in a ctags fact when the
   cursor sits on a known symbol, instead of the model guessing.
-- **`textDocument/definition`** / **`workspace/symbol`** — answered
+- **`textDocument/definition`** / **`workspace/symbol`** - answered
   entirely from a [Universal Ctags](https://ctags.io) index, no LLM
   involved, same as any compiled-index language server. Needs a
   `universal-ctags` binary on `PATH` or at `~/.local/bin/universal-ctags`
   (override with `-ctags-bin`); missing it just means these two
   return nothing, everything else still works.
-- **`textDocument/inlineCompletion`** — fast, non-agentic fill-in-
+- **`textDocument/inlineCompletion`** - fast, non-agentic fill-in-
   the-middle completion (no tool calls, no chat formatting) via a
   *separate* `llm.Client`, pointed at whatever `-completion-model`
   resolves to (defaults to `-model` itself, i.e. one llama-server for
   both), talking to llama-server's native `/infill` endpoint. Use a
-  real FIM-tuned code model here, not your chat model — the tool
+  real FIM-tuned code model here, not your chat model - the tool
   degrades gracefully (empty completions, one stderr warning) if the
   configured model can't do it.
-- **`workspace/executeCommand`** (`armin.ask`) — a free-form
+- **`workspace/executeCommand`** (`armin.ask`) - a free-form
   question about the project, same agent loop as hover.
 
 For Neovim, `editors/nvim/armin.lua` wraps all of this in commands
 (`:ArminLsp`, `:ArminAsk`, `:ArminModel`, `:ArminComplete`,
-`:ArminSuggest`, `:ArminStop`) using only `vim.lsp` — no plugin, and nothing starts
+`:ArminSuggest`, `:ArminStop`) using only `vim.lsp` - no plugin, and nothing starts
 or fires until you run a command yourself. See
 [`docs/nvim.md`](../nvim.md).
 

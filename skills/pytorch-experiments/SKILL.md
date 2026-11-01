@@ -1,6 +1,6 @@
 ---
 name: pytorch-experiments
-description: Run ML experiments in PyTorch with reproducible setups — fixed seeds, proper splits / k-fold, baselines, logged metrics, configs in files — and report results honestly. Load when training or evaluating models.
+description: Run ML experiments in PyTorch with reproducible setups - fixed seeds, proper splits / k-fold, baselines, logged metrics, configs in files - and report results honestly. Load when training or evaluating models.
 ---
 ## Setup
 - One config (dict / dataclass / YAML) per experiment: model,
@@ -10,7 +10,7 @@ description: Run ML experiments in PyTorch with reproducible setups — fixed se
   GPU nondeterminism remains unless deterministic algorithms are on.
 - Splits fixed and saved; the test set touched once, at the end.
   Use the dataset's official folds when it has them (e.g.
-  UrbanSound8K's 10 folds — never mix folds).
+  UrbanSound8K's 10 folds - never mix folds).
 - Class imbalance: report per-class metrics and macro averages, not
   only accuracy.
 
@@ -36,5 +36,5 @@ description: Run ML experiments in PyTorch with reproducible setups — fixed se
   chance level).
 - Mean ± std over seeds or folds; say how many.
 - Tables with the exact config; plots with labeled axes.
-- State what didn't work too — "PPO 60% vs. DQN 0% on unseen tracks"
+- State what didn't work too - "PPO 60% vs. DQN 0% on unseen tracks"
   is a result.

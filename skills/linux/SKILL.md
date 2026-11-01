@@ -1,6 +1,6 @@
 ---
 name: linux
-description: Diagnose and operate a Linux (Ubuntu) machine — processes, disk, memory, GPU, services, logs, networking, permissions, packages — reading state first and asking before anything destructive or system-wide. Load for system administration or "why is my machine…" questions.
+description: Diagnose and operate a Linux (Ubuntu) machine - processes, disk, memory, GPU, services, logs, networking, permissions, packages - reading state first and asking before anything destructive or system-wide. Load for system administration or "why is my machine…" questions.
 ---
 ## Read state first
 | Question | Command |
@@ -18,7 +18,7 @@ description: Diagnose and operate a Linux (Ubuntu) machine — processes, disk, 
 ## Processes
 - Stop politely first: `kill <pid>` (SIGTERM), wait, then
   `kill -9` only if it ignores that. `pkill -f pattern` matches full
-  command lines — check with `pgrep -af pattern` first.
+  command lines - check with `pgrep -af pattern` first.
 - Long jobs: run in the background with output to a log
   (`cmd > log 2>&1 &`) or in `tmux`, and check the log.
 
@@ -26,7 +26,7 @@ description: Diagnose and operate a Linux (Ubuntu) machine — processes, disk, 
 - On a nearly full root partition, look for caches first:
   `~/.cache`, old snap revisions (`snap list --all`), `docker system
   df`, `journalctl --disk-usage`. Large data (models, datasets) can
-  live on another partition — check `lsblk`/`df -h` for one with room.
+  live on another partition - check `lsblk`/`df -h` for one with room.
 - Never delete outside the user's own files without asking; show
   what would be removed and how much it frees.
 
@@ -38,7 +38,7 @@ description: Diagnose and operate a Linux (Ubuntu) machine — processes, disk, 
 
 ## Packages and system changes
 - Ubuntu: `apt list --installed`, `apt policy <pkg>`;
-  install with `sudo apt install <pkg>` — **ask first**; sudo,
+  install with `sudo apt install <pkg>` - **ask first**; sudo,
   package changes, services, firewall and kernel settings are
   system-wide.
 - Prefer user-level installs (`~/.local/bin`, `pipx`, `go install`)

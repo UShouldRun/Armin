@@ -1,6 +1,6 @@
 ---
 name: go-style
-description: The user's Go style — 2-space indent (not gofmt), spaced operators and braces, aligned columns, wrapped errors, bitmask flags, allocation-aware code. Load before writing or editing Go.
+description: The user's Go style - 2-space indent (not gofmt), spaced operators and braces, aligned columns, wrapped errors, bitmask flags, allocation-aware code. Load before writing or editing Go.
 ---
 Write Go exactly like this. The code is deliberately NOT gofmt-formatted;
 never run gofmt or goimports on it.
@@ -70,7 +70,7 @@ never run gofmt or goimports on it.
   ```
 
   Never `if err != nil { return err }` on one line, and never an
-  unbraced `if err != nil; return err` — Go allows it, this style
+  unbraced `if err != nil; return err` - Go allows it, this style
   doesn't.
 - Never declare in an `if` header. The statement goes on its own line
   above the `if`, which only tests:
@@ -91,7 +91,7 @@ never run gofmt or goimports on it.
 
 ## Types and memory
 - Sized integers where the domain has a width: `uint8`, `uint16`,
-  `uint32`, `int32` — and for ids, codes, enums and commands use small
+  `uint32`, `int32` - and for ids, codes, enums and commands use small
   integer types, not strings.
 - Two or more related booleans become one flags field:
 
@@ -113,7 +113,7 @@ never run gofmt or goimports on it.
   collection) don't allocate needlessly: scan and slice instead of
   `strings.Split`/`ToLower` on whole inputs, `scanner.Bytes()` over
   `Text()`, reuse buffers. Check total cost over a session, not one
-  call — e.g. append-only logs instead of rewriting everything.
+  call - e.g. append-only logs instead of rewriting everything.
 - No new dependencies; hand-roll protocol and system code with the
   standard library.
 

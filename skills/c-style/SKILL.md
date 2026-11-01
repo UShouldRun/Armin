@@ -1,6 +1,6 @@
 ---
 name: c-style
-description: The user's C style and repo layout — lib/<name>/{include,src,build} with public and _private headers, u8..u64 typedefs, __module_ private functions, column-aligned prototypes, packed bit encodings, arenas over malloc, makefile static libs. Load before writing or editing C.
+description: The user's C style and repo layout - lib/<name>/{include,src,build} with public and _private headers, u8..u64 typedefs, __module_ private functions, column-aligned prototypes, packed bit encodings, arenas over malloc, makefile static libs. Load before writing or editing C.
 ---
 ## Repo layout
 ```
@@ -29,7 +29,7 @@ docs/                       design notes (encodings, grammars)
 - Guards: `#ifndef __NAME_H__` / `#define __NAME_H__` /
   `#endif // !__NAME_H__`.
 - Public header: includes, a doc block, opaque types, prototypes.
-  Structs are opaque — `typedef struct arena Arena;` in the public
+  Structs are opaque - `typedef struct arena Arena;` in the public
   header, `struct arena { ... };` in `_private.h`. Some codebases
   typedef the pointer instead (`typedef struct chess_moves
   *ChessMoves;`); match whichever the codebase already uses.
@@ -58,9 +58,9 @@ docs/                       design notes (encodings, grammars)
   ```
 
 ## Naming
-- Public: `module_verb_object` — `arena_alloc`, `pool_get_size_used`,
+- Public: `module_verb_object` - `arena_alloc`, `pool_get_size_used`,
   `chess_position_play`.
-- Private: double underscore plus module — `__arena_is_full`,
+- Private: double underscore plus module - `__arena_is_full`,
   `__pool_free_region_find`, `__alloc_utils_max`. Small helpers are
   `static inline`.
 - Sizes and counts: `s_` prefix (`s_arena`, `s_alloc`, `s_block`),
@@ -104,7 +104,7 @@ docs/                       design notes (encodings, grammars)
 - Memory: arenas and pools (the user's `alloc` library) instead of
   scattered `malloc`/`free`; free whole lifetimes at once. Every
   allocation checked; every create has a destroy returning `bool`.
-- Data: pack state into machine words when it pays — bit fields in
+- Data: pack state into machine words when it pays - bit fields in
   `u32`/`u16` with documented layouts (a bit diagram in the private
   header), masks and shifts as named macros, `_ALL` masks with every
   bit set. Explain the encoding once, in the header, and keep the

@@ -1,6 +1,6 @@
 ---
 name: zsh
-description: Work in the user's zsh — how it differs from bash (no word splitting of unquoted variables, arrays start at 1, glob errors), writing .zshrc config, functions, completion, and avoiding bash-isms that silently break. Load when writing zsh config or commands that will run in zsh.
+description: Work in the user's zsh - how it differs from bash (no word splitting of unquoted variables, arrays start at 1, glob errors), writing .zshrc config, functions, completion, and avoiding bash-isms that silently break. Load when writing zsh config or commands that will run in zsh.
 ---
 The user's interactive shell is zsh. Commands typed or pasted there,
 and their `~/.zshrc`, follow zsh rules, not bash's.
@@ -32,7 +32,7 @@ and their `~/.zshrc`, follow zsh rules, not bash's.
 ## Config (~/.zshrc)
 - Back it up before editing (`cp ~/.zshrc ~/.zshrc.bak`) and change
   the smallest thing; never rewrite it wholesale.
-- PATH: `path=($HOME/.local/bin $path)` then `export PATH` — the
+- PATH: `path=($HOME/.local/bin $path)` then `export PATH` - the
   `path` array is tied to `$PATH`; `typeset -U path` drops duplicates.
 - Aliases and functions: `alias gs='git status'`;
   `mkcd() { mkdir -p -- "$1" && cd -- "$1" }`.

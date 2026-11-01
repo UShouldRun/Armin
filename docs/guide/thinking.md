@@ -6,7 +6,7 @@ A thinking model's reasoning (llama-server's `reasoning_content`;
 `--jinja` and the default `--reasoning-format` produce it) streams
 dimmed above the answer; `/thinking` hides it. It's sent back to the
 model within a turn, so the chain of thought survives across tool
-calls, and dropped when the turn ends — the same thing the chat
+calls, and dropped when the turn ends - the same thing the chat
 template does anyway, so the prompt cache isn't disturbed.
 
 Requests use a read-idle timeout instead of a whole-request one:

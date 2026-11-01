@@ -1,6 +1,6 @@
 ---
 name: git
-description: Work with git safely — inspect before changing, branch and commit the user's way, resolve conflicts, rebase/merge, recover with reflog, and never rewrite shared history or discard work without asking. Load for any git task beyond reading history.
+description: Work with git safely - inspect before changing, branch and commit the user's way, resolve conflicts, rebase/merge, recover with reflog, and never rewrite shared history or discard work without asking. Load for any git task beyond reading history.
 ---
 ## Look before you change anything
 - `git status`, `git diff` (unstaged), `git diff --staged`,

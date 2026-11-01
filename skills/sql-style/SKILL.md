@@ -1,9 +1,9 @@
 ---
 name: sql-style
-description: The user's SQL style — all lowercase, aligned column types, in_/v_ prefixes, one clause per line, and lean id-based queries that touch as little data as possible. Load before writing procedures, migrations or queries.
+description: The user's SQL style - all lowercase, aligned column types, in_/v_ prefixes, one clause per line, and lean id-based queries that touch as little data as possible. Load before writing procedures, migrations or queries.
 ---
 ## Case
-- Everything lowercase: keywords, built-in functions, types —
+- Everything lowercase: keywords, built-in functions, types -
   `create procedure`, `select`, `uuid_to_bin`, `varchar(255)`. This
   includes SQL inside application strings (`"call fetch_event(?)"`)
   and SQL built in strings for `prepare`.

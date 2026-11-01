@@ -67,7 +67,7 @@ directly, with its instructions inlined.
 (`~/.local/share/armin/scratch/<project>-<hash>/`). The model writes
 its plan, findings and long reasoning there with `scratchpad_write`,
 keeps only the file names in mind, and re-reads with
-`scratchpad_read` — so a long task doesn't need everything in
+`scratchpad_read` - so a long task doesn't need everything in
 context at once. Compaction summaries point at these files.
 `/scratch` lists them, `/scratch clear` empties it.
 
@@ -141,7 +141,7 @@ In the REPL:
 Each session has its **own scratchpad** (`scratch/<project>/<id>/`):
 its plan, archived tool results and thinking notes don't mix with
 another session's. **Memories** are shared by every session of the
-project (and user memories by every project) — durable facts should
+project (and user memories by every project) - durable facts should
 carry over; `/memory rm <name>` deletes one. Pass `-no-save` to keep
 a session off disk. Sessions saved before ids existed (one file per
 project) still list and resume.

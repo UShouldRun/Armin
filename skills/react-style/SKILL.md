@@ -1,9 +1,9 @@
 ---
 name: react-style
-description: The user's React/JSX and HTML style — spaced "=" on attributes, aligned attribute columns, padded { expr }, airy layout. Load before writing or editing JSX, TSX or HTML.
+description: The user's React/JSX and HTML style - spaced "=" on attributes, aligned attribute columns, padded { expr }, airy layout. Load before writing or editing JSX, TSX or HTML.
 ---
 Markup (JSX, TSX and plain HTML) follows one spaced style. Components
-and hooks follow the js-style skill as well — load it too for the
+and hooks follow the js-style skill as well - load it too for the
 non-markup parts.
 
 ## Attributes

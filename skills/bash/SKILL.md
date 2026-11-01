@@ -1,6 +1,6 @@
 ---
 name: bash
-description: Write and fix bash scripts that are safe and portable — strict mode, quoting, arrays, traps, argument parsing, shellcheck-clean — and run shell commands without surprises. Load before writing or editing a .sh file or a non-trivial one-liner.
+description: Write and fix bash scripts that are safe and portable - strict mode, quoting, arrays, traps, argument parsing, shellcheck-clean - and run shell commands without surprises. Load before writing or editing a .sh file or a non-trivial one-liner.
 ---
 ## Script header
 ```bash
@@ -15,7 +15,7 @@ IFS=$'\n\t'
 
 ## Quoting (most bugs live here)
 - Always quote expansions: `"$var"`, `"${arr[@]}"`, `"$(cmd)"`.
-- Unquoted `$var` is split on whitespace and glob-expanded — a file
+- Unquoted `$var` is split on whitespace and glob-expanded - a file
   name with a space breaks it.
 - `[[ ... ]]` for tests in bash (no word splitting inside); `[ ... ]`
   in POSIX sh, with every variable quoted.
@@ -30,7 +30,7 @@ IFS=$'\n\t'
   ```
 
 ## Control flow
-- `if cmd; then` tests the command's exit status — no `[ $? -eq 0 ]`.
+- `if cmd; then` tests the command's exit status - no `[ $? -eq 0 ]`.
 - Loop over lines safely: `while IFS= read -r line; do …; done < file`.
 - Loop over files with globs, not `ls`: `for f in ./*.go; do`.
 - `case` for argument parsing:

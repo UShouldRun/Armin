@@ -1,11 +1,11 @@
 ---
 name: code-review
-description: Review a diff or files for bugs first, then performance and style — loading the matching language style skill — and report findings ranked by severity with file:line and a concrete fix. Load when asked to review code.
+description: Review a diff or files for bugs first, then performance and style - loading the matching language style skill - and report findings ranked by severity with file:line and a concrete fix. Load when asked to review code.
 ---
 ## Steps
 1. Get the change: `working_tree_diff` / `git_diff` against the base,
    or the files named. Read enough surrounding code to understand
-   each change — callers (`find_callers`, `find_references`) and the
+   each change - callers (`find_callers`, `find_references`) and the
    types involved.
 2. Load the style skill for each language touched (go-style,
    c-style, cpp-style, js-style, react-style, sql-style).
@@ -23,12 +23,12 @@ description: Review a diff or files for bugs first, then performance and style �
      regression?
    - **Style**: per the style skill. Batch these; don't let them bury
      real bugs.
-4. Build and run the tests (`build_check`, `run_tests`) — a review
+4. Build and run the tests (`build_check`, `run_tests`) - a review
    that didn't compile the code says so.
 
 ## Report
 Ranked most severe first. For each finding:
-- `file:line` — one sentence stating the defect
+- `file:line` - one sentence stating the defect
 - the concrete scenario where it goes wrong (inputs → wrong result)
 - the fix, as a short code suggestion when it helps
 
