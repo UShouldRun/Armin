@@ -1,7 +1,7 @@
 // The startup logo as an image, on terminals that show images: the
 // mark's own PNG (made from the SVG, transparent around it), sized by
-// the terminal to the pixel logo's 8 rows. Otherwise Logo falls back
-// to the pixel art in logo.go.
+// the terminal to logoImageRows rows. Otherwise Logo falls back to
+// the pixel art in logo.go.
 //
 //   logoImage      print the image, if the terminal can and says its
 //                  background color (the mark is drawn for one)
@@ -43,6 +43,10 @@ const (
 // kittyChunk is the base64 a kitty escape carries at most.
 const kittyChunk = 4096
 
+// logoImageRows is the image's height in rows: three quarters of the
+// pixel logo's 8, its width following from the mark's proportions.
+const logoImageRows = 6
+
 // logoImage prints the mark as an image and reports whether it did:
 // only on a terminal with an image protocol, outside tmux, that
 // answers what its background is.
@@ -65,7 +69,7 @@ func logoImage() bool {
   // make room for the rows first, then draw at their top without
   // moving the cursor, and step past them: the header starts on the
   // same line whether the image showed or not
-  rows := len(logoGrid) / 2
+  rows := logoImageRows
   fmt.Print(strings.Repeat("\n", rows) + fmt.Sprintf("\x1b[%dA\x1b7", rows))
   if proto == protoKitty {
     fmt.Print(kittyImage(png, rows))
