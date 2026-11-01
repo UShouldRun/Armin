@@ -36,16 +36,16 @@
            sans-serif;
   --mono:  "JetBrainsMono Nerd Font", "JetBrains Mono", ui-monospace,
            "SF Mono", Menlo, Consolas, monospace;
-  --size:  15px;
-  --small: 13px;
-  --code-size: 13px;
+  --size:  17.25px;
+  --small: 15px;
+  --code-size: 15px;
 
   /* shape and space */
   --r:      8px;
   --r-lg:   14px;
-  --ctl:    32px;
+  --ctl:    36px;
   --shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 8px 24px rgb(0 0 0 / 6%);
-  --column: 780px;
+  --column: 860px;
 
   /* code: everblush, as in nvim */
   --code-bg:   #141b1e;
