@@ -83,6 +83,22 @@ func TestConsolidateWritesClaims(t *testing.T) {
   }
 }
 
+func TestPointerSourceWholeFile(t *testing.T) {
+  l, id := pointerLoop(t, "")
+  l.Know.AddEvidence(id, know.RefSession, "internal/session/store.go", 0)
+
+  _, excerpts := l.pointerSource(id)
+  last := excerpts[len(excerpts) - 1]
+  if last.header != "internal/session/store.go:1-4" {
+    t.Fatalf("a whole-file read of a 4-line file: %q", last.header)
+  }
+
+  _, err := l.rangeHash("internal/session/store.go", 1, 4)
+  if err != nil {
+    t.Fatal(err)
+  }
+}
+
 func TestConsolidateLinksASimilarClaim(t *testing.T) {
   l, pointer := pointerLoop(t,
     "sessions are appended never rewritten @ internal/session/store.go:1-4\n")

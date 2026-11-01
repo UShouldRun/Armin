@@ -213,7 +213,14 @@ func (l *Loop) consolidateOne(
 func (l *Loop) writeClaim(
   pointer know.NodeID, i int, text, ref string, author know.AuthorID,
 ) error {
-  path, _, _, _ := know.ParseRange(ref)
+  // the cited range must hash before anything is written, or a
+  // claim would be left with no evidence and no pointer
+  path, start, end, _ := know.ParseRange(ref)
+  _, err := l.rangeHash(path, start, end)
+  if err != nil {
+    return err
+  }
+
   area := filepath.Base(filepath.Dir(path))
   if area == "." || area == "/" {
     area = "project"
@@ -302,7 +309,8 @@ func (l *Loop) pointerSource(id know.NodeID) (string, []excerpt) {
       continue
     }
 
-    all := strings.Split(string(data), "\n")
+    // a final newline ends the last line; it doesn't start another
+    all := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
     end = min(end, len(all), start - 1 + consolidateLines - lines)
     if start > end {
       continue
