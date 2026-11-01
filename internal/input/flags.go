@@ -123,7 +123,7 @@ func parseFlags(fileCfg config.Config) cliFlags {
     "print what armin's deterministic systems did (tree recall, dedup, "+
       "staleness, delegation checks, every tool), then exit")
   flag.StringVar(&f.know, "know", "",
-    "show or change the project's knowledge tree, then exit: "+
+    "show or change the project's knowledge DAG, then exit: "+
       "dump[=path] prints it, edit[=path] opens it in $EDITOR, "+
       "import-memories moves memories that are code facts into it")
 

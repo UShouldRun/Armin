@@ -1,6 +1,6 @@
 package agent
 
-// The knowledge tree tools: what armin knows about the project, kept
+// The knowledge DAG tools: what armin knows about the project, kept
 // as nodes with evidence, confidence and authorship (package know).
 // Results are node lines (know.Graph.Line), one per node.
 //
@@ -40,7 +40,7 @@ var knowTools = []toolSpec{
     run:   runKnowFind,
     def: toolFunc(
       "know_find",
-      "Search the knowledge tree before exploring code: what is already "+
+      "Search the knowledge DAG before exploring code: what is already "+
         "known about the project, as one line per node (id, path, kind, "+
         "confidence, what it needs and what uses it, the claim). Read "+
         "code only for what it doesn't cover or marks STALE. With ids, "+
@@ -68,7 +68,7 @@ var knowTools = []toolSpec{
     run:   runKnowWrite,
     def: toolFunc(
       "know_write",
-      "Add what you established to the knowledge tree, so it isn't "+
+      "Add what you established to the knowledge DAG, so it isn't "+
         "rediscovered — or change what is there. Search first: don't "+
         "add what a node already says, update or link it instead. "+
         "Every concept needs a definition as its claim. Put reasoning "+

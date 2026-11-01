@@ -81,7 +81,7 @@ armin-test .
 ```
 
 `armin-test` keeps everything apart from the installed armin: its own
-config (`~/.config/armin-test`), sessions, memories, knowledge trees and
+config (`~/.config/armin-test`), sessions, memories, knowledge DAGs and
 metrics (`~/.local/share/armin-test`), and its own join socket, so it
 never joins or hosts the installed armin's sessions. The first run
 seeds its config from `config.conf.restructure` (or a copy of the

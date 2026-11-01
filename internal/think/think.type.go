@@ -36,7 +36,7 @@ type Mind struct {
   follows    bool
 
   Loop     *agent.Loop
-  Know     *know.Graph // the project's knowledge tree; nil if it can't open
+  Know     *know.Graph // the project's knowledge DAG; nil if it can't open
   knowOnce sync.Once
 
   // Startup is how long each step of starting took (startup.go).

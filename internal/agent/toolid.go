@@ -57,7 +57,7 @@ const (
   toolLibrarySearch
   toolLibraryTopics
 
-  // offered only with the project's knowledge tree (flagKnow)
+  // offered only with the project's knowledge DAG (flagKnow)
   toolKnowFind
   toolKnowWrite
   toolKnowTrace

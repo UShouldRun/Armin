@@ -131,7 +131,7 @@ func refreshKnow(root string, g *know.Graph) (string, error) {
     return "", nil
   }
 
-  return "knowledge tree: " + strings.Join(parts, ", "), nil
+  return "knowledge DAG: " + strings.Join(parts, ", "), nil
 }
 
 // stampOf stats path; false when it can't (gone, unreadable).

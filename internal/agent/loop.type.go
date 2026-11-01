@@ -47,7 +47,7 @@ type Loop struct {
   // them from the definitions.
   Library *library.Library
 
-  // Know is the project's knowledge tree; nil drops the know_*
+  // Know is the project's knowledge DAG; nil drops the know_*
   // tools. Session and Delegation say who writes to it (with Role
   // and the model): the session's id, and the delegation a minion
   // runs in (0 outside one). knowMu serializes the know tools, since

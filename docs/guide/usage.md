@@ -109,7 +109,7 @@ scripts get a plain buffered read.
 | `-install` | — | size a model up against this machine, then download it and add it to config.conf: `org/repo[:QUANT]`, `org/repo/file.gguf` or a local `.gguf` — see [models.md](models.md#installing-a-model) |
 | `-install-to` | where your models are | the folder `-install` downloads into (else `~/models`) |
 | `-uninstall` | — | remove a model: its `models.<name>` lines and its `.gguf`, unless another model uses it; `-uninstall list` shows every model and its size |
-| `-know` | — | the project's knowledge tree, then exit: `dump[=path]` prints it, `edit[=path]` opens it in `$EDITOR`, `import-memories` moves memories that cite code into it — see [memory.md](memory.md#the-knowledge-tree) |
+| `-know` | — | the project's knowledge DAG, then exit: `dump[=path]` prints it, `edit[=path]` opens it in `$EDITOR`, `import-memories` moves memories that cite code into it — see [memory.md](memory.md#the-knowledge-dag) |
 
 Flag defaults can also come from a config file (see [config.md](config.md)); explicit
 flags always win.

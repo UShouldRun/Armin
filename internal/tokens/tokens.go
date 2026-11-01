@@ -1,5 +1,5 @@
 // Package tokens splits text into the searchable terms both BM25
-// indexes use (the reference library and the knowledge trees), so a
+// indexes use (the reference library and the knowledge DAGs), so a
 // query matches the same way in each: lowercase runs of letters,
 // digits and "_", 2 to 32 bytes, no stopwords, a plural "s" dropped.
 package tokens

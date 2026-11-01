@@ -121,7 +121,7 @@ const knowRules = "Check it before exploring: know_find first; when nodes " +
 // itself (Loop.Recall): the nodes arrive above the user's message.
 const knowRecall = "armin searches it with each of the user's messages " +
   "and puts the closest nodes above the message, under \"[armin] From " +
-  "the knowledge tree\"; when they answer the question, answer from " +
+  "the knowledge DAG\"; when they answer the question, answer from " +
   "them. "
 
 // knowSection is the tree's part of the system prompt: the outline,
@@ -130,9 +130,9 @@ const knowRecall = "armin searches it with each of the user's messages " +
 func knowSection(tree *know.Graph, recall bool) string {
   var b strings.Builder
   if recall {
-    b.WriteString("\n\n# Knowledge tree (know_write)\n")
+    b.WriteString("\n\n# Knowledge DAG (know_write)\n")
   } else {
-    b.WriteString("\n\n# Knowledge tree (know_find, know_write)\n")
+    b.WriteString("\n\n# Knowledge DAG (know_find, know_write)\n")
   }
 
   outline := tree.Outline(outlineBytes)

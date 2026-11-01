@@ -291,13 +291,13 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
     }
   }
 
-  // The project's knowledge tree; without one, the know tools are
+  // The project's knowledge DAG; without one, the know tools are
   // simply not offered.
   t0 = time.Now()
   m.Know, err = openKnow(m.Sandbox.Root)
   m.took("loop.know-open", t0)
   if err != nil {
-    ui.Warn("knowledge tree: %s", err)
+    ui.Warn("knowledge DAG: %s", err)
   } else {
     loop.Know = m.Know
     loop.Recall = !cfg.NoRecall
@@ -305,7 +305,7 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
     msg, err := refreshKnow(m.Sandbox.Root, m.Know)
     m.took("loop.know-refresh", t0)
     if err != nil {
-      m.notice("knowledge tree: " + err.Error())
+      m.notice("knowledge DAG: " + err.Error())
     } else if msg != "" {
       m.notice(msg)
     }

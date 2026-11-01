@@ -23,7 +23,7 @@ header. The user forwards it both ways.
 ## The task under test: the tree benchmark, round 7
 
 Round 7 measures **recall**: instead of the model calling
-`know_find`, armin searches the knowledge tree itself (BM25, 3 hits,
+`know_find`, armin searches the knowledge DAG itself (BM25, 3 hits,
 0.4× floor) with the user's message and attaches the matching node
 lines above that message, so the model keeps only `know_write` —
 reading the tree costs no tool round and no read-side tool
@@ -412,7 +412,7 @@ two corrections to what you found:
 
 Why project-dirs s3 doesn't save is something else: **its third
 question is off-area.** Sessions 1 and 2 ask about chat sessions
-(`internal/session`); session 3 asks where the knowledge tree's files
+(`internal/session`); session 3 asks where the knowledge DAG's files
 are (`internal/know`). No node could have covered it. That's my
 question design, and I'll fix it before the next round.
 

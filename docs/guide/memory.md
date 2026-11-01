@@ -71,7 +71,7 @@ keeps only the file names in mind, and re-reads with
 context at once. Compaction summaries point at these files.
 `/scratch` lists them, `/scratch clear` empties it.
 
-## The knowledge tree
+## The knowledge DAG
 
 What armin establishes about a project, kept between sessions in
 `~/.local/share/armin/know/<project>-<hash>/`: nodes (topics,

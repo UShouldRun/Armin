@@ -30,7 +30,7 @@ rebuilding `armin-test` via `./install-test.sh` and eyeballing it.
    context line, bold session title. The old `model:` and
    "type /help" lines are gone. `TestBanner` updated accordingly.
 3. **Startup notice under the header, finally.** `refreshKnow`
-   queues the "knowledge tree: N stale …" summary inside
+   queues the "knowledge DAG: N stale …" summary inside
    `think.New`, before any frontend exists; the old single
    `go printNotices` in `display.Run` raced the banner and usually
    won, printing to stderr *above* it. Now each mode starts its own

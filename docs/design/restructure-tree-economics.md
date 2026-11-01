@@ -2,7 +2,7 @@
 
 Companion to docs/design/restructure-plan.md, which holds the
 settled design. This file is the experiment log for one question:
-**does the knowledge tree pay for its keep in chat?** Written as we
+**does the knowledge DAG pay for its keep in chat?** Written as we
 go; rounds are appended, never rewritten, so the reasoning that
 looked wrong stays visible.
 
@@ -432,7 +432,7 @@ holds, with two qualifiers, the second found checking its reading:
   already cheap (≤ $0.0032) there's little to save either way.
 - **project-dirs' third question is off-area.** Sessions 1 and 2 are
   about chat sessions (internal/session); the third asks where the
-  knowledge tree's files live (internal/know). The s1 pointer covers
+  knowledge DAG's files live (internal/know). The s1 pointer covers
   internal/session correctly and has nothing on internal/know, so that
   pair doesn't test compounding; its +65% run is noise on a question
   the tree couldn't cover. The question should move to the same area

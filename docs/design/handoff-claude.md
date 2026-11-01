@@ -1,9 +1,9 @@
-# Handoff: armin's knowledge tree, branch `restructure`
+# Handoff: armin's knowledge DAG, branch `restructure`
 
 You are continuing a multi-session effort on the `restructure` branch
 of armin (~/Code/armin), a terminal coding assistant written in Go
 backed by llama.cpp/OpenRouter models. This session (and the two
-before it) benchmarked the knowledge tree, fixed what the benchmark
+before it) benchmarked the knowledge DAG, fixed what the benchmark
 showed, did a literature pass, and split the design docs. Everything
 below is state as of the last commit; verify with `git log` and the
 files listed.

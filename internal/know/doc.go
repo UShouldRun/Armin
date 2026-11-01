@@ -1,4 +1,4 @@
-// Package know is the graph engine behind armin's knowledge trees: the
+// Package know is the graph engine behind armin's knowledge DAGs: the
 // project tree (what armin knows about a codebase and its topic) and
 // the learner tree (what the user knows). It imports nothing from the
 // rest of armin.

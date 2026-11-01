@@ -1,4 +1,4 @@
-// -know: the project's knowledge tree without a session.
+// -know: the project's knowledge DAG without a session.
 //
 //   dump[=path]       print the tree (or the subtree at path) as text
 //   edit[=path]       open that text in $EDITOR and load it back

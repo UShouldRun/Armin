@@ -127,13 +127,13 @@ func codedLine(g *Graph, b *strings.Builder, id NodeID) {
   }
 }
 
-const plainSystem = "You read results from armin's knowledge tree: one line " +
+const plainSystem = "You read results from armin's knowledge DAG: one line " +
   "per node. After the id and path come the kind and confidence; " +
   "\"minion-unverified\" marks a small model's claim nobody checked yet; " +
   "\"needs\" lists the nodes it depends on, \"used-by\" the nodes that " +
   "depend on it; STALE and SUSPECT mark claims whose evidence changed."
 
-const codedSystem = "You read results from armin's knowledge tree: one line " +
+const codedSystem = "You read results from armin's knowledge DAG: one line " +
   "per node: id, path, kind:confidence (kind T topic, C concept, F fact, " +
   "D decision, L file, S symbol, Q question; confidence g guess, i " +
   "inferred, c checked, t tested), m? a small model's claim nobody " +

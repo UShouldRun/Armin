@@ -50,7 +50,7 @@ func run() error {
     return display.Metrics()
   }
 
-  // -know works on the knowledge tree alone.
+  // -know works on the knowledge DAG alone.
   if opts.Mode == input.ModeKnow {
     return display.Know(opts)
   }

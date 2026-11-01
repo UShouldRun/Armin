@@ -30,7 +30,7 @@ import (
 // program, so the same result twice is a loop. Agent: needs approvals
 // or state, so MCP doesn't serve it. Session: needs a Loop's stores,
 // so ToolDefinitions leaves it out. The rest say which store (Know:
-// the project's knowledge tree; Minion: a minion model to delegate to;
+// the project's knowledge DAG; Minion: a minion model to delegate to;
 // Learner: the learner tree).
 const (
   flagWrite    toolFlags = 0b0000000000000001

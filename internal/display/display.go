@@ -132,11 +132,11 @@ func runREPL(
 
   r.Completion, r.Follower = mind.Completion, mind.Follower()
   // stored before the drain starts, and before Run prints the
-  // banner: startup notices (the knowledge tree summary) then
+  // banner: startup notices (the knowledge DAG summary) then
   // surface at the first prompt, under the header
   notices.Store(r)
   go printNotices(mind)
-  mind.Loop.Session = r.Meta.ID // who writes to the knowledge tree
+  mind.Loop.Session = r.Meta.ID // who writes to the knowledge DAG
   r.STT, r.STTRecord = opts.Config.STT, opts.Config.STTRecord
   r.RoleModels = map[agent.Role]string{
     agent.RoleMinion:  opts.Config.Minion,

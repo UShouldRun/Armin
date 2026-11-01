@@ -67,8 +67,13 @@ func (l *Loop) Consolidate(ctx context.Context, max int) (int, error) {
     return 0, fmt.Errorf("\n\t... in Consolidate:\n\t%w", err)
   }
 
+  // a local thinking model spent the whole 1024 on reasoning and
+  // replied empty (48 of 54 on armin-test): no thinking for local
   chore := *client.Chore()
   chore.MaxTokens = 1024
+  if chore.APIKey == "" {
+    chore.Effort = "none"
+  }
 
   done := 0
   for _, id := range l.pendingPointers(max) {

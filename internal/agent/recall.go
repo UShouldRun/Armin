@@ -1,4 +1,4 @@
-// Recall: armin searches the knowledge tree with the user's message
+// Recall: armin searches the knowledge DAG with the user's message
 // before the model sees it, and puts the closest nodes above that
 // message. Reading the tree then costs the model no tool round and no
 // read tool's description on every request; the system prompt stays
@@ -28,7 +28,7 @@ const (
   // a weak match is noise the model would have to read and discard.
   recallFloor = 0.4
 
-  recallHead = "[armin] From the knowledge tree (cite as [nN]):\n"
+  recallHead = "[armin] From the knowledge DAG (cite as [nN]):\n"
 )
 
 // recall attaches the tree's best matches for the turn's user message.

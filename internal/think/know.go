@@ -1,4 +1,4 @@
-// The project's knowledge tree and the user's learner tree: opened with
+// The project's knowledge DAG and the user's learner tree: opened with
 // the agent loop, compacted and closed at shutdown.
 
 package think

@@ -1,4 +1,4 @@
-# Restructure plan: roles and knowledge trees
+# Restructure plan: roles and knowledge DAGs
 
 Status: **steps 1-9 built** on branch `restructure`; step 10 (teaching)
 and 11 (end-to-end check) remain. The settled design lives here; the

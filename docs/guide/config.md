@@ -66,7 +66,7 @@ With a `minion` set, the copilot and advisor get `delegate`: a small,
 well-defined task handed to the minion with an acceptance check (the
 tests, the build, the linter or a command). The minion runs its own
 short turn; your approval still applies to its edits, and the advisor's
-minion never edits. What it adds to the knowledge tree stays marked as
+minion never edits. What it adds to the knowledge DAG stays marked as
 the minion's until the copilot or advisor verifies it; a passing check
 raises it from inferred to checked. While chat runs on a hosted model,
 armin's own small helper calls (titles, effort, library cataloging) go

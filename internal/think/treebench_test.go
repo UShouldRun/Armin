@@ -1,6 +1,6 @@
 package think
 
-// The knowledge tree's benchmark: the same model on the same pairs of
+// The knowledge DAG's benchmark: the same model on the same pairs of
 // real questions about armin's own code, with the tree and without.
 // Each pair is two fresh sessions: the first asks about an area, the
 // second follows up on it, where the tree should spare the model from
@@ -73,10 +73,10 @@ var benchPairs = []benchPair{
   },
   {
     name: "staleness",
-    first: "How does the knowledge tree (internal/know) notice that " +
+    first: "How does the knowledge DAG (internal/know) notice that " +
       "code cited as evidence changed or moved?",
     firstWant: []string{ `hash` },
-    second: "When a node of the knowledge tree goes stale, what happens " +
+    second: "When a node of the knowledge DAG goes stale, what happens " +
       "to the nodes that depend on it, and which function does it?",
     secondWant: []string{ `suspect`, `MarkSuspect` },
     third: "Where does armin keep the stamps of the files the tree " +
@@ -103,7 +103,7 @@ var benchPairs = []benchPair{
     first: "How does armin save chat sessions to disk?",
     firstWant: []string{ `append` },
     second: "How does armin name the per-project folders it keeps for " +
-      "memory, the scratchpad and the knowledge tree?",
+      "memory, the scratchpad and the knowledge DAG?",
     secondWant: []string{ `ProjectKey`, `hash` },
     // the same area as the first two (internal/session): an earlier
     // third question asked about internal/know, which no node could
