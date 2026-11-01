@@ -378,14 +378,14 @@ func TestRecordTurn(t *testing.T) {
       "The handshake is SYN, then ACK, in conn.go:3-6",
       [2]int{ 3, 6 }), 0,
   )
-  id, ok := l.Know.Lookup("sessions/how-does-the-handshake")
+  id, ok := l.Know.Lookup("sessions/handshake-work")
   if !ok {
     names := ""
     for _, c := range l.Know.Children(mustLookup(t, l, "sessions"), nil) {
       names += " " + l.Know.Name(c)
     }
 
-    t.Fatalf("no sessions/how-does-the-handshake; sessions has:%s", names)
+    t.Fatalf("no sessions/handshake-work; sessions has:%s", names)
   }
 
   n := l.Know.Node(id)
@@ -414,7 +414,7 @@ func TestRecordTurn(t *testing.T) {
     turnHistory("How does retransmit work?", "SYN, then ACK",
       [2]int{ 3, 6 }), 0,
   )
-  rt, ok := l.Know.Lookup("sessions/how-does-retransmit-work")
+  rt, ok := l.Know.Lookup("sessions/retransmit-work")
   if !ok || l.Know.Claim(rt) != "conn.go:3-6" {
     t.Fatalf("fallback claim: %q", l.Know.Claim(rt))
   }

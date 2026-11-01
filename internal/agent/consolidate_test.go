@@ -123,7 +123,31 @@ func TestUserTextAndSlug(t *testing.T) {
   }
 
   got := turnSlug("--> can you talk to Claude?")
-  if got != "can-you-talk-to" {
+  if got != "talk-claude" {
+    t.Fatalf("turnSlug = %q", got)
+  }
+}
+
+func TestUserTextCleansWhatWasAdded(t *testing.T) {
+  cases := []struct{ in, want string }{
+    { "fix the dirs\n\n(How to approach this fix task: First...)",
+      "fix the dirs" },
+    { "[00:00:01.000 --> 00:00:18.000] Hey, how does it work?",
+      "Hey, how does it work?" },
+    { "why is the logo text\n\n" + strings.Repeat("tX0gKpVK", 10),
+      "why is the logo text" },
+    { summaryMark + ", compacted to save context]\n# brief", "" },
+  }
+
+  for _, c := range cases {
+    got := userText(c.in)
+    if got != c.want {
+      t.Errorf("userText(%.30q) = %q, want %q", c.in, got, c.want)
+    }
+  }
+
+  got := turnSlug("ok, the file tree is correct now, but the dirs")
+  if got != "file-tree-correct-dirs" {
     t.Fatalf("turnSlug = %q", got)
   }
 }

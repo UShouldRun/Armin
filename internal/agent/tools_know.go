@@ -952,19 +952,23 @@ func (l *Loop) recordTurn(h []llm.Message, from int) {
     return
   }
 
-  // a similar turn already recorded: link this turn's evidence to it
-  for _, hit := range l.Know.Similar(parent, turnSlug(question), claim) {
+  // the same question already recorded: link this turn's evidence to
+  // it. Matched by name, not Similar: two questions reading the same
+  // code share most of a pointer's terms, and each needs its own
+  // claims from consolidation
+  slug := turnSlug(question)
+  have, ok := l.Know.Child(parent, slug)
+  if ok {
     for _, ref := range refs {
-      l.addEvidence(hit.ID, ref)
+      l.addEvidence(have, ref)
     }
 
-    l.Know.Touch(hit.ID)
+    l.Know.Touch(have)
     return
   }
 
   id, err := l.Know.AddNode(
-    parent, turnSlug(question), claim, know.KindFile, know.ConfChecked,
-    author,
+    parent, slug, claim, know.KindFile, know.ConfChecked, author,
   )
   if err != nil {
     return
@@ -1006,15 +1010,29 @@ func answerCites(answer string) []string {
   return out
 }
 
+// slugFiller are words a typed or spoken request carries that say
+// nothing about what it asks.
+var slugFiller = map[string]bool{
+  "a": true, "an": true, "and": true, "are": true, "be": true,
+  "but": true, "btw": true, "can": true, "could": true, "do": true,
+  "does": true, "going": true, "hey": true, "how": true, "i": true,
+  "in": true, "is": true, "it": true, "just": true, "me": true,
+  "my": true, "now": true, "of": true, "ok": true, "okay": true,
+  "on": true, "please": true, "pls": true, "so": true, "still": true,
+  "tell": true, "that": true, "the": true, "this": true, "to": true,
+  "want": true, "we": true, "what": true, "when": true, "where": true,
+  "which": true, "why": true, "wtf": true, "you": true, "your": true,
+}
+
 // turnSlug is a node name for a recorded turn: its first few
-// question words, lowercased, no punctuation.
+// question words that aren't filler, lowercased, no punctuation.
 func turnSlug(question string) string {
   var words []string
   for _, w := range strings.Fields(strings.ToLower(question)) {
     w = strings.TrimFunc(w, func(r rune) bool {
       return !unicode.IsLetter(r) && !unicode.IsDigit(r)
     })
-    if w == "" || len([]rune(w)) > 12 || !slugWord(w) {
+    if w == "" || len([]rune(w)) > 12 || !slugWord(w) || slugFiller[w] {
       continue
     }
 
@@ -1047,10 +1065,27 @@ func slugWord(w string) bool {
 // question.
 const questionPrefix = "question: "
 
+// What armin adds around a user's words, cut before recording: the
+// task hint aids.go appends, and the message compaction leaves.
+const (
+  hintMark    = "\n\n(How to approach this "
+  summaryMark = "[Summary of the earlier conversation"
+)
+
+// pastedWord is longer than any word a person types: base64, a hash,
+// a minified line pasted along with the question.
+const pastedWord = 40
+
+// transcriptStamp is a voice transcript's "[00:00:01.000 -->
+// 00:00:18.000]".
+var transcriptStamp = regexp.MustCompile(`\[[\d:.]+ --> [\d:.]+\]\s*`)
+
 // userText is what the user wrote: a user message without the blocks
 // armin put in front of it (the role reminder, recall's nodes), each
-// of which starts "[armin]" and ends with a blank line. A message that
-// is all armin's (a steer note) comes back empty.
+// of which starts "[armin]" and ends with a blank line, without the
+// task hint after it, transcript stamps or pasted blobs, on one line.
+// A message that is all armin's (a steer note, a compaction summary)
+// comes back empty.
 func userText(content string) string {
   for strings.HasPrefix(content, "[armin]") {
     i := strings.Index(content, "\n\n")
@@ -1061,5 +1096,23 @@ func userText(content string) string {
     content = content[i + 2:]
   }
 
-  return strings.TrimSpace(content)
+  if strings.HasPrefix(content, summaryMark) {
+    return ""
+  }
+
+  i := strings.Index(content, hintMark)
+  if i >= 0 {
+    content = content[:i]
+  }
+
+  content = transcriptStamp.ReplaceAllString(content, " ")
+
+  var words []string
+  for _, w := range strings.Fields(content) {
+    if len(w) <= pastedWord {
+      words = append(words, w)
+    }
+  }
+
+  return strings.Join(words, " ")
 }
