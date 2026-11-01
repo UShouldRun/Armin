@@ -4,9 +4,15 @@
 # check prints what it found and, for anything missing, exactly what
 # to do about it, mirroring the "degrade gracefully, never silently"
 # philosophy the tools themselves already follow (see README.md).
-# Safe to re-run any time (e.g. after `git pull`): it only ever
-# rebuilds/reinstalls the binary and never touches an existing
-# config.conf.
+# Safe to re-run any time (e.g. after `git pull`): it rebuilds and
+# reinstalls the binary, installs only what's missing, and never
+# touches an existing config.conf.
+#
+# What armin needs to run is installed when missing, after asking
+# (yes by default): Go to build it, llama.cpp's llama-server to run
+# local models, ripgrep to search code. A version control system it
+# supports (git) is checked for and recommended, never installed.
+# Optional tools are offered, and declining says what armin loses.
 #
 # Usage: ./install.sh [--prefix DIR] [--no-config] [--no-skills]
 #                     [--update-skills] [--install-deps | --no-deps]
@@ -17,9 +23,8 @@
 #   --no-config       skip writing a starter config.conf
 #   --no-skills       skip installing the bundled skills
 #   --update-skills   overwrite installed copies of the bundled skills
-#   --install-deps    install missing commands without asking
-#   --no-deps         only report missing commands, never offer to
-#                     install them
+#   --install-deps    install what's missing without asking
+#   --no-deps         only report what's missing, never install it
 #   --ram TYPE-SPEED  the system RAM, e.g. ddr5-5600, for armin
 #                     -install's estimates (default: read it with
 #                     dmidecode, which needs sudo, or ask)
@@ -42,8 +47,8 @@ usage() {
   echo "  --no-config       skip writing a starter config.conf"
   echo "  --no-skills       skip installing the bundled skills"
   echo "  --update-skills   overwrite installed copies of the bundled skills"
-  echo "  --install-deps    install missing commands without asking"
-  echo "  --no-deps         only report missing commands, never offer to install them"
+  echo "  --install-deps    install what's missing without asking"
+  echo "  --no-deps         only report what's missing, never install it"
   echo "  --library-sync    catalog new library books without asking (--no-library-sync: never)"
   echo "  --library-model M the model that catalogs them (default: config.conf's model)"
   echo "  --ram TYPE-SPEED  the system RAM, e.g. ddr5-5600 or ddr4-3200 1ch (default: detect or ask)"
@@ -130,14 +135,86 @@ err()  { printf '  %s✗%s %s\n' "$c_err" "$c_reset" "$1" >&2; }
 echo "armin install"
 echo
 
-# --- Go toolchain ---------------------------------------------------
-# go build itself enforces go.mod's minimum version — no need to
-# parse/compare semver here, just confirm a toolchain exists at all.
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/armin"
+config_path="$config_dir/config.conf"
 
-if ! command -v go >/dev/null 2>&1; then
-  err "go not found on PATH — install Go 1.23+ from https://go.dev/dl/ and re-run this script"
-  exit 1
+# want QUESTION asks yes-or-no for something armin needs: yes unless
+# the answer is no; --install-deps says yes, --no-deps says no, and a
+# script with no terminal gets yes.
+want() {
+  case "$deps" in
+    yes) return 0 ;;
+    no)  return 1 ;;
+  esac
+
+  [ -t 0 ] || return 0
+  printf '      %s [Y/n] ' "$1"
+  read -r answer || answer=y
+  case "$answer" in
+    n|N|no) return 1 ;;
+  esac
+
+  return 0
+}
+
+# fetch URL writes URL to stdout, with curl or wget.
+fetch() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$1"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO- "$1"
+  else
+    err "neither curl nor wget is installed: install one and re-run"
+    exit 1
+  fi
+}
+
+# --- Go toolchain ---------------------------------------------------
+# Go 1.21 and later fetch the exact toolchain go.mod asks for by
+# themselves, so anything from 1.21 builds armin. Older or missing,
+# the official release goes into ~/.local/go: no sudo, no distro
+# package that lags behind.
+
+go_usable() {
+  command -v go >/dev/null 2>&1 &&
+    go version | grep -Eq 'go1\.(2[1-9]|[3-9][0-9])|go[2-9]'
+}
+
+go_root="$HOME/.local/go"
+if ! go_usable && [ -x "$go_root/bin/go" ]; then
+  PATH="$go_root/bin:$PATH"
 fi
+
+if ! go_usable; then
+  warn "Go 1.21 or later is needed to build armin, and isn't installed"
+  if ! want "install the latest Go into $go_root?"; then
+    err "install Go from https://go.dev/dl/ and re-run this script"
+    exit 1
+  fi
+
+  case "$(uname -s)" in
+    Linux)  go_os=linux ;;
+    Darwin) go_os=darwin ;;
+    *)      err "no Go release for $(uname -s): install it by hand"; exit 1 ;;
+  esac
+
+  case "$(uname -m)" in
+    x86_64|amd64)  go_arch=amd64 ;;
+    aarch64|arm64) go_arch=arm64 ;;
+    *)             err "no Go release for $(uname -m): install it by hand"; exit 1 ;;
+  esac
+
+  go_version=$(fetch "https://go.dev/VERSION?m=text" | head -n 1)
+  rm -rf "$go_root"
+  mkdir -p "$HOME/.local"
+  fetch "https://go.dev/dl/$go_version.$go_os-$go_arch.tar.gz" |
+    tar -xz -C "$HOME/.local"
+  PATH="$go_root/bin:$PATH"
+  ok "installed $go_version into $go_root"
+  warn "add Go to your PATH in your shell rc:"
+  echo "      export PATH=\"$go_root/bin:\$PATH\""
+fi
+
 ok "$(go version)"
 
 # --- Build ------------------------------------------------------------
@@ -305,9 +382,44 @@ offer() {
   echo "      without them, armin can't do:$3"
 }
 
+# --- What armin can't run without ---------------------------------------
+
+if command -v rg >/dev/null 2>&1; then
+  ok "ripgrep found"
+elif [ -n "$install_cmd" ] &&
+  want "armin searches code with ripgrep, which isn't installed: install with $install_cmd $(pkg rg)?"; then
+  if sh -c "$install_cmd $(pkg rg)"; then
+    ok "installed ripgrep"
+  else
+    err "installing ripgrep failed: armin can't search code without it"
+  fi
+else
+  err "armin needs ripgrep to search code: install it and re-run"
+fi
+
+# --- Version control -------------------------------------------------------
+# armin reads history, diffs and blame through the version control
+# systems it has tools for; one of them must be on the system. It's
+# never installed here: which one a project uses is the user's call.
+
+vcs_supported="git"
+vcs=""
+for b in $vcs_supported; do
+  if command -v "$b" >/dev/null 2>&1; then
+    vcs="$vcs $b"
+  fi
+done
+
+if [ -n "$vcs" ]; then
+  ok "version control:$vcs"
+else
+  warn "no version control system armin supports ($vcs_supported) is installed"
+  echo "      without one, armin can't read history, diffs or blame (git_log,"
+  echo "      git_diff, git_show, git_blame, working_tree_diff). Git is the"
+  echo "      one to install: ${install_cmd:+$install_cmd }$(pkg git)"
+fi
+
 group "armin's own tools" \
-  "rg=search_code (finding code in the project)" \
-  "git=git history, diffs, blame and working-tree tools" \
   "pdftotext,pdfinfo=read_pdf (reading PDFs)" \
   "tree=directory trees through run_command" \
   "file=telling file types apart through run_command" \
@@ -344,15 +456,85 @@ if [ -n "$absent" ]; then
   echo "      not installed (run_program can't use them until you install them):$absent"
 fi
 
-# --- Required (running somewhere): llama-server ------------------------
+# --- llama.cpp: llama-server, for local models ---------------------------
+# Found on PATH, or named by a models.<name>.binary in config.conf, it
+# is left alone. Otherwise it is built from llama.cpp's own repository
+# into ~/.local/share/armin/llama.cpp, statically linked so the copy
+# put next to armin stands alone: with CUDA when the CUDA toolkit is
+# there, Metal on a Mac, the CPU otherwise.
 
+llama=""
 if command -v llama-server >/dev/null 2>&1; then
-  ok "llama-server found ($(command -v llama-server)) — armin can spawn/manage it itself via a models.<name> entry"
+  llama=$(command -v llama-server)
+elif [ -f "$config_path" ]; then
+  for b in $(sed -n 's/^ *models\.[^.]*\.binary *= *//p' "$config_path"); do
+    if [ -x "$b" ]; then
+      llama="$b"
+      break
+    fi
+  done
+fi
+
+if [ -n "$llama" ]; then
+  ok "llama-server found ($llama)"
+elif want "llama-server (llama.cpp) runs armin's local models and isn't installed: build it now?"; then
+  build_need=""
+  for b in cmake make; do
+    command -v "$b" >/dev/null 2>&1 || build_need="$build_need $(pkg "$b")"
+  done
+
+  if ! command -v c++ >/dev/null 2>&1; then
+    case "$pm" in
+      apt-get) build_need="$build_need build-essential" ;;
+      *)       build_need="$build_need $(pkg g++)" ;;
+    esac
+  fi
+
+  if [ -n "$build_need" ] && [ -n "$install_cmd" ]; then
+    sh -c "$install_cmd$build_need" || warn "installing$build_need failed"
+  fi
+
+  # the source: a git checkout kept up to date when git is there, an
+  # archive of the latest source otherwise
+  llama_src="${XDG_DATA_HOME:-$HOME/.local/share}/armin/llama.cpp"
+  llama_repo="https://github.com/ggml-org/llama.cpp"
+  mkdir -p "$(dirname "$llama_src")"
+  if [ -d "$llama_src/.git" ] && command -v git >/dev/null 2>&1; then
+    git -C "$llama_src" pull --ff-only -q
+  elif command -v git >/dev/null 2>&1; then
+    rm -rf "$llama_src"
+    git clone -q --depth 1 "$llama_repo" "$llama_src"
+  else
+    rm -rf "$llama_src"
+    mkdir -p "$llama_src"
+    fetch "$llama_repo/archive/refs/heads/master.tar.gz" |
+      tar -xz --strip-components=1 -C "$llama_src"
+  fi
+
+  gpu=""
+  if command -v nvcc >/dev/null 2>&1; then
+    gpu="-DGGML_CUDA=ON"
+    ok "building llama-server with CUDA"
+  elif command -v nvidia-smi >/dev/null 2>&1; then
+    warn "an NVIDIA GPU, but no CUDA toolkit (nvcc): building for the CPU"
+    echo "      install the CUDA toolkit and remove $llama_src/build, then"
+    echo "      re-run this script, for a llama-server that runs on the GPU"
+  fi
+
+  if cmake -S "$llama_src" -B "$llama_src/build" -DCMAKE_BUILD_TYPE=Release \
+       -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF $gpu >/dev/null &&
+     cmake --build "$llama_src/build" --config Release --target llama-server \
+       -j "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)" >/dev/null; then
+    cp "$llama_src/build/bin/llama-server" "$prefix/llama-server.new"
+    mv -f "$prefix/llama-server.new" "$prefix/llama-server"
+    ok "built llama-server: $prefix/llama-server"
+  else
+    err "building llama-server failed: see https://github.com/ggml-org/llama.cpp"
+  fi
 else
-  warn "llama-server not found on PATH"
-  echo "      build/install it from https://github.com/ggml-org/llama.cpp so armin"
-  echo "      can spawn it itself, or point -llama-url / config.conf's llama_url at"
-  echo "      one you already run elsewhere (see docs/guide/models.md)."
+  warn "no llama-server: local models won't run (a hosted model or a"
+  echo "      llama_url pointing at a server elsewhere still works; see"
+  echo "      docs/guide/models.md)"
 fi
 
 # --- Optional: docker (web_search) --------------------------------------
@@ -363,21 +545,42 @@ else
   warn "docker not found — web_search will report a clean \"unavailable\" error (everything else still works)"
 fi
 
-# --- Optional: universal-ctags (-lsp symbol features) -------------------
+# --- universal-ctags: the repo map and nvim's symbol features ----------
+# Debian names it ctags-universal; Fedora and Arch ship it as plain
+# ctags, which elsewhere is often Emacs's incompatible one.
 
-if command -v universal-ctags >/dev/null 2>&1; then
-  ok "universal-ctags found — -lsp definition/workspace-symbol/hover grounding enabled"
-elif [ -x "${HOME}/.local/bin/universal-ctags" ]; then
-  ok "universal-ctags found at ~/.local/bin/universal-ctags"
+uctags=""
+for b in universal-ctags ctags-universal; do
+  if command -v "$b" >/dev/null 2>&1; then
+    uctags=$(command -v "$b")
+    break
+  fi
+done
+
+if [ -z "$uctags" ] && [ -x "$HOME/.local/bin/universal-ctags" ]; then
+  uctags="$HOME/.local/bin/universal-ctags"
+fi
+
+if [ -z "$uctags" ] && command -v ctags >/dev/null 2>&1 &&
+   ctags --version 2>/dev/null | grep -q "Universal Ctags"; then
+  uctags=$(command -v ctags)
+fi
+
+if [ -n "$uctags" ]; then
+  ok "universal-ctags found ($uctags): the repo map and -lsp symbols work"
 else
-  warn "universal-ctags not found — -lsp's go-to-definition/workspace-symbol degrade gracefully without it"
-  echo "      (the plain \"ctags\" most distros ship is Emacs's, a different, incompatible tool — see docs/guide/install.md)"
+  case "$pm" in
+    apt-get|brew) ctags_pkg=universal-ctags ;;
+    *)            ctags_pkg=ctags ;;
+  esac
+
+  warn "universal-ctags not found"
+  offer "universal-ctags" " $ctags_pkg" "
+        - the repo map in the prompt, and -lsp's go-to-definition"
 fi
 
 # --- Starter config -------------------------------------------------------
 
-config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/armin"
-config_path="$config_dir/config.conf"
 env_path="$config_dir/.env"
 
 if [ "$write_config" -eq 1 ]; then
@@ -388,7 +591,8 @@ if [ "$write_config" -eq 1 ]; then
   else
     cat > "$config_path" <<'EOF'
 # key = value, "#" comments, nothing fancier — see docs/guide/config.md;
-# docs/guide/models.md for models.<name> blocks.
+# docs/guide/models.md for models.<name> blocks, and config.conf.example
+# in armin's repository for every key, explained.
 model     = chat
 llama_url = http://localhost:8080
 EOF

@@ -823,3 +823,12 @@ func TestConcurrentStartsSpawnOnce(t *testing.T) {
   }
 }
 
+
+func TestExpandHome(t *testing.T) {
+  home, _ := os.UserHomeDir()
+  if expandHome("~/m/x.gguf") != filepath.Join(home, "m/x.gguf") ||
+    expandHome("/abs/x.gguf") != "/abs/x.gguf" ||
+    expandHome("llama-server") != "llama-server" {
+    t.Fatal("a config path's ~/ should expand, nothing else")
+  }
+}

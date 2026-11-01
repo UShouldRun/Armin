@@ -1,0 +1,86 @@
+# armin's config: copy to ~/.config/armin/config.conf and edit.
+# key = value, "#" comments, nothing fancier. Every flag's default can
+# come from here; a flag on the command line wins. The guide is
+# docs/guide/config.md, models are docs/guide/models.md.
+
+# --- Models -------------------------------------------------------------
+# model is the one armin starts on; switch with /model <name>.
+
+model = local
+
+# A local model armin starts and stops itself (llama-server comes with
+# ./install.sh). armin adds lean defaults to args (one slot, flash
+# attention, a q8_0 KV cache); -c is the context window.
+models.local.binary       = llama-server
+models.local.model_path   = ~/models/Qwen3.5-9B-IQ4_XS.gguf
+models.local.port         = 8099
+models.local.args         = --jinja -ngl 999 -c 65536
+models.local.idle_timeout = 20m
+
+# A hosted model through an OpenAI-compatible API. The key isn't kept
+# here: api_key_env names a variable in the environment or in
+# ~/.config/armin/.env (mode 600).
+models.planner.url         = https://openrouter.ai/api/v1
+models.planner.api_key_env = OPENROUTER_API_KEY
+models.planner.id          = qwen/qwen3.8-27b
+models.planner.reasoning   = medium
+models.planner.private     = true
+
+# Or no models.<name> block at all: armin talks to a llama-server
+# already running at llama_url.
+# llama_url = http://localhost:8080
+
+# --- Roles ----------------------------------------------------------------
+# /minion, /copilot and /advisor switch role, each on its model: the
+# minion does small tasks locally, the copilot is the full agent, the
+# advisor explains, plans and teaches (docs/components/roles.md).
+
+minion  = local
+copilot = planner
+advisor = planner
+
+# --- How it thinks ----------------------------------------------------------
+
+effort = auto   # auto, off, low, medium, high (/effort in the chat)
+aids   = all    # all, none, or stuck,procedure,verify
+
+# The project's knowledge DAG and the repo map, both on by default.
+# recall   = off   # armin searching the DAG with each message
+# repo_map = off   # the static map of the project in the prompt
+
+# --- Limits ------------------------------------------------------------------
+
+max_output      = 8000   # bytes of a command's output kept
+max_tool_rounds = 50     # tool rounds per turn before it must report
+timeout         = 30s    # a command's time limit
+build_timeout   = 10m    # run_tests, build_check, lint_check
+# context_size  = 65536  # tokens; by default asked of llama-server
+
+# --- Commands -------------------------------------------------------------------
+# Added to the defaults, not replacing them. The test, build and lint
+# commands are guessed from the project when unset.
+
+# allow      = curl, docker      # run_command's read-only binaries
+# allow_exec = mpirun, bazel     # run_program's binaries
+# test_cmd   = go test ./...
+# build_cmd  = make
+# lint_cmd   = golangci-lint run
+
+# --- Reference library ----------------------------------------------------------
+# A folder of books, docs and man pages the agent searches and cites
+# (docs/guide/library.md).
+
+# library = ~/Documents/Library
+
+# --- Speech -------------------------------------------------------------------------
+# /voice records you and transcribes into the input: {wav} is the
+# recording. With no stt_record, armin finds parec, pw-record, arecord
+# or rec.
+
+# stt        = whisper-cli -m ~/models/ggml-large-v3-turbo-q5_0.bin -f {wav} -l auto -nt -np
+# stt_record = parec --rate=16000 --channels=1 --format=s16le --file-format=wav {wav}
+
+# --- This machine ---------------------------------------------------------------------
+
+# ram = ddr5-5600   # for armin -install's speed estimates
+# ctags_bin = ~/.local/bin/universal-ctags   # found by itself when on PATH

@@ -2,7 +2,9 @@
 
 ## Config file
 
-`~/.config/armin/config.conf` (or `$XDG_CONFIG_HOME/armin/config.conf`):
+`~/.config/armin/config.conf` (or `$XDG_CONFIG_HOME/armin/config.conf`).
+[config.conf.example](../../config.conf.example) in the repository
+has every section, explained: copy it there and edit. A small one:
 
 ```
 # key = value, "#" comments, nothing fancier

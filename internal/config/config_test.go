@@ -570,3 +570,18 @@ func TestLoadRoleModels(t *testing.T) {
     t.Fatalf("roles = %q %q %q", cfg.Minion, cfg.Copilot, cfg.Advisor)
   }
 }
+
+func TestStripComment(t *testing.T) {
+  cases := map[string]string{
+    "50     # rounds per turn":   "50     ",
+    "https://example.com/a#frag": "https://example.com/a#frag",
+    "auto\t# auto, off, low":     "auto\t",
+    "plain":                      "plain",
+  }
+
+  for in, want := range cases {
+    if stripComment(in) != want {
+      t.Errorf("stripComment(%q) = %q, want %q", in, stripComment(in), want)
+    }
+  }
+}

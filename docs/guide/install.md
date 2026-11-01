@@ -2,30 +2,41 @@
 
 ## Requirements
 
-- Go 1.23+ to build (the binary itself has no runtime dependencies)
-- [llama.cpp](https://github.com/ggml-org/llama.cpp)'s `llama-server`,
-  either already running (point armin at it with `-llama-url`) or on
-  `PATH` if you want armin to spawn/reap it itself (see [models.md](models.md))
-  - plus a tool-calling-capable `.gguf` model and,
-  for -lsp inline completion, a separate FIM-capable one
-- [ripgrep](https://github.com/BurntSushi/ripgrep) (`rg`) on `PATH` -
-  `search_code` shells out to it
-- Optional: [Docker](https://docker.com), for the `web_search` tool -
-  it runs a local [SearXNG](https://docs.searxng.org) instance,
-  started on first search and stopped on exit (see [tools.md](tools.md)).
-  Missing docker just means `web_search` reports a clean
-  "unavailable" error; everything else works as normal.
-- Optional: [Universal Ctags](https://ctags.io) (`universal-ctags`) for
-  `-lsp`'s go-to-definition and workspace-symbol search - not the
-  Emacs `ctags` many distros ship as `/usr/bin/ctags`, which is a
-  different, incompatible tool despite the name. Build it if your
-  package manager doesn't have `universal-ctags` separately:
-  ```sh
-  git clone --depth 1 https://github.com/universal-ctags/ctags.git
-  cd ctags && ./autogen.sh
-  ./configure --prefix="$HOME/.local" --program-prefix=universal-
-  make && make install
-  ```
+`./install.sh` makes sure of these, installing what's missing after
+asking (yes by default; `--install-deps` doesn't ask, `--no-deps`
+only reports):
+
+- **Go** 1.21 or later, to build armin (Go then fetches the exact
+  toolchain go.mod asks for). Missing or older, the latest release
+  goes into `~/.local/go`.
+- **llama.cpp's `llama-server`**, to run local models. Found on `PATH`
+  or named by a `models.<name>.binary` in config.conf, it's left
+  alone; otherwise it's built from source into
+  `~/.local/share/armin/llama.cpp` and installed beside armin, with
+  CUDA when the CUDA toolkit is installed, Metal on a Mac, the CPU
+  otherwise. Without one, a hosted model or a `llama_url` pointing at
+  a server elsewhere still works ([models.md](models.md)).
+- **[ripgrep](https://github.com/BurntSushi/ripgrep)** (`rg`):
+  `search_code` runs it.
+- **A version control system armin supports**: git, for now. It's
+  checked for, never installed: without one, the history, diff and
+  blame tools don't work, and install.sh recommends installing git.
+
+Offered, with what armin loses without each:
+
+- [Universal Ctags](https://ctags.io), for the repo map in the prompt
+  and `-lsp`'s go-to-definition. Not the Emacs `ctags` some distros
+  ship as `/usr/bin/ctags`, a different tool despite the name; armin
+  finds it as `universal-ctags`, `ctags-universal`, or a `ctags`
+  that is Universal Ctags.
+- [Docker](https://docker.com), for `web_search`: it runs a local
+  [SearXNG](https://docs.searxng.org), started on the first search and
+  stopped on exit ([tools.md](tools.md)). Without it, `web_search`
+  reports "unavailable" and everything else works.
+- The commands `run_command` and `run_program` use, in groups below.
+
+You also need a tool-calling `.gguf` model and, for `-lsp` inline
+completion, a fill-in-the-middle one ([models.md](models.md)).
 
 The Go module itself pulls in exactly one dependency,
 `golang.org/x/sys`, for the handful of raw-terminal-mode syscalls
@@ -52,8 +63,8 @@ since you may have edited it - `--update-skills` replaces them,
 any time, e.g. after `git pull`, to rebuild and reinstall.
 
 It also checks every command armin runs, in groups: armin's own
-tools (`rg`, `git`, `pdftotext`/`pdfinfo`, `tree`, `file`, the
-coreutils `run_command` allows), C and C++ builds (`make`, `gcc`,
+tools (`pdftotext`/`pdfinfo`, `tree`, `file`, the coreutils
+`run_command` allows), C and C++ builds (`make`, `gcc`,
 `g++`, `cmake`, `gdb`, `valgrind`), file transfer (`rsync`, `scp`)
 and MPI (`mpicc`, `mpirun`). For a group with something missing it
 shows the exact install command for your package manager (apt, dnf,
@@ -69,22 +80,6 @@ go build -o armin ./cmd/armin
 ```
 
 `install.sh` does nothing beyond that build, a copy onto `PATH`, the
-dependency checks above and, only when you say yes, installing what's
-missing - there's no hidden step you'd be skipping by not using it.
-
-
-## Trying a branch beside the installed armin
-
-```sh
-./install-test.sh            # builds this checkout as ~/.local/bin/armin-test
-armin-test .
-```
-
-`armin-test` keeps everything apart from the installed armin: its own
-config (`~/.config/armin-test`), sessions, memories, knowledge DAGs and
-metrics (`~/.local/share/armin-test`), and its own join socket, so it
-never joins or hosts the installed armin's sessions. The first run
-seeds its config with a copy of the installed config.conf, copies the
-API keys and links the skills; later runs only rebuild the binary. `--name` picks another name. It shares
-the configured llama-server ports, so with both running they use the
-same model server.
+dependency checks above and, when you say yes, installing what's
+missing (Go, llama-server, packages) - there's no hidden step you'd
+be skipping by not using it.

@@ -147,6 +147,19 @@ func LoadEnv() error {
   return nil
 }
 
+// stripComment cuts a trailing "# comment" off a value: a "#" after
+// whitespace starts one, a "#" inside a word (a URL's #fragment)
+// doesn't. A value can't hold " #" itself.
+func stripComment(value string) string {
+  for i := 1; i < len(value); i++ {
+    if value[i] == '#' && (value[i - 1] == ' ' || value[i - 1] == '\t') {
+      return value[:i]
+    }
+  }
+
+  return value
+}
+
 // Load reads the config file if it exists. A missing file is not
 // an error — it just means every field comes back zero-valued.
 func Load() (Config, error) {
@@ -186,7 +199,7 @@ func Load() (Config, error) {
     }
 
     key = strings.TrimSpace(key)
-    value = strings.TrimSpace(value)
+    value = strings.TrimSpace(stripComment(value))
 
     err := apply(&cfg, key, value)
     if err != nil {

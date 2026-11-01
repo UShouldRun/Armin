@@ -85,11 +85,13 @@ func (m *Manager) spawn(
     return m.spawnRemote(ctx, name, spec)
   }
 
+  // no shell runs these: config.conf's "~/" is expanded here
+  model := expandHome(spec.ModelPath)
   args := append(
-    []string{ "-m", spec.ModelPath, "--port", fmt.Sprint(spec.Port) },
+    []string{ "-m", model, "--port", fmt.Sprint(spec.Port) },
     serverArgs(spec)...,
   )
-  cmd := exec.Command(spec.Binary, args...)
+  cmd := exec.Command(expandHome(spec.Binary), args...)
   // Independent of ctx on purpose: this process must outlive
   // whatever single request triggered spawning it. Its lifetime is
   // owned entirely by the reaper and Shutdown below.

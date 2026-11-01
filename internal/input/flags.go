@@ -477,16 +477,18 @@ func firstNonZeroInt(a, b int) int {
   return b
 }
 
-// resolveCtagsBinary looks for a Universal Ctags binary without
-// spawning it: PATH first (as "universal-ctags", the name that
-// avoids colliding with Emacs's incompatible /usr/bin/ctags on many
-// distros), then the user-local install location armin's own docs
-// recommend building it to. Empty means the -lsp symbol features
-// degrade gracefully — see internal/ctags.
+// resolveCtagsBinary looks for a Universal Ctags binary: on PATH as
+// "universal-ctags" or Debian's "ctags-universal", then in
+// ~/.local/bin, then a plain "ctags" when it is Universal Ctags
+// (Fedora and Arch ship it under that name; elsewhere it is often
+// Emacs's incompatible one). Empty means the repo map and the -lsp
+// symbol features degrade gracefully — see internal/ctags.
 func resolveCtagsBinary() string {
-  p, err := exec.LookPath("universal-ctags")
-  if err == nil {
-    return p
+  for _, name := range []string{ "universal-ctags", "ctags-universal" } {
+    p, err := exec.LookPath(name)
+    if err == nil {
+      return p
+    }
   }
 
   home, err := os.UserHomeDir()
@@ -498,5 +500,15 @@ func resolveCtagsBinary() string {
     }
   }
 
-  return ""
+  p, err := exec.LookPath("ctags")
+  if err != nil {
+    return ""
+  }
+
+  out, err := exec.Command(p, "--version").Output()
+  if err != nil || !strings.Contains(string(out), "Universal Ctags") {
+    return ""
+  }
+
+  return p
 }
