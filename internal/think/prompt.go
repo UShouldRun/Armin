@@ -97,6 +97,20 @@ func buildSystemPrompt(
   return b.String()
 }
 
+// mapSection is the static repo map's part of the system prompt
+// (internal/repomap): built once at session start, so the prompt stays
+// byte-stable; "" without a map.
+func mapSection(repoMap string) string {
+  if repoMap == "" {
+    return ""
+  }
+
+  return "\n\n# Repository map\nThe project's files, the most " +
+    "referred-to first, with their main definitions and the line each " +
+    "starts on (fixed at session start; read_file for the code):\n" +
+    repoMap
+}
+
 // outlineBytes caps the tree's outline in the system prompt (~300
 // tokens). It is built once per session, so the prompt stays
 // byte-stable while the tree grows.

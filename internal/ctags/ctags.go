@@ -57,6 +57,12 @@ func New(root, binary string) *Index {
   }
 }
 
+// Root is the project directory the index covers; symbols' files
+// are relative to it.
+func (idx *Index) Root() string {
+  return idx.root
+}
+
 // Lookup returns every known definition of name, ranked so a match
 // in the same file as fromFile comes first, then a match in the
 // same directory, then everything else — ctags itself returns an
@@ -228,6 +234,9 @@ func parseLine(line string) (Symbol, bool) {
       }
     case "struct", "class", "interface", "package", "namespace":
       sym.Scope = key + ":" + value
+    case "unknown":
+      // a Go method's receiver, as "unknown:agent.Loop"
+      sym.Scope = "receiver:" + value
     }
   }
 

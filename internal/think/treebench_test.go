@@ -1,10 +1,13 @@
 package think
 
 // The knowledge DAG's benchmark: the same model on the same pairs of
-// real questions about armin's own code, with the tree and without.
-// Each pair is two fresh sessions: the first asks about an area, the
-// second follows up on it, where the tree should spare the model from
-// exploring again. Skipped unless ARMIN_TREEBENCH_MODEL is set:
+// real questions about armin's own code, in up to three arms: no tree,
+// the tree, and a static repo map in the prompt (internal/repomap, the
+// baseline: how much of the tree's value is any map at all). Each pair
+// is fresh sessions: the first asks about an area, the next follow up
+// on it, where the tree should spare the model from exploring again.
+// ARMIN_TREEBENCH_ARMS picks arms (default "plain,tree,map"). Skipped
+// unless ARMIN_TREEBENCH_MODEL is set:
 //
 //   ARMIN_TREEBENCH_URL=https://openrouter.ai/api/v1 \
 //   ARMIN_TREEBENCH_MODEL=qwen/qwen3.8-27b \
@@ -16,18 +19,22 @@ import (
   "context"
   "fmt"
   "os"
+  "os/exec"
   "path/filepath"
   "regexp"
+  "slices"
   "strings"
   "sync"
   "testing"
   "time"
 
   "armin/internal/agent"
+  "armin/internal/ctags"
   "armin/internal/know"
   "armin/internal/llm"
   "armin/internal/metrics"
   "armin/internal/notes"
+  "armin/internal/repomap"
   "armin/internal/sandbox"
 )
 
@@ -44,6 +51,25 @@ type benchPair struct {
 
 // sessions is how many sessions a pair runs.
 const sessions = 3
+
+// The arms: no tree, the tree, the static repo map.
+const (
+  armPlain = iota
+  armTree
+  armMap
+  arms
+)
+
+// armNames name the arms in the log; armFiles in the dump's file
+// names and ARMIN_TREEBENCH_ARMS.
+var (
+  armNames = [arms]string{ "no tree", "tree", "map" }
+  armFiles = [arms]string{ "plain", "tree", "map" }
+)
+
+// mapBytes is the repo map's budget, about 2k tokens: aider's default
+// map is 1k, and ours has no chat files to focus it.
+const mapBytes = 8000
 
 var benchPairs = []benchPair{
   {
@@ -199,18 +225,49 @@ func TestTreeBench(t *testing.T) {
     os.MkdirAll(dump, 0o755)
   }
 
-  // pair, tree?, session
-  results := make([][2][sessions]benchRun, len(benchPairs))
+  var on [arms]bool
+  for _, a := range strings.Split(
+    benchEnv("ARMIN_TREEBENCH_ARMS", "plain,tree,map"), ",",
+  ) {
+    i := slices.Index(armFiles[:], strings.TrimSpace(a))
+    if i < 0 {
+      t.Fatalf("ARMIN_TREEBENCH_ARMS: no arm %q", a)
+    }
+
+    on[i] = true
+  }
+
+  // the map, built once: every session of the map arm sees the same
+  repoMap := ""
+  if on[armMap] {
+    repoMap = repomap.Build(
+      context.Background(), ctags.New(root, benchCtags(t)), mapBytes,
+    )
+    t.Logf("MAP %d bytes, %d files", len(repoMap),
+      strings.Count(repoMap, "\n") / 2)
+  }
+
+  // pair, arm, session
+  results := make([][arms][sessions]benchRun, len(benchPairs))
   var wg sync.WaitGroup
   for pi, pair := range benchPairs {
-    for cond := 0; cond < 2; cond++ {
+    for cond := range arms {
+      if !on[cond] {
+        continue
+      }
+
       wg.Add(1)
       go func() {
         defer wg.Done()
 
         var tree *know.Graph
-        if cond == 1 {
+        if cond == armTree {
           tree = know.New()
+        }
+
+        sessionMap := ""
+        if cond == armMap {
+          sessionMap = repoMap
         }
 
         questions := [sessions]string{ pair.first, pair.second, pair.third }
@@ -221,7 +278,7 @@ func TestTreeBench(t *testing.T) {
         for si, q := range questions {
           want := wants[si]
 
-          run := benchSession(t, client(), sb, tree, q, want)
+          run := benchSession(t, client(), sb, tree, sessionMap, q, want)
           if tree != nil && consolidate && si < sessions - 1 {
             benchConsolidate(t, client(), sb, tree)
           }
@@ -229,7 +286,7 @@ func TestTreeBench(t *testing.T) {
           results[pi][cond][si] = run
           if dump != "" {
             name := fmt.Sprintf("%s/%s-%s-%d.md", dump, pair.name,
-              []string{ "plain", "tree" }[cond], si + 1)
+              armFiles[cond], si + 1)
             os.WriteFile(name, []byte(fmt.Sprintf(
               "%s\n\nright %v, %d prompt (%d cached), %d completion, "+
                 "$%.5f, %d rounds, %d tools\n\n"+
@@ -246,15 +303,19 @@ func TestTreeBench(t *testing.T) {
 
   wg.Wait()
 
-  var total [2][sessions]benchRun
+  var total [arms][sessions]benchRun
   for pi, pair := range benchPairs {
-    for cond := 0; cond < 2; cond++ {
+    for cond := range arms {
+      if !on[cond] {
+        continue
+      }
+
       for si := 0; si < sessions; si++ {
         r := results[pi][cond][si]
         t.Logf(
           "%-13s %-7s s%d  right %-5v  in %7d (cached %7d)  out %6d  "+
             "$%.5f  rounds %2d  tools %2d",
-          pair.name, []string{ "no tree", "tree" }[cond], si + 1, r.right,
+          pair.name, armNames[cond], si + 1, r.right,
           r.prompt, r.cached, r.completion, r.cost, r.rounds, r.tools,
         )
         tot := &total[cond][si]
@@ -268,7 +329,11 @@ func TestTreeBench(t *testing.T) {
     }
   }
 
-  for cond := 0; cond < 2; cond++ {
+  for cond := range arms {
+    if !on[cond] {
+      continue
+    }
+
     for si := 0; si < sessions; si++ {
       right := 0
       for pi := range benchPairs {
@@ -281,7 +346,7 @@ func TestTreeBench(t *testing.T) {
       t.Logf(
         "TOTAL %-7s session %d: %d/%d right, in %d (cached %d), out %d, "+
           "$%.4f, rounds %d, tools %d",
-        []string{ "no tree", "tree" }[cond], si + 1, right, len(benchPairs),
+        armNames[cond], si + 1, right, len(benchPairs),
         tot.prompt, tot.cached, tot.completion, tot.cost, tot.rounds, tot.tools,
       )
     }
@@ -297,10 +362,10 @@ func TestTreeBench(t *testing.T) {
       snap["recall.empty"].Count)
   }
 
-  // what all the sessions cost in dollars, tree against no tree, the
-  // consolidation passes charged to the tree
-  var pair [2]float64
-  for cond := 0; cond < 2; cond++ {
+  // what all the sessions cost in dollars, each arm against no tree,
+  // the consolidation passes charged to the tree
+  var pair [arms]float64
+  for cond := range arms {
     for si := 0; si < sessions; si++ {
       pair[cond] += total[cond][si].cost
     }
@@ -308,7 +373,7 @@ func TestTreeBench(t *testing.T) {
 
   cons := snap["know.consolidate.cost"]
   if cons.Count > 0 {
-    pair[1] += cons.Sum
+    pair[armTree] += cons.Sum
     t.Logf("CONSOLIDATE calls %d, $%.4f, pointers %d, claims %d, "+
       "linked %d, empty %d",
       cons.Count, cons.Sum, snap["know.consolidate.pointers"].Count,
@@ -317,17 +382,60 @@ func TestTreeBench(t *testing.T) {
       snap["know.consolidate.empty"].Count)
   }
 
-  if pair[0] > 0 {
-    t.Logf("PAIR COST no tree $%.4f, tree $%.4f, delta %+.1f%%",
-      pair[0], pair[1], 100 * (pair[1] - pair[0]) / pair[0])
+  if pair[armPlain] == 0 {
+    return
   }
+
+  line := fmt.Sprintf("PAIR COST no tree $%.4f", pair[armPlain])
+  for _, cond := range []int{ armTree, armMap } {
+    if on[cond] {
+      line += fmt.Sprintf(", %s $%.4f (%+.1f%%)", armNames[cond],
+        pair[cond], 100 * (pair[cond] - pair[armPlain]) / pair[armPlain])
+    }
+  }
+
+  t.Log(line)
+}
+
+// benchEnv is the environment variable, or def when it's unset.
+func benchEnv(name, def string) string {
+  v := os.Getenv(name)
+  if v == "" {
+    return def
+  }
+
+  return v
+}
+
+// benchCtags is Universal Ctags, from ARMIN_TREEBENCH_CTAGS, the PATH
+// or ~/.local/bin; the map arm can't run without it.
+func benchCtags(t *testing.T) string {
+  p := os.Getenv("ARMIN_TREEBENCH_CTAGS")
+  if p != "" {
+    return p
+  }
+
+  p, err := exec.LookPath("universal-ctags")
+  if err == nil {
+    return p
+  }
+
+  home, _ := os.UserHomeDir()
+  p = filepath.Join(home, ".local", "bin", "universal-ctags")
+  _, err = os.Stat(p)
+  if err != nil {
+    t.Fatal("the map arm needs universal-ctags (ARMIN_TREEBENCH_CTAGS)")
+  }
+
+  return p
 }
 
 // benchSession runs one fresh session: armin's own system prompt (with
-// the tree's section when there is a tree), one question, read-only.
+// the tree's section when there is a tree, the map's when there is a
+// map), one question, read-only.
 func benchSession(
   t *testing.T, client *llm.Client, sb *sandbox.Config, tree *know.Graph,
-  question string, want []string,
+  repoMap, question string, want []string,
 ) benchRun {
   loop := agent.New(client, sb)
   loop.ReadOnly = true
@@ -344,7 +452,7 @@ func benchSession(
   loop.Recall = recall
   system := buildSystemPrompt(
     basePrompt, sb.Root, mem, &notes.Skills{}, nil, tree, recall,
-  )
+  ) + mapSection(repoMap)
   history := []llm.Message{
     { Role: "system", Content: system },
     { Role: "user", Content: question },

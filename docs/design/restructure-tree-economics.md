@@ -508,3 +508,21 @@ the pass stays as hygiene (dedupe, at-refs) and the money moves to
 what round 8 actually showed paying: recall attach rate, which held
 at 10/15 turns and 5-10 used in round 9.
 
+
+## The static repo-map baseline (built 2026-11-01, not yet run)
+
+The round 8 open question: how much of the tree's value is just "a
+map in the prompt"? `internal/repomap` builds aider's repo map without
+tree-sitter or a graph: the definitions Universal Ctags finds
+(functions, types, constants; no variables or fields, no tests), each
+file ranked by how often the rest of the project names what it
+defines (an unexported Go name counted only inside its package, a
+name defined in k files split k ways), the top 4 per file, cut to
+8000 bytes (~2k tokens). On armin itself: 84 of 269 files, built in
+0.25 s, byte-stable across sessions.
+
+The bench gained a third arm, `map`: no tree, the map in the system
+prompt (`mapSection`, think/prompt.go). `ARMIN_TREEBENCH_ARMS` picks
+arms (default `plain,tree,map`); PAIR COST prints each arm against
+no tree. One run of plain + map costs about $0.20 on Qwen 3.8 27B;
+all three about $0.30 (round 9: ~$0.10 per arm per run).
