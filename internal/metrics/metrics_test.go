@@ -15,7 +15,7 @@ func TestFlushMergesAndReports(t *testing.T) {
 
   Add("recall.turns", 4)
   Add("recall.attached", 2)
-  Add("recall.used", 1)
+  Add("recall.cited", 1)
   Observe("tool.read_file.ms", 3)
   Observe("tool.read_file.ms", 5)
   err := Flush()
@@ -43,7 +43,7 @@ func TestFlushMergesAndReports(t *testing.T) {
   out := b.String()
   if !strings.Contains(out, "recall attached, of turns") ||
     !strings.Contains(out, "20.0%  (2 of 10)") ||
-    !strings.Contains(out, "recall used by the model, of attached") {
+    !strings.Contains(out, "recall cited by the model, of attached") {
     t.Fatalf("report:\n%s", out)
   }
 }

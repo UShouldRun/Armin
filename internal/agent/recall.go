@@ -5,14 +5,15 @@
 // byte-stable, since only the new message changes.
 //
 //   recall        at the start of a turn: search, attach, remember
-//   recallSettle  at its end: did the model use what was attached
-//                 (cite [nN], or read a recalled node's at-ref file)?
+//   recallSettle  at its end: did the model cite what was attached
+//                 ([nN]), or only read a recalled node's file?
 
 package agent
 
 import (
   "fmt"
   "path/filepath"
+  "slices"
   "strings"
 
   "armin/internal/know"
@@ -79,38 +80,44 @@ func (l *Loop) recall(history []llm.Message) {
     "nodes", len(ids), "top", fmt.Sprintf("n%d", ids[0]))
 }
 
-// recallSettle counts whether the turn used what recall attached: an
-// answer citing one of the nodes, or a read of a recalled node's file.
+// recallSettle counts whether the turn used what recall attached. A
+// citation of one of the nodes is the only sure sign: reading a
+// recalled node's file is counted apart, since the model often reads
+// that file anyway.
 func (l *Loop) recallSettle(history []llm.Message, from int) {
   if len(l.recalled) == 0 {
     return
   }
 
-  used := false
-  for _, m := range history[min(from, len(history)):] {
-    if m.Role != "assistant" {
-      continue
-    }
-
-    for _, id := range l.recalled {
-      if strings.Contains(m.Content, fmt.Sprintf("[n%d]", id)) {
-        used = true
+  cited := 0
+  read := false
+  for _, id := range l.recalled {
+    tag := fmt.Sprintf("[n%d]", id)
+    for _, m := range history[min(from, len(history)):] {
+      if m.Role == "assistant" && strings.Contains(m.Content, tag) {
+        cited++
+        break
       }
     }
+  }
 
+  for _, m := range history[min(from, len(history)):] {
     for _, c := range m.ToolCalls {
       p, _ := c.Function.Arguments["path"].(string)
-      for _, f := range l.recalledFiles {
-        if p != "" && filepath.Clean(p) == f {
-          used = true
-        }
+      if p != "" && slices.Contains(l.recalledFiles, filepath.Clean(p)) {
+        read = true
       }
     }
   }
 
-  if used {
-    metrics.Add("recall.used", 1)
+  switch {
+  case cited > 0:
+    metrics.Add("recall.cited", 1)
+    metrics.Observe("recall.cited.nodes", float64(cited))
+  case read:
+    metrics.Add("recall.read", 1)
   }
 
-  metrics.Event("recall.settle", "used", used, "nodes", len(l.recalled))
+  metrics.Event("recall.settle",
+    "cited", cited, "read", read, "nodes", len(l.recalled))
 }

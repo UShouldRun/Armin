@@ -44,8 +44,21 @@ func TestRecallAttachesAndSettles(t *testing.T) {
   })
   l.recallSettle(history, 2)
   snap := metrics.Snapshot()
-  if snap["recall.attached"].Count != 1 || snap["recall.used"].Count != 1 {
+  if snap["recall.attached"].Count != 1 || snap["recall.cited"].Count != 1 {
     t.Fatalf("metrics: %+v", snap)
+  }
+
+  // a read of a recalled node's file, no citation: read, not cited
+  l.recalledFiles = append(l.recalledFiles, "testdata/x.json")
+  history[2] = llm.Message{ Role: "assistant", ToolCalls: []llm.ToolCall{
+    { Function: llm.ToolCallFunction{
+      Name: "read_file", Arguments: map[string]any{ "path": "testdata/x.json" },
+    } },
+  } }
+  l.recallSettle(history, 2)
+  snap = metrics.Snapshot()
+  if snap["recall.cited"].Count != 1 || snap["recall.read"].Count != 1 {
+    t.Fatalf("a read without a citation: %+v", snap)
   }
 }
 
@@ -60,8 +73,8 @@ func TestRecallNothingMatches(t *testing.T) {
   }
 
   l.recallSettle(history, 0)
-  if metrics.Snapshot()["recall.used"].Count != 0 {
-    t.Fatal("used counted with nothing attached")
+  if metrics.Snapshot()["recall.cited"].Count != 0 {
+    t.Fatal("cited counted with nothing attached")
   }
 }
 

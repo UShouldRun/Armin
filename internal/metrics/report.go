@@ -1,6 +1,6 @@
 // The report armin -metrics prints: every metric of the cumulative
 // file grouped by system, then the derived rates that say whether a
-// system helps (recall used, dedup held, stamps skipping reads...).
+// system helps (recall cited, dedup held, stamps skipping reads...).
 
 package metrics
 
@@ -16,8 +16,10 @@ import (
 var rates = []rate{
   { "recall attached, of turns",
     "recall.attached", "recall.turns" },
-  { "recall used by the model, of attached",
-    "recall.used", "recall.attached" },
+  { "recall cited by the model, of attached",
+    "recall.cited", "recall.attached" },
+  { "recall's files read without a citation, of attached",
+    "recall.read", "recall.attached" },
   { "dedup held a write back, of adds",
     "know.dedup.held", "know.write.add" },
   { "dedup overridden (force), of held",

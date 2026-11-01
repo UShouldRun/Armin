@@ -287,13 +287,14 @@ func TestTreeBench(t *testing.T) {
     }
   }
 
-  // recall, when on: how often it attached nodes, and how often the
-  // model then used them (cited [nN] or read their files)
+  // recall, when on: how often it attached nodes, how often the model
+  // cited them ([nN]), and how often it only read their files
   snap := metrics.Snapshot()
   if snap["recall.turns"].Count > 0 {
-    t.Logf("RECALL turns %d, attached %d, used %d, empty %d",
+    t.Logf("RECALL turns %d, attached %d, cited %d, read %d, empty %d",
       snap["recall.turns"].Count, snap["recall.attached"].Count,
-      snap["recall.used"].Count, snap["recall.empty"].Count)
+      snap["recall.cited"].Count, snap["recall.read"].Count,
+      snap["recall.empty"].Count)
   }
 
   // what all the sessions cost in dollars, tree against no tree, the

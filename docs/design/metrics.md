@@ -29,11 +29,14 @@ off).
 | `recall.attached` | turns it attached at least one node |
 | `recall.empty` | turns nothing matched well enough |
 | `recall.nodes` | nodes attached per turn (avg, min, max) |
-| `recall.used` | turns the model used what was attached: cited one of its `[nN]`, or read a recalled node's file |
-| event `recall.attach`, `recall.settle` | debug: per turn, which nodes and whether used |
+| `recall.cited` | turns the model cited one of the attached `[nN]` |
+| `recall.cited.nodes` | attached nodes cited per such turn |
+| `recall.read` | turns it cited none but read a recalled node's file: a weak sign, since it often reads that file anyway |
+| event `recall.attach`, `recall.settle` | debug: per turn, which nodes, how many cited, whether read |
 
-Rates: attached of turns (does the tree cover what's asked?), **used of
-attached** (does the model trust what armin hands it?).
+Rates: attached of turns (does the tree cover what's asked?), **cited
+of attached** (does the model trust what armin hands it?), read
+without a citation of attached.
 
 ### Tree writes (`internal/agent/tools_know.go`)
 
