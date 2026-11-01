@@ -509,7 +509,7 @@ what round 8 actually showed paying: recall attach rate, which held
 at 10/15 turns and 5-10 used in round 9.
 
 
-## The static repo-map baseline (built 2026-11-01, not yet run)
+## The static repo-map baseline (built 2026-11-01)
 
 The round 8 open question: how much of the tree's value is just "a
 map in the prompt"? `internal/repomap` builds aider's repo map without
@@ -526,3 +526,40 @@ prompt (`mapSection`, think/prompt.go). `ARMIN_TREEBENCH_ARMS` picks
 arms (default `plain,tree,map`); PAIR COST prints each arm against
 no tree. One run of plain + map costs about $0.20 on Qwen 3.8 27B;
 all three about $0.30 (round 9: ~$0.10 per arm per run).
+
+## Round 10: the map against no tree (2026-11-01, one run)
+
+`ARMIN_TREEBENCH_ARMS=plain,map`, Qwen 3.8 27B, one run, $0.21.
+Traces reports/treebench10/, log reports/treebench10-run1.log.
+
+| | no tree | map | delta |
+|---|---|---|---|
+| s1 tools / $ fixed-price | 48 / $0.0244 | 33 / $0.0220 | −31% / −10% |
+| s2 | 32 / $0.0166 | 24 / $0.0158 | −25% / −4% |
+| s3 | 35 / $0.0169 | 28 / $0.0145 | −20% / −14% |
+| all three | 115 tools, $0.0579 | 85 tools, $0.0524 | **−26% tools, −9.5% $** |
+
+Billed: $0.1056 against $0.1037, −1.8% (OpenRouter's cache hits swing
+the billed figure per request; fixed-price reprices every run at
+$0.04/M input, $0.02/M cached, $2.30/M output). Input −10%, output
+−10%, rounds 94 → 73. Accuracy 15/15 against 14/15 by regex, but the
+miss (project-dirs map s2) is a scoring artifact: the answer is right
+and says "first 8 hex chars of the SHA-256", the check wants `hash`.
+
+What it says, with one run's caveat:
+
+- **The map saves from the first session**, where the tree costs:
+  s1 tools −31% here, against the tree's +23% in round 9 (150 vs
+  122). The map has nothing to learn; the tree pays its recording up
+  front.
+- **The map's saving holds flat across sessions** (−31%, −25%,
+  −20% tools), as a static map should. The tree's grows by session
+  (round 8: s2 −29%, s3 −35% $) but starts negative.
+- So the two answer different things, and they combine: the map is
+  the cheap floor on every session, the tree the cross-session delta
+  on top. The next measurement is the tree *with* the map against the
+  map alone, which isolates exactly what the tree adds.
+- Caveats: one run (round 9's runs spread −3.6% to +32.6%); the
+  question text changed from "knowledge tree" to "knowledge DAG"
+  since round 9; and the map's ~2k tokens ride on every request,
+  which is why input falls only 10% while tools fall 26%.
