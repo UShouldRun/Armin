@@ -88,14 +88,13 @@ export function filesChanged(call) {
 
 export function renderFiles() {
   const q    = $("filter").value.toLowerCase();
-  const list = state.files
-    .filter((f) => f.toLowerCase().includes(q))
-    .slice(0, 800);
+  const list = state.files.filter((f) => f.toLowerCase().includes(q));
 
   // a filtered list stays flat: matches may live anywhere in the tree,
-  // so collapsing would hide them.
+  // so collapsing would hide them; its first 800 rows are drawn. The
+  // tree takes every file: it only draws the open folders' rows.
   if (q) {
-    $("files").innerHTML = list.map((f) => row(f)).join("");
+    $("files").innerHTML = list.slice(0, 800).map((f) => row(f)).join("");
     return;
   }
 
@@ -243,7 +242,37 @@ const codeRow = (l, n, line) => {
     `<td>${ l || " " }</td></tr>`;
 };
 
-export async function preview(path, line, keepScroll) {
+// reveal opens the tree down to path, every folder above it, and
+// scrolls the tree to it: the file shown, or a folder a link named.
+const reveal = (path) => {
+  const parts = path.replace(/\/$/, "").split("/");
+  for (let i = 1; i < parts.length; i++) {
+    expanded.add(parts.slice(0, i).join("/") + "/");
+  }
+
+  renderFiles();
+  $("files").querySelector(".on")?.scrollIntoView({ block: "nearest" });
+};
+
+// openRef follows a link from an answer or a preview: a file opens in
+// the viewer (at a line, or at a #section of a Markdown file), a
+// folder opens in the tree.
+export function openRef(path, line, anchor) {
+  const dir = path.replace(/\/$/, "") + "/";
+  const isFile = state.files.includes(path) ||
+    state.files.some((f) => f.endsWith("/" + path));
+  if (!isFile && state.files.some((f) => f.startsWith(dir))) {
+    expanded.add(dir);
+    reveal(dir);
+    $("files").querySelector(`[data-dir = "${ CSS.escape(dir.slice(0, -1)) }"]`)
+      ?.scrollIntoView({ block: "nearest" });
+    return;
+  }
+
+  preview(path, line, false, anchor);
+}
+
+export async function preview(path, line, keepScroll, anchor) {
   showViewer(true);
 
   let full = path;
@@ -253,7 +282,13 @@ export async function preview(path, line, keepScroll) {
 
   const top = keepScroll ? $("preview").scrollTop : 0;
   state.current = full;
-  renderFiles();
+  if (keepScroll) {
+    renderFiles();
+
+  } else {
+    reveal(full);
+  }
+
   $("ptitle").textContent = full + (line ? `:${ line }` : "");
 
   const ext = full.split(".").pop().toLowerCase();
@@ -274,6 +309,12 @@ export async function preview(path, line, keepScroll) {
     if ((ext === "md" || ext === "markdown") && !line) {
       const dir = full.slice(0, Math.max(0, full.lastIndexOf("/")));
       box.innerHTML = `<div class = "md">${ markdown(text, dir) }</div>`;
+      box.scrollTop = keepScroll ? top : 0;
+      if (anchor) {
+        box.querySelector(`[id = "${ CSS.escape(anchor) }"]`)
+          ?.scrollIntoView({ block: "start" });
+      }
+
       return;
     }
 

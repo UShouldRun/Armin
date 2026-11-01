@@ -6,6 +6,7 @@ import { refreshInfo }                   from "./header.js";
 import { add, hold, send, loadHistory }  from "./chat.js";
 import {
   loadFiles, renderFiles, preview, showViewer, viewerOpen, watchFiles,
+  openRef,
 } from "./viewer.js";
 
 $("form").addEventListener("submit", (e) => {
@@ -72,12 +73,28 @@ $("files").addEventListener("click", (e) => {
   }
 });
 
-$("log").addEventListener("click", (e) => {
+// a file:line or a link in an answer, or a link in a previewed
+// Markdown file, opens in the viewer; a #section link scrolls the
+// preview to it
+const follow = (e) => {
   const ref = e.target.closest("a.ref");
   if (ref) {
-    preview(ref.dataset.path, ref.dataset.line);
+    e.preventDefault();
+    openRef(ref.dataset.path, ref.dataset.line, ref.dataset.anchor);
+    return;
   }
-});
+
+  const anchor = e.target.closest("a.anchor");
+  if (anchor) {
+    e.preventDefault();
+    const at = CSS.escape(anchor.dataset.anchor || "");
+    $("preview").querySelector(`[id = "${ at }"]`)
+      ?.scrollIntoView({ block: "start" });
+  }
+};
+
+$("log").addEventListener("click", follow);
+$("preview").addEventListener("click", follow);
 
 $("askfile").addEventListener("click", () => {
   if (!state.current) {

@@ -35,13 +35,18 @@ const htmlImg    = /<img\b([^>]*)>/gi;
 const htmlWrap   = /<\/?(p|div|center|picture|source|span|br)\b[^>]*>/gi;
 const htmlAttr   = /([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
 const mdImg      = /!\[([^\]]*)\]\(([^\s)]+)\)/g;
-const mdLink     = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+const mdLink     = /\[([^\]]+)\]\(([^\s)]+)(?:\s+&quot;[^&]*&quot;)?\)/g;
 const bold       = /\*\*([^*]+)\*\*/g;
+const boldU      = /(^|[^\w])__([^_]+)__(?=[^\w]|$)/g;
 const italic     = /(^|[^*])\*([^*\s][^*]*)\*/g;
-const listRow    = /^\s*([-*]|\d+\.)\s+/;
+const italicU    = /(^|[^\w])_([^_\s][^_]*)_(?=[^\w]|$)/g;
+const strike     = /~~([^~]+)~~/g;
+const rule       = /^ {0,3}([-*_])( *\1){2,} *$/;
+const listRow    = /^\s*([-*+]|\d+\.)\s+/;
+const taskBox    = /^\[([ xX])\]\s+/;
 const tableRow   = /^\s*\|.*\|\s*$/;
 const tableSep   = /^\s*\|[\s:|-]+\|\s*$/;
-const blockStart = /^(```|#{1,6}\s|>|\s*([-*]|\d+\.)\s)/;
+const blockStart = /^(```|#{1,6}\s|>|\s*([-*+]|\d+\.)\s)/;
 
 // base is the folder of the file being rendered, so an image's
 // relative path resolves the way the file's own viewer would.
@@ -109,6 +114,40 @@ const refLink = (path, line, html) => {
     `data-line = "${ line }">${ html }</a>`;
 };
 
+// emphasis is bold, italic and struck text, with * or _.
+const emphasis = (s) => {
+  return s.replace(bold, "<b>$1</b>").replace(boldU, "$1<b>$2</b>")
+    .replace(italic, "$1<i>$2</i>").replace(italicU, "$1<i>$2</i>")
+    .replace(strike, "<del>$1</del>");
+};
+
+// docLink is a Markdown link: a web address opens in a new tab; a
+// project path (relative to the file, or to the root with a leading
+// "/") opens in the viewer, at its #section if it names one; a bare
+// #section scrolls this document.
+const docLink = (text, target) => {
+  const href = target.replace(/&amp;/g, "&");
+  if (/^(https?:|mailto:)/.test(href)) {
+    return `<a href = "${ esc(href) }" target = "_blank" ` +
+      `rel = "noopener">${ text }</a>`;
+  }
+
+  const [ path, anchor ] = href.split("#");
+  const at = anchor ? ` data-anchor = "${ esc(anchor) }"` : "";
+  if (path === "") {
+    return `<a class = "anchor"${ at }>${ text }</a>`;
+  }
+
+  // relative to the file, as GitHub reads it; a link written relative
+  // to the root instead still lands when that's the file there is
+  let full = path.startsWith("/") ? path.slice(1) : resolve(path);
+  if (!state.files.includes(full) && state.files.includes(path)) {
+    full = path;
+  }
+
+  return `<a class = "ref" data-path = "${ esc(full) }"${ at }>${ text }</a>`;
+};
+
 function inline(s) {
   const codes = [];
   s = s.replace(/`([^`]+)`/g, (_, c) => {
@@ -117,23 +156,22 @@ function inline(s) {
     return "\u0000" + (codes.length - 1) + "\u0000";
   });
 
+  // what's rendered early is held aside, so the emphasis rules below
+  // can't reach into its attributes (a path with underscores in it)
+  const held = [];
+  const hold = (html) => {
+    held.push(html);
+
+    return "\u0001" + (held.length - 1) + "\u0001";
+  };
+
   // HTML the file wrote itself: its images kept (rebuilt safe), the
   // tags that only wrap or center them dropped, the rest escaped
-  const images = [];
-  s = s.replace(htmlImg, (_, attrs) => {
-    images.push(htmlImage(attrs));
-
-    return "\u0001" + (images.length - 1) + "\u0001";
-  });
-
+  s = s.replace(htmlImg, (_, attrs) => hold(htmlImage(attrs)));
   s = esc(s.replace(htmlWrap, ""));
-  s = s.replace(mdImg, (_, a, src) => imgTag(src, a));
-
-  s = s.replace(mdLink, (_, t, u) => {
-    return `<a href = "${ u }" target = "_blank" rel = "noopener">${ t }</a>`;
-  });
-
-  s = s.replace(bold, "<b>$1</b>").replace(italic, "$1<i>$2</i>");
+  s = s.replace(mdImg, (_, a, src) => hold(imgTag(src, a)));
+  s = s.replace(mdLink, (_, t, u) => hold(docLink(emphasis(t), u)));
+  s = emphasis(s);
   s = s.replace(fileRef, (m, pre, path, line) => {
     if (!known(path)) {
       return m;
@@ -142,7 +180,7 @@ function inline(s) {
     return pre + refLink(path, line, m.slice(pre.length));
   });
 
-  s = s.replace(/\u0001(\d+)\u0001/g, (_, i) => images[+i]);
+  s = s.replace(/\u0001(\d+)\u0001/g, (_, i) => held[+i]);
 
   return s.replace(/\u0000(\d+)\u0000/g, (_, i) => {
     const c    = codes[+i];
@@ -172,12 +210,89 @@ const table = (lines, i) => {
   return [ t + "</table>", i ];
 };
 
+// slug is a heading's id as GitHub makes it: lowercase, punctuation
+// dropped, spaces to hyphens; a repeat gets -1, -2 after it.
+const slug = (text, seen) => {
+  const id = text.toLowerCase().replace(/<[^>]*>/g, "")
+    .replace(/&[a-z]+;/g, "").replace(/[^\w\- ]/g, "").replace(/ /g, "-");
+  const n = seen.get(id) || 0;
+  seen.set(id, n + 1);
+
+  return n ? `${ id }-${ n }` : id;
+};
+
+// list renders the list starting at lines[i], nested by indentation,
+// with [ ] and [x] items as checkboxes; returns the HTML and the line
+// after it.
+const list = (lines, i) => {
+  const items = [];
+  for (; i < lines.length; i++) {
+    const l = lines[i];
+    if (listRow.test(l)) {
+      const marker = l.match(listRow)[1];
+      items.push({
+        indent: l.length - l.trimStart().length,
+        tag:    /\d/.test(marker) ? "ol" : "ul",
+        text:   l.replace(listRow, ""),
+      });
+
+    } else if (items.length && l.trim() !== "" && /^\s+/.test(l)) {
+      // a wrapped item continues on an indented line
+      items[items.length - 1].text += " " + l.trim();
+
+    } else {
+      break;
+    }
+  }
+
+  let html = "";
+  const open = [];
+  for (const it of items) {
+    while (open.length && it.indent < open[open.length - 1].indent) {
+      html += `</li></${ open.pop().tag }>`;
+    }
+
+    // a numbered list right after a bulleted one (or back) starts anew
+    let top = open[open.length - 1];
+    if (top && it.indent === top.indent && it.tag !== top.tag) {
+      html += `</li></${ open.pop().tag }>`;
+      top = open[open.length - 1];
+    }
+
+    if (!top || it.indent > top.indent) {
+      html += `<${ it.tag }>`;
+      open.push(it);
+
+    } else {
+      html += "</li>";
+    }
+
+    const box = it.text.match(taskBox);
+    if (box) {
+      const done = box[1] === " " ? "" : " checked";
+      const check = `<input type = "checkbox" disabled${ done }>`;
+      html += `<li class = "task">${ check } ` +
+        inline(it.text.replace(taskBox, ""));
+
+    } else {
+      html += "<li>" + inline(it.text);
+    }
+  }
+
+  while (open.length) {
+    html += `</li></${ open.pop().tag }>`;
+  }
+
+  return [ html, i ];
+};
+
 // markdown renders src; dir is the folder of the file it came from
-// ("" for answers), which relative image paths are read against.
+// ("" for answers), which relative links and images are read against.
 export function markdown(src, dir = "") {
   base = dir;
   const lines = src.replace(/\r/g, "").split("\n");
   const out   = [];
+  const seen  = new Map();
   let i       = 0;
   while (i < lines.length) {
     const l     = lines[i];
@@ -195,9 +310,17 @@ export function markdown(src, dir = "") {
       continue;
     }
 
-    const h = l.match(/^(#{1,6})\s+(.*)/);
+    const h = l.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/);
     if (h) {
-      out.push(`<h${ h[1].length }>${ inline(h[2]) }</h${ h[1].length }>`);
+      const n    = h[1].length;
+      const text = inline(h[2]);
+      out.push(`<h${ n } id = "${ slug(text, seen) }">${ text }</h${ n }>`);
+      i++;
+      continue;
+    }
+
+    if (rule.test(l)) {
+      out.push("<hr>");
       i++;
       continue;
     }
@@ -211,14 +334,9 @@ export function markdown(src, dir = "") {
     }
 
     if (listRow.test(l)) {
-      const ordered = /^\s*\d+\./.test(l);
-      const items   = [];
-      for (; i < lines.length && listRow.test(lines[i]); i++) {
-        items.push(`<li>${ inline(lines[i].replace(listRow, "")) }</li>`);
-      }
-
-      const tag = ordered ? "ol" : "ul";
-      out.push(`<${ tag }>${ items.join("") }</${ tag }>`);
+      const [ html, after ] = list(lines, i);
+      out.push(html);
+      i = after;
       continue;
     }
 
@@ -237,16 +355,20 @@ export function markdown(src, dir = "") {
       continue;
     }
 
+    // a paragraph: its lines joined with spaces, as Markdown reads a
+    // wrapped line; two spaces or a backslash at a line's end break it
     const p = [];
     for (; i < lines.length; i++) {
-      if (lines[i].trim() === "" || blockStart.test(lines[i])) {
+      if (lines[i].trim() === "" || blockStart.test(lines[i]) ||
+        rule.test(lines[i])) {
         break;
       }
 
-      p.push(lines[i]);
+      const hard = / {2,}$|\\$/.test(lines[i]);
+      p.push(lines[i].replace(/ +$|\\$/, "") + (hard ? "\u0002" : ""));
     }
 
-    out.push(`<p>${ inline(p.join("\n")).replace(/\n/g, "<br>") }</p>`);
+    out.push(`<p>${ inline(p.join(" ")).replace(/\u0002 ?/g, "<br>") }</p>`);
   }
 
   return out.join("\n");

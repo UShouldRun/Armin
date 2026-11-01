@@ -14,9 +14,22 @@
 .md p { margin: 0 0 12px; }
 .md b, .md strong { color: var(--strong); font-weight: 650; }
 .md img.md-img { max-width: 100%; margin: 8px 0; border-radius: var(--r); }
-.md ul, .md ol { margin: 0 0 12px; padding-left: 22px; }
+.md h1, .md h2 { padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.md del { color: var(--dim); }
+
+.md hr {
+  height: 1px;
+  margin: 20px 0;
+  background: var(--line2);
+  border: 0;
+}
+
+.md ul, .md ol { margin: 0 0 12px; padding-left: 24px; }
+.md li > ul, .md li > ol { margin: 2px 0 0; }
 .md li { margin: 3px 0; }
 .md li::marker { color: var(--faint); }
+.md li.task { list-style: none; margin-left: -20px; }
+.md li.task input { margin: 0 6px 0 0; vertical-align: middle; }
 
 /* code blocks: everblush, as in nvim */
 .md pre {
@@ -57,6 +70,7 @@
 }
 
 .md a { color: var(--accent); text-underline-offset: 2px; }
+.md a.anchor { cursor: pointer; text-decoration: underline; }
 
 .md a.ref {
   text-decoration: none;
