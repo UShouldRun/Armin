@@ -609,3 +609,40 @@ What it says, with one run's caveat:
 - Before more rounds: one run per arm has swung ±30% before (round
   9), so a second run of this pair is what would make it a finding
   rather than a lead.
+
+### Round 11, run 2, and both runs together
+
+Run 2 (log reports/treebench11-run2.log): billed map $0.1115,
+tree+map $0.1125, +0.9% with consolidation's $0.0148 (sessions alone
+−12.4%); fixed-price +1.6%; tools 101 → 82; accuracy 15/15 both.
+Run 1 had been +4.9% billed, +8.8% fixed, tools 82 → 90.
+
+Both runs summed, map against tree+map:
+
+| | tools | fixed-price $ | billed $ | right |
+|---|---|---|---|---|
+| s1 | 79 → 86 | +8% | +11% | 10/10, 10/10 |
+| s2 | 55 → 47 | +1% | −22% | 10/10, 10/10 |
+| s3 | 49 → 39 | +3% | −29% | 10/10, 9/10 |
+| all | 183 → 172 (−6%) | **+5.0%** | sessions −9%, with consolidation ≈ +3% | 30/30, 29/30 |
+
+So two runs agree on the shape, and it is break-even, not a win:
+
+- The tree still costs in s1 (+8%) and still spares tool calls
+  later (s2 −15%, s3 −20%), but with the map in place the saved calls
+  no longer pay for the tree's own text: fixed-price s2 and s3 are
+  +1% and +3%. The billed figure says −22% and −29%, but billed swings
+  with OpenRouter's caching per request; the fixed-price reprice is
+  the one that compares like with like.
+- Charged nothing for consolidation (it runs on the local minion in
+  armin), the tree is at best a few percent ahead in billed dollars
+  and a few percent behind at fixed prices: within one run's noise
+  either way.
+- One wrong answer in 30, steered by recalled nodes (run 1, above).
+
+**Verdict for chat:** the static map is the default-worthy part
+(round 10, −26% tools, −9.5% fixed-price, from session 1). The tree
+on top of it doesn't pay for itself in this benchmark; keep it for
+what the map can't hold (decisions, why, what was tried) and for the
+advisor and teaching flow, and don't sell it as an exploration
+saver.
