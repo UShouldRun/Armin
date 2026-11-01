@@ -358,9 +358,12 @@ func List() ([]Meta, error) {
     }
   }
 
-  sort.Slice(out, func(i, j int) bool {
-    return out[i].UpdatedAt.After(out[j].UpdatedAt)
-  })
+  sort.Slice(
+    out,
+    func(i, j int) bool {
+      return out[i].UpdatedAt.After(out[j].UpdatedAt)
+    },
+  )
 
   return out, nil
 }

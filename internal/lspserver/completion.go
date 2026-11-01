@@ -67,30 +67,36 @@ func (s *Server) inlineCompletion(
 
   extra := s.otherChunks(uri)
   if w.head != "" {
-    extra = append(extra, llm.InfillChunk{
-      Filename: s.relPath(uri), Text: w.head,
-    })
+    extra = append(
+      extra,
+      llm.InfillChunk{
+        Filename: s.relPath(uri), Text: w.head,
+      },
+    )
   }
 
   compCtx, cancel, gen := s.startCompletion(uri, ctx)
   defer cancel()
 
-  raw, err := s.complete(compCtx, share.Fill{
-    Key:    uri,
-    Prefix: w.prefix,
-    Suffix: w.suffix,
-    Opts:   llm.CompleteOptions{
-      Prompt:       w.prompt,
-      Extra:        extra,
-      Indent:       w.indent,
-      Temperature:  completionTemperature,
-      TopK:         completionTopK,
-      TopP:         completionTopP,
-      NumPredict:   completionMaxTokens,
-      MaxPredictMs: completionMaxPredictMs,
-      Stop:         []string{ "\n\n\n" },
+  raw, err := s.complete(
+    compCtx,
+    share.Fill{
+      Key:    uri,
+      Prefix: w.prefix,
+      Suffix: w.suffix,
+      Opts:   llm.CompleteOptions{
+        Prompt:       w.prompt,
+        Extra:        extra,
+        Indent:       w.indent,
+        Temperature:  completionTemperature,
+        TopK:         completionTopK,
+        TopP:         completionTopP,
+        NumPredict:   completionMaxTokens,
+        MaxPredictMs: completionMaxPredictMs,
+        Stop:         []string{ "\n\n\n" },
+      },
     },
-  })
+  )
 
   s.endCompletion(uri, gen)
 
@@ -283,9 +289,12 @@ func (s *Server) otherChunks(uri string) []llm.InfillChunk {
     return nil
   }
 
-  sort.Slice(picks[:n], func(i, j int) bool {
-    return picks[i].seq < picks[j].seq
-  })
+  sort.Slice(
+    picks[:n],
+    func(i, j int) bool {
+      return picks[i].seq < picks[j].seq
+    },
+  )
 
   out := make([]llm.InfillChunk, 0, n + 1)
   for _, p := range picks[:n] {
@@ -295,10 +304,13 @@ func (s *Server) otherChunks(uri string) []llm.InfillChunk {
       continue
     }
 
-    out = append(out, llm.InfillChunk{
-      Filename: s.relPath(p.uri),
-      Text:     firstLines(p.text[start:], completionChunkLines),
-    })
+    out = append(
+      out,
+      llm.InfillChunk{
+        Filename: s.relPath(p.uri),
+        Text:     firstLines(p.text[start:], completionChunkLines),
+      },
+    )
   }
 
   return out
@@ -338,14 +350,16 @@ func (s *Server) endCompletion(uri string, gen int64) {
 }
 
 func (s *Server) warnCompletionFailure(err error) {
-  s.warnOnce.Do(func() {
-    fmt.Fprintf(
-      os.Stderr,
-      "armin lsp: completion model call failed, will keep trying silently: " +
-        "%s\n",
-      err,
-    )
-  })
+  s.warnOnce.Do(
+    func() {
+      fmt.Fprintf(
+        os.Stderr,
+        "armin lsp: completion model call failed, will keep trying silently: " +
+          "%s\n",
+        err,
+      )
+    },
+  )
 }
 
 // firstLines returns the first n lines of s: scans forward and

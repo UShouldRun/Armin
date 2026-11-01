@@ -73,8 +73,12 @@ func TestReadFileCapsLongReads(t *testing.T) {
 
   if !out.Truncated || len(out.Content) > maxReadBytes ||
     out.NextLine != maxReadBytes / 100 + 1 {
-    t.Fatalf("truncated %v, %d bytes, next_line %d",
-      out.Truncated, len(out.Content), out.NextLine)
+    t.Fatalf(
+      "truncated %v, %d bytes, next_line %d",
+      out.Truncated,
+      len(out.Content),
+      out.NextLine,
+    )
   }
 
   in.StartLine = out.NextLine
@@ -502,8 +506,7 @@ func TestRunCommandJailsPathArgs(t *testing.T) {
   }
 
   out, err := RunCommand(
-    ctx,
-    cfg,
+    ctx, cfg,
     RunCommandInput{
       Binary: "grep",
       Args:   []string{ "-n", "s/he/x/", "a.txt", "./a.txt" },
@@ -512,14 +515,12 @@ func TestRunCommandJailsPathArgs(t *testing.T) {
   if err != nil || out.ExitCode > 1 {
     t.Fatalf(
       "in-project paths and path-like patterns refused: %v %+v",
-      err,
-      out,
+      err, out,
     )
   }
 
   _, err = RunCommand(
-    ctx,
-    cfg,
+    ctx, cfg,
     RunCommandInput{ Binary: "echo", Args: []string{ "/etc" } },
   )
   if err != nil {
@@ -527,8 +528,7 @@ func TestRunCommandJailsPathArgs(t *testing.T) {
   }
 
   _, err = RunCommand(
-    ctx,
-    cfg,
+    ctx, cfg,
     RunCommandInput{ Binary: "cat", Args: []string{ "slides.PDF" } },
   )
   if err == nil || !strings.Contains(err.Error, "read_pdf") {
@@ -539,9 +539,7 @@ func TestRunCommandJailsPathArgs(t *testing.T) {
 func TestRunProgramPlanAndRun(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(
-    t,
-    cfg.Root,
-    "hello.c",
+    t, cfg.Root, "hello.c",
     "#include <stdio.h>\nint main(void) { puts(\"hi\"); return 3; }\n",
   )
   os.MkdirAll(filepath.Join(cfg.Root, "build"), 0o755)
@@ -568,8 +566,7 @@ func TestRunProgramPlanAndRun(t *testing.T) {
   }
 
   out, err := RunProgram(
-    ctx,
-    cfg,
+    ctx, cfg,
     RunProgramInput{
       Binary: "cc",
       Args:   []string{ "-o", "build/hello", "hello.c" },
@@ -580,8 +577,7 @@ func TestRunProgramPlanAndRun(t *testing.T) {
   }
 
   out, err = RunProgram(
-    ctx,
-    cfg,
+    ctx, cfg,
     RunProgramInput{ Binary: "./hello", Dir: "build" },
   )
   if err != nil || out.ExitCode != 3 || out.Dir != "build" {

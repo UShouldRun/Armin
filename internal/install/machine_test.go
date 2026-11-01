@@ -55,9 +55,7 @@ func TestProbeAt(t *testing.T) {
   write(t, root, amd + "/mem_info_vram_total", "536870912\n")
   write(t, root, amd + "/mem_info_vram_used", "0\n")
   write(
-    t,
-    root,
-    "usr/share/misc/pci.ids",
+    t, root, "usr/share/misc/pci.ids",
     "1002  AMD\n\t15bf  Phoenix1\n10de  NVIDIA\n",
   )
 
@@ -73,34 +71,31 @@ func TestProbeAt(t *testing.T) {
   }
 
   write(
-    t,
-    root,
-    "proc/meminfo",
+    t, root, "proc/meminfo",
     "MemTotal:       32768000 kB\nMemAvailable:   20000000 kB\nSwapFree:     " +
       "   1000000 kB\n",
   )
-  write(t, root, "proc/cpuinfo",
+  write(
+    t, root, "proc/cpuinfo",
     "model name\t: Test CPU\nphysical id\t: 0\ncore id\t: 0\nflags\t: fpu " +
       "avx2\n\n" +
       "model name\t: Test CPU\nphysical id\t: 0\ncore id\t: 1\nflags\t: fpu " +
         "avx2\n\n" +
       "model name\t: Test CPU\nphysical id\t: 0\ncore id\t: 0\nflags\t: fpu " +
-        "avx2\n")
+        "avx2\n",
+  )
   write(
-    t,
-    root,
+    t, root,
     "sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq",
     "4500000\n",
   )
   write(
-    t,
-    root,
+    t, root,
     "sys/firmware/dmi/entries/17-0/raw",
     smbios17(16384, 0x1A, 3200),
   )
   write(
-    t,
-    root,
+    t, root,
     "sys/firmware/dmi/entries/17-1/raw",
     smbios17(16384, 0x1A, 3200),
   )

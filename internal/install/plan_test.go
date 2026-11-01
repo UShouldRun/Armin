@@ -169,8 +169,7 @@ func TestDecideCPUOnly(t *testing.T) {
   if q.GenEmpty >= p.GenEmpty {
     t.Errorf(
       "DDR4 single channel %.1f tok/s ≥ DDR5 dual %.1f",
-      q.GenEmpty,
-      p.GenEmpty,
+      q.GenEmpty, p.GenEmpty,
     )
   }
 }
@@ -197,13 +196,16 @@ func TestScaledAlternatives(t *testing.T) {
 func TestBestGroup(t *testing.T) {
   m, hw := dense(5 * gib), laptop()
   hw.RAM.Total, hw.RAM.Available = 64 * gib, 60 * gib
-  src := &source{ Pick: 2, Groups: []quantGroup{
-    { Label: "Q2_K", Size: 3 * gib },
-    { Label: "Q3_K_M", Size: 4 * gib },
-    { Label: "Q4_K_M", Size: 5 * gib },
-    { Label: "Q8_0", Size: 9 * gib },
-    { Label: "F16", Size: 16 * gib },
-  } }
+  src := &source{
+    Pick: 2,
+    Groups: []quantGroup{
+      { Label: "Q2_K", Size: 3 * gib },
+      { Label: "Q3_K_M", Size: 4 * gib },
+      { Label: "Q4_K_M", Size: 5 * gib },
+      { Label: "Q8_0", Size: 9 * gib },
+      { Label: "F16", Size: 16 * gib },
+    },
+  }
 
   // Q8_0 and F16 run (split, slow or fine), but Q4_K_M is the
   // largest that fits all in VRAM.

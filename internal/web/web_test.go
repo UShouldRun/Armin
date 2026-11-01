@@ -23,18 +23,22 @@ import (
 // second with plain text.
 func fakeModel(t *testing.T) *httptest.Server {
   round := 0
-  return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    round++
-    w.Header().Set("Content-Type", "text/event-stream")
-    var chunk string
-    if round == 1 {
-      chunk = `{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"write_file","arguments":"{\"path\":\"new.txt\",\"content\":\"hi\\n\"}"}}]}}]}`
-    } else {
-      chunk = `{"choices":[{"delta":{"content":"Created it, see new.txt:1"}}]}`
-    }
+  return httptest.NewServer(
+    http.HandlerFunc(
+      func(w http.ResponseWriter, r *http.Request) {
+        round++
+        w.Header().Set("Content-Type", "text/event-stream")
+        var chunk string
+        if round == 1 {
+          chunk = `{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"write_file","arguments":"{\"path\":\"new.txt\",\"content\":\"hi\\n\"}"}}]}}]}`
+        } else {
+          chunk = `{"choices":[{"delta":{"content":"Created it, see new.txt:1"}}]}`
+        }
 
-    w.Write([]byte("data: " + chunk + "\n\ndata: [DONE]\n\n"))
-  }))
+        w.Write([]byte("data: " + chunk + "\n\ndata: [DONE]\n\n"))
+      },
+    ),
+  )
 }
 
 func newServer(t *testing.T) (*Server, string) {
@@ -53,10 +57,13 @@ func newServer(t *testing.T) (*Server, string) {
   model := fakeModel(t)
   t.Cleanup(model.Close)
   client := llm.New(model.URL, "fake")
-  s := New(context.Background(), Config{
-    Addr: "127.0.0.1:0", Loop: agent.New(client, sb), Client: client,
-    Sandbox: sb, SystemPrompt: "sys",
-  })
+  s := New(
+    context.Background(),
+    Config{
+      Addr: "127.0.0.1:0", Loop: agent.New(client, sb), Client: client,
+      Sandbox: sb, SystemPrompt: "sys",
+    },
+  )
 
   return s, root
 }
@@ -74,8 +81,7 @@ func TestLocalOnlyRejectsForeignHostAndOrigin(t *testing.T) {
   }
 
   req = httptest.NewRequest(
-    "POST",
-    "/api/command",
+    "POST", "/api/command",
     strings.NewReader(`{"name":"clear"}`),
   )
   req.Host = "127.0.0.1:7777"

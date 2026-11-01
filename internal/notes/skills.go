@@ -118,30 +118,33 @@ const maxSkillFiles = 50
 // directory.
 func (sk Skill) Files() []string {
   var out []string
-  filepath.WalkDir(sk.Dir, func(path string, d fs.DirEntry, err error) error {
-    if len(out) == maxSkillFiles {
-      return filepath.SkipAll
-    }
+  filepath.WalkDir(
+    sk.Dir,
+    func(path string, d fs.DirEntry, err error) error {
+      if len(out) == maxSkillFiles {
+        return filepath.SkipAll
+      }
 
-    if err != nil {
-      return nil
-    }
+      if err != nil {
+        return nil
+      }
 
-    if d.IsDir() {
-      if strings.HasPrefix(d.Name(), ".") && path != sk.Dir {
-        return filepath.SkipDir
+      if d.IsDir() {
+        if strings.HasPrefix(d.Name(), ".") && path != sk.Dir {
+          return filepath.SkipDir
+        }
+
+        return nil
+      }
+
+      rel, err := filepath.Rel(sk.Dir, path)
+      if err == nil && rel != skillFile {
+        out = append(out, filepath.ToSlash(rel))
       }
 
       return nil
-    }
-
-    rel, err := filepath.Rel(sk.Dir, path)
-    if err == nil && rel != skillFile {
-      out = append(out, filepath.ToSlash(rel))
-    }
-
-    return nil
-  })
+    },
+  )
 
   return out
 }

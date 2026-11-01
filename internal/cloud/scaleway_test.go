@@ -44,8 +44,7 @@ func (f *fakeAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
       w,
       `{"server":{"id":"srv-1","state":%q,"public_ip":%s,` +
         `"public_ips":[],"private_ip":null}}`,
-      f.state,
-      ip,
+      f.state, ip,
     )
     if f.state == "starting" {
       f.state = "running"

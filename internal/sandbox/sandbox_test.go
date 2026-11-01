@@ -41,12 +41,15 @@ func TestNewAppliesDefaults(t *testing.T) {
 
 func TestNewHonorsExplicitOptions(t *testing.T) {
   root := t.TempDir()
-  cfg, err := New(root, Options{
-    Timeout:   5 * time.Second,
-    MaxOutput: 100,
-    Allowlist: map[string]bool{ "echo": true },
-    DryRun:    true,
-  })
+  cfg, err := New(
+    root,
+    Options{
+      Timeout:   5 * time.Second,
+      MaxOutput: 100,
+      Allowlist: map[string]bool{ "echo": true },
+      DryRun:    true,
+    },
+  )
   if err != nil {
     t.Fatal(err)
   }

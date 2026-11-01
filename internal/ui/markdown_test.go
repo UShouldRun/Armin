@@ -9,23 +9,26 @@ func TestRenderMarkdown(t *testing.T) {
   Enabled = false
   defer func() { Enabled = true }()
 
-  md := strings.Join([]string{
-    "# Roadmap review",
-    "Overall: **well gated**, see `schema.sql` and [the doc](https://x.dev).",
-    "- first point",
-    "  - nested *point*",
-    "1. numbered",
-    "- [x] done task",
-    "> a quote",
-    "```go",
-    "x := **not bold**",
-    "```",
-    "| a | b |",
-    "|---|---|",
-    "| `c` | d |",
-    "---",
-    "snake_case_name and a*b stay as they are",
-  }, "\n")
+  md := strings.Join(
+    []string{
+      "# Roadmap review",
+      "Overall: **well gated**, see `schema.sql` and [the doc](https://x.dev).",
+      "- first point",
+      "  - nested *point*",
+      "1. numbered",
+      "- [x] done task",
+      "> a quote",
+      "```go",
+      "x := **not bold**",
+      "```",
+      "| a | b |",
+      "|---|---|",
+      "| `c` | d |",
+      "---",
+      "snake_case_name and a*b stay as they are",
+    },
+    "\n",
+  )
 
   got := RenderMarkdown(md, 100)
   for _, want := range []string{
@@ -68,12 +71,15 @@ func TestTableWrapsCellsToFit(t *testing.T) {
   Enabled = false
   defer func() { Enabled = true }()
 
-  rows := renderTable([]string{
-    "| name | what it does |",
-    "|---|--:|",
-    "| x | a long description that cannot fit in a narrow terminal at all |",
-    "| averyveryverylongidentifier | short |",
-  }, 40)
+  rows := renderTable(
+    []string{
+      "| name | what it does |",
+      "|---|--:|",
+      "| x | a long description that cannot fit in a narrow terminal at all |",
+      "| averyveryverylongidentifier | short |",
+    },
+    40,
+  )
 
   for _, r := range rows {
     if n := len([]rune(r)); n > 40 {

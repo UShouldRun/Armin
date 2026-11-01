@@ -40,8 +40,7 @@ func (f *fakeEC2) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         `<instanceId>i-1</instanceId>` +
         `<instanceState><name>%s</name></instanceState>%s` +
         `</item></instancesSet></item></reservationSet></R>`,
-      f.state,
-      ip,
+      f.state, ip,
     )
     if f.state == "pending" {
       f.state = "running"
@@ -100,23 +99,25 @@ func awsTestManager(t *testing.T, state string) (*Manager, *fakeEC2, string) {
   server := httptest.NewServer(f)
   t.Cleanup(server.Close)
 
-  m := New(map[string]ModelSpec{
-    "qwen": {
-      Binary:    "/opt/llama/llama-server",
-      ModelPath: "/models/qwen 27b.gguf",
-      Port:      freePort(t),
-      Args:      []string{ "--jinja", "-c", "65536" },
-      Remote: &RemoteSpec{
-        Provider:         cloud.ProviderAWS,
-        MachineID:        "i-1",
-        Region:           "eu-west-1",
-        SSHUser:          "ubuntu",
-        SSHKey:           "/keys/k.pem",
-        RemotePort:       8080,
-        StopOnDisconnect: true,
+  m := New(
+    map[string]ModelSpec{
+      "qwen": {
+        Binary:    "/opt/llama/llama-server",
+        ModelPath: "/models/qwen 27b.gguf",
+        Port:      freePort(t),
+        Args:      []string{ "--jinja", "-c", "65536" },
+        Remote: &RemoteSpec{
+          Provider:         cloud.ProviderAWS,
+          MachineID:        "i-1",
+          Region:           "eu-west-1",
+          SSHUser:          "ubuntu",
+          SSHKey:           "/keys/k.pem",
+          RemotePort:       8080,
+          StopOnDisconnect: true,
+        },
       },
     },
-  })
+  )
   m.SSHBinary, m.EC2Endpoint = ssh, server.URL
 
   return m, f, dir
@@ -241,8 +242,7 @@ func (f *fakeIaaS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(
       w,
       `{"id":"s-1","status":%q,"nics":[{"ipv4":"10.0.0.4"%s}]}`,
-      f.status,
-      ip,
+      f.status, ip,
     )
     if f.status == "STARTING" {
       f.status = "ACTIVE"
@@ -344,8 +344,7 @@ func TestServerArgsLeanDefaults(t *testing.T) {
         "serverArgs(%v, flags=%b)\n got  %q\n want %q",
         c.spec.Args,
         c.spec.Flags,
-        got,
-        c.want,
+        got, c.want,
       )
     }
   }
@@ -371,8 +370,7 @@ func (f *fakeScaleway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(
       w,
       `{"server":{"id":"srv-1","state":%q,"public_ip":%s}}`,
-      f.state,
-      ip,
+      f.state, ip,
     )
     if f.state == "starting" {
       f.state = "running"
@@ -527,14 +525,16 @@ func TestStreamTierSwitchRestartsServerNotMachine(t *testing.T) {
 }
 
 func TestWindowNeedsStreamTierAndResidentContext(t *testing.T) {
-  m := New(map[string]ModelSpec{
-    "plain":  { Args: []string{ "-c", "8192" } },
-    "nosize": { Stream: &StreamSpec{ Context: 65536 } },
-    "smaller": {
-      Args:   []string{ "-c", "8192" },
-      Stream: &StreamSpec{ Context: 4096 },
+  m := New(
+    map[string]ModelSpec{
+      "plain":  { Args: []string{ "-c", "8192" } },
+      "nosize": { Stream: &StreamSpec{ Context: 65536 } },
+      "smaller": {
+        Args:   []string{ "-c", "8192" },
+        Stream: &StreamSpec{ Context: 4096 },
+      },
     },
-  })
+  )
   defer m.Shutdown(context.Background())
   for _, name := range []string{ "plain", "nosize", "smaller", "missing" } {
     if m.Window(name) != nil {

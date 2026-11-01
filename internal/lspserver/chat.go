@@ -29,9 +29,12 @@ func (s *Server) respondAskError(id json.RawMessage, err error) {
       model = s.loop.LLM.Model
     }
 
-    s.respondError(id, errInternal, fmt.Sprintf(
-      "%s doesn't support tool calling — switch models with :ArminModel", model,
-    ))
+    s.respondError(
+      id, errInternal,
+      fmt.Sprintf(
+        "%s doesn't support tool calling — switch models with :ArminModel", model,
+      ),
+    )
 
     return
   }
@@ -298,22 +301,26 @@ func (s *Server) askHooks(id json.RawMessage, origin string) agent.Hooks {
       send(share.Event{ Type: "tool_call", Name: name, Args: args })
     },
     ToolResult: func(name, result string) {
-      send(share.Event{
-        Type:  "tool_result",
-        Name:  name,
-        Delta: agent.ResultLine(name, result),
-      })
+      send(
+        share.Event{
+          Type:  "tool_result",
+          Name:  name,
+          Delta: agent.ResultLine(name, result),
+        },
+      )
     },
     Notice: func(msg string) {
       send(share.Event{ Type: "notice", Delta: msg })
     },
     Usage: func(u llm.Usage) {
-      send(share.Event{
-        Type:   "usage",
-        Tokens: u.Total(),
-        Window: s.loop.WindowSize(),
-        Tier:   s.loop.Tier(),
-      })
+      send(
+        share.Event{
+          Type:   "usage",
+          Tokens: u.Total(),
+          Window: s.loop.WindowSize(),
+          Tier:   s.loop.Tier(),
+        },
+      )
     },
   }
 }
@@ -352,10 +359,13 @@ func (s *Server) warnGPU() {
     return
   }
 
-  s.notify("window/showMessage", map[string]any{
-    "type":    2,
-    "message": "armin: " + warning,
-  })
+  s.notify(
+    "window/showMessage",
+    map[string]any{
+      "type":    2,
+      "message": "armin: " + warning,
+    },
+  )
 }
 
 // relay forwards the host's events to nvim; when the host goes away
@@ -365,14 +375,17 @@ func (s *Server) relay() {
     s.toNvim(e)
   }
 
-  s.notify("window/showMessage", map[string]any{
-    "type":    1,
-    "message": fmt.Sprintf(
-      "armin: instance %d went away — :ArminStop then :ArminLsp to start " +
-        "one here",
-      s.remote.Instance,
-    ),
-  })
+  s.notify(
+    "window/showMessage",
+    map[string]any{
+      "type":    1,
+      "message": fmt.Sprintf(
+        "armin: instance %d went away — :ArminStop then :ArminLsp to start " +
+          "one here",
+        s.remote.Instance,
+      ),
+    },
+  )
 }
 
 // executeModel answers "armin.model": switch the chat model live
@@ -445,15 +458,21 @@ func (s *Server) Models() share.ModelInfo {
   }
 
   for _, status := range s.models.Names() {
-    info.Configured = append(info.Configured, share.ModelChoice{
-      Name: status.Name, Model: status.Model,
-      Managed: status.Managed, Running: status.Running,
-    })
+    info.Configured = append(
+      info.Configured,
+      share.ModelChoice{
+        Name: status.Name, Model: status.Model,
+        Managed: status.Managed, Running: status.Running,
+      },
+    )
   }
 
-  sort.Slice(info.Configured, func(i, j int) bool {
-    return info.Configured[i].Name < info.Configured[j].Name
-  })
+  sort.Slice(
+    info.Configured,
+    func(i, j int) bool {
+      return info.Configured[i].Name < info.Configured[j].Name
+    },
+  )
 
   hosted := s.models.OpenRouter()
   url, key := s.models.Endpoint(hosted)

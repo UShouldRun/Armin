@@ -21,8 +21,11 @@ func knowLoop(t *testing.T) (
 ) {
   t.Helper()
   root := t.TempDir()
-  os.WriteFile(filepath.Join(root, "conn.go"),
-    []byte("package tcp\n\nfunc handshake() {\n  syn()\n  ack()\n}\n"), 0o644)
+  os.WriteFile(
+    filepath.Join(root, "conn.go"),
+    []byte("package tcp\n\nfunc handshake() {\n  syn()\n  ack()\n}\n"),
+    0o644,
+  )
   sb, err := sandbox.New(root, sandbox.Options{})
   if err != nil {
     t.Fatal(err)
@@ -37,9 +40,13 @@ func knowLoop(t *testing.T) (
 
   call := func(name string, args map[string]any) map[string]string {
     t.Helper()
-    out := l.execute(context.Background(), llm.ToolCall{
-      Function: llm.ToolCallFunction{ Name: name, Arguments: args },
-    }, Hooks{})
+    out := l.execute(
+      context.Background(),
+      llm.ToolCall{
+        Function: llm.ToolCallFunction{ Name: name, Arguments: args },
+      },
+      Hooks{},
+    )
     m, ok := out.(map[string]string)
     if !ok {
       t.Fatalf("%s returned %T: %v", name, out, out)
@@ -66,13 +73,16 @@ func TestKnowToolsOfferedOnlyWithATree(t *testing.T) {
 func TestKnowAddFindGet(t *testing.T) {
   l, call := knowLoop(t)
 
-  out := call("know_write", map[string]any{
-    "path": "tcp/handshake", "kind": "fact",
-    "claim": "the client sends SYN, then ACK", "confidence": "checked",
-    "evidence": []any{
-      "conn.go:3-6", "https://www.rfc-editor.org/rfc/rfc9293",
+  out := call(
+    "know_write",
+    map[string]any{
+      "path": "tcp/handshake", "kind": "fact",
+      "claim": "the client sends SYN, then ACK", "confidence": "checked",
+      "evidence": []any{
+        "conn.go:3-6", "https://www.rfc-editor.org/rfc/rfc9293",
+      },
     },
-  })
+  )
   if !strings.HasPrefix(out["added"], "n2 tcp/handshake fact checked") {
     t.Fatalf("add: %v", out)
   }
@@ -103,24 +113,33 @@ func TestKnowAddFindGet(t *testing.T) {
 
 func TestKnowAddHoldsBackSimilar(t *testing.T) {
   _, call := knowLoop(t)
-  call("know_write", map[string]any{
-    "path": "tcp/handshake", "kind": "fact",
-    "claim": "the client sends SYN then ACK",
-  })
+  call(
+    "know_write",
+    map[string]any{
+      "path": "tcp/handshake", "kind": "fact",
+      "claim": "the client sends SYN then ACK",
+    },
+  )
 
-  out := call("know_write", map[string]any{
-    "path": "tcp/opening", "kind": "fact",
-    "claim": "the client sends SYN then ACK first",
-  })
+  out := call(
+    "know_write",
+    map[string]any{
+      "path": "tcp/opening", "kind": "fact",
+      "claim": "the client sends SYN then ACK first",
+    },
+  )
   if out["similar"] == "" || !strings.Contains(out["next"], "force") {
     t.Fatalf("similar not held back: %v", out)
   }
 
-  out = call("know_write", map[string]any{
-    "path": "tcp/opening", "kind": "fact",
-    "claim": "the client sends SYN then ACK first",
-    "force": true,
-  })
+  out = call(
+    "know_write",
+    map[string]any{
+      "path": "tcp/opening", "kind": "fact",
+      "claim": "the client sends SYN then ACK first",
+      "force": true,
+    },
+  )
   if out["added"] == "" {
     t.Fatalf("force: %v", out)
   }
@@ -136,9 +155,12 @@ func TestKnowWritingRules(t *testing.T) {
     t.Fatalf("a concept without a definition: %v", out)
   }
 
-  out = call("know_write", map[string]any{
-    "path": "x", "kind": "fact", "claim": "y", "needs": []any{ "n99" },
-  })
+  out = call(
+    "know_write",
+    map[string]any{
+      "path": "x", "kind": "fact", "claim": "y", "needs": []any{ "n99" },
+    },
+  )
   if !strings.Contains(out["error"], "no node n99") {
     t.Fatalf("a dangling reference: %v", out)
   }
@@ -148,10 +170,13 @@ func TestKnowMinionLimits(t *testing.T) {
   l, call := knowLoop(t)
   l.SetRole(RoleMinion)
 
-  out := call("know_write", map[string]any{
-    "path": "tcp/handshake", "kind": "fact", "claim": "SYN then ACK",
-    "confidence": "tested",
-  })
+  out := call(
+    "know_write",
+    map[string]any{
+      "path": "tcp/handshake", "kind": "fact", "claim": "SYN then ACK",
+      "confidence": "tested",
+    },
+  )
   if !strings.Contains(out["added"], "fact inferred minion-unverified") ||
     !strings.Contains(out["note"], "capped") {
     t.Fatalf("minion add: %v", out)
@@ -191,10 +216,13 @@ func TestKnowLinkUpdateTrace(t *testing.T) {
     "know_write",
     map[string]any{ "path": "a", "kind": "fact", "claim": "alpha base fact" },
   )
-  call("know_write", map[string]any{
-    "path": "b", "kind": "fact", "claim": "beta conclusion",
-    "derived_from": []any{ "a" },
-  })
+  call(
+    "know_write",
+    map[string]any{
+      "path": "b", "kind": "fact", "claim": "beta conclusion",
+      "derived_from": []any{ "a" },
+    },
+  )
 
   out := call(
     "know_write", map[string]any{ "from": "b", "to": "a", "edge": "explains" },
@@ -211,9 +239,12 @@ func TestKnowLinkUpdateTrace(t *testing.T) {
 
   a, _ := l.Know.Lookup("a")
   l.Know.SetFlags(a, know.FlagStale, 0)
-  out = call("know_write", map[string]any{
-    "id": "a", "claim": "alpha, re-read", "current": true, "move_to": "base/a",
-  })
+  out = call(
+    "know_write",
+    map[string]any{
+      "id": "a", "claim": "alpha, re-read", "current": true, "move_to": "base/a",
+    },
+  )
   if strings.Contains(out["now"], "STALE") ||
       !strings.Contains(out["now"], "base/a") {
     t.Fatalf("update: %v", out)
@@ -257,18 +288,24 @@ func TestMemorySaveRefusesCodeFacts(t *testing.T) {
   l, call := knowLoop(t)
   l.Memories = &notes.Memories{ ProjectDir: t.TempDir(), UserDir: t.TempDir() }
 
-  out := call("memory_save", map[string]any{
-    "name": "retries", "description": "retry count",
-    "content": "the loop retries twice, see turn.go:120",
-  })
+  out := call(
+    "memory_save",
+    map[string]any{
+      "name": "retries", "description": "retry count",
+      "content": "the loop retries twice, see turn.go:120",
+    },
+  )
   if !strings.Contains(out["error"], "know_write") {
     t.Fatalf("a code fact was saved as a memory: %v", out)
   }
 
-  out = call("memory_save", map[string]any{
-    "name": "indent", "description": "style",
-    "content": "use 2-space indentation",
-  })
+  out = call(
+    "memory_save",
+    map[string]any{
+      "name": "indent", "description": "style",
+      "content": "use 2-space indentation",
+    },
+  )
   if out["saved"] != "indent" {
     t.Fatalf("a preference was refused: %v", out)
   }
@@ -280,11 +317,14 @@ func TestKnowLoopReportedAndReminded(t *testing.T) {
     "know_write",
     map[string]any{ "path": "a", "kind": "concept", "claim": "alpha thing" },
   )
-  call("know_write", map[string]any{
-    "path": "b", "kind": "concept", "claim": "beta thing", "needs": []any{
-      "a",
+  call(
+    "know_write",
+    map[string]any{
+      "path": "b", "kind": "concept", "claim": "beta thing", "needs": []any{
+        "a",
+      },
     },
-  })
+  )
 
   out := call(
     "know_write", map[string]any{ "from": "a", "to": "b", "edge": "requires" },
@@ -328,11 +368,14 @@ func TestMinionLeavesLoops(t *testing.T) {
     "know_write",
     map[string]any{ "path": "a", "kind": "concept", "claim": "alpha thing" },
   )
-  call("know_write", map[string]any{
-    "path": "b", "kind": "concept", "claim": "beta thing", "needs": []any{
-      "a",
+  call(
+    "know_write",
+    map[string]any{
+      "path": "b", "kind": "concept", "claim": "beta thing", "needs": []any{
+        "a",
+      },
     },
-  })
+  )
 
   out := call(
     "know_write", map[string]any{ "from": "a", "to": "b", "edge": "requires" },
@@ -358,12 +401,19 @@ func turnHistory(question, answer string, reads ...[2]int) []llm.Message {
       args["end_line"] = float64(r[1])
     }
 
-    h = append(h, llm.Message{
-      Role: "assistant",
-      ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
-        Name: "read_file", Arguments: args,
-      } } },
-    })
+    h = append(
+      h,
+      llm.Message{
+        Role: "assistant",
+        ToolCalls: []llm.ToolCall{
+          {
+            Function: llm.ToolCallFunction{
+              Name: "read_file", Arguments: args,
+            },
+          },
+        },
+      },
+    )
   }
 
   return append(h, llm.Message{ Role: "assistant", Content: answer })
@@ -371,13 +421,19 @@ func turnHistory(question, answer string, reads ...[2]int) []llm.Message {
 
 func TestRecordTurnSkipsFailedReads(t *testing.T) {
   l, _ := knowLoop(t)
-  h := turnHistory("How does the handshake work?", "SYN, then ACK",
-    [2]int{ 3, 6 })
+  h := turnHistory(
+    "How does the handshake work?",
+    "SYN, then ACK",
+    [2]int{ 3, 6 },
+  )
   h[1].ToolCalls[0].ID = "c1"
-  h = slices.Insert(h, 2, llm.Message{
-    Role: "tool", ToolCallID: "c1",
-    Content: `{"error":"\"conn.go\" is a directory, not a file"}`,
-  })
+  h = slices.Insert(
+    h, 2,
+    llm.Message{
+      Role: "tool", ToolCallID: "c1",
+      Content: `{"error":"\"conn.go\" is a directory, not a file"}`,
+    },
+  )
 
   l.recordTurn(h, 0)
   _, ok := l.Know.Lookup("sessions/handshake-work")
@@ -392,9 +448,11 @@ func TestRecordTurn(t *testing.T) {
   // a turn that read a file: one file-kind node under sessions/,
   // pointing at where the answer lives, with the range as evidence
   l.recordTurn(
-    turnHistory("How does the handshake work?",
+    turnHistory(
+      "How does the handshake work?",
       "The handshake is SYN, then ACK, in conn.go:3-6",
-      [2]int{ 3, 6 }), 0,
+      [2]int{ 3, 6 },
+    ), 0,
   )
   id, ok := l.Know.Lookup("sessions/handshake-work")
   if !ok {
@@ -429,8 +487,11 @@ func TestRecordTurn(t *testing.T) {
 
   // no citation in the answer: the claim falls back to the ranges
   l.recordTurn(
-    turnHistory("How does retransmit work?", "SYN, then ACK",
-      [2]int{ 3, 6 }), 0,
+    turnHistory(
+      "How does retransmit work?",
+      "SYN, then ACK",
+      [2]int{ 3, 6 },
+    ), 0,
   )
   rt, ok := l.Know.Lookup("sessions/retransmit-work")
   if !ok || l.Know.Claim(rt) != "conn.go:3-6" {
@@ -439,8 +500,11 @@ func TestRecordTurn(t *testing.T) {
 
   // the same question again: linked to the same node, not a duplicate
   l.recordTurn(
-    turnHistory("How does the handshake work?", "SYN, then ACK again",
-      [2]int{ 3, 6 }), 0,
+    turnHistory(
+      "How does the handshake work?",
+      "SYN, then ACK again",
+      [2]int{ 3, 6 },
+    ), 0,
   )
   got := len(l.Know.Children(mustLookup(t, l, "sessions"), nil))
   if got != 2 {
@@ -449,10 +513,13 @@ func TestRecordTurn(t *testing.T) {
 
   // a turn with no file reads records nothing
   before := len(l.Know.Children(0, nil))
-  l.recordTurn([]llm.Message{
-    { Role: "user", Content: "hi" },
-    { Role: "assistant", Content: "hello" },
-  }, 0)
+  l.recordTurn(
+    []llm.Message{
+      { Role: "user", Content: "hi" },
+      { Role: "assistant", Content: "hello" },
+    },
+    0,
+  )
   if len(l.Know.Children(0, nil)) != before {
     t.Fatal("a turn with no reads recorded a node")
   }

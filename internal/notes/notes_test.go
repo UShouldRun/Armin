@@ -96,18 +96,15 @@ func TestSkillsLoadOverrideAndJail(t *testing.T) {
   }
 
   write(
-    user,
-    "review/SKILL.md",
+    user, "review/SKILL.md",
     "---\nname: review\ndescription: user version\n---\nuser body\n",
   )
   write(
-    user,
-    "deploy/SKILL.md",
+    user, "deploy/SKILL.md",
     "---\nname: deploy\ndescription: ship it\n---\nsteps\n",
   )
   write(
-    project,
-    "review/SKILL.md",
+    project, "review/SKILL.md",
     "---\nname: review\ndescription: project version\n---\nproject body\n",
   )
   write(project, "review/checklist.md", "- [ ] tests\n")
@@ -204,8 +201,7 @@ func TestScratchpadArchiveRotatesAndPointsAtLines(t *testing.T) {
   if err != nil || name3 != "archive-2" {
     t.Fatalf(
       "big entry went to %s (%v), want rotation to archive-2",
-      name3,
-      err,
+      name3, err,
     )
   }
 }

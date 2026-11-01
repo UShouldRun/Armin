@@ -196,12 +196,14 @@ func (l *Loop) runProgram(
   }
 
   if hooks.Propose != nil {
-    hooks.Propose(Proposal{
-      Tool:    tool,
-      Command: tools.Describe(in),
-      Dir:     dir,
-      Script:  l.scriptOf(in, dir),
-    })
+    hooks.Propose(
+      Proposal{
+        Tool:    tool,
+        Command: tools.Describe(in),
+        Dir:     dir,
+        Script:  l.scriptOf(in, dir),
+      },
+    )
   }
 
   ok, feedback := hooks.Approve(tool, preview)

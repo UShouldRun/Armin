@@ -136,17 +136,23 @@ func (p *Scratchpad) List() ([]ScratchFile, error) {
     }
 
     raw, _ := os.ReadFile(filepath.Join(p.Dir, e.Name()))
-    out = append(out, ScratchFile{
-      Name:     strings.TrimSuffix(e.Name(), ".md"),
-      Bytes:    info.Size(),
-      Lines:    strings.Count(string(raw), "\n"),
-      Modified: info.ModTime(),
-    })
+    out = append(
+      out,
+      ScratchFile{
+        Name:     strings.TrimSuffix(e.Name(), ".md"),
+        Bytes:    info.Size(),
+        Lines:    strings.Count(string(raw), "\n"),
+        Modified: info.ModTime(),
+      },
+    )
   }
 
-  sort.Slice(out, func(i, j int) bool {
-    return out[i].Modified.After(out[j].Modified)
-  })
+  sort.Slice(
+    out,
+    func(i, j int) bool {
+      return out[i].Modified.After(out[j].Modified)
+    },
+  )
 
   return out, nil
 }

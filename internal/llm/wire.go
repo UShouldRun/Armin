@@ -29,12 +29,15 @@ func toWireMessages(msgs []Message) []owaiMessage {
         args = []byte("{}")
       }
 
-      wm.ToolCalls = append(wm.ToolCalls, owaiToolCall{
-        ID: tc.ID, Type: "function",
-        Function: owaiToolCallFunc{
-          Name: tc.Function.Name, Arguments: string(args),
+      wm.ToolCalls = append(
+        wm.ToolCalls,
+        owaiToolCall{
+          ID: tc.ID, Type: "function",
+          Function: owaiToolCallFunc{
+            Name: tc.Function.Name, Arguments: string(args),
+          },
         },
-      })
+      )
     }
 
     out[i] = wm
@@ -77,12 +80,15 @@ func fromWireMessage(wm owaiMessage) (Message, error) {
       id = fmt.Sprintf("call_%d", i)
     }
 
-    m.ToolCalls = append(m.ToolCalls, ToolCall{
-      ID: id,
-      Function: ToolCallFunction{
-        Name: tc.Function.Name, Arguments: args,
+    m.ToolCalls = append(
+      m.ToolCalls,
+      ToolCall{
+        ID: id,
+        Function: ToolCallFunction{
+          Name: tc.Function.Name, Arguments: args,
+        },
       },
-    })
+    )
   }
 
   return m, nil

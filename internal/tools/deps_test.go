@@ -10,7 +10,8 @@ import (
 // --- parser unit tests ---
 
 func TestParseGoMod(t *testing.T) {
-  data := []byte(`module example.com/foo
+  data := []byte(
+    `module example.com/foo
 
 go 1.23
 
@@ -18,7 +19,8 @@ require (
 	golang.org/x/sys v0.35.0
 	golang.org/x/text v0.14.0 // indirect
 )
-`)
+`,
+  )
   deps, err := parseGoMod(data)
   if err != nil {
     t.Fatalf("parseGoMod: %v", err)
@@ -52,10 +54,12 @@ func TestParseGoModSingleLineRequire(t *testing.T) {
 }
 
 func TestParsePackageJSON(t *testing.T) {
-  data := []byte(`{
+  data := []byte(
+    `{
     "dependencies": { "react": "^18.0.0" },
     "devDependencies": { "typescript": "^5.0.0" }
-  }`)
+  }`,
+  )
   deps, err := parsePackageJSON(data)
   if err != nil {
     t.Fatalf("parsePackageJSON: %v", err)
@@ -122,9 +126,7 @@ func TestParseCargoToml(t *testing.T) {
 func TestListDependenciesFindsGoMod(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(
-    t,
-    cfg.Root,
-    "go.mod",
+    t, cfg.Root, "go.mod",
     "module foo\n\ngo 1.23\n\nrequire golang.org/x/sys v0.35.0\n",
   )
 
@@ -160,15 +162,11 @@ func TestModuleGraphInternalEdgesOnly(t *testing.T) {
 
   writeFile(t, cfg.Root, "go.mod", "module fixture\n\ngo 1.21\n")
   writeFile(
-    t,
-    cfg.Root,
-    "main.go",
+    t, cfg.Root, "main.go",
     "package main\n\nimport \"fixture/pkg\"\n\nfunc main() { pkg.Hello() }\n",
   )
   writeFile(
-    t,
-    cfg.Root,
-    "pkg/pkg.go",
+    t, cfg.Root, "pkg/pkg.go",
     "package pkg\n\nimport \"fmt\"\n\nfunc Hello() { fmt.Println(\"hi\") }\n",
   )
 

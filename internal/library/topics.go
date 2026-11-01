@@ -68,20 +68,26 @@ func (l *Library) Topics() []Topic {
 // saveTopics rewrites topics.tsv (sorted by topic, then book) and
 // TOPICS.md, the same table for people.
 func (l *Library) saveTopics(rows []Topic) error {
-  sort.SliceStable(rows, func(i, j int) bool {
-    if rows[i].Topic != rows[j].Topic {
-      return rows[i].Topic < rows[j].Topic
-    }
+  sort.SliceStable(
+    rows,
+    func(i, j int) bool {
+      if rows[i].Topic != rows[j].Topic {
+        return rows[i].Topic < rows[j].Topic
+      }
 
-    return rows[i].Book < rows[j].Book
-  })
+      return rows[i].Book < rows[j].Book
+    },
+  )
 
   var b strings.Builder
   b.WriteString("# topic\tbook\twhere\tnote — written by armin's ")
   b.WriteString("/library catalog; hand edits are kept\n")
   for _, t := range rows {
-    fmt.Fprintf(&b, "%s\t%s\t%s\t%s\n",
-      t.Topic, t.Book, clean(t.Where), clean(t.Note))
+    fmt.Fprintf(
+      &b, "%s\t%s\t%s\t%s\n", t.Topic, t.Book,
+      clean(t.Where),
+      clean(t.Note),
+    )
   }
 
   path := l.dir("topics.tsv")
@@ -172,16 +178,24 @@ func (l *Library) TopicRows(topic string) []Topic {
 // so the prompt prefix stays byte-stable.
 func (l *Library) PromptIndex() string {
   var b strings.Builder
-  fmt.Fprintf(&b, "Reference library at %s: books, official docs, " +
-    "standards, RFCs, man pages.\n", l.Root)
-  b.WriteString("- For technical facts (language rules, APIs, " +
-    "syscalls, commands, protocols, algorithms, math, physics), " +
-    "search it first with library_search; narrow with topic when " +
-    "one fits. library_topics shows which chapters cover a topic.\n")
-  b.WriteString("- Cite what you take from it inline as " +
-    "[Title, page N] (or line N), and end with a Library sources " +
-    "list: \"- Title, page N: /path/to/file\". The user checks " +
-    "these. Use web_search for what's newer or missing.\n")
+  fmt.Fprintf(
+    &b,
+    "Reference library at %s: books, official docs, " +
+      "standards, RFCs, man pages.\n",
+    l.Root,
+  )
+  b.WriteString(
+    "- For technical facts (language rules, APIs, " +
+      "syscalls, commands, protocols, algorithms, math, physics), " +
+      "search it first with library_search; narrow with topic when " +
+      "one fits. library_topics shows which chapters cover a topic.\n",
+  )
+  b.WriteString(
+    "- Cite what you take from it inline as " +
+      "[Title, page N] (or line N), and end with a Library sources " +
+      "list: \"- Title, page N: /path/to/file\". The user checks " +
+      "these. Use web_search for what's newer or missing.\n",
+  )
 
   rows := l.Topics()
   if len(rows) == 0 {
@@ -236,9 +250,12 @@ func (l *Library) PromptIndex() string {
       n[t.Topic]++
     }
 
-    sort.SliceStable(topics, func(i, j int) bool {
-      return n[topics[i]] > n[topics[j]]
-    })
+    sort.SliceStable(
+      topics,
+      func(i, j int) bool {
+        return n[topics[i]] > n[topics[j]]
+      },
+    )
     topics = topics[:promptTopics]
     sort.Strings(topics)
   }

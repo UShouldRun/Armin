@@ -86,12 +86,15 @@ func TestFitToLine(t *testing.T) {
   }
 
   for _, c := range cases {
-    t.Run(c.name, func(t *testing.T) {
-      got := fitToLine(c.text, c.rest, c.next)
-      if got != c.want {
-        t.Fatalf("fitToLine(%q) = %q, want %q", c.text, got, c.want)
-      }
-    })
+    t.Run(
+      c.name,
+      func(t *testing.T) {
+        got := fitToLine(c.text, c.rest, c.next)
+        if got != c.want {
+          t.Fatalf("fitToLine(%q) = %q, want %q", c.text, got, c.want)
+        }
+      },
+    )
   }
 }
 
@@ -148,12 +151,15 @@ func TestCleanCompletion(t *testing.T) {
   }
 
   for _, c := range cases {
-    t.Run(c.name, func(t *testing.T) {
-      got := cleanCompletion(c.raw, 20)
-      if got != c.want {
-        t.Fatalf("cleanCompletion(%q) = %q, want %q", c.raw, got, c.want)
-      }
-    })
+    t.Run(
+      c.name,
+      func(t *testing.T) {
+        got := cleanCompletion(c.raw, 20)
+        if got != c.want {
+          t.Fatalf("cleanCompletion(%q) = %q, want %q", c.raw, got, c.want)
+        }
+      },
+    )
   }
 }
 
@@ -175,9 +181,12 @@ func TestFimWindowAllocationsStayBounded(t *testing.T) {
 
   big := string(b)
 
-  allocs := testing.AllocsPerRun(20, func() {
-    fimWindow(big, 10000, 10)
-  })
+  allocs := testing.AllocsPerRun(
+    20,
+    func() {
+      fimWindow(big, 10000, 10)
+    },
+  )
   if allocs > 0 {
     t.Fatalf("fimWindow allocated %.0f times, want 0", allocs)
   }

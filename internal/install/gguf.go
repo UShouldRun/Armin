@@ -224,8 +224,7 @@ func (m *Model) describe(h header) {
   if m.ExpertCount > 0 && m.Experts > 0 {
     m.Kind = fmt.Sprintf(
       "MoE, %d experts, %d active",
-      m.ExpertCount,
-      m.ExpertUsed,
+      m.ExpertCount, m.ExpertUsed,
     )
   }
 
@@ -410,8 +409,7 @@ func readHeader(r io.Reader) (header, error) {
     if nDims > 8 {
       return h, fmt.Errorf(
         "\n\t... in readHeader:\n\t %s has %d dims",
-        t.name,
-        nDims,
+        t.name, nDims,
       )
     }
 

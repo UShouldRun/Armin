@@ -103,10 +103,13 @@ func decide(m *Model, hw *Machine, diskNeed int64) Plan {
   }
 
   if diskNeed > 0 && hw.DiskFree >= 0 && diskNeed > hw.DiskFree {
-    p.add(VerdictWontLoad, CauseDisk, fmt.Sprintf(
-      "the download is %s and only %s is free there",
-      gb(diskNeed), gb(hw.DiskFree),
-    ))
+    p.add(
+      VerdictWontLoad, CauseDisk,
+      fmt.Sprintf(
+        "the download is %s and only %s is free there",
+        gb(diskNeed), gb(hw.DiskFree),
+      ),
+    )
   }
 
   for _, g := range hw.GPUs {
@@ -262,17 +265,23 @@ func (p *Plan) place(m *Model, hw *Machine) {
       besides = " besides " + gb(p.VRAMUse) + " in VRAM"
     }
 
-    p.add(VerdictWontLoad, CauseMemory, fmt.Sprintf(
-      "needs %s of system RAM%s and the machine has %s: the weights " +
-        "would stream from disk every token",
-      gb(need), besides, gb(hw.RAM.Total),
-    ))
+    p.add(
+      VerdictWontLoad, CauseMemory,
+      fmt.Sprintf(
+        "needs %s of system RAM%s and the machine has %s: the weights " +
+          "would stream from disk every token",
+        gb(need), besides, gb(hw.RAM.Total),
+      ),
+    )
   case need > hw.RAM.Available:
-    p.add(VerdictSlow, CauseFreeRAM, fmt.Sprintf(
-      "needs %s of RAM and %s is free now: other programs get pushed " +
-        "to swap (%s free) — close some before loading it",
-      gb(need), gb(hw.RAM.Available), gb(hw.RAM.SwapFree),
-    ))
+    p.add(
+      VerdictSlow, CauseFreeRAM,
+      fmt.Sprintf(
+        "needs %s of RAM and %s is free now: other programs get pushed " +
+          "to swap (%s free) — close some before loading it",
+        gb(need), gb(hw.RAM.Available), gb(hw.RAM.SwapFree),
+      ),
+    )
   }
 }
 
@@ -406,36 +415,48 @@ func (p *Plan) judge(m *Model, hw *Machine) {
   gen := level(p.GenEmpty, genSlow)
   switch p.Place {
   case PlaceGPU:
-    p.add(gen, CauseVRAMBus, fmt.Sprintf(
-      "all %s of weights and the context fit in VRAM; each token reads " +
-        "%s at %.0f GB/s",
-      gb(m.GPUWeights()), gb(m.ReadPerToken()), hw.GPU.Bandwidth,
-    ))
+    p.add(
+      gen, CauseVRAMBus,
+      fmt.Sprintf(
+        "all %s of weights and the context fit in VRAM; each token reads " +
+          "%s at %.0f GB/s",
+        gb(m.GPUWeights()), gb(m.ReadPerToken()), hw.GPU.Bandwidth,
+      ),
+    )
   case PlaceExperts:
-    p.add(gen, CauseRAMBus, fmt.Sprintf(
-      "the experts of %d of %d layers (%s) don't fit in VRAM and live " +
-        "in RAM; each token reads its active experts there from %s " +
-        "(%.0f GB/s vs the GPU's %.0f)",
-      p.CPUMoE, m.Layers, gb(p.RAMUse - m.Embed), ram,
-      hw.RAM.Bandwidth, hw.GPU.Bandwidth,
-    ))
+    p.add(
+      gen, CauseRAMBus,
+      fmt.Sprintf(
+        "the experts of %d of %d layers (%s) don't fit in VRAM and live " +
+          "in RAM; each token reads its active experts there from %s " +
+          "(%.0f GB/s vs the GPU's %.0f)",
+        p.CPUMoE, m.Layers, gb(p.RAMUse - m.Embed), ram,
+        hw.RAM.Bandwidth, hw.GPU.Bandwidth,
+      ),
+    )
   case PlaceSplit:
-    p.add(gen, CauseRAMBus, fmt.Sprintf(
-      "%s of weights don't fit in VRAM: %d of %d layers run from %s, " +
-        "read every token at %.0f GB/s vs the GPU's %.0f",
-      gb(p.RAMUse - m.Embed), m.Layers - p.GPULayers, m.Layers, ram,
-      hw.RAM.Bandwidth, hw.GPU.Bandwidth,
-    ))
+    p.add(
+      gen, CauseRAMBus,
+      fmt.Sprintf(
+        "%s of weights don't fit in VRAM: %d of %d layers run from %s, " +
+          "read every token at %.0f GB/s vs the GPU's %.0f",
+        gb(p.RAMUse - m.Embed), m.Layers - p.GPULayers, m.Layers, ram,
+        hw.RAM.Bandwidth, hw.GPU.Bandwidth,
+      ),
+    )
   case PlaceCPU:
     why := "no dedicated GPU"
     if hw.GPU != nil {
       why = "not even one layer fits in VRAM"
     }
 
-    p.add(gen, CauseRAMBus, fmt.Sprintf(
-      "%s: every token reads %s from %s at %.0f GB/s",
-      why, gb(m.ReadPerToken()), ram, hw.RAM.Bandwidth,
-    ))
+    p.add(
+      gen, CauseRAMBus,
+      fmt.Sprintf(
+        "%s: every token reads %s from %s at %.0f GB/s",
+        why, gb(m.ReadPerToken()), ram, hw.RAM.Bandwidth,
+      ),
+    )
   }
 
   if p.GenFull < p.GenEmpty * 0.6 {
@@ -444,11 +465,14 @@ func (p *Plan) judge(m *Model, hw *Machine) {
       full = VerdictSlow
     }
 
-    p.add(full, CauseKVReads, fmt.Sprintf(
-      "at %dk tokens the context memory (%s) is read every token too: " +
-        "%.0f tok/s, down from %.0f",
-      p.Context / 1024, gb(m.KVBytes(p.Context)), p.GenFull, p.GenEmpty,
-    ))
+    p.add(
+      full, CauseKVReads,
+      fmt.Sprintf(
+        "at %dk tokens the context memory (%s) is read every token too: " +
+          "%.0f tok/s, down from %.0f",
+        p.Context / 1024, gb(m.KVBytes(p.Context)), p.GenFull, p.GenEmpty,
+      ),
+    )
   }
 
   secs := agentPrompt / p.Prefill
@@ -462,30 +486,42 @@ func (p *Plan) judge(m *Model, hw *Machine) {
 
   switch p.PreCause {
   case CauseCPUCompute:
-    p.add(pre, CauseCPUCompute, fmt.Sprintf(
-      "the prompt is multiplied on the CPU: %d cores at %.1f GHz, " +
-        "%s — %s for a %dk-token context",
-      hw.CPU.Cores, hw.CPU.GHz, simdName(&hw.CPU), duration(secs),
-      agentPrompt / 1000,
-    ))
+    p.add(
+      pre, CauseCPUCompute,
+      fmt.Sprintf(
+        "the prompt is multiplied on the CPU: %d cores at %.1f GHz, " +
+          "%s — %s for a %dk-token context",
+        hw.CPU.Cores, hw.CPU.GHz, simdName(&hw.CPU), duration(secs),
+        agentPrompt / 1000,
+      ),
+    )
   case CausePCIe:
-    p.add(pre, CausePCIe, fmt.Sprintf(
-      "every %d-token batch copies the %s in RAM to the GPU over " +
-        "PCIe %d.0 x%d (%.0f GB/s) — %s for a %dk-token context",
-      ubatch, gb(p.RAMUse - m.Embed), hw.GPU.PCIeGen, hw.GPU.Lanes,
-      PCIeBandwidth(hw.GPU.PCIeGen, hw.GPU.Lanes), duration(secs),
-      agentPrompt / 1000,
-    ))
+    p.add(
+      pre, CausePCIe,
+      fmt.Sprintf(
+        "every %d-token batch copies the %s in RAM to the GPU over " +
+          "PCIe %d.0 x%d (%.0f GB/s) — %s for a %dk-token context",
+        ubatch, gb(p.RAMUse - m.Embed), hw.GPU.PCIeGen, hw.GPU.Lanes,
+        PCIeBandwidth(hw.GPU.PCIeGen, hw.GPU.Lanes), duration(secs),
+        agentPrompt / 1000,
+      ),
+    )
   default:
-    p.add(pre, CauseGPUCompute, fmt.Sprintf(
-      "~%.0f TFLOPS reads a %dk-token context in %s",
-      hw.GPU.TFLOPS, agentPrompt / 1000, duration(secs),
-    ))
+    p.add(
+      pre, CauseGPUCompute,
+      fmt.Sprintf(
+        "~%.0f TFLOPS reads a %dk-token context in %s",
+        hw.GPU.TFLOPS, agentPrompt / 1000, duration(secs),
+      ),
+    )
   }
 
   if p.Place != PlaceGPU && !hw.CPU.AVX2 {
-    p.add(VerdictSlow, CauseNoAVX2, "the CPU has no AVX2, so the " +
-      "layers it runs are several times slower than on a newer one")
+    p.add(
+      VerdictSlow, CauseNoAVX2,
+      "the CPU has no AVX2, so the " +
+        "layers it runs are several times slower than on a newer one",
+    )
   }
 
   p.suggest(m, hw)
@@ -500,21 +536,30 @@ func (p *Plan) suggest(m *Model, hw *Machine) {
   if hw.GPU != nil && p.Place != PlaceGPU {
     fits := hw.GPU.VRAMFree - vramReserve - m.KVBytes(minContext)
     if fits > 0 {
-      p.Fixes = append(p.Fixes, fmt.Sprintf(
-        "a quantization of %s or less fits entirely in VRAM at 32k tokens",
-        gb(fits),
-      ))
+      p.Fixes = append(
+        p.Fixes,
+        fmt.Sprintf(
+          "a quantization of %s or less fits entirely in VRAM at 32k tokens",
+          gb(fits),
+        ),
+      )
     }
   }
 
   if p.PreCause == CausePCIe {
-    p.Fixes = append(p.Fixes, "-ub 2048 -b 2048 copies the weights a " +
-      "quarter as often while reading prompts, for more VRAM")
+    p.Fixes = append(
+      p.Fixes,
+      "-ub 2048 -b 2048 copies the weights a " +
+        "quarter as often while reading prompts, for more VRAM",
+    )
   }
 
   if p.Place == PlaceSplit && m.Experts == 0 {
-    p.Fixes = append(p.Fixes, "a MoE model of similar size: only its " +
-      "active experts are read per token, so RAM hurts far less")
+    p.Fixes = append(
+      p.Fixes,
+      "a MoE model of similar size: only its " +
+        "active experts are read per token, so RAM hurts far less",
+    )
   }
 }
 

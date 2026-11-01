@@ -49,8 +49,10 @@ func terminalCmd(configured string) ([]string, error) {
 
   graphical := os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
   if !graphical {
-    return nil, errors.New("no window system to open a terminal on — set " +
-      "terminal in config.conf (or run armin in tmux)")
+    return nil, errors.New(
+      "no window system to open a terminal on — set " +
+        "terminal in config.conf (or run armin in tmux)",
+    )
   }
 
   if t := os.Getenv("TERMINAL"); t != "" {
@@ -70,8 +72,10 @@ func terminalCmd(configured string) ([]string, error) {
     }
   }
 
-  return nil, errors.New("no terminal found — set terminal in config.conf, " +
-    "e.g. terminal = ghostty -e")
+  return nil, errors.New(
+    "no terminal found — set terminal in config.conf, " +
+      "e.g. terminal = ghostty -e",
+  )
 }
 
 // view opens a proposal in nvim, read-only, in a new terminal
@@ -116,9 +120,7 @@ func (r *REPL) view(p agent.Proposal) error {
     text, at := fileDiff(p)
     err = os.WriteFile(path, []byte(text), 0o600)
     args = append(
-      args,
-      "-c",
-      "setlocal filetype=diff",
+      args, "-c", "setlocal filetype=diff",
       fmt.Sprintf("+%d", at),
       path,
     )
@@ -171,8 +173,13 @@ func fileDiff(p agent.Proposal) (text string, at int) {
   var b strings.Builder
   added, removed := len(p.Came), len(p.Gone)
   fmt.Fprintf(&b, "--- %s\n+++ %s (proposed)\n", p.Path, p.Path)
-  fmt.Fprintf(&b, "@@ -1,%d +1,%d @@ %d additions, %d removals\n",
-    len(p.OldLines), len(p.OldLines) - removed + added, added, removed)
+  fmt.Fprintf(
+    &b,
+    "@@ -1,%d +1,%d @@ %d additions, %d removals\n",
+    len(p.OldLines),
+    len(p.OldLines) - removed + added,
+    added, removed,
+  )
 
   for _, l := range p.OldLines[:p.Start] {
     b.WriteString(" " + l + "\n")

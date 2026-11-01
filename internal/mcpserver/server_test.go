@@ -48,12 +48,15 @@ func call(
 
   var out bytes.Buffer
   s.out = &out
-  s.handle(context.Background(), rpcMessage{
-    JSONRPC: "2.0",
-    ID:      json.RawMessage(itoa(id)),
-    Method:  method,
-    Params:  paramsRaw,
-  })
+  s.handle(
+    context.Background(),
+    rpcMessage{
+      JSONRPC: "2.0",
+      ID:      json.RawMessage(itoa(id)),
+      Method:  method,
+      Params:  paramsRaw,
+    },
+  )
 
   var resp rpcResponse
   err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &resp)
@@ -81,8 +84,7 @@ func TestInitialize(t *testing.T) {
   if result.ProtocolVersion != protocolVersion {
     t.Fatalf(
       "ProtocolVersion = %q, want %q",
-      result.ProtocolVersion,
-      protocolVersion,
+      result.ProtocolVersion, protocolVersion,
     )
   }
 
@@ -149,10 +151,13 @@ func TestToolsList(t *testing.T) {
 
 func TestToolsCallSuccess(t *testing.T) {
   s := newTestServer(t)
-  resp := call(t, s, 1, "tools/call", callToolParams{
-    Name:      "read_file",
-    Arguments: json.RawMessage(`{"path":"f.txt"}`),
-  })
+  resp := call(
+    t, s, 1, "tools/call",
+    callToolParams{
+      Name:      "read_file",
+      Arguments: json.RawMessage(`{"path":"f.txt"}`),
+    },
+  )
 
   var result callToolResult
   remarshal(t, resp.Result, &result)
@@ -172,10 +177,13 @@ func TestToolsCallSuccess(t *testing.T) {
 
 func TestToolsCallDisallowedBinaryIsError(t *testing.T) {
   s := newTestServer(t)
-  resp := call(t, s, 1, "tools/call", callToolParams{
-    Name:      "run_command",
-    Arguments: json.RawMessage(`{"binary":"not-allowed"}`),
-  })
+  resp := call(
+    t, s, 1, "tools/call",
+    callToolParams{
+      Name:      "run_command",
+      Arguments: json.RawMessage(`{"binary":"not-allowed"}`),
+    },
+  )
 
   var result callToolResult
   remarshal(t, resp.Result, &result)
@@ -191,10 +199,7 @@ func TestToolsCallDisallowedBinaryIsError(t *testing.T) {
 func TestToolsCallUnknownTool(t *testing.T) {
   s := newTestServer(t)
   resp := call(
-    t,
-    s,
-    1,
-    "tools/call",
+    t, s, 1, "tools/call",
     callToolParams{ Name: "delete_everything" },
   )
 
@@ -219,10 +224,13 @@ func TestNotificationGetsNoResponse(t *testing.T) {
   var out bytes.Buffer
   s.out = &out
 
-  s.handle(context.Background(), rpcMessage{
-    JSONRPC: "2.0",
-    Method:  "notifications/initialized",
-  })
+  s.handle(
+    context.Background(),
+    rpcMessage{
+      JSONRPC: "2.0",
+      Method:  "notifications/initialized",
+    },
+  )
 
   if out.Len() != 0 {
     t.Fatalf("a notification produced a response: %s", out.String())

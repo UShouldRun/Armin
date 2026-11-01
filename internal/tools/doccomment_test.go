@@ -91,8 +91,7 @@ func TestReadDocCommentRequiresName(t *testing.T) {
   idx := ctags.New(cfg.Root, "")
   _, err := ReadDocComment(
     context.Background(),
-    idx,
-    cfg,
+    idx, cfg,
     ReadDocCommentInput{},
   )
   if err == nil {
@@ -105,7 +104,8 @@ func TestReadDocCommentRequiresName(t *testing.T) {
 func TestReadDocCommentEndToEnd(t *testing.T) {
   ctagsBin := requireCtags(t)
   cfg := newTestSandbox(t, sandbox.Options{})
-  writeFile(t, cfg.Root, "a.go",
+  writeFile(
+    t, cfg.Root, "a.go",
     "package main\n\n// Greet says hello to name.\nfunc Greet(name string) " +
       "string {\n  return \"hello \" + name\n}\n",
   )
@@ -113,8 +113,7 @@ func TestReadDocCommentEndToEnd(t *testing.T) {
   idx := ctags.New(cfg.Root, ctagsBin)
   out, err := ReadDocComment(
     context.Background(),
-    idx,
-    cfg,
+    idx, cfg,
     ReadDocCommentInput{ Name: "Greet" },
   )
   if err != nil {

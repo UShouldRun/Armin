@@ -218,8 +218,11 @@ func (g *Graph) FlagCycles(author AuthorID) ([][]NodeID, error) {
     if !ok {
       var err error
       dir,
-      err = g.AddNode(0, cyclesPath, "requires loops waiting to be resolved",
-        KindTopic, ConfChecked, author)
+      err = g.AddNode(
+        0, cyclesPath,
+        "requires loops waiting to be resolved",
+        KindTopic, ConfChecked, author,
+      )
       if err != nil {
         return loops, err
       }

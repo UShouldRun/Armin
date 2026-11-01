@@ -79,9 +79,12 @@ func walk(b *strings.Builder, dir, prefix string, depthLeft int) error {
     return fmt.Errorf("\n\t... in walk:\n\t reading dir %q: %w", dir, err)
   }
 
-  sort.Slice(entries, func(i, j int) bool {
-    return entries[i].Name() < entries[j].Name()
-  })
+  sort.Slice(
+    entries,
+    func(i, j int) bool {
+      return entries[i].Name() < entries[j].Name()
+    },
+  )
 
   kept := keptEntries(entries)
 

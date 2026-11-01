@@ -47,10 +47,16 @@ func TestEdit(t *testing.T) {
   // rename handshake and rewrite its claim and confidence, drop
   // window's derived-from edge, add a node with an edge to the
   // renamed one, and delete window by flag
-  text = strings.Replace(text,
-    "n2 tcp/handshake fact checked", "n2 tcp/hs fact tested", 1)
-  text = strings.Replace(text,
-    `claim "SYN, SYN-ACK, ACK"`, `claim "three segments"`, 1)
+  text = strings.Replace(
+    text,
+    "n2 tcp/handshake fact checked",
+    "n2 tcp/hs fact tested", 1,
+  )
+  text = strings.Replace(
+    text,
+    `claim "SYN, SYN-ACK, ACK"`,
+    `claim "three segments"`, 1,
+  )
   text = strings.Replace(text, "  derived-from n2\n", "", 1)
   text += "\nnew tcp/close concept guess\n  claim \"FIN\"\n  requires tcp/hs\n"
   head := "n4 tcp/window concept guess a1 born 2026-10-31 seen 2026-10-31\n"

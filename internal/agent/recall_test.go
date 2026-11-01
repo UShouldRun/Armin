@@ -13,9 +13,12 @@ func recallLoop(t *testing.T) *Loop {
   t.Helper()
   g := know.New()
   tools, _ := g.AddNode(0, "tools", "", know.KindTopic, know.ConfChecked, 0)
-  g.AddNode(tools, "golden", "each role's tool list is pinned in " +
-    "testdata/definitions.<role>.json, regenerated with -update",
-    know.KindFact, know.ConfChecked, 0)
+  g.AddNode(
+    tools, "golden",
+    "each role's tool list is pinned in " +
+      "testdata/definitions.<role>.json, regenerated with -update",
+    know.KindFact, know.ConfChecked, 0,
+  )
 
   return &Loop{ Know: g, Recall: true }
 }
@@ -39,9 +42,12 @@ func TestRecallAttachesAndSettles(t *testing.T) {
     t.Fatal("the system prompt must not change")
   }
 
-  history = append(history, llm.Message{
-    Role: "assistant", Content: "testdata/definitions.advisor.json [n2]",
-  })
+  history = append(
+    history,
+    llm.Message{
+      Role: "assistant", Content: "testdata/definitions.advisor.json [n2]",
+    },
+  )
   l.recallSettle(history, 2)
   snap := metrics.Snapshot()
   if snap["recall.attached"].Count != 1 || snap["recall.cited"].Count != 1 {
@@ -50,11 +56,16 @@ func TestRecallAttachesAndSettles(t *testing.T) {
 
   // a read of a recalled node's file, no citation: read, not cited
   l.recalledFiles = append(l.recalledFiles, "testdata/x.json")
-  history[2] = llm.Message{ Role: "assistant", ToolCalls: []llm.ToolCall{
-    { Function: llm.ToolCallFunction{
-      Name: "read_file", Arguments: map[string]any{ "path": "testdata/x.json" },
-    } },
-  } }
+  history[2] = llm.Message{
+    Role: "assistant",
+    ToolCalls: []llm.ToolCall{
+      {
+        Function: llm.ToolCallFunction{
+          Name: "read_file", Arguments: map[string]any{ "path": "testdata/x.json" },
+        },
+      },
+    },
+  }
   l.recallSettle(history, 2)
   snap = metrics.Snapshot()
   if snap["recall.cited"].Count != 1 || snap["recall.read"].Count != 1 {
@@ -62,13 +73,18 @@ func TestRecallAttachesAndSettles(t *testing.T) {
   }
 
   // a know_write deriving from the recalled node by path: cited
-  history[2] = llm.Message{ Role: "assistant", ToolCalls: []llm.ToolCall{
-    { Function: llm.ToolCallFunction{
-      Name: "know_write", Arguments: map[string]any{
-        "path": "tools/more", "derived_from": []any{ "tools/golden" },
+  history[2] = llm.Message{
+    Role: "assistant",
+    ToolCalls: []llm.ToolCall{
+      {
+        Function: llm.ToolCallFunction{
+          Name: "know_write", Arguments: map[string]any{
+            "path": "tools/more", "derived_from": []any{ "tools/golden" },
+          },
+        },
       },
-    } },
-  } }
+    },
+  }
   l.recallSettle(history, 2)
   if metrics.Snapshot()["recall.cited"].Count != 2 {
     t.Fatal("a know_write building on a recalled node wasn't a citation")

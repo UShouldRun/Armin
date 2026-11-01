@@ -32,8 +32,12 @@ func (r *REPL) turnPlan(
     ctx, r.Loop.ChoreClient(ctx), r.Loop.Aids, effort, input,
   )
   if auto {
-    fmt.Println(ui.Dim("thinking: " + effort.String() + " (auto), " +
-      task.String() + " task"))
+    fmt.Println(
+      ui.Dim(
+        "thinking: " + effort.String() + " (auto), " +
+          task.String() + " task",
+      ),
+    )
   }
 
   return effort, task

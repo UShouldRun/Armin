@@ -23,9 +23,11 @@ func TestChooseEffort(t *testing.T) {
     }
 
     msg := map[string]any{ "role": "assistant", "content": reply }
-    json.NewEncoder(w).Encode(map[string]any{
-      "choices": []any{ map[string]any{ "message": msg } },
-    })
+    json.NewEncoder(w).Encode(
+      map[string]any{
+        "choices": []any{ map[string]any{ "message": msg } },
+      },
+    )
   }
 
   server := httptest.NewServer(http.HandlerFunc(answer))
@@ -47,8 +49,11 @@ func TestChooseEffort(t *testing.T) {
   before := calls
   e, _ = Assess(ctx, c, "thanks!")
   if e != EffortLow || calls != before {
-    t.Fatalf("short request: %v after %d calls, want low with no call",
-      e, calls - before)
+    t.Fatalf(
+      "short request: %v after %d calls, want low with no call",
+      e,
+      calls - before,
+    )
   }
 
   if c.Effort != "" {

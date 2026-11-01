@@ -88,31 +88,35 @@ func verifyJWT(t *testing.T, jwt string, pub *rsa.PublicKey) map[string]any {
 func TestKeyFlowSignsVerifiableJWTAndCachesToken(t *testing.T) {
   var exchanges int
   var key *rsa.PrivateKey
-  server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    exchanges++
-    raw, _ := io.ReadAll(r.Body)
-    form, _ := url.ParseQuery(string(raw))
-    if form.Get("grant_type") != "urn:ietf:params:oauth:grant-type:jwt-bearer" {
-      t.Errorf("grant_type = %q", form.Get("grant_type"))
-    }
+  server := httptest.NewServer(
+    http.HandlerFunc(
+      func(w http.ResponseWriter, r *http.Request) {
+        exchanges++
+        raw, _ := io.ReadAll(r.Body)
+        form, _ := url.ParseQuery(string(raw))
+        if form.Get("grant_type") != "urn:ietf:params:oauth:grant-type:jwt-bearer" {
+          t.Errorf("grant_type = %q", form.Get("grant_type"))
+        }
 
-    claims := verifyJWT(t, form.Get("assertion"), &key.PublicKey)
-    if claims["iss"] != "armin@sa.stackit.cloud" ||
-        claims["sub"] != "11111111-2222-3333-4444-555555555555" ||
-      claims["jti"] == "" || claims["aud"] == "" {
-      t.Errorf("claims = %v", claims)
-    }
+        claims := verifyJWT(t, form.Get("assertion"), &key.PublicKey)
+        if claims["iss"] != "armin@sa.stackit.cloud" ||
+            claims["sub"] != "11111111-2222-3333-4444-555555555555" ||
+          claims["jti"] == "" || claims["aud"] == "" {
+          t.Errorf("claims = %v", claims)
+        }
 
-    exp, iat := claims["exp"].(float64), claims["iat"].(float64)
-    if exp - iat != 600 {
-      t.Errorf("exp - iat = %v, want 600", exp - iat)
-    }
+        exp, iat := claims["exp"].(float64), claims["iat"].(float64)
+        if exp - iat != 600 {
+          t.Errorf("exp - iat = %v, want 600", exp - iat)
+        }
 
-    io.WriteString(
-      w,
-      `{"access_token":"tok-1","expires_in":3600,"token_type":"Bearer"}`,
-    )
-  }))
+        io.WriteString(
+          w,
+          `{"access_token":"tok-1","expires_in":3600,"token_type":"Bearer"}`,
+        )
+      },
+    ),
+  )
   defer server.Close()
   key = writeKeyFile(t, server.URL)
 
@@ -187,8 +191,7 @@ func (f *FakeIaaS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     fmt.Fprintf(
       w,
       `{"id":"s-1","status":%q,"nics":[{"ipv4":"10.0.0.4"%s}]}`,
-      f.Status,
-      ip,
+      f.Status, ip,
     )
     if f.Status == "STARTING" {
       f.Status = "ACTIVE"

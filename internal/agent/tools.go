@@ -148,26 +148,28 @@ func (l *Loop) Definitions() []llm.ToolDefinition {
 
 func (l *Loop) defsFor() *roleDefs {
   d := &l.roleDefs[l.Role.slot()]
-  d.once.Do(func() {
-    for id := toolUnknown + 1; id < toolCount; id++ {
-      if l.offered(id) {
-        d.list = append(d.list, wrap(specs[id].def))
-      }
-    }
-
-    raw, _ := json.Marshal(d.list)
-    d.tokens = len(raw) / 4
-
-    d.params = make(map[string]map[string]bool, len(d.list))
-    for _, def := range d.list {
-      names := make(map[string]bool, len(def.Function.Parameters.Properties))
-      for k := range def.Function.Parameters.Properties {
-        names[k] = true
+  d.once.Do(
+    func() {
+      for id := toolUnknown + 1; id < toolCount; id++ {
+        if l.offered(id) {
+          d.list = append(d.list, wrap(specs[id].def))
+        }
       }
 
-      d.params[def.Function.Name] = names
-    }
-  })
+      raw, _ := json.Marshal(d.list)
+      d.tokens = len(raw) / 4
+
+      d.params = make(map[string]map[string]bool, len(d.list))
+      for _, def := range d.list {
+        names := make(map[string]bool, len(def.Function.Parameters.Properties))
+        for k := range def.Function.Parameters.Properties {
+          names[k] = true
+        }
+
+        d.params[def.Function.Name] = names
+      }
+    },
+  )
 
   return d
 }

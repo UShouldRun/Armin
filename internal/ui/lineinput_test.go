@@ -188,10 +188,13 @@ func TestLineStateApplyAllocationsStayBounded(t *testing.T) {
   }
 
   const allocLimit = 2 // append() may grow the backing array
-  allocs := testing.AllocsPerRun(50, func() {
-    s.apply(rk('x'))
-    s.apply(ck(keyBackspace))
-  })
+  allocs := testing.AllocsPerRun(
+    50,
+    func() {
+      s.apply(rk('x'))
+      s.apply(ck(keyBackspace))
+    },
+  )
   if allocs > allocLimit {
     t.Fatalf(
       "apply() allocated %.1f times per keystroke pair, want <= %d",

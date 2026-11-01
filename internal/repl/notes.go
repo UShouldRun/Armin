@@ -62,8 +62,7 @@ func cmdMemory(r *REPL, _ context.Context, args []string) {
   fmt.Println(ui.Bold("memories"))
   for _, m := range list {
     fmt.Printf(
-      "  %-24s %s\n",
-      m.Name,
+      "  %-24s %s\n", m.Name,
       ui.Dim("(" + m.Scope.String() + ") " + m.Description),
     )
   }
@@ -104,8 +103,7 @@ func cmdSkills(r *REPL, _ context.Context, _ []string) {
     }
 
     fmt.Printf(
-      "  %-20s %s\n",
-      sk.Name,
+      "  %-20s %s\n", sk.Name,
       ui.Dim("(" + where + ") " + sk.Description),
     )
   }

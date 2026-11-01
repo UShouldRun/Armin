@@ -16,13 +16,21 @@ import (
 // question "how are sessions saved?" and a read of store.go:1-4.
 func pointerLoop(t *testing.T, reply string) (*Loop, know.NodeID) {
   t.Helper()
-  l, root := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: reply })
-  })
+  l, root := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: reply })
+    },
+  )
   os.MkdirAll(filepath.Join(root, "internal", "session"), 0o755)
-  os.WriteFile(filepath.Join(root, "internal", "session", "store.go"),
-    []byte("package session\n\n// Append writes new messages only.\n" +
-      "func Append() {}\n"), 0o644)
+  os.WriteFile(
+    filepath.Join(root, "internal", "session", "store.go"),
+    []byte(
+      "package session\n\n// Append writes new messages only.\n" +
+        "func Append() {}\n",
+    ),
+    0o644,
+  )
 
   l.Know = know.New()
   l.Session = "s1"
@@ -32,8 +40,11 @@ func pointerLoop(t *testing.T, reply string) (*Loop, know.NodeID) {
   dir, _ := l.Know.AddNode(
     0, "sessions", "", know.KindTopic, know.ConfChecked, author,
   )
-  id, _ := l.Know.AddNode(dir, "how-are-sessions-saved",
-    "internal/session/store.go:1-4", know.KindFile, know.ConfChecked, author)
+  id, _ := l.Know.AddNode(
+    dir, "how-are-sessions-saved",
+    "internal/session/store.go:1-4",
+    know.KindFile, know.ConfChecked, author,
+  )
   l.addEvidence(id, "internal/session/store.go:1-4")
   question := questionPrefix + "how are sessions saved?"
   l.Know.AddEvidence(id, know.RefSession, question, 0)
@@ -42,9 +53,11 @@ func pointerLoop(t *testing.T, reply string) (*Loop, know.NodeID) {
 }
 
 func TestConsolidateWritesClaims(t *testing.T) {
-  l, pointer := pointerLoop(t,
+  l, pointer := pointerLoop(
+    t,
     "Sessions are appended, never rewritten @ internal/session/store.go:1-4\n" +
-      "Made up @ internal/session/other.go:1-9\n")
+      "Made up @ internal/session/other.go:1-9\n",
+  )
 
   n, err := l.Consolidate(context.Background(), 5)
   if err != nil || n != 1 {
@@ -100,14 +113,18 @@ func TestPointerSourceWholeFile(t *testing.T) {
 }
 
 func TestConsolidateLinksASimilarClaim(t *testing.T) {
-  l, pointer := pointerLoop(t,
-    "sessions are appended never rewritten @ internal/session/store.go:1-4\n")
+  l, pointer := pointerLoop(
+    t,
+    "sessions are appended never rewritten @ internal/session/store.go:1-4\n",
+  )
   area, _ := l.Know.AddNode(
     0, "session", "", know.KindTopic, know.ConfChecked, 0,
   )
-  have, _ := l.Know.AddNode(area, "appending",
+  have, _ := l.Know.AddNode(
+    area, "appending",
     "sessions are appended, never rewritten",
-    know.KindFact, know.ConfChecked, 0)
+    know.KindFact, know.ConfChecked, 0,
+  )
 
   l.Consolidate(context.Background(), 5)
   if !l.Know.HasEdge(have, pointer, know.EdgeDerivedFrom) {
@@ -146,12 +163,18 @@ func TestUserTextAndSlug(t *testing.T) {
 
 func TestUserTextCleansWhatWasAdded(t *testing.T) {
   cases := []struct{ in, want string }{
-    { "fix the dirs\n\n(How to approach this fix task: First...)",
-      "fix the dirs" },
-    { "[00:00:01.000 --> 00:00:18.000] Hey, how does it work?",
-      "Hey, how does it work?" },
-    { "why is the logo text\n\n" + strings.Repeat("tX0gKpVK", 10),
-      "why is the logo text" },
+    {
+      "fix the dirs\n\n(How to approach this fix task: First...)",
+      "fix the dirs",
+    },
+    {
+      "[00:00:01.000 --> 00:00:18.000] Hey, how does it work?",
+      "Hey, how does it work?",
+    },
+    {
+      "why is the logo text\n\n" + strings.Repeat("tX0gKpVK", 10),
+      "why is the logo text",
+    },
     { summaryMark + ", compacted to save context]\n# brief", "" },
   }
 

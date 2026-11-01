@@ -32,10 +32,13 @@ func Lines(msgs []llm.Message) []ChatLine {
 
     case "assistant":
       for _, call := range m.ToolCalls {
-        out = append(out, ChatLine{
-          Role: "tool",
-          Text: agent.CallLine(call.Function.Name, call.Function.Arguments),
-        })
+        out = append(
+          out,
+          ChatLine{
+            Role: "tool",
+            Text: agent.CallLine(call.Function.Name, call.Function.Arguments),
+          },
+        )
       }
 
       t := strings.TrimSpace(m.Content)

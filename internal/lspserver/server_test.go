@@ -23,36 +23,42 @@ import (
 // armin.model/armin.ask can be tested without a real llama-server.
 func fakeChatServer(t *testing.T, reply string) *httptest.Server {
   t.Helper()
-  return httptest.NewServer(http.HandlerFunc(
-    func(w http.ResponseWriter, r *http.Request) {
-      var req struct{ Stream bool `json:"stream"` }
-      json.NewDecoder(r.Body).Decode(&req)
-      if req.Stream {
-        delta, _ := json.Marshal(map[string]any{
-          "choices": []map[string]any{
-            {
-              "delta":         map[string]string{ "content": reply },
-              "finish_reason": "stop",
+  return httptest.NewServer(
+    http.HandlerFunc(
+      func(w http.ResponseWriter, r *http.Request) {
+        var req struct{ Stream bool `json:"stream"` }
+        json.NewDecoder(r.Body).Decode(&req)
+        if req.Stream {
+          delta, _ := json.Marshal(
+            map[string]any{
+              "choices": []map[string]any{
+                {
+                  "delta":         map[string]string{ "content": reply },
+                  "finish_reason": "stop",
+                },
+              },
+            },
+          )
+          fmt.Fprintf(w, "data: %s\n\ndata: [DONE]\n\n", delta)
+
+          return
+        }
+
+        json.NewEncoder(w).Encode(
+          map[string]any{
+            "choices": []map[string]any{
+              {
+                "message": map[string]string{
+                  "role":    "assistant",
+                  "content": reply,
+                },
+              },
             },
           },
-        })
-        fmt.Fprintf(w, "data: %s\n\ndata: [DONE]\n\n", delta)
-
-        return
-      }
-
-      json.NewEncoder(w).Encode(map[string]any{
-        "choices": []map[string]any{
-          {
-            "message": map[string]string{
-              "role":    "assistant",
-              "content": reply,
-            },
-          },
-        },
-      })
-    },
-  ))
+        )
+      },
+    ),
+  )
 }
 
 // newTestServer builds a Server backed by a llamacpp.Manager whose
@@ -91,11 +97,7 @@ func newTestServer(t *testing.T, chatURL string, modelNames ...string) *Server {
   loop := agent.New(client, sb)
 
   return New(
-    loop,
-    sb,
-    "system prompt",
-    completionClient,
-    models,
+    loop, sb, "system prompt", completionClient, models,
     ctags.New(root, ""),
   )
 }
@@ -145,10 +147,13 @@ func TestExecuteModelSwitchesLive(t *testing.T) {
   defer server.Close()
   s := newTestServer(t, server.URL, "chat", "coder")
 
-  resp := callExecuteCommand(t, s, ExecuteCommandParams{
-    Command:   "armin.model",
-    Arguments: []json.RawMessage{ json.RawMessage(`{"name":"coder"}`) },
-  })
+  resp := callExecuteCommand(
+    t, s,
+    ExecuteCommandParams{
+      Command:   "armin.model",
+      Arguments: []json.RawMessage{ json.RawMessage(`{"name":"coder"}`) },
+    },
+  )
   if resp.Error != nil {
     t.Fatalf("armin.model (set): %+v", resp.Error)
   }
@@ -172,10 +177,13 @@ func TestExecuteModelRejectsUnconfiguredName(t *testing.T) {
   defer server.Close()
   s := newTestServer(t, server.URL, "chat")
 
-  resp := callExecuteCommand(t, s, ExecuteCommandParams{
-    Command:   "armin.model",
-    Arguments: []json.RawMessage{ json.RawMessage(`{"name":"nonexistent"}`) },
-  })
+  resp := callExecuteCommand(
+    t, s,
+    ExecuteCommandParams{
+      Command:   "armin.model",
+      Arguments: []json.RawMessage{ json.RawMessage(`{"name":"nonexistent"}`) },
+    },
+  )
   if resp.Error == nil {
     t.Fatal("expected an error for a name with no matching models.<name> entry")
   }
@@ -194,8 +202,7 @@ func TestExecuteModelReportsCurrentAndConfigured(t *testing.T) {
   s := newTestServer(t, server.URL, "chat", "coder")
 
   resp := callExecuteCommand(
-    t,
-    s,
+    t, s,
     ExecuteCommandParams{ Command: "armin.model" },
   )
   if resp.Error != nil {
@@ -227,16 +234,20 @@ func fakeChatServerRejectsTools(
   t *testing.T, modelName string,
 ) *httptest.Server {
   t.Helper()
-  return httptest.NewServer(http.HandlerFunc(
-    func(w http.ResponseWriter, r *http.Request) {
-      w.WriteHeader(http.StatusBadRequest)
-      json.NewEncoder(w).Encode(map[string]any{
-        "error": map[string]string{
-          "message": modelName + " does not support tools",
-        },
-      })
-    },
-  ))
+  return httptest.NewServer(
+    http.HandlerFunc(
+      func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(http.StatusBadRequest)
+        json.NewEncoder(w).Encode(
+          map[string]any{
+            "error": map[string]string{
+              "message": modelName + " does not support tools",
+            },
+          },
+        )
+      },
+    ),
+  )
 }
 
 func TestExecuteAskToolsUnsupportedShowsCleanMessage(t *testing.T) {
@@ -244,12 +255,15 @@ func TestExecuteAskToolsUnsupportedShowsCleanMessage(t *testing.T) {
   defer server.Close()
   s := newTestServer(t, server.URL, "fake-model")
 
-  resp := callExecuteCommand(t, s, ExecuteCommandParams{
-    Command:   "armin.ask",
-    Arguments: []json.RawMessage{
-      json.RawMessage(`{"question":"what does this do?"}`),
+  resp := callExecuteCommand(
+    t, s,
+    ExecuteCommandParams{
+      Command:   "armin.ask",
+      Arguments: []json.RawMessage{
+        json.RawMessage(`{"question":"what does this do?"}`),
+      },
     },
-  })
+  )
   if resp.Error == nil {
     t.Fatal("expected an error response")
   }
@@ -289,12 +303,15 @@ func TestExecuteAskKeepsConversation(t *testing.T) {
   s := newTestServer(t, server.URL, "chat")
 
   ask := func(q string) {
-    resp := callExecuteCommand(t, s, ExecuteCommandParams{
-      Command:   "armin.ask",
-      Arguments: []json.RawMessage{
-        json.RawMessage(`{"question":"` + q + `"}`),
+    resp := callExecuteCommand(
+      t, s,
+      ExecuteCommandParams{
+        Command:   "armin.ask",
+        Arguments: []json.RawMessage{
+          json.RawMessage(`{"question":"` + q + `"}`),
+        },
       },
-    })
+    )
     if resp.Error != nil {
       t.Fatalf("armin.ask: %+v", resp.Error)
     }
@@ -319,8 +336,7 @@ func TestExecuteAskKeepsConversation(t *testing.T) {
   }
 
   resp := callExecuteCommand(
-    t,
-    s,
+    t, s,
     ExecuteCommandParams{ Command: "armin.clear" },
   )
   if resp.Error != nil || len(s.chat) != 0 {
@@ -375,8 +391,7 @@ func TestJoinSharesChat(t *testing.T) {
   if c.Origin != "terminal:2" || c.Instance != 1 || c.Model.Current != "chat" {
     t.Fatalf(
       "joined as %q, instance %d, model %q",
-      c.Origin,
-      c.Instance,
+      c.Origin, c.Instance,
       c.Model.Current,
     )
   }

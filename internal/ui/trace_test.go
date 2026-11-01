@@ -9,9 +9,13 @@ import (
 
 func TestSplitTrace(t *testing.T) {
   // the shape every wrapper in the codebase produces
-  s := fmt.Errorf("\n\t... in RunCommand:\n\t%w",
-    fmt.Errorf("\n\t... in CheckExec:\n\t%w",
-      errors.New("\"ps\" isn't in run_program's allowlist"))).Error()
+  s := fmt.Errorf(
+    "\n\t... in RunCommand:\n\t%w",
+    fmt.Errorf(
+      "\n\t... in CheckExec:\n\t%w",
+      errors.New("\"ps\" isn't in run_program's allowlist"),
+    ),
+  ).Error()
 
   message, trace := SplitTrace(s)
   if message != "\"ps\" isn't in run_program's allowlist" {
@@ -25,9 +29,14 @@ func TestSplitTrace(t *testing.T) {
   }
 
   // a middle frame's words stay in the message, without its name
-  s = fmt.Errorf("\n\t... in Turn:\n\t model call failed: %w",
-    fmt.Errorf("\n\t... in ChatStream:\n\t calling llama-server at " +
-      "http://x: %w", errors.New("connection refused"))).Error()
+  s = fmt.Errorf(
+    "\n\t... in Turn:\n\t model call failed: %w",
+    fmt.Errorf(
+      "\n\t... in ChatStream:\n\t calling llama-server at " +
+        "http://x: %w",
+      errors.New("connection refused"),
+    ),
+  ).Error()
   message, _ = SplitTrace(s)
   want = "model call failed: calling llama-server at http://x: " +
     "connection refused"
@@ -48,13 +57,19 @@ func TestSplitTrace(t *testing.T) {
 
 func TestJSONErrorMessage(t *testing.T) {
   cases := []struct{ in, want string }{
-    { `llama-server returned 500: ` +
-        `{"error":{"message":"slot lost the model","code":500}}`,
-      "llama-server returned 500: slot lost the model" },
-    { `{"error":{"message":"slot lost the model","code":500}}`,
-      "slot lost the model" },
-    { `{"message":"Regional routing requires a Business plan."}`,
-      "Regional routing requires a Business plan." },
+    {
+      `llama-server returned 500: ` +
+          `{"error":{"message":"slot lost the model","code":500}}`,
+      "llama-server returned 500: slot lost the model",
+    },
+    {
+      `{"error":{"message":"slot lost the model","code":500}}`,
+      "slot lost the model",
+    },
+    {
+      `{"message":"Regional routing requires a Business plan."}`,
+      "Regional routing requires a Business plan.",
+    },
     { `{"status":"error"}`, "" },
     { "plain text body", "" },
     { `llama-server returned 500: {"error":{"mes`, "" }, // cut off
@@ -69,8 +84,10 @@ func TestJSONErrorMessage(t *testing.T) {
 }
 
 func TestErrorOfAndTrace(t *testing.T) {
-  err := fmt.Errorf("\n\t... in Complete:\n\t llama-server returned 500: " +
-    "{\"error\":{\"message\":\"slot lost the model\"}}")
+  err := fmt.Errorf(
+    "\n\t... in Complete:\n\t llama-server returned 500: " +
+      "{\"error\":{\"message\":\"slot lost the model\"}}",
+  )
 
   got := ErrorOf(err)
   if lastTrace.Load() == nil {

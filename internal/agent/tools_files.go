@@ -276,12 +276,14 @@ func (l *Loop) applyChange(
 ) any {
   if hooks.Propose != nil {
     start, gone, came, oldLines, newLines := change.Hunk()
-    hooks.Propose(Proposal{
-      Tool: name, Path: change.Path, Resolved: change.Resolved,
-      Old: change.Old, New: change.New, Created: change.Created,
-      Start: start, Gone: gone, Came: came,
-      OldLines: oldLines, NewLines: newLines,
-    })
+    hooks.Propose(
+      Proposal{
+        Tool: name, Path: change.Path, Resolved: change.Resolved,
+        Old: change.Old, New: change.New, Created: change.Created,
+        Start: start, Gone: gone, Came: came,
+        OldLines: oldLines, NewLines: newLines,
+      },
+    )
   }
 
   if hooks.Approve != nil {

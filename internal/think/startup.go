@@ -40,8 +40,10 @@ func (m *Mind) PrintStartup(w io.Writer) {
     fmt.Fprintf(w, "  %-22s %8.1f ms\n", s.Name, ms)
   }
 
-  fmt.Fprintf(w, "  %-22s %8.1f ms\n", "total since start",
-    float64(SinceBoot().Microseconds()) / 1000)
+  fmt.Fprintf(
+    w, "  %-22s %8.1f ms\n", "total since start",
+    float64(SinceBoot().Microseconds()) / 1000,
+  )
 }
 
 // chatClient is the client for the chat model. One armin runs on this
@@ -67,14 +69,17 @@ func (m *Mind) chatClient(
     t0 := time.Now()
     err := client.Ready(ctx)
     took := time.Since(t0)
-    metrics.Observe("startup.models.chat-load.ms",
-      float64(took.Microseconds()) / 1000)
+    metrics.Observe(
+      "startup.models.chat-load.ms",
+      float64(took.Microseconds()) / 1000,
+    )
     switch {
     case err != nil && ctx.Err() == nil:
       m.notice(fmt.Sprintf("model %s failed to load: %s", name, err))
     case err == nil:
-      m.notice(fmt.Sprintf("model ready: %s loaded in %.1fs", name,
-        took.Seconds()))
+      m.notice(
+        fmt.Sprintf("model ready: %s loaded in %.1fs", name, took.Seconds()),
+      )
     }
   }()
 

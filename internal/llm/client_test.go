@@ -26,30 +26,34 @@ func serverReturning(
 }
 
 func TestChatNonStreaming(t *testing.T) {
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    var req owaiChatRequest
-    err := json.NewDecoder(r.Body).Decode(&req)
-    if err != nil {
-      t.Fatal(err)
-    }
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      var req owaiChatRequest
+      err := json.NewDecoder(r.Body).Decode(&req)
+      if err != nil {
+        t.Fatal(err)
+      }
 
-    if req.Stream {
-      t.Error("expected Stream=false when onToken is nil")
-    }
+      if req.Stream {
+        t.Error("expected Stream=false when onToken is nil")
+      }
 
-    json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{
-        { Message: owaiMessage{ Role: "assistant", Content: "hi there" } },
-      },
-    })
-  })
+      json.NewEncoder(w).Encode(
+        owaiChatResponse{
+          Choices: []owaiChoice{
+            { Message: owaiMessage{ Role: "assistant", Content: "hi there" } },
+          },
+        },
+      )
+    },
+  )
 
   client := New(server.URL, "fake-model")
   msg, err := client.Chat(
     context.Background(),
     []Message{ { Role: "user", Content: "hey" } },
-    nil,
-    nil,
+    nil, nil,
   )
   if err != nil {
     t.Fatalf("Chat: %v", err)
@@ -62,20 +66,25 @@ func TestChatNonStreaming(t *testing.T) {
 
 func TestChoreTurnsOffHostedReasoning(t *testing.T) {
   var got *owaiReasoning
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    var req owaiChatRequest
-    err := json.NewDecoder(r.Body).Decode(&req)
-    if err != nil {
-      t.Fatal(err)
-    }
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      var req owaiChatRequest
+      err := json.NewDecoder(r.Body).Decode(&req)
+      if err != nil {
+        t.Fatal(err)
+      }
 
-    got = req.Reasoning
-    json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{
-        { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
-      },
-    })
-  })
+      got = req.Reasoning
+      json.NewEncoder(w).Encode(
+        owaiChatResponse{
+          Choices: []owaiChoice{
+            { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
+          },
+        },
+      )
+    },
+  )
 
   client := New(server.URL, "fake-model")
   if client.Chore() != client {
@@ -86,8 +95,7 @@ func TestChoreTurnsOffHostedReasoning(t *testing.T) {
   _, err := client.Chore().Chat(
     context.Background(),
     []Message{ { Role: "user", Content: "hey" } },
-    nil,
-    nil,
+    nil, nil,
   )
   if err != nil {
     t.Fatalf("Chat: %v", err)
@@ -105,19 +113,24 @@ func TestChoreTurnsOffHostedReasoning(t *testing.T) {
 func TestPrivateSendsProviderPolicy(t *testing.T) {
   var got map[string]any
   path := "/v1/chat/completions"
-  server := serverReturning(t, path, func(w http.ResponseWriter, r *http.Request) {
-    got = nil
-    err := json.NewDecoder(r.Body).Decode(&got)
-    if err != nil {
-      t.Fatal(err)
-    }
+  server := serverReturning(
+    t, path,
+    func(w http.ResponseWriter, r *http.Request) {
+      got = nil
+      err := json.NewDecoder(r.Body).Decode(&got)
+      if err != nil {
+        t.Fatal(err)
+      }
 
-    json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{
-        { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
-      },
-    })
-  })
+      json.NewEncoder(w).Encode(
+        owaiChatResponse{
+          Choices: []owaiChoice{
+            { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
+          },
+        },
+      )
+    },
+  )
 
   msgs := []Message{ { Role: "user", Content: "hey" } }
   client := New(server.URL, "fake-model")
@@ -145,78 +158,92 @@ func TestPrivateSendsProviderPolicy(t *testing.T) {
 }
 
 func TestChatSendsToolCallArgumentsAsJSONString(t *testing.T) {
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    var raw map[string]any
-    err := json.NewDecoder(r.Body).Decode(&raw)
-    if err != nil {
-      t.Fatal(err)
-    }
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      var raw map[string]any
+      err := json.NewDecoder(r.Body).Decode(&raw)
+      if err != nil {
+        t.Fatal(err)
+      }
 
-    msgs := raw["messages"].([]any)
-    assistantMsg := msgs[0].(map[string]any)
-    toolCalls := assistantMsg["tool_calls"].([]any)
-    fn := toolCalls[0].(map[string]any)["function"].(map[string]any)
-    args, ok := fn["arguments"].(string)
-    if !ok {
-      t.Fatalf(
-        "arguments = %v (%T), want a JSON-encoded string",
-        fn["arguments"],
-        fn["arguments"],
+      msgs := raw["messages"].([]any)
+      assistantMsg := msgs[0].(map[string]any)
+      toolCalls := assistantMsg["tool_calls"].([]any)
+      fn := toolCalls[0].(map[string]any)["function"].(map[string]any)
+      args, ok := fn["arguments"].(string)
+      if !ok {
+        t.Fatalf(
+          "arguments = %v (%T), want a JSON-encoded string",
+          fn["arguments"],
+          fn["arguments"],
+        )
+      }
+
+      if !strings.Contains(args, `"query"`) {
+        t.Fatalf("arguments = %q, want it to contain the query key", args)
+      }
+
+      json.NewEncoder(w).Encode(
+        owaiChatResponse{
+          Choices: []owaiChoice{
+            { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
+          },
+        },
       )
-    }
-
-    if !strings.Contains(args, `"query"`) {
-      t.Fatalf("arguments = %q, want it to contain the query key", args)
-    }
-
-    json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{
-        { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
-      },
-    })
-  })
+    },
+  )
 
   client := New(server.URL, "fake-model")
-  _, err := client.Chat(context.Background(), []Message{
-    {
-      Role: "assistant",
-      ToolCalls: []ToolCall{
-        {
-          ID: "call_1",
-          Function: ToolCallFunction{
-            Name:      "search_code",
-            Arguments: map[string]any{ "query": "foo" },
+  _, err := client.Chat(
+    context.Background(),
+    []Message{
+      {
+        Role: "assistant",
+        ToolCalls: []ToolCall{
+          {
+            ID: "call_1",
+            Function: ToolCallFunction{
+              Name:      "search_code",
+              Arguments: map[string]any{ "query": "foo" },
+            },
           },
         },
       },
     },
-  }, nil, nil)
+    nil, nil,
+  )
   if err != nil {
     t.Fatalf("Chat: %v", err)
   }
 }
 
 func TestChatParsesToolCallIDAndArguments(t *testing.T) {
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{
-        {
-          Message: owaiMessage{
-            Role: "assistant",
-            ToolCalls: []owaiToolCall{
-              {
-                ID: "call_abc", Type: "function",
-                Function: owaiToolCallFunc{
-                  Name:      "search_code",
-                  Arguments: `{"query":"foo"}`,
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      json.NewEncoder(w).Encode(
+        owaiChatResponse{
+          Choices: []owaiChoice{
+            {
+              Message: owaiMessage{
+                Role: "assistant",
+                ToolCalls: []owaiToolCall{
+                  {
+                    ID: "call_abc", Type: "function",
+                    Function: owaiToolCallFunc{
+                      Name:      "search_code",
+                      Arguments: `{"query":"foo"}`,
+                    },
+                  },
                 },
               },
             },
           },
         },
-      },
-    })
-  })
+      )
+    },
+  )
 
   client := New(server.URL, "fake-model")
   msg, err := client.Chat(context.Background(), nil, nil, nil)
@@ -239,25 +266,30 @@ func TestChatParsesToolCallIDAndArguments(t *testing.T) {
 }
 
 func TestChatSynthesizesToolCallIDWhenMissing(t *testing.T) {
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{
-        {
-          Message: owaiMessage{
-            Role: "assistant",
-            ToolCalls: []owaiToolCall{
-              {
-                Function: owaiToolCallFunc{
-                  Name:      "search_code",
-                  Arguments: `{}`,
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      json.NewEncoder(w).Encode(
+        owaiChatResponse{
+          Choices: []owaiChoice{
+            {
+              Message: owaiMessage{
+                Role: "assistant",
+                ToolCalls: []owaiToolCall{
+                  {
+                    Function: owaiToolCallFunc{
+                      Name:      "search_code",
+                      Arguments: `{}`,
+                    },
+                  },
                 },
               },
             },
           },
         },
-      },
-    })
-  })
+      )
+    },
+  )
 
   client := New(server.URL, "fake-model")
   msg, err := client.Chat(context.Background(), nil, nil, nil)
@@ -273,64 +305,88 @@ func TestChatSynthesizesToolCallIDWhenMissing(t *testing.T) {
 }
 
 func TestChatStreamingAssemblesDeltasAndToolCallFragments(t *testing.T) {
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    var req owaiChatRequest
-    err := json.NewDecoder(r.Body).Decode(&req)
-    if err != nil {
-      t.Fatal(err)
-    }
-
-    if !req.Stream {
-      t.Error("expected Stream=true when onToken is non-nil")
-    }
-
-    flusher, _ := w.(http.Flusher)
-    write := func(chunk owaiStreamChunk) {
-      b, _ := json.Marshal(chunk)
-      io.WriteString(w, "data: " + string(b) + "\n\n")
-      if flusher != nil {
-        flusher.Flush()
+  server := serverReturning(
+    t,
+    "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      var req owaiChatRequest
+      err := json.NewDecoder(r.Body).Decode(&req)
+      if err != nil {
+        t.Fatal(err)
       }
-    }
 
-    write(
-      owaiStreamChunk{
-        Choices: []owaiStreamChoice{
-          { Delta: owaiStreamDelta{ Content: "Hel" } },
+      if !req.Stream {
+        t.Error("expected Stream=true when onToken is non-nil")
+      }
+
+      flusher, _ := w.(http.Flusher)
+      write := func(chunk owaiStreamChunk) {
+        b, _ := json.Marshal(chunk)
+        io.WriteString(w, "data: " + string(b) + "\n\n")
+        if flusher != nil {
+          flusher.Flush()
+        }
+      }
+
+      write(
+        owaiStreamChunk{
+          Choices: []owaiStreamChoice{
+            { Delta: owaiStreamDelta{ Content: "Hel" } },
+          },
         },
-      },
-    )
-    write(
-      owaiStreamChunk{
-        Choices: []owaiStreamChoice{
-          { Delta: owaiStreamDelta{ Content: "lo" } },
+      )
+      write(
+        owaiStreamChunk{
+          Choices: []owaiStreamChoice{
+            { Delta: owaiStreamDelta{ Content: "lo" } },
+          },
         },
-      },
-    )
-    // Tool call arguments split across two fragments, matched by index.
-    write(owaiStreamChunk{Choices: []owaiStreamChoice{{Delta: owaiStreamDelta{
-      ToolCalls: []owaiStreamToolCall{
-        {
-          Index:    0,
-          ID:       "call_1",
-          Function: owaiToolCallFunc{ Name: "search_code", Arguments: `{"que` },
+      )
+      // Tool call arguments split across two fragments, matched by index.
+      write(
+        owaiStreamChunk{
+          Choices: []owaiStreamChoice{
+            {
+              Delta: owaiStreamDelta{
+                ToolCalls: []owaiStreamToolCall{
+                  {
+                    Index:    0,
+                    ID:       "call_1",
+                    Function: owaiToolCallFunc{ Name: "search_code", Arguments: `{"que` },
+                  },
+                },
+              },
+            },
+          },
         },
-      },
-    }}}})
-    write(owaiStreamChunk{Choices: []owaiStreamChoice{{Delta: owaiStreamDelta{
-      ToolCalls: []owaiStreamToolCall{
-        { Index: 0, Function: owaiToolCallFunc{ Arguments: `ry":"foo"}` } },
-      },
-    }}}})
-    io.WriteString(w, "data: [DONE]\n\n")
-  })
+      )
+      write(
+        owaiStreamChunk{
+          Choices: []owaiStreamChoice{
+            {
+              Delta: owaiStreamDelta{
+                ToolCalls: []owaiStreamToolCall{
+                  { Index: 0, Function: owaiToolCallFunc{ Arguments: `ry":"foo"}` } },
+                },
+              },
+            },
+          },
+        },
+      )
+      io.WriteString(w, "data: [DONE]\n\n")
+    },
+  )
 
   client := New(server.URL, "fake-model")
 
   var streamed strings.Builder
-  msg, err := client.Chat(context.Background(), nil, nil, func(delta string) {
-    streamed.WriteString(delta)
-  })
+  msg, err := client.Chat(
+    context.Background(),
+    nil, nil,
+    func(delta string) {
+      streamed.WriteString(delta)
+    },
+  )
   if err != nil {
     t.Fatalf("Chat: %v", err)
   }
@@ -364,10 +420,13 @@ func TestChatStreamingAssemblesDeltasAndToolCallFragments(t *testing.T) {
 }
 
 func TestChatNonOKStatus(t *testing.T) {
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(http.StatusInternalServerError)
-    io.WriteString(w, "boom")
-  })
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      w.WriteHeader(http.StatusInternalServerError)
+      io.WriteString(w, "boom")
+    },
+  )
 
   client := New(server.URL, "fake-model")
   _, err := client.Chat(context.Background(), nil, nil, nil)
@@ -377,14 +436,17 @@ func TestChatNonOKStatus(t *testing.T) {
 }
 
 func TestChatToolsUnsupportedIsDetected(t *testing.T) {
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(http.StatusInternalServerError)
-    io.WriteString(
-      w,
-      `{"error":{"message":"this chat template does not support ` +
-        `tool calls","type":"server_error"}}`,
-    )
-  })
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      w.WriteHeader(http.StatusInternalServerError)
+      io.WriteString(
+        w,
+        `{"error":{"message":"this chat template does not support ` +
+          `tool calls","type":"server_error"}}`,
+      )
+    },
+  )
 
   client := New(server.URL, "fake-model")
   _, err := client.Chat(context.Background(), nil, nil, nil)
@@ -396,16 +458,19 @@ func TestChatToolsUnsupportedIsDetected(t *testing.T) {
 func TestComplete(t *testing.T) {
   var gotPrefix, gotSuffix string
 
-  server := serverReturning(t, "/infill", func(w http.ResponseWriter, r *http.Request) {
-    var req infillRequest
-    err := json.NewDecoder(r.Body).Decode(&req)
-    if err != nil {
-      t.Fatal(err)
-    }
+  server := serverReturning(
+    t, "/infill",
+    func(w http.ResponseWriter, r *http.Request) {
+      var req infillRequest
+      err := json.NewDecoder(r.Body).Decode(&req)
+      if err != nil {
+        t.Fatal(err)
+      }
 
-    gotPrefix, gotSuffix = req.InputPrefix, req.InputSuffix
-    json.NewEncoder(w).Encode(infillResponse{ Content: "return 42" })
-  })
+      gotPrefix, gotSuffix = req.InputPrefix, req.InputSuffix
+      json.NewEncoder(w).Encode(infillResponse{ Content: "return 42" })
+    },
+  )
 
   client := New(server.URL, "chat-model")
   opts := CompleteOptions{ NumPredict: 10 }
@@ -424,10 +489,13 @@ func TestComplete(t *testing.T) {
 }
 
 func TestCompleteNonOKStatus(t *testing.T) {
-  server := serverReturning(t, "/infill", func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(http.StatusInternalServerError)
-    io.WriteString(w, "boom")
-  })
+  server := serverReturning(
+    t, "/infill",
+    func(w http.ResponseWriter, r *http.Request) {
+      w.WriteHeader(http.StatusInternalServerError)
+      io.WriteString(w, "boom")
+    },
+  )
 
   client := New(server.URL, "chat-model")
   _, err := client.Complete(context.Background(), "x", "", CompleteOptions{})
@@ -437,9 +505,12 @@ func TestCompleteNonOKStatus(t *testing.T) {
 }
 
 func TestHealthOK(t *testing.T) {
-  server := serverReturning(t, "/health", func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(http.StatusOK)
-  })
+  server := serverReturning(
+    t, "/health",
+    func(w http.ResponseWriter, r *http.Request) {
+      w.WriteHeader(http.StatusOK)
+    },
+  )
   client := New(server.URL, "m")
   err := client.Health(context.Background())
   if err != nil {
@@ -448,10 +519,13 @@ func TestHealthOK(t *testing.T) {
 }
 
 func TestHealthNotReady(t *testing.T) {
-  server := serverReturning(t, "/health", func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(http.StatusServiceUnavailable)
-    io.WriteString(w, `{"status":"loading model"}`)
-  })
+  server := serverReturning(
+    t, "/health",
+    func(w http.ResponseWriter, r *http.Request) {
+      w.WriteHeader(http.StatusServiceUnavailable)
+      io.WriteString(w, `{"status":"loading model"}`)
+    },
+  )
   client := New(server.URL, "m")
   err := client.Health(context.Background())
   if err == nil {
@@ -460,13 +534,18 @@ func TestHealthNotReady(t *testing.T) {
 }
 
 func TestRequestStartEndBracketEveryCall(t *testing.T) {
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{
-        { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
-      },
-    })
-  })
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      json.NewEncoder(w).Encode(
+        owaiChatResponse{
+          Choices: []owaiChoice{
+            { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
+          },
+        },
+      )
+    },
+  )
 
   client := New(server.URL, "m")
   var starts, ends int
@@ -484,9 +563,12 @@ func TestRequestStartEndBracketEveryCall(t *testing.T) {
 }
 
 func TestRequestEndFiresEvenOnError(t *testing.T) {
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(http.StatusInternalServerError)
-  })
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      w.WriteHeader(http.StatusInternalServerError)
+    },
+  )
 
   client := New(server.URL, "m")
   var ends int
@@ -500,14 +582,19 @@ func TestRequestEndFiresEvenOnError(t *testing.T) {
 
 func TestChatSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
   var gotAuth string
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    gotAuth = r.Header.Get("Authorization")
-    json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{
-        { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
-      },
-    })
-  })
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      gotAuth = r.Header.Get("Authorization")
+      json.NewEncoder(w).Encode(
+        owaiChatResponse{
+          Choices: []owaiChoice{
+            { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
+          },
+        },
+      )
+    },
+  )
 
   client := New(server.URL, "claude")
   client.APIKey = "sk-ant-test"
@@ -519,22 +606,26 @@ func TestChatSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
   if gotAuth != "Bearer sk-ant-test" {
     t.Fatalf(
       "Authorization header = %q, want %q",
-      gotAuth,
-      "Bearer sk-ant-test",
+      gotAuth, "Bearer sk-ant-test",
     )
   }
 }
 
 func TestChatOmitsAuthorizationHeaderWhenNoAPIKey(t *testing.T) {
   var sawHeader bool
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    sawHeader = r.Header.Get("Authorization") != ""
-    json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{
-        { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
-      },
-    })
-  })
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      sawHeader = r.Header.Get("Authorization") != ""
+      json.NewEncoder(w).Encode(
+        owaiChatResponse{
+          Choices: []owaiChoice{
+            { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
+          },
+        },
+      )
+    },
+  )
 
   client := New(server.URL, "local")
   _, err := client.Chat(context.Background(), nil, nil, nil)
@@ -552,10 +643,13 @@ func TestChatOmitsAuthorizationHeaderWhenNoAPIKey(t *testing.T) {
 
 func TestCompleteSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
   var gotAuth string
-  server := serverReturning(t, "/infill", func(w http.ResponseWriter, r *http.Request) {
-    gotAuth = r.Header.Get("Authorization")
-    json.NewEncoder(w).Encode(infillResponse{ Content: "x" })
-  })
+  server := serverReturning(
+    t, "/infill",
+    func(w http.ResponseWriter, r *http.Request) {
+      gotAuth = r.Header.Get("Authorization")
+      json.NewEncoder(w).Encode(infillResponse{ Content: "x" })
+    },
+  )
 
   client := New(server.URL, "m")
   client.APIKey = "sk-ant-test"
@@ -567,18 +661,20 @@ func TestCompleteSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
   if gotAuth != "Bearer sk-ant-test" {
     t.Fatalf(
       "Authorization header = %q, want %q",
-      gotAuth,
-      "Bearer sk-ant-test",
+      gotAuth, "Bearer sk-ant-test",
     )
   }
 }
 
 func TestHealthSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
   var gotAuth string
-  server := serverReturning(t, "/health", func(w http.ResponseWriter, r *http.Request) {
-    gotAuth = r.Header.Get("Authorization")
-    w.WriteHeader(http.StatusOK)
-  })
+  server := serverReturning(
+    t, "/health",
+    func(w http.ResponseWriter, r *http.Request) {
+      gotAuth = r.Header.Get("Authorization")
+      w.WriteHeader(http.StatusOK)
+    },
+  )
 
   client := New(server.URL, "m")
   client.APIKey = "sk-ant-test"
@@ -590,8 +686,7 @@ func TestHealthSendsAuthorizationHeaderWhenAPIKeySet(t *testing.T) {
   if gotAuth != "Bearer sk-ant-test" {
     t.Fatalf(
       "Authorization header = %q, want %q",
-      gotAuth,
-      "Bearer sk-ant-test",
+      gotAuth, "Bearer sk-ant-test",
     )
   }
 }
@@ -604,58 +699,65 @@ func TestNewDefaultsBaseURL(t *testing.T) {
 }
 
 func TestChatStreamSeparatesReasoningAndReadsUsage(t *testing.T) {
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    var req owaiChatRequest
-    err := json.NewDecoder(r.Body).Decode(&req)
-    if err != nil {
-      t.Fatal(err)
-    }
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      var req owaiChatRequest
+      err := json.NewDecoder(r.Body).Decode(&req)
+      if err != nil {
+        t.Fatal(err)
+      }
 
-    if req.StreamOptions == nil || !req.StreamOptions.IncludeUsage {
-      t.Error("expected stream_options.include_usage on a streamed request")
-    }
+      if req.StreamOptions == nil || !req.StreamOptions.IncludeUsage {
+        t.Error("expected stream_options.include_usage on a streamed request")
+      }
 
-    write := func(chunk owaiStreamChunk) {
-      b, _ := json.Marshal(chunk)
-      io.WriteString(w, "data: " + string(b) + "\n\n")
-    }
+      write := func(chunk owaiStreamChunk) {
+        b, _ := json.Marshal(chunk)
+        io.WriteString(w, "data: " + string(b) + "\n\n")
+      }
 
-    write(
-      owaiStreamChunk{
-        Choices: []owaiStreamChoice{
-          { Delta: owaiStreamDelta{ ReasoningContent: "hmm " } },
+      write(
+        owaiStreamChunk{
+          Choices: []owaiStreamChoice{
+            { Delta: owaiStreamDelta{ ReasoningContent: "hmm " } },
+          },
         },
-      },
-    )
-    write(
-      owaiStreamChunk{
-        Choices: []owaiStreamChoice{
-          { Delta: owaiStreamDelta{ ReasoningContent: "ok" } },
+      )
+      write(
+        owaiStreamChunk{
+          Choices: []owaiStreamChoice{
+            { Delta: owaiStreamDelta{ ReasoningContent: "ok" } },
+          },
         },
-      },
-    )
-    write(
-      owaiStreamChunk{
-        Choices: []owaiStreamChoice{
-          { Delta: owaiStreamDelta{ Content: "answer" } },
+      )
+      write(
+        owaiStreamChunk{
+          Choices: []owaiStreamChoice{
+            { Delta: owaiStreamDelta{ Content: "answer" } },
+          },
         },
-      },
-    )
-    write(
-      owaiStreamChunk{
-        Usage: &Usage{ PromptTokens: 100, CompletionTokens: 20 },
-      },
-    )
-    io.WriteString(w, "data: [DONE]\n\n")
-  })
+      )
+      write(
+        owaiStreamChunk{
+          Usage: &Usage{ PromptTokens: 100, CompletionTokens: 20 },
+        },
+      )
+      io.WriteString(w, "data: [DONE]\n\n")
+    },
+  )
 
   client := New(server.URL, "fake-model")
 
   var tokens, thoughts strings.Builder
-  msg, err := client.ChatStream(context.Background(), nil, nil, StreamHandlers{
-    Token:     func(d string) { tokens.WriteString(d) },
-    Reasoning: func(d string) { thoughts.WriteString(d) },
-  })
+  msg, err := client.ChatStream(
+    context.Background(),
+    nil, nil,
+    StreamHandlers{
+      Token:     func(d string) { tokens.WriteString(d) },
+      Reasoning: func(d string) { thoughts.WriteString(d) },
+    },
+  )
   if err != nil {
     t.Fatalf("ChatStream: %v", err)
   }
@@ -678,32 +780,41 @@ func TestChatStreamSeparatesReasoningAndReadsUsage(t *testing.T) {
 }
 
 func TestChatSendsReasoningBack(t *testing.T) {
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    var req owaiChatRequest
-    err := json.NewDecoder(r.Body).Decode(&req)
-    if err != nil {
-      t.Fatal(err)
-    }
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      var req owaiChatRequest
+      err := json.NewDecoder(r.Body).Decode(&req)
+      if err != nil {
+        t.Fatal(err)
+      }
 
-    if req.Messages[0].ReasoningContent != "plan" {
-      t.Errorf(
-        "reasoning_content = %q, want \"plan\"",
-        req.Messages[0].ReasoningContent,
+      if req.Messages[0].ReasoningContent != "plan" {
+        t.Errorf(
+          "reasoning_content = %q, want \"plan\"",
+          req.Messages[0].ReasoningContent,
+        )
+      }
+
+      json.NewEncoder(w).Encode(
+        owaiChatResponse{
+          Choices: []owaiChoice{
+            { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
+          },
+          Usage:   &Usage{ PromptTokens: 7 },
+        },
       )
-    }
-
-    json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{
-        { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
-      },
-      Usage:   &Usage{ PromptTokens: 7 },
-    })
-  })
+    },
+  )
 
   client := New(server.URL, "fake-model")
-  msg, err := client.Chat(context.Background(), []Message{
-    { Role: "assistant", Content: "x", Reasoning: "plan" },
-  }, nil, nil)
+  msg, err := client.Chat(
+    context.Background(),
+    []Message{
+      { Role: "assistant", Content: "x", Reasoning: "plan" },
+    },
+    nil, nil,
+  )
   if err != nil {
     t.Fatalf("Chat: %v", err)
   }
@@ -715,12 +826,15 @@ func TestChatSendsReasoningBack(t *testing.T) {
 
 func TestChatReadTimeoutFiresOnSilence(t *testing.T) {
   release := make(chan struct{})
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    select {
-    case <-release:
-    case <-r.Context().Done():
-    }
-  })
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      select {
+      case <-release:
+      case <-r.Context().Done():
+      }
+    },
+  )
   defer close(release)
 
   client := New(server.URL, "fake-model")
@@ -733,23 +847,26 @@ func TestChatReadTimeoutFiresOnSilence(t *testing.T) {
 }
 
 func TestChatReadTimeoutResetsWhileStreaming(t *testing.T) {
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    flusher := w.(http.Flusher)
-    for i := 0; i < 6; i++ {
-      b, _ := json.Marshal(
-        owaiStreamChunk{
-          Choices: []owaiStreamChoice{
-            { Delta: owaiStreamDelta{ Content: "x" } },
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      flusher := w.(http.Flusher)
+      for i := 0; i < 6; i++ {
+        b, _ := json.Marshal(
+          owaiStreamChunk{
+            Choices: []owaiStreamChoice{
+              { Delta: owaiStreamDelta{ Content: "x" } },
+            },
           },
-        },
-      )
-      io.WriteString(w, "data: " + string(b) + "\n\n")
-      flusher.Flush()
-      time.Sleep(30 * time.Millisecond)
-    }
+        )
+        io.WriteString(w, "data: " + string(b) + "\n\n")
+        flusher.Flush()
+        time.Sleep(30 * time.Millisecond)
+      }
 
-    io.WriteString(w, "data: [DONE]\n\n")
-  })
+      io.WriteString(w, "data: [DONE]\n\n")
+    },
+  )
 
   client := New(server.URL, "fake-model")
   client.ReadTimeout = 80 * time.Millisecond
@@ -768,9 +885,12 @@ func TestChatReadTimeoutResetsWhileStreaming(t *testing.T) {
 }
 
 func TestContextSizeFromProps(t *testing.T) {
-  server := serverReturning(t, "/props", func(w http.ResponseWriter, r *http.Request) {
-    io.WriteString(w, `{"default_generation_settings":{"n_ctx":65536}}`)
-  })
+  server := serverReturning(
+    t, "/props",
+    func(w http.ResponseWriter, r *http.Request) {
+      io.WriteString(w, `{"default_generation_settings":{"n_ctx":65536}}`)
+    },
+  )
   n, err := New(server.URL, "m").ContextSize(context.Background())
   if err != nil || n != 65536 {
     t.Fatalf("ContextSize = %d, %v; want 65536", n, err)
@@ -779,24 +899,27 @@ func TestContextSizeFromProps(t *testing.T) {
 
 func TestChatStreamReportsPromptProgress(t *testing.T) {
   asked := map[bool]bool{}
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    var req owaiChatRequest
-    json.NewDecoder(r.Body).Decode(&req)
-    asked[r.Header.Get("Authorization") != ""] = req.ReturnProgress
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      var req owaiChatRequest
+      json.NewDecoder(r.Body).Decode(&req)
+      asked[r.Header.Get("Authorization") != ""] = req.ReturnProgress
 
-    io.WriteString(
-      w,
-      `data: {"choices":[{"delta":{}}],` +
-        `"prompt_progress":{"total":4096,"processed":2048}}` + "\n\n",
-    )
-    io.WriteString(
-      w,
-      `data: {"choices":[{"delta":{}}],` +
-        `"prompt_progress":{"total":4096,"processed":4096}}` + "\n\n",
-    )
-    io.WriteString(w, `data: {"choices":[{"delta":{"content":"hi"}}]}` + "\n\n")
-    io.WriteString(w, "data: [DONE]\n\n")
-  })
+      io.WriteString(
+        w,
+        `data: {"choices":[{"delta":{}}],` +
+          `"prompt_progress":{"total":4096,"processed":2048}}` + "\n\n",
+      )
+      io.WriteString(
+        w,
+        `data: {"choices":[{"delta":{}}],` +
+          `"prompt_progress":{"total":4096,"processed":4096}}` + "\n\n",
+      )
+      io.WriteString(w, `data: {"choices":[{"delta":{"content":"hi"}}]}` + "\n\n")
+      io.WriteString(w, "data: [DONE]\n\n")
+    },
+  )
 
   var seen []string
   h := StreamHandlers{
@@ -830,14 +953,18 @@ func TestChatStreamReportsPromptProgress(t *testing.T) {
 func TestChatSendsHostedIDAndEffort(t *testing.T) {
   var path string
   var got map[string]any
-  server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    path = r.URL.Path
-    json.NewDecoder(r.Body).Decode(&got)
-    io.WriteString(
-      w,
-      `{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`,
-    )
-  }))
+  server := httptest.NewServer(
+    http.HandlerFunc(
+      func(w http.ResponseWriter, r *http.Request) {
+        path = r.URL.Path
+        json.NewDecoder(r.Body).Decode(&got)
+        io.WriteString(
+          w,
+          `{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`,
+        )
+      },
+    ),
+  )
   defer server.Close()
 
   client := New(server.URL + "/api/v1", "qwen")
@@ -845,8 +972,7 @@ func TestChatSendsHostedIDAndEffort(t *testing.T) {
   _, err := client.Chat(
     context.Background(),
     []Message{ { Role: "user", Content: "hi" } },
-    nil,
-    nil,
+    nil, nil,
   )
   if err != nil {
     t.Fatal(err)
@@ -863,22 +989,30 @@ func TestChatSendsHostedIDAndEffort(t *testing.T) {
 }
 
 func TestChatFallsBackOnceOnForbidden(t *testing.T) {
-  regional := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(http.StatusForbidden)
-    io.WriteString(
-      w,
-      `{"error":{"message":"Regional routing requires a Business ` +
-        `or Enterprise plan.","code":403}}`,
-    )
-  })
+  regional := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      w.WriteHeader(http.StatusForbidden)
+      io.WriteString(
+        w,
+        `{"error":{"message":"Regional routing requires a Business ` +
+          `or Enterprise plan.","code":403}}`,
+      )
+    },
+  )
 
-  global := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{
-        { Message: owaiMessage{ Role: "assistant", Content: "hi there" } },
-      },
-    })
-  })
+  global := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      json.NewEncoder(w).Encode(
+        owaiChatResponse{
+          Choices: []owaiChoice{
+            { Message: owaiMessage{ Role: "assistant", Content: "hi there" } },
+          },
+        },
+      )
+    },
+  )
 
   var moved [2]string
   client := New(regional.URL, "fake-model")
@@ -888,8 +1022,7 @@ func TestChatFallsBackOnceOnForbidden(t *testing.T) {
   msg, err := client.Chat(
     context.Background(),
     []Message{ { Role: "user", Content: "hey" } },
-    nil,
-    nil,
+    nil, nil,
   )
   if err != nil {
     t.Fatalf("Chat: %v", err)
@@ -899,9 +1032,7 @@ func TestChatFallsBackOnceOnForbidden(t *testing.T) {
       client.BaseURL != global.URL || client.Fallback != "" {
     t.Fatalf(
       "Content = %q, BaseURL = %q, Fallback = %q",
-      msg.Content,
-      client.BaseURL,
-      client.Fallback,
+      msg.Content, client.BaseURL, client.Fallback,
     )
   }
 
@@ -911,9 +1042,12 @@ func TestChatFallsBackOnceOnForbidden(t *testing.T) {
 }
 
 func TestChatForbiddenWithoutFallbackFails(t *testing.T) {
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(http.StatusForbidden)
-  })
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      w.WriteHeader(http.StatusForbidden)
+    },
+  )
 
   client := New(server.URL, "fake-model")
   _, err := client.Chat(context.Background(), nil, nil, nil)
@@ -928,9 +1062,11 @@ func TestEffortReachesTheServer(t *testing.T) {
     got = owaiChatRequest{}
     json.NewDecoder(r.Body).Decode(&got)
     msg := owaiMessage{ Role: "assistant", Content: "ok" }
-    json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{ { Message: msg } },
-    })
+    json.NewEncoder(w).Encode(
+      owaiChatResponse{
+        Choices: []owaiChoice{ { Message: msg } },
+      },
+    )
   }
 
   server := serverReturning(t, "/v1/chat/completions", answer)
@@ -969,21 +1105,28 @@ func TestEffortReachesTheServer(t *testing.T) {
   hosted.Chat(ctx, msgs, nil, nil)
   if got.Reasoning == nil || got.Reasoning.Effort != "medium" ||
     got.TemplateKwargs != nil {
-    t.Fatalf("hosted: reasoning %+v kwargs %+v",
-      got.Reasoning, got.TemplateKwargs)
+    t.Fatalf(
+      "hosted: reasoning %+v kwargs %+v",
+      got.Reasoning, got.TemplateKwargs,
+    )
   }
 }
 
 func TestMaxTokensSent(t *testing.T) {
   var got map[string]any
-  server := serverReturning(t, "/v1/chat/completions", func(w http.ResponseWriter, r *http.Request) {
-    json.NewDecoder(r.Body).Decode(&got)
-    json.NewEncoder(w).Encode(owaiChatResponse{
-      Choices: []owaiChoice{
-        { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
-      },
-    })
-  })
+  server := serverReturning(
+    t, "/v1/chat/completions",
+    func(w http.ResponseWriter, r *http.Request) {
+      json.NewDecoder(r.Body).Decode(&got)
+      json.NewEncoder(w).Encode(
+        owaiChatResponse{
+          Choices: []owaiChoice{
+            { Message: owaiMessage{ Role: "assistant", Content: "ok" } },
+          },
+        },
+      )
+    },
+  )
 
   client := New(server.URL, "m")
   _, err := client.Chat(context.Background(), nil, nil, nil)
@@ -1016,9 +1159,12 @@ func TestUsageReadsCostAndCache(t *testing.T) {
     json.NewDecoder(r.Body).Decode(&req)
     _, asked = req["usage"]
     io.WriteString(w, `data: {"choices":[{"delta":{"content":"hi"}}]}` + "\n\n")
-    io.WriteString(w, `data: {"choices":[],"usage":{"prompt_tokens":1000,` +
-      `"completion_tokens":50,"cost":0.0001234,` +
-      `"prompt_tokens_details":{"cached_tokens":800}}}` + "\n\n")
+    io.WriteString(
+      w,
+      `data: {"choices":[],"usage":{"prompt_tokens":1000,` +
+        `"completion_tokens":50,"cost":0.0001234,` +
+        `"prompt_tokens_details":{"cached_tokens":800}}}` + "\n\n",
+    )
     io.WriteString(w, "data: [DONE]\n\n")
   }
 

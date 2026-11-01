@@ -12,14 +12,18 @@ import (
 
 func TestSourcesNumberAcrossSearches(t *testing.T) {
   ts := &turnSources{}
-  a := &tools.WebSearchOutput{ Results: []tools.WebSearchResult{
-    { Title: "Go 1.23", URL: "https://go.dev/1.23" },
-    { Title: "Iterators", URL: "https://go.dev/iter" },
-  } }
-  b := &tools.WebSearchOutput{ Results: []tools.WebSearchResult{
-    { Title: "Iterators", URL: "https://go.dev/iter" },
-    { Title: "Range funcs", URL: "https://go.dev/range" },
-  } }
+  a := &tools.WebSearchOutput{
+    Results: []tools.WebSearchResult{
+      { Title: "Go 1.23", URL: "https://go.dev/1.23" },
+      { Title: "Iterators", URL: "https://go.dev/iter" },
+    },
+  }
+  b := &tools.WebSearchOutput{
+    Results: []tools.WebSearchResult{
+      { Title: "Iterators", URL: "https://go.dev/iter" },
+      { Title: "Range funcs", URL: "https://go.dev/range" },
+    },
+  }
   ts.number(a)
   ts.number(b)
   if a.Results[1].ID != 2 || b.Results[0].ID != 2 || b.Results[1].ID != 3 {
@@ -56,26 +60,31 @@ func TestSourcesNumberAcrossSearches(t *testing.T) {
 
 func TestTurnAppendsSourcesTheModelForgot(t *testing.T) {
   round := 0
-  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    round++
-    writeChatResponse(
-      t,
-      w,
-      llm.Message{ Role: "assistant", Content: "Answer citing [1]." },
-    )
-  })
+  loop, _ := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      round++
+      writeChatResponse(
+        t, w,
+        llm.Message{ Role: "assistant", Content: "Answer citing [1]." },
+      )
+    },
+  )
 
   var streamed strings.Builder
   sources := &turnSources{}
-  sources.number(&tools.WebSearchOutput{ Results: []tools.WebSearchResult{
-    { Title: "Doc", URL: "https://example.com/doc" },
-  } })
+  sources.number(
+    &tools.WebSearchOutput{
+      Results: []tools.WebSearchResult{
+        { Title: "Doc", URL: "https://example.com/doc" },
+      },
+    },
+  )
   history := []llm.Message{
     { Role: "assistant", Content: "Answer citing [1]." },
   }
   got := loop.finish(
-    &history,
-    sources,
+    &history, sources,
     Hooks{ Token: func(s string) { streamed.WriteString(s) } },
   )
 

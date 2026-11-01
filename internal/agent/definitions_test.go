@@ -26,8 +26,11 @@ var update = flag.Bool(
 func TestDefinitionsGolden(t *testing.T) {
   dir := t.TempDir()
   os.MkdirAll(filepath.Join(dir, "skills", "demo"), 0o755)
-  os.WriteFile(filepath.Join(dir, "skills", "demo", "SKILL.md"),
-    []byte("---\nname: demo\ndescription: a demo skill\n---\nDo it.\n"), 0o644)
+  os.WriteFile(
+    filepath.Join(dir, "skills", "demo", "SKILL.md"),
+    []byte("---\nname: demo\ndescription: a demo skill\n---\nDo it.\n"),
+    0o644,
+  )
   os.MkdirAll(filepath.Join(dir, "lib", "go"), 0o755)
   lib, err := library.Open(filepath.Join(dir, "lib"))
   if err != nil {

@@ -63,8 +63,11 @@ func TestBanner(t *testing.T) {
     t.Fatalf("Banner printed %d lines, want 3:\n%s", len(lines), out)
   }
 
-  if !strings.Contains(lines[0], build.Name +
-    " — terminal codebase assistant") {
+  if !strings.Contains(
+    lines[0],
+    build.Name +
+      " — terminal codebase assistant",
+  ) {
     t.Errorf("first line %q lacks the name and tagline", lines[0])
   }
 

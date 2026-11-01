@@ -21,12 +21,9 @@ func TestFindRanksAndFilters(t *testing.T) {
   udp := need(g.AddNode(0, "udp", "", KindTopic, ConfGuess, 0))
   mention := need(
     g.AddNode(
-      udp,
-      "nohandshake",
+      udp, "nohandshake",
       "udp skips the handshake entirely",
-      KindFact,
-      ConfGuess,
-      0,
+      KindFact, ConfGuess, 0,
     ),
   )
   hs, _ := g.Lookup("tcp/handshake")
@@ -168,12 +165,9 @@ func TestSimilar(t *testing.T) {
   // never merged
   a := need(
     g.AddNode(
-      tcp,
-      "accept",
+      tcp, "accept",
       "the server accepts the connection after ACK",
-      KindFact,
-      ConfGuess,
-      0,
+      KindFact, ConfGuess, 0,
     ),
   )
   got = g.Similar(tcp, "reject", "the server rejects the connection after ACK")

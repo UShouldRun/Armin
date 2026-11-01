@@ -27,13 +27,15 @@ func (m *Manager) machineFor(r *RemoteSpec) (cloud.Machine, error) {
     cloud.ProviderScaleway: m.ScalewayEndpoint,
   }
 
-  return cloud.New(cloud.Where{
-    Provider:  r.Provider,
-    MachineID: r.MachineID,
-    Region:    r.Region,
-    ProjectID: r.ProjectID,
-    Endpoint:  endpoint[r.Provider],
-  })
+  return cloud.New(
+    cloud.Where{
+      Provider:  r.Provider,
+      MachineID: r.MachineID,
+      Region:    r.Region,
+      ProjectID: r.ProjectID,
+      Endpoint:  endpoint[r.Provider],
+    },
+  )
 }
 
 const (
@@ -205,8 +207,9 @@ func sshArgs(
     args = append(args, "-i", expandHome(r.SSHKey))
   }
 
-  args = append(args,
-    "-L", fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", spec.Port, r.RemotePort),
+  args = append(
+    args, "-L",
+    fmt.Sprintf("127.0.0.1:%d:127.0.0.1:%d", spec.Port, r.RemotePort),
     r.SSHUser + "@" + host,
     remoteCommand(spec, guard && r.StopOnDisconnect),
   )

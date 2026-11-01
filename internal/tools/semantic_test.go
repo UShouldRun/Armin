@@ -27,9 +27,7 @@ func TestTokenize(t *testing.T) {
 func TestSemanticSearchRanksByTermFrequency(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(
-    t,
-    cfg.Root,
-    "a.go",
+    t, cfg.Root, "a.go",
     "package a\n// sandbox sandbox sandbox path jail\n",
   )
   writeFile(t, cfg.Root, "b.go", "package b\n// mentions sandbox once\n")

@@ -69,8 +69,12 @@ func (a *Attached) Run(ctx context.Context) error {
 
   c := a.client
   ui.Banner(a.root(), c.Model.Current, "shared")
-  ui.Instance(c.Model.Current, c.Instance, "— joined, shared with nvim and " +
-    "the other armins here (armin -new for a separate one)")
+  ui.Instance(
+    c.Model.Current,
+    c.Instance,
+    "— joined, shared with nvim and " +
+      "the other armins here (armin -new for a separate one)",
+  )
   if c.Model.Warning != "" {
     ui.Warn("%s", c.Model.Warning)
   }
@@ -94,12 +98,9 @@ func (a *Attached) Run(ctx context.Context) error {
     }
 
     input, err := ui.ReadLineWake(
-      ctx,
-      pump,
+      ctx, pump,
       "\n" + ui.Prompt(),
-      partial,
-      a.wake,
-      nil,
+      partial, a.wake, nil,
     )
     partial = ""
     switch {

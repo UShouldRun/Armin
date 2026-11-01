@@ -297,9 +297,12 @@ func (l *Library) write(
         return nil, fmt.Errorf("\n\t... in write:\n\t%w", err)
       }
 
-      chunks = append(chunks, chunk{
-        Doc: docID, Loc: p.Loc, Off: off, Len: uint32(len(rec)), Words: n,
-      })
+      chunks = append(
+        chunks,
+        chunk{
+          Doc: docID, Loc: p.Loc, Off: off, Len: uint32(len(rec)), Words: n,
+        },
+      )
       off += uint64(len(rec))
       words += uint64(n)
     }

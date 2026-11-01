@@ -346,9 +346,11 @@ func (s *Server) respond(id json.RawMessage, result any, errObj *rpcError) {
     return // notification — nothing to respond to
   }
 
-  s.write(rpcResponse{
-    JSONRPC: "2.0", ID: id, Result: result, Error: errObj,
-  })
+  s.write(
+    rpcResponse{
+      JSONRPC: "2.0", ID: id, Result: result, Error: errObj,
+    },
+  )
 }
 
 func (s *Server) respondError(id json.RawMessage, code int, message string) {

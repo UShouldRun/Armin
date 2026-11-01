@@ -34,54 +34,57 @@ func walkStats(cfg *sandbox.Config, path string) (*repoStats, error) {
     byTopDir: make(map[string]dirCount), byExt: make(map[string]dirCount),
   }
 
-  err = filepath.WalkDir(resolved, func(p string, d fs.DirEntry, err error) error {
-    if err != nil {
-      return err
-    }
-
-    if d.IsDir() {
-      if d.Name() != "." && skipDirs[d.Name()] {
-        return filepath.SkipDir
+  err = filepath.WalkDir(
+    resolved,
+    func(p string, d fs.DirEntry, err error) error {
+      if err != nil {
+        return err
       }
 
+      if d.IsDir() {
+        if d.Name() != "." && skipDirs[d.Name()] {
+          return filepath.SkipDir
+        }
+
+        return nil
+      }
+
+      if strings.HasPrefix(d.Name(), ".") {
+        return nil
+      }
+
+      lines, ok := countFileLines(p)
+      if !ok {
+        return nil // binary or unreadable — skip silently, not fatal
+      }
+
+      stats.totalLines += lines
+      stats.totalFiles++
+
+      rel, relErr := filepath.Rel(resolved, p)
+      if relErr != nil {
+        rel = p
+      }
+
+      top := topDir(rel)
+      tc := stats.byTopDir[top]
+      tc.files++
+      tc.lines += lines
+      stats.byTopDir[top] = tc
+
+      ext := strings.ToLower(filepath.Ext(p))
+      if ext == "" {
+        ext = "(none)"
+      }
+
+      ec := stats.byExt[ext]
+      ec.files++
+      ec.lines += lines
+      stats.byExt[ext] = ec
+
       return nil
-    }
-
-    if strings.HasPrefix(d.Name(), ".") {
-      return nil
-    }
-
-    lines, ok := countFileLines(p)
-    if !ok {
-      return nil // binary or unreadable — skip silently, not fatal
-    }
-
-    stats.totalLines += lines
-    stats.totalFiles++
-
-    rel, relErr := filepath.Rel(resolved, p)
-    if relErr != nil {
-      rel = p
-    }
-
-    top := topDir(rel)
-    tc := stats.byTopDir[top]
-    tc.files++
-    tc.lines += lines
-    stats.byTopDir[top] = tc
-
-    ext := strings.ToLower(filepath.Ext(p))
-    if ext == "" {
-      ext = "(none)"
-    }
-
-    ec := stats.byExt[ext]
-    ec.files++
-    ec.lines += lines
-    stats.byExt[ext] = ec
-
-    return nil
-  })
+    },
+  )
   if err != nil {
     return nil, err
   }
@@ -193,9 +196,12 @@ func ListLanguages(
     exts = append(exts, e)
   }
 
-  sort.Slice(exts, func(i, j int) bool {
-    return stats.byExt[exts[i]].lines > stats.byExt[exts[j]].lines
-  })
+  sort.Slice(
+    exts,
+    func(i, j int) bool {
+      return stats.byExt[exts[i]].lines > stats.byExt[exts[j]].lines
+    },
+  )
 
   out := &ListLanguagesOutput{}
   for _, e := range exts {
@@ -232,42 +238,45 @@ func FindFiles(
   }
 
   out := &FindFilesOutput{}
-  walkErr := filepath.WalkDir(resolved, func(p string, d fs.DirEntry, err error) error {
-    if err != nil {
-      return err
-    }
-
-    if d.IsDir() {
-      if d.Name() != "." && skipDirs[d.Name()] {
-        return filepath.SkipDir
+  walkErr := filepath.WalkDir(
+    resolved,
+    func(p string, d fs.DirEntry, err error) error {
+      if err != nil {
+        return err
       }
 
+      if d.IsDir() {
+        if d.Name() != "." && skipDirs[d.Name()] {
+          return filepath.SkipDir
+        }
+
+        return nil
+      }
+
+      matched, matchErr := filepath.Match(in.Pattern, d.Name())
+      if matchErr != nil {
+        return fmt.Errorf("bad pattern %q: %w", in.Pattern, matchErr)
+      }
+
+      if !matched {
+        return nil
+      }
+
+      if len(out.Files) >= maxFindFilesResults {
+        out.Truncated = true
+        return filepath.SkipAll
+      }
+
+      rel, relErr := filepath.Rel(cfg.Root, p)
+      if relErr != nil {
+        rel = p
+      }
+
+      out.Files = append(out.Files, filepath.ToSlash(rel))
+
       return nil
-    }
-
-    matched, matchErr := filepath.Match(in.Pattern, d.Name())
-    if matchErr != nil {
-      return fmt.Errorf("bad pattern %q: %w", in.Pattern, matchErr)
-    }
-
-    if !matched {
-      return nil
-    }
-
-    if len(out.Files) >= maxFindFilesResults {
-      out.Truncated = true
-      return filepath.SkipAll
-    }
-
-    rel, relErr := filepath.Rel(cfg.Root, p)
-    if relErr != nil {
-      rel = p
-    }
-
-    out.Files = append(out.Files, filepath.ToSlash(rel))
-
-    return nil
-  })
+    },
+  )
   if walkErr != nil {
     return nil, fmt.Errorf("\n\t... in FindFiles:\n\t%w", walkErr)
   }
@@ -322,9 +331,12 @@ func FileStat(
 func FindTodoFixme(
   ctx context.Context, cfg *sandbox.Config, in FindTodoFixmeInput,
 ) (*FindTodoFixmeOutput, error) {
-  res, err := SearchCode(ctx, cfg, SearchCodeInput{
-    Pattern: `\b(TODO|FIXME|XXX)\b`, Path: in.Path,
-  })
+  res, err := SearchCode(
+    ctx, cfg,
+    SearchCodeInput{
+      Pattern: `\b(TODO|FIXME|XXX)\b`, Path: in.Path,
+    },
+  )
   if err != nil {
     return nil, fmt.Errorf("\n\t... in FindTodoFixme:\n\t%w", err)
   }

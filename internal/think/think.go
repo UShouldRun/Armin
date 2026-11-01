@@ -77,19 +77,22 @@ func NewSenses(opts *input.Options) (*Mind, error) {
     execAllowlist[bin] = true
   }
 
-  sb, err := sandbox.New(opts.Root, sandbox.Options{
-    ExecAllowlist: execAllowlist,
-    Timeout:       opts.Timeout,
-    BuildTimeout:  cfg.BuildTimeout,
-    MaxOutput:     opts.MaxOutput,
-    Allowlist:     allowlist,
-    DryRun:        opts.Has(input.FlagDryRun),
-    Commands: sandbox.Commands{
-      Test:  cfg.TestCmd,
-      Build: cfg.BuildCmd,
-      Lint:  cfg.LintCmd,
+  sb, err := sandbox.New(
+    opts.Root,
+    sandbox.Options{
+      ExecAllowlist: execAllowlist,
+      Timeout:       opts.Timeout,
+      BuildTimeout:  cfg.BuildTimeout,
+      MaxOutput:     opts.MaxOutput,
+      Allowlist:     allowlist,
+      DryRun:        opts.Has(input.FlagDryRun),
+      Commands: sandbox.Commands{
+        Test:  cfg.TestCmd,
+        Build: cfg.BuildCmd,
+        Lint:  cfg.LintCmd,
+      },
     },
-  })
+  )
   if err != nil {
     return nil, fmt.Errorf("\n\t... in New:\n\t setting up sandbox: %w", err)
   }
@@ -354,8 +357,10 @@ func (m *Mind) buildLoop(ctx context.Context, opts *input.Options) error {
 
     err := m.Models.SwitchChat(ctx, client, m.Follower(), r.Model)
     if err != nil {
-      ui.Error("resuming with model %q: %s (staying on %q)",
-        r.Model, err, opts.Model)
+      ui.Error(
+        "resuming with model %q: %s (staying on %q)",
+        r.Model, err, opts.Model,
+      )
     }
   }
 
@@ -425,8 +430,13 @@ func (m *Mind) refreshLibrary(ctx context.Context) {
   pending := len(lib.Pending(nil))
   metrics.Since("startup.library-scan.ms", t0)
   if pending > 0 {
-    m.notice(fmt.Sprintf("library: %d books aren't in the topic " +
-      "table yet — /library catalog", pending))
+    m.notice(
+      fmt.Sprintf(
+        "library: %d books aren't in the topic " +
+          "table yet — /library catalog",
+        pending,
+      ),
+    )
   }
 
   if !lib.Stale() {

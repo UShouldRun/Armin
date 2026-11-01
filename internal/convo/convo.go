@@ -157,9 +157,12 @@ func Compact(
 
   compacted := make([]llm.Message, 0, 2 + len(tail))
   compacted = append(compacted, system)
-  compacted = append(compacted, llm.Message{
-    Role: "user", Content: note.String(),
-  })
+  compacted = append(
+    compacted,
+    llm.Message{
+      Role: "user", Content: note.String(),
+    },
+  )
   compacted = append(compacted, tail...)
 
   *history = compacted

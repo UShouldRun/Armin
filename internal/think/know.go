@@ -44,28 +44,30 @@ func (m *Mind) closeKnow() {
     return
   }
 
-  m.knowOnce.Do(func() {
-    m.Loop.LockKnow()
-    defer m.Loop.UnlockKnow()
+  m.knowOnce.Do(
+    func() {
+      m.Loop.LockKnow()
+      defer m.Loop.UnlockKnow()
 
-    if m.Know != nil {
-      closeTree(m.Know, "knowledge")
-    }
+      if m.Know != nil {
+        closeTree(m.Know, "knowledge")
+      }
 
-    if m.Learner != nil {
-      if m.Learner.Tree.Changed() {
-        err := m.Learner.Tree.Compact()
+      if m.Learner != nil {
+        if m.Learner.Tree.Changed() {
+          err := m.Learner.Tree.Compact()
+          if err != nil {
+            ui.Error("compacting the learner tree: %s", err)
+          }
+        }
+
+        err := m.Learner.Close()
         if err != nil {
-          ui.Error("compacting the learner tree: %s", err)
+          ui.Error("closing the learner tree: %s", err)
         }
       }
-
-      err := m.Learner.Close()
-      if err != nil {
-        ui.Error("closing the learner tree: %s", err)
-      }
-    }
-  })
+    },
+  )
 }
 
 // closeTree compacts g if the session changed it, then closes it.

@@ -337,14 +337,20 @@ func cmdContext(r *REPL, _ context.Context, _ []string) {
       size, used * 100 / size, agent.DefaultCompactAt,
     )
   } else {
-    fmt.Println(ui.Dim("  window:         unknown — auto-compaction off " +
-      "(set context_size)"))
+    fmt.Println(
+      ui.Dim(
+        "  window:         unknown — auto-compaction off " +
+          "(set context_size)",
+      ),
+    )
   }
 
-  fmt.Println(ui.Dim(
-    "  /compact summarizes everything but the last few messages " +
-      "to free this up",
-  ))
+  fmt.Println(
+    ui.Dim(
+      "  /compact summarizes everything but the last few messages " +
+        "to free this up",
+    ),
+  )
 }
 
 func cmdCompact(r *REPL, ctx context.Context, args []string) {
@@ -522,15 +528,18 @@ func (r *REPL) AddDir(dir string) error {
     }
   }
 
-  r.History = append(r.History, llm.Message{
-    Role: "user",
-    Content: fmt.Sprintf(
-      "[armin] I granted you read access to %s. It contains: %s. " +
-        "Use absolute paths there (e.g. read_pdf / read_file with " +
-        "path=%s/<file>). Writing stays inside the project.",
-      resolved, strings.Join(names, ", "), resolved,
-    ),
-  })
+  r.History = append(
+    r.History,
+    llm.Message{
+      Role: "user",
+      Content: fmt.Sprintf(
+        "[armin] I granted you read access to %s. It contains: %s. " +
+          "Use absolute paths there (e.g. read_pdf / read_file with " +
+          "path=%s/<file>). Writing stays inside the project.",
+        resolved, strings.Join(names, ", "), resolved,
+      ),
+    },
+  )
 
   ui.Info("read access: %s (%d entries)", resolved, len(names))
 

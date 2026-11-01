@@ -153,16 +153,21 @@ func knowSection(tree *know.Graph, recall bool) string {
   if outline == "" {
     b.WriteString("Empty so far: know_write what you establish as you work.\n")
   } else {
-    b.WriteString("What is established about this project, top two " +
-      "levels with node counts:\n")
+    b.WriteString(
+      "What is established about this project, top two " +
+        "levels with node counts:\n",
+    )
     b.WriteString(outline)
   }
 
   rules := knowRules
   if recall {
-    rules = knowRecall + strings.TrimPrefix(rules, "Check it before " +
-      "exploring: know_find first; when nodes answer the question, " +
-      "answer from them. ")
+    rules = knowRecall + strings.TrimPrefix(
+      rules,
+      "Check it before " +
+        "exploring: know_find first; when nodes answer the question, " +
+        "answer from them. ",
+    )
   }
 
   b.WriteString(rules)

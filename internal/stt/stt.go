@@ -81,8 +81,10 @@ func Start(recorder, dir string) (*Recorder, error) {
   }
 
   if recorder == "" {
-    return nil, errors.New("\n\t... in Start:\n\tno recorder: install parec, " +
-      "pw-record or arecord, or set stt_record in config.conf")
+    return nil, errors.New(
+      "\n\t... in Start:\n\tno recorder: install parec, " +
+        "pw-record or arecord, or set stt_record in config.conf",
+    )
   }
 
   f, err := os.CreateTemp(dir, "armin-voice-*.wav")
@@ -172,10 +174,12 @@ func Clean(text string) string {
 // cleaned text.
 func Transcribe(ctx context.Context, command, wav string) (string, error) {
   if strings.TrimSpace(command) == "" {
-    return "", errors.New("\n\t... in Transcribe:\n\tno stt command: set stt " +
-      "in " +
-      "config.conf, e.g. stt = whisper-cli -m ggml-large-v3-turbo.bin -f " +
-        "{wav} -nt -np")
+    return "", errors.New(
+      "\n\t... in Transcribe:\n\tno stt command: set stt " +
+        "in " +
+        "config.conf, e.g. stt = whisper-cli -m ggml-large-v3-turbo.bin -f " +
+          "{wav} -nt -np",
+    )
   }
 
   data, err := os.ReadFile(wav)
@@ -186,9 +190,11 @@ func Transcribe(ctx context.Context, command, wav string) (string, error) {
   metrics.Add("stt.recordings", 1)
   if Flat(data) {
     metrics.Add("stt.flat", 1)
-    return "", errors.New("\n\t... in Transcribe:\n\tthe microphone recorded " +
-      "a flat " +
-      "signal (no sound); check the input device, or reload its driver")
+    return "", errors.New(
+      "\n\t... in Transcribe:\n\tthe microphone recorded " +
+        "a flat " +
+        "signal (no sound); check the input device, or reload its driver",
+    )
   }
 
   ctx, cancel := context.WithTimeout(ctx, transcribeTimeout)

@@ -87,26 +87,35 @@ func resolve(ctx context.Context, c *http.Client, arg string) (*source, error) {
   s.Pick = -1
   switch {
   case ref.file != "":
-    s.Pick = findGroup(s.Groups, func(g quantGroup) bool {
-      for _, f := range g.Files {
-        if f.Path == ref.file {
-          return true
+    s.Pick = findGroup(
+      s.Groups,
+      func(g quantGroup) bool {
+        for _, f := range g.Files {
+          if f.Path == ref.file {
+            return true
+          }
         }
-      }
 
-      return false
-    })
+        return false
+      },
+    )
   case ref.quant != "":
-    s.Pick = findGroup(s.Groups, func(g quantGroup) bool {
-      return strings.EqualFold(g.Label, ref.quant)
-    })
+    s.Pick = findGroup(
+      s.Groups,
+      func(g quantGroup) bool {
+        return strings.EqualFold(g.Label, ref.quant)
+      },
+    )
     if s.Pick < 0 {
-      s.Pick = findGroup(s.Groups, func(g quantGroup) bool {
-        return strings.Contains(
-          strings.ToUpper(g.Files[0].Path),
-          strings.ToUpper(ref.quant),
-        )
-      })
+      s.Pick = findGroup(
+        s.Groups,
+        func(g quantGroup) bool {
+          return strings.Contains(
+            strings.ToUpper(g.Files[0].Path),
+            strings.ToUpper(ref.quant),
+          )
+        },
+      )
     }
   default:
     s.Pick = defaultGroup(s.Groups)
@@ -252,8 +261,7 @@ func remoteSize(
   if resp.StatusCode != http.StatusPartialContent {
     return 0, fmt.Errorf(
       "%s: %s (it must serve byte ranges)",
-      link,
-      resp.Status,
+      link, resp.Status,
     )
   }
 

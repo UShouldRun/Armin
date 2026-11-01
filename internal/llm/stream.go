@@ -36,10 +36,13 @@ func (c *Client) watchIdle(
 
   ctx, cancel := context.WithCancel(ctx)
   w := &idleWatch{ after: after, expired: make(chan struct{}) }
-  w.timer = time.AfterFunc(after, func() {
-    close(w.expired)
-    cancel()
-  })
+  w.timer = time.AfterFunc(
+    after,
+    func() {
+      close(w.expired)
+      cancel()
+    },
+  )
 
   return ctx, w
 }
@@ -268,12 +271,15 @@ func readStreamedReply(
       id = fmt.Sprintf("call_%d", idx)
     }
 
-    final.ToolCalls = append(final.ToolCalls, ToolCall{
-      ID: id,
-      Function: ToolCallFunction{
-        Name: acc.name, Arguments: args,
+    final.ToolCalls = append(
+      final.ToolCalls,
+      ToolCall{
+        ID: id,
+        Function: ToolCallFunction{
+          Name: acc.name, Arguments: args,
+        },
       },
-    })
+    )
   }
 
   return &final, nil

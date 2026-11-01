@@ -99,15 +99,20 @@ func writeChatResponse(t *testing.T, w http.ResponseWriter, msg llm.Message) {
       id = fmt.Sprintf("call_%d", i)
     }
 
-    wm.ToolCalls = append(wm.ToolCalls, wireToolCall{
-      ID: id, Type: "function",
-      Function: wireFunc{ Name: tc.Function.Name, Arguments: string(args) },
-    })
+    wm.ToolCalls = append(
+      wm.ToolCalls,
+      wireToolCall{
+        ID: id, Type: "function",
+        Function: wireFunc{ Name: tc.Function.Name, Arguments: string(args) },
+      },
+    )
   }
 
-  json.NewEncoder(w).Encode(map[string]any{
-    "choices": []map[string]any{ { "message": wm } },
-  })
+  json.NewEncoder(w).Encode(
+    map[string]any{
+      "choices": []map[string]any{ { "message": wm } },
+    },
+  )
 }
 
 func newTestLoop(t *testing.T, chatHandler http.HandlerFunc) (*Loop, string) {
@@ -144,26 +149,33 @@ func newTestLoop(t *testing.T, chatHandler http.HandlerFunc) (*Loop, string) {
 // tool-calling exchange has.
 func TestTurnExecutesToolThenReturnsAnswer(t *testing.T) {
   round := 0
-  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    round++
-    var reply llm.Message
-    if round == 1 {
-      reply = llm.Message{
-        Role: "assistant",
-        ToolCalls: []llm.ToolCall{{Function: llm.ToolCallFunction{
-          Name:      "read_file",
-          Arguments: map[string]any{ "path": "f.txt" },
-        }}},
+  loop, _ := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      round++
+      var reply llm.Message
+      if round == 1 {
+        reply = llm.Message{
+          Role: "assistant",
+          ToolCalls: []llm.ToolCall{
+            {
+              Function: llm.ToolCallFunction{
+                Name:      "read_file",
+                Arguments: map[string]any{ "path": "f.txt" },
+              },
+            },
+          },
+        }
+      } else {
+        reply = llm.Message{
+          Role:    "assistant",
+          Content: "the file says hello world",
+        }
       }
-    } else {
-      reply = llm.Message{
-        Role:    "assistant",
-        Content: "the file says hello world",
-      }
-    }
 
-    writeChatResponse(t, w, reply)
-  })
+      writeChatResponse(t, w, reply)
+    },
+  )
 
   var toolCallSeen string
   onToolCall := func(name string, _ map[string]any) { toolCallSeen = name }
@@ -206,26 +218,33 @@ func TestTurnExecutesToolThenReturnsAnswer(t *testing.T) {
 
 func TestTurnSurfacesToolErrorAsStructuredResult(t *testing.T) {
   round := 0
-  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    round++
-    var reply llm.Message
-    if round == 1 {
-      reply = llm.Message{
-        Role: "assistant",
-        ToolCalls: []llm.ToolCall{{Function: llm.ToolCallFunction{
-          Name:      "read_file",
-          Arguments: map[string]any{ "path": "does-not-exist.txt" },
-        }}},
+  loop, _ := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      round++
+      var reply llm.Message
+      if round == 1 {
+        reply = llm.Message{
+          Role: "assistant",
+          ToolCalls: []llm.ToolCall{
+            {
+              Function: llm.ToolCallFunction{
+                Name:      "read_file",
+                Arguments: map[string]any{ "path": "does-not-exist.txt" },
+              },
+            },
+          },
+        }
+      } else {
+        reply = llm.Message{
+          Role:    "assistant",
+          Content: "couldn't find that file",
+        }
       }
-    } else {
-      reply = llm.Message{
-        Role:    "assistant",
-        Content: "couldn't find that file",
-      }
-    }
 
-    writeChatResponse(t, w, reply)
-  })
+      writeChatResponse(t, w, reply)
+    },
+  )
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
   _, err := loop.Turn(context.Background(), &history, Hooks{})
@@ -252,33 +271,42 @@ func TestTurnSurfacesToolErrorAsStructuredResult(t *testing.T) {
 
 func TestTurnHitsMaxRoundsThenSummarizes(t *testing.T) {
   calls := 0
-  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    calls++
-    var req struct {
-      Tools []any `json:"tools"`
-    }
+  loop, _ := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      calls++
+      var req struct {
+        Tools []any `json:"tools"`
+      }
 
-    json.NewDecoder(r.Body).Decode(&req)
-    if len(req.Tools) == 0 {
-      // The closing call: no tools offered, so it must answer.
+      json.NewDecoder(r.Body).Decode(&req)
+      if len(req.Tools) == 0 {
+        // The closing call: no tools offered, so it must answer.
+        writeChatResponse(
+          t, w,
+          llm.Message{ Role: "assistant", Content: "partial report" },
+        )
+
+        return
+      }
+
+      // Always asks for another tool call — a model that never stops.
       writeChatResponse(
-        t,
-        w,
-        llm.Message{ Role: "assistant", Content: "partial report" },
+        t, w,
+        llm.Message{
+          Role: "assistant",
+          ToolCalls: []llm.ToolCall{
+            {
+              Function: llm.ToolCallFunction{
+                Name:      "list_directory",
+                Arguments: map[string]any{},
+              },
+            },
+          },
+        },
       )
-
-      return
-    }
-
-    // Always asks for another tool call — a model that never stops.
-    writeChatResponse(t, w, llm.Message{
-      Role: "assistant",
-      ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
-        Name:      "list_directory",
-        Arguments: map[string]any{},
-      } } },
-    })
-  })
+    },
+  )
   loop.MaxRounds = 3
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
@@ -290,8 +318,7 @@ func TestTurnHitsMaxRoundsThenSummarizes(t *testing.T) {
   if answer != "partial report" || calls != 4 {
     t.Fatalf(
       "answer = %q after %d calls, want the summary after 3+1",
-      answer,
-      calls,
+      answer, calls,
     )
   }
 }
@@ -303,23 +330,30 @@ func TestTurnHitsMaxRoundsThenSummarizes(t *testing.T) {
 // other tool failure, not a panic.
 func TestTurnDispatchesWebSearchWithNilManager(t *testing.T) {
   round := 0
-  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    round++
-    var reply llm.Message
-    if round == 1 {
-      reply = llm.Message{
-        Role: "assistant",
-        ToolCalls: []llm.ToolCall{{Function: llm.ToolCallFunction{
-          Name:      "web_search",
-          Arguments: map[string]any{ "query": "armin coding agent" },
-        }}},
+  loop, _ := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      round++
+      var reply llm.Message
+      if round == 1 {
+        reply = llm.Message{
+          Role: "assistant",
+          ToolCalls: []llm.ToolCall{
+            {
+              Function: llm.ToolCallFunction{
+                Name:      "web_search",
+                Arguments: map[string]any{ "query": "armin coding agent" },
+              },
+            },
+          },
+        }
+      } else {
+        reply = llm.Message{ Role: "assistant", Content: "search is unavailable" }
       }
-    } else {
-      reply = llm.Message{ Role: "assistant", Content: "search is unavailable" }
-    }
 
-    writeChatResponse(t, w, reply)
-  })
+      writeChatResponse(t, w, reply)
+    },
+  )
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
   _, err := loop.Turn(context.Background(), &history, Hooks{})
@@ -343,16 +377,19 @@ func TestTurnDispatchesWebSearchWithNilManager(t *testing.T) {
 }
 
 func TestTurnRejectsUnknownTool(t *testing.T) {
-  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    reply := llm.Message{
-      Role: "assistant",
-      ToolCalls: []llm.ToolCall{
-        { Function: llm.ToolCallFunction{ Name: "delete_everything" } },
-      },
-    }
+  loop, _ := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      reply := llm.Message{
+        Role: "assistant",
+        ToolCalls: []llm.ToolCall{
+          { Function: llm.ToolCallFunction{ Name: "delete_everything" } },
+        },
+      }
 
-    writeChatResponse(t, w, reply)
-  })
+      writeChatResponse(t, w, reply)
+    },
+  )
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
   // The fake server always offers the same bogus tool call, so this
@@ -373,21 +410,28 @@ func TestTurnRejectsUnknownTool(t *testing.T) {
 // a turn is answered by the guard, not run again.
 func TestTurnBlocksARepeatedFailedCall(t *testing.T) {
   round := 0
-  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    round++
-    reply := llm.Message{ Role: "assistant", Content: "giving up" }
-    if round <= 2 {
-      reply = llm.Message{
-        Role: "assistant",
-        ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
-          Name:      "read_file",
-          Arguments: map[string]any{ "path": "missing.txt" },
-        } } },
+  loop, _ := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      round++
+      reply := llm.Message{ Role: "assistant", Content: "giving up" }
+      if round <= 2 {
+        reply = llm.Message{
+          Role: "assistant",
+          ToolCalls: []llm.ToolCall{
+            {
+              Function: llm.ToolCallFunction{
+                Name:      "read_file",
+                Arguments: map[string]any{ "path": "missing.txt" },
+              },
+            },
+          },
+        }
       }
-    }
 
-    writeChatResponse(t, w, reply)
-  })
+      writeChatResponse(t, w, reply)
+    },
+  )
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
   _, err := loop.Turn(context.Background(), &history, Hooks{})
@@ -416,10 +460,12 @@ func TestRequestAccessAsksThenGrants(t *testing.T) {
   }
 
   asked := ""
-  deny := Hooks{ Approve: func(tool, preview string) (bool, string) {
-    asked = preview
-    return false, ""
-  } }
+  deny := Hooks{
+    Approve: func(tool, preview string) (bool, string) {
+      asked = preview
+      return false, ""
+    },
+  }
   out = loop.requestAccess(raw, deny)
   if !strings.Contains(fmt.Sprint(out), "declined") {
     t.Fatalf("declined = %v", out)
@@ -465,30 +511,39 @@ func TestTurnAsksBeforeReadingOutside(t *testing.T) {
 
   run := func(answer bool) ([]llm.Message, []string) {
     round := 0
-    loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-      round++
-      reply := llm.Message{ Role: "assistant", Content: "done" }
-      if round <= 2 {
-        reply = llm.Message{
-          Role: "assistant",
-          ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
-            Name:      "read_file",
-            Arguments: map[string]any{
-              "path":       target,
-              "start_line": float64(round),
+    loop, _ := newTestLoop(
+      t,
+      func(w http.ResponseWriter, r *http.Request) {
+        round++
+        reply := llm.Message{ Role: "assistant", Content: "done" }
+        if round <= 2 {
+          reply = llm.Message{
+            Role: "assistant",
+            ToolCalls: []llm.ToolCall{
+              {
+                Function: llm.ToolCallFunction{
+                  Name:      "read_file",
+                  Arguments: map[string]any{
+                    "path":       target,
+                    "start_line": float64(round),
+                  },
+                },
+              },
             },
-          } } },
+          }
         }
-      }
 
-      writeChatResponse(t, w, reply)
-    })
+        writeChatResponse(t, w, reply)
+      },
+    )
 
     var asked []string
-    hooks := Hooks{ Approve: func(tool, preview string) (bool, string) {
-      asked = append(asked, preview)
-      return answer, ""
-    } }
+    hooks := Hooks{
+      Approve: func(tool, preview string) (bool, string) {
+        asked = append(asked, preview)
+        return answer, ""
+      },
+    }
 
     history := []llm.Message{ { Role: "system", Content: "sys" } }
     _, err := loop.Turn(context.Background(), &history, hooks)
@@ -529,10 +584,12 @@ func TestRunProgramNeedsApproval(t *testing.T) {
   }
 
   var asked string
-  deny := Hooks{ Approve: func(tool, preview string) (bool, string) {
-    asked = tool + ": " + preview
-    return false, "not now"
-  } }
+  deny := Hooks{
+    Approve: func(tool, preview string) (bool, string) {
+      asked = tool + ": " + preview
+      return false, "not now"
+    },
+  }
   out = fmt.Sprint(loop.runProgram(context.Background(), in, deny))
   if !strings.Contains(out, "declined") || !strings.Contains(out, "not now") {
     t.Fatalf("declined = %s", out)
@@ -547,8 +604,7 @@ func TestRunProgramNeedsApproval(t *testing.T) {
   }
   res, ok := loop.runProgram(
     context.Background(),
-    in,
-    allow,
+    in, allow,
   ).(*tools.RunProgramOutput)
   if !ok || res.ExitCode != 0 || !strings.Contains(res.Output, "go version") {
     t.Fatalf("approved = %+v", res)
@@ -562,33 +618,42 @@ func TestRunProgramNeedsApproval(t *testing.T) {
 // round limit.
 func TestTurnStopsAModelThatKeepsRetrying(t *testing.T) {
   calls := 0
-  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    calls++
-    var req struct {
-      Tools []any `json:"tools"`
-    }
-
-    json.NewDecoder(r.Body).Decode(&req)
-
-    reply := llm.Message{ Role: "assistant", Content: "sorry, stopping" }
-    if len(req.Tools) > 0 {
-      reply = llm.Message{
-        Role: "assistant",
-        ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
-          Name:      "run_program",
-          Arguments: map[string]any{ "binary": "make" },
-        } } },
+  loop, _ := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      calls++
+      var req struct {
+        Tools []any `json:"tools"`
       }
-    }
 
-    writeChatResponse(t, w, reply)
-  })
+      json.NewDecoder(r.Body).Decode(&req)
+
+      reply := llm.Message{ Role: "assistant", Content: "sorry, stopping" }
+      if len(req.Tools) > 0 {
+        reply = llm.Message{
+          Role: "assistant",
+          ToolCalls: []llm.ToolCall{
+            {
+              Function: llm.ToolCallFunction{
+                Name:      "run_program",
+                Arguments: map[string]any{ "binary": "make" },
+              },
+            },
+          },
+        }
+      }
+
+      writeChatResponse(t, w, reply)
+    },
+  )
 
   asked := 0
-  hooks := Hooks{ Approve: func(string, string) (bool, string) {
-    asked++
-    return false, "this is C, run with gcc"
-  } }
+  hooks := Hooks{
+    Approve: func(string, string) (bool, string) {
+      asked++
+      return false, "this is C, run with gcc"
+    },
+  }
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
   answer, err := loop.Turn(context.Background(), &history, hooks)
@@ -614,10 +679,12 @@ func TestTurnStopsAModelThatKeepsRetrying(t *testing.T) {
 func TestPrivilegedProgramsAlwaysAsk(t *testing.T) {
   loop, root := newTestLoop(t, func(http.ResponseWriter, *http.Request) {})
   var tool, preview string
-  hooks := Hooks{ Approve: func(t, p string) (bool, string) {
-    tool, preview = t, p
-    return true, ""
-  } }
+  hooks := Hooks{
+    Approve: func(t, p string) (bool, string) {
+      tool, preview = t, p
+      return true, ""
+    },
+  }
 
   out := loop.runProgram(
     context.Background(),
@@ -693,10 +760,13 @@ func TestNormalizeArgs(t *testing.T) {
 
 func TestUnknownParamsAreAnError(t *testing.T) {
   loop, _ := newTestLoop(t, func(http.ResponseWriter, *http.Request) {})
-  read := call("1", "read_file", map[string]any{
-    "path":  "f.txt",
-    "lines": "1-5",
-  })
+  read := call(
+    "1", "read_file",
+    map[string]any{
+      "path":  "f.txt",
+      "lines": "1-5",
+    },
+  )
   out := fmt.Sprint(loop.execute(context.Background(), read, Hooks{}))
 
   if !strings.Contains(out, "no parameter lines") ||
@@ -709,24 +779,27 @@ func TestUnknownParamsAreAnError(t *testing.T) {
 // "nothing to be done" each time is a loop.
 func TestTurnStopsIdenticalReruns(t *testing.T) {
   calls := 0
-  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    calls++
-    var req struct {
-      Tools []any `json:"tools"`
-    }
-
-    json.NewDecoder(r.Body).Decode(&req)
-
-    reply := llm.Message{ Role: "assistant", Content: "it's built" }
-    if len(req.Tools) > 0 {
-      ls := call("", "run_command", map[string]any{ "binary": "ls" })
-      reply = llm.Message{
-        Role: "assistant", ToolCalls: []llm.ToolCall{ ls },
+  loop, _ := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      calls++
+      var req struct {
+        Tools []any `json:"tools"`
       }
-    }
 
-    writeChatResponse(t, w, reply)
-  })
+      json.NewDecoder(r.Body).Decode(&req)
+
+      reply := llm.Message{ Role: "assistant", Content: "it's built" }
+      if len(req.Tools) > 0 {
+        ls := call("", "run_command", map[string]any{ "binary": "ls" })
+        reply = llm.Message{
+          Role: "assistant", ToolCalls: []llm.ToolCall{ ls },
+        }
+      }
+
+      writeChatResponse(t, w, reply)
+    },
+  )
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
   answer, err := loop.Turn(context.Background(), &history, Hooks{})
@@ -747,31 +820,37 @@ func TestRerunAfterOtherCallsIsNoted(t *testing.T) {
   script := []string{ "ls", "date", "ls", "date", "ls" }
   calls := 0
   var results []string
-  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    var req struct {
-      Messages []llm.Message `json:"messages"`
-      Tools    []any         `json:"tools"`
-    }
-
-    json.NewDecoder(r.Body).Decode(&req)
-    last := req.Messages[len(req.Messages) - 1]
-    if last.Role == "tool" {
-      results = append(results, last.Content)
-    }
-
-    reply := llm.Message{ Role: "assistant", Content: "done" }
-    if calls < len(script) {
-      run := call("", "run_command", map[string]any{
-        "binary": script[calls],
-      })
-      reply = llm.Message{
-        Role: "assistant", ToolCalls: []llm.ToolCall{ run },
+  loop, _ := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      var req struct {
+        Messages []llm.Message `json:"messages"`
+        Tools    []any         `json:"tools"`
       }
-    }
 
-    calls++
-    writeChatResponse(t, w, reply)
-  })
+      json.NewDecoder(r.Body).Decode(&req)
+      last := req.Messages[len(req.Messages) - 1]
+      if last.Role == "tool" {
+        results = append(results, last.Content)
+      }
+
+      reply := llm.Message{ Role: "assistant", Content: "done" }
+      if calls < len(script) {
+        run := call(
+          "", "run_command",
+          map[string]any{
+            "binary": script[calls],
+          },
+        )
+        reply = llm.Message{
+          Role: "assistant", ToolCalls: []llm.ToolCall{ run },
+        }
+      }
+
+      calls++
+      writeChatResponse(t, w, reply)
+    },
+  )
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
   answer, err := loop.Turn(context.Background(), &history, Hooks{})

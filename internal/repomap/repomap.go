@@ -98,13 +98,16 @@ func refs(root string, defs []def) {
       continue
     }
 
-    eachIdent(data, func(name string) {
-      for _, i := range byName[name] {
-        if reaches(defs[i].sym, file) {
-          counts[i] += 1 / float64(len(byName[name]))
+    eachIdent(
+      data,
+      func(name string) {
+        for _, i := range byName[name] {
+          if reaches(defs[i].sym, file) {
+            counts[i] += 1 / float64(len(byName[name]))
+          }
         }
-      }
-    })
+      },
+    )
   }
 
   for i := range defs {
@@ -170,32 +173,38 @@ func render(defs []def, budget int) string {
     files = append(files, f)
   }
 
-  slices.SortFunc(files, func(a, b string) int {
-    if rank[a] != rank[b] {
-      if rank[a] > rank[b] {
-        return -1
-      }
-
-      return 1
-    }
-
-    return strings.Compare(a, b)
-  })
-
-  var b strings.Builder
-  for _, f := range files {
-    ds := byFile[f]
-    slices.SortStableFunc(ds, func(x, y def) int {
-      if x.score != y.score {
-        if x.score > y.score {
+  slices.SortFunc(
+    files,
+    func(a, b string) int {
+      if rank[a] != rank[b] {
+        if rank[a] > rank[b] {
           return -1
         }
 
         return 1
       }
 
-      return x.sym.Line - y.sym.Line
-    })
+      return strings.Compare(a, b)
+    },
+  )
+
+  var b strings.Builder
+  for _, f := range files {
+    ds := byFile[f]
+    slices.SortStableFunc(
+      ds,
+      func(x, y def) int {
+        if x.score != y.score {
+          if x.score > y.score {
+            return -1
+          }
+
+          return 1
+        }
+
+        return x.sym.Line - y.sym.Line
+      },
+    )
 
     var names []string
     for _, d := range ds[:min(perFile, len(ds))] {

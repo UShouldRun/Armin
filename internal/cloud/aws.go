@@ -119,19 +119,25 @@ func awsSign(
     path = "/"
   }
 
-  canonical := strings.Join([]string{
-    req.Method,
-    path,
-    canonicalQuery(req.URL.Query()),
-    canonHeaders.String(),
-    signed,
-    sha256Hex(body),
-  }, "\n")
+  canonical := strings.Join(
+    []string{
+      req.Method,
+      path,
+      canonicalQuery(req.URL.Query()),
+      canonHeaders.String(),
+      signed,
+      sha256Hex(body),
+    },
+    "\n",
+  )
 
   scope := day + "/" + region + "/" + service + "/aws4_request"
-  toSign := strings.Join([]string{
-    sigAlgorithm, stamp, scope, sha256Hex([]byte(canonical)),
-  }, "\n")
+  toSign := strings.Join(
+    []string{
+      sigAlgorithm, stamp, scope, sha256Hex([]byte(canonical)),
+    },
+    "\n",
+  )
 
   key := hmacSHA256([]byte("AWS4" + creds.SecretAccessKey), day)
   key = hmacSHA256(key, region)
@@ -139,10 +145,13 @@ func awsSign(
   key = hmacSHA256(key, "aws4_request")
   signature := hex.EncodeToString(hmacSHA256(key, toSign))
 
-  req.Header.Set("Authorization", fmt.Sprintf(
-    "%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",
-    sigAlgorithm, creds.AccessKeyID, scope, signed, signature,
-  ))
+  req.Header.Set(
+    "Authorization",
+    fmt.Sprintf(
+      "%s Credential=%s/%s, SignedHeaders=%s, Signature=%s",
+      sigAlgorithm, creds.AccessKeyID, scope, signed, signature,
+    ),
+  )
 }
 
 // canonicalQuery sorts by key then value, with AWS's escaping

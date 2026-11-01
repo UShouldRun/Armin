@@ -27,8 +27,10 @@ var noteTools = []toolSpec{
         "memory of the same name.",
       map[string]llm.ToolProperty{
         "name":        stringProp("Short kebab-case name"),
-        "description": stringProp("One line — shown in the index every " +
-          "session"),
+        "description": stringProp(
+          "One line — shown in the index every " +
+            "session",
+        ),
         "content": stringProp(
           "The fact, plus why it matters and how to apply it",
         ),
@@ -121,8 +123,10 @@ var noteTools = []toolSpec{
         "or declines; on approval, read tools accept absolute paths in " +
         "it. Read-only: writes stay inside the project.",
       map[string]llm.ToolProperty{
-        "dir": stringProp("Directory: absolute, ~/..., or " +
-          "relative to the project (\"..\")"),
+        "dir": stringProp(
+          "Directory: absolute, ~/..., or " +
+            "relative to the project (\"..\")",
+        ),
         "reason": stringProp("One line: why you need it"),
       },
       "dir", "reason",
@@ -139,8 +143,10 @@ var noteTools = []toolSpec{
         "supporting files instead.",
       map[string]llm.ToolProperty{
         "name": stringProp("Skill name"),
-        "file": stringProp("Supporting file path, as listed by a previous " +
-          "use_skill"),
+        "file": stringProp(
+          "Supporting file path, as listed by a previous " +
+            "use_skill",
+        ),
       },
       "name",
     ),

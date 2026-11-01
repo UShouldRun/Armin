@@ -10,7 +10,9 @@ import (
 
 func writeCallGraphFixture(t *testing.T, root string) {
   t.Helper()
-  writeFile(t, root, "a.go", `package fixture
+  writeFile(
+    t, root, "a.go",
+    `package fixture
 
 func Helper() int { return 1 }
 
@@ -20,7 +22,8 @@ func CallsCallsHelper() int { return CallsHelper() }
 
 // Never called anywhere in this fixture.
 func Orphan() int { return 2 }
-`)
+`,
+  )
 }
 
 // --- find_callers ---

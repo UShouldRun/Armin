@@ -99,13 +99,17 @@ func stem(t []byte) []byte {
 func Query(q string) []string {
   var out []string
   seen := map[string]bool{}
-  Each(q, make([]byte, 0, 32), func(t []byte) {
-    s := string(t)
-    if !seen[s] {
-      seen[s] = true
-      out = append(out, s)
-    }
-  })
+  Each(
+    q,
+    make([]byte, 0, 32),
+    func(t []byte) {
+      s := string(t)
+      if !seen[s] {
+        seen[s] = true
+        out = append(out, s)
+      }
+    },
+  )
 
   return out
 }

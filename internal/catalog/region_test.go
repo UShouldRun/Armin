@@ -62,10 +62,7 @@ func TestRegionalFor(t *testing.T) {
     if got != c.want {
       t.Errorf(
         "RegionalFor(%q, %q) = %q, want %q",
-        base,
-        c.setting,
-        got,
-        c.want,
+        base, c.setting, got, c.want,
       )
     }
   }

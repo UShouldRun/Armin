@@ -128,8 +128,7 @@ func New(
 // that same note, loaded once automatically at session start.
 func (r *REPL) LoadAutoContext(ctx context.Context) {
   out, err := tools.ProjectManifest(
-    ctx,
-    r.Sandbox,
+    ctx, r.Sandbox,
     tools.ProjectManifestInput{},
   )
   if err != nil || out.Note == "" {
@@ -158,8 +157,7 @@ func (r *REPL) prompt() string {
 
   pct := used * 100 / window
   gauge := fmt.Sprintf(
-    "%s%s/%s %d%%",
-    mark,
+    "%s%s/%s %d%%", mark,
     kTokens(used),
     kTokens(window),
     pct,
@@ -235,8 +233,12 @@ func (r *REPL) Run(ctx context.Context) error {
 
   ui.Banner(r.Root, r.modelName(), r.LLM.BaseURL)
   if r.hub != nil {
-    ui.Instance(r.LLM.Model, r.hub.Instance, "— nvim's :ArminLsp and other " +
-      "armins here join it")
+    ui.Instance(
+      r.LLM.Model,
+      r.hub.Instance,
+      "— nvim's :ArminLsp and other " +
+        "armins here join it",
+    )
   }
 
   w := r.Loop.Window
@@ -254,8 +256,10 @@ func (r *REPL) Run(ctx context.Context) error {
       "  session: %s (%s), last saved %s",
       ui.Bold(
         titleOr(r.Meta.Title),
-      ), ShortID(r.Meta.ID), r.resumedAt.Format("Jan 2 " +
-        "15:04"),
+      ), ShortID(r.Meta.ID), r.resumedAt.Format(
+        "Jan 2 " +
+          "15:04",
+      ),
     )
   default:
     ui.Info("  session: new (%s)", ShortID(r.Meta.ID))
@@ -396,11 +400,14 @@ func (r *REPL) suggestContinuation(ctx context.Context, partial string) string {
     return ""
   }
 
-  out, err := r.completer().Complete(ctx, partial, "", llm.CompleteOptions{
-    Temperature: 0.3,
-    NumPredict:  24,
-    Stop:        []string{ "\n" },
-  })
+  out, err := r.completer().Complete(
+    ctx, partial, "",
+    llm.CompleteOptions{
+      Temperature: 0.3,
+      NumPredict:  24,
+      Stop:        []string{ "\n" },
+    },
+  )
   if err != nil {
     return ""
   }

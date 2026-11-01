@@ -18,11 +18,15 @@ func teachLoop(t *testing.T) (*Loop, func(map[string]any) map[string]string) {
   l.SetRole(RoleAdvisor)
   call := func(args map[string]any) map[string]string {
     t.Helper()
-    out := l.execute(context.Background(), llm.ToolCall{
-      Function: llm.ToolCallFunction{
-        Name: "learn_explained", Arguments: args,
+    out := l.execute(
+      context.Background(),
+      llm.ToolCall{
+        Function: llm.ToolCallFunction{
+          Name: "learn_explained", Arguments: args,
+        },
       },
-    }, Hooks{})
+      Hooks{},
+    )
     m, ok := out.(map[string]string)
     if !ok {
       t.Fatalf("returned %T: %v", out, out)
@@ -36,18 +40,20 @@ func teachLoop(t *testing.T) (*Loop, func(map[string]any) map[string]string) {
 
 func TestLearnExplained(t *testing.T) {
   l, call := teachLoop(t)
-  out := call(map[string]any{
-    "define": []any{
-      "tcp/handshake: three segments open a connection",
-      "tcp/seqnum: each byte gets a number",
-      "tcp/window: how much the receiver can take",
+  out := call(
+    map[string]any{
+      "define": []any{
+        "tcp/handshake: three segments open a connection",
+        "tcp/seqnum: each byte gets a number",
+        "tcp/window: how much the receiver can take",
+      },
+      "correct":        []any{ "tcp/handshake" },
+      "misconceptions": []any{
+        "tcp/seqnum: thinks segments are numbered, not bytes",
+      },
+      "gaps":           []any{ "tcp/window" },
     },
-    "correct":        []any{ "tcp/handshake" },
-    "misconceptions": []any{
-      "tcp/seqnum: thinks segments are numbered, not bytes",
-    },
-    "gaps":           []any{ "tcp/window" },
-  })
+  )
 
   if out["recorded"] != "1 correct, 1 misconceptions, 1 gaps" ||
     !strings.Contains(
@@ -64,10 +70,14 @@ func TestLearnExplained(t *testing.T) {
   if l.Learner.State(hs, today) != learner.Known ||
       l.Learner.State(seq, today) != learner.Unknown ||
     l.Learner.State(win, today) != learner.NotSure {
-    t.Fatalf("states: %v %v %v", l.Learner.State(hs, today), l.Learner.State(
-      seq, today,
-    ),
-      l.Learner.State(win, today))
+    t.Fatalf(
+      "states: %v %v %v",
+      l.Learner.State(hs, today),
+      l.Learner.State(
+        seq, today,
+      ),
+      l.Learner.State(win, today),
+    )
   }
 
   out = call(map[string]any{ "correct": []any{ "tcp/congestion" } })

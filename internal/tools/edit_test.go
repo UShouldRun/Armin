@@ -25,8 +25,7 @@ func TestWriteFileCreatesWithParents(t *testing.T) {
   tr := NewFileTracker()
 
   out, err := WriteFile(
-    cfg,
-    tr,
+    cfg, tr,
     WriteFileInput{ Path: "a/b/c.txt", Content: "hi\n" },
   )
   if err != nil {
@@ -72,8 +71,7 @@ func TestEditFileRefusesStaleRead(t *testing.T) {
   os.Chtimes(path, later, later)
 
   _, err := EditFile(
-    cfg,
-    tr,
+    cfg, tr,
     EditFileInput{ Path: "x.txt", OldString: "beta", NewString: "gamma" },
   )
   if err == nil || !strings.Contains(err.Error(), "changed on disk") {
@@ -88,17 +86,19 @@ func TestEditFileExactUniqueReplace(t *testing.T) {
   tr.Mark(filepath.Join(cfg.Root, "f.go"))
 
   _, err := EditFile(
-    cfg,
-    tr,
+    cfg, tr,
     EditFileInput{ Path: "f.go", OldString: "a := 1", NewString: "a := 9" },
   )
   if err == nil || !strings.Contains(err.Error(), "matches 2 times") {
     t.Fatalf("err = %v, want an ambiguity error", err)
   }
 
-  out, err := EditFile(cfg, tr, EditFileInput{
-    Path: "f.go", OldString: "a := 1", NewString: "a := 9", ReplaceAll: true,
-  })
+  out, err := EditFile(
+    cfg, tr,
+    EditFileInput{
+      Path: "f.go", OldString: "a := 1", NewString: "a := 9", ReplaceAll: true,
+    },
+  )
   if err != nil {
     t.Fatalf("EditFile replace_all: %v", err)
   }
@@ -108,8 +108,7 @@ func TestEditFileExactUniqueReplace(t *testing.T) {
   }
 
   out, err = EditFile(
-    cfg,
-    tr,
+    cfg, tr,
     EditFileInput{ Path: "f.go", OldString: "b := 2\n", NewString: "" },
   )
   if err != nil {
@@ -132,9 +131,12 @@ func TestEditFileNotFoundPointsAtNearMiss(t *testing.T) {
   tr := NewFileTracker()
   tr.Mark(filepath.Join(cfg.Root, "f.go"))
 
-  _, err := EditFile(cfg, tr, EditFileInput{
-    Path: "f.go", OldString: "\treturn\n}", NewString: "\treturn 1\n}",
-  })
+  _, err := EditFile(
+    cfg, tr,
+    EditFileInput{
+      Path: "f.go", OldString: "\treturn\n}", NewString: "\treturn 1\n}",
+    },
+  )
   if err == nil || !strings.Contains(err.Error(), "line 2") {
     t.Fatalf("err = %v, want a pointer at line 2", err)
   }
@@ -167,8 +169,7 @@ func TestPreviewShowsChangedRegion(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "f.txt", "1\n2\n3\n4\n5\n6\n")
   c, err := PlanEdit(
-    cfg,
-    nil,
+    cfg, nil,
     EditFileInput{ Path: "f.txt", OldString: "4\n", NewString: "four\n" },
   )
   if err != nil {

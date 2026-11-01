@@ -210,9 +210,12 @@ func (g *Graph) encodeSnap(gen uint64) []byte {
     ev = append(ev, e)
   }
 
-  slices.SortStableFunc(ev, func(a, b Evidence) int {
-    return int(a.Node) - int(b.Node)
-  })
+  slices.SortStableFunc(
+    ev,
+    func(a, b Evidence) int {
+      return int(a.Node) - int(b.Node)
+    },
+  )
 
   g.edges.fold(n)
 

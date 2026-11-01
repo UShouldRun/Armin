@@ -108,19 +108,22 @@ func runWeb(ctx context.Context, opts *input.Options, mind *think.Mind) error {
     }
   }
 
-  return web.Serve(ctx, web.Config{
-    Addr:         opts.WebAddr,
-    Loop:         mind.Loop,
-    Client:       mind.Client,
-    Models:       mind.Models,
-    Sandbox:      mind.Sandbox,
-    SystemPrompt: mind.SystemPrompt(false),
-    AutoApprove:  opts.Has(input.FlagAutoApprove),
-    Resumed:      opts.Resumed,
-    Autosave:     !opts.Has(input.FlagNoSave),
-    ScratchBase:  mind.Scratch.Dir,
-    Effort:       opts.Effort,
-  })
+  return web.Serve(
+    ctx,
+    web.Config{
+      Addr:         opts.WebAddr,
+      Loop:         mind.Loop,
+      Client:       mind.Client,
+      Models:       mind.Models,
+      Sandbox:      mind.Sandbox,
+      SystemPrompt: mind.SystemPrompt(false),
+      AutoApprove:  opts.Has(input.FlagAutoApprove),
+      Resumed:      opts.Resumed,
+      Autosave:     !opts.Has(input.FlagNoSave),
+      ScratchBase:  mind.Scratch.Dir,
+      Effort:       opts.Effort,
+    },
+  )
 }
 
 func runREPL(

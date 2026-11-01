@@ -80,9 +80,7 @@ func TestFindReferencesFindsWordBoundaryMatches(t *testing.T) {
   requireRipgrep(t)
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(
-    t,
-    cfg.Root,
-    "a.go",
+    t, cfg.Root, "a.go",
     "func Needle() {}\n\nfunc main() { Needle() }\n",
   )
 

@@ -116,7 +116,8 @@ func testMoE() []byte {
 
   for i := 0; i < 4; i++ {
     p := "blk." + string(rune('0' + i)) + "."
-    ts = append(ts,
+    ts = append(
+      ts,
       testTensor{ p + "attn_q.weight", []uint64{ 256, 256 }, 320 },
       testTensor{ p + "ffn_up_exps.weight", []uint64{ 256, 64, 8 }, 3200 },
     )
@@ -158,10 +159,7 @@ func TestReadModel(t *testing.T) {
       m.SWALayers != 2 || m.KVFull != 2 * per || m.KVSWA != 2 * per {
     t.Errorf(
       "kv: %d layers, %d swa, full %v swa %v",
-      m.AttnLayers,
-      m.SWALayers,
-      m.KVFull,
-      m.KVSWA,
+      m.AttnLayers, m.SWALayers, m.KVFull, m.KVSWA,
     )
   }
 
@@ -246,20 +244,25 @@ func TestReadModelRejects(t *testing.T) {
 }
 
 func TestReadModelSplit(t *testing.T) {
-  a := buildGGUF([]testKV{
-    { "general.architecture", "x" },
-    { "split.count", uint32(2) },
-    { "x.block_count", uint32(1) },
-  }, []testTensor{ { "blk.0.a", []uint64{ 4 }, 64 } })
+  a := buildGGUF(
+    []testKV{
+      { "general.architecture", "x" },
+      { "split.count", uint32(2) },
+      { "x.block_count", uint32(1) },
+    },
+    []testTensor{ { "blk.0.a", []uint64{ 4 }, 64 } },
+  )
   b := buildGGUF(
     []testKV{ { "split.count", uint32(2) } },
     []testTensor{ { "blk.0.b", []uint64{ 4 }, 96 } },
   )
 
-  m, err := readModel([]part{
-    { r: bytes.NewReader(a), size: int64(len(a)) },
-    { r: bytes.NewReader(b), size: int64(len(b)) },
-  })
+  m, err := readModel(
+    []part{
+      { r: bytes.NewReader(a), size: int64(len(a)) },
+      { r: bytes.NewReader(b), size: int64(len(b)) },
+    },
+  )
   if err != nil {
     t.Fatal(err)
   }

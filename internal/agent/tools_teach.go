@@ -175,8 +175,12 @@ func runLearnExplained(_ context.Context, l *Loop, c toolCall) any {
   }
 
   out := map[string]string{
-    "recorded": fmt.Sprintf("%d correct, %d misconceptions, %d gaps",
-      len(in.Correct), len(in.Misconceptions), len(in.Gaps)),
+    "recorded": fmt.Sprintf(
+      "%d correct, %d misconceptions, %d gaps",
+      len(in.Correct),
+      len(in.Misconceptions),
+      len(in.Gaps),
+    ),
   }
 
   if len(questions) > 0 {

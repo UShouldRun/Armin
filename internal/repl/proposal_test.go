@@ -18,14 +18,19 @@ func TestShowProposal(t *testing.T) {
   defer func() { ui.Enabled = true }()
 
   r := &REPL{ Root: "/p" }
-  update := capture(t, func() {
-    r.showProposal(agent.Proposal{
-      Tool: "edit_file", Path: "main.c", Start: 2,
-      OldLines: []string{ "a", "b", "old", "c", "d" },
-      Gone:     []string{ "old" },
-      Came:     []string{ "new1", "new2" },
-    })
-  })
+  update := capture(
+    t,
+    func() {
+      r.showProposal(
+        agent.Proposal{
+          Tool: "edit_file", Path: "main.c", Start: 2,
+          OldLines: []string{ "a", "b", "old", "c", "d" },
+          Gone:     []string{ "old" },
+          Came:     []string{ "new1", "new2" },
+        },
+      )
+    },
+  )
 
   for _, want := range []string{
     "● Update(main.c)", "└ 2 additions, 1 removal",
@@ -36,11 +41,14 @@ func TestShowProposal(t *testing.T) {
     }
   }
 
-  run := capture(t, func() {
-    r.showProposal(
-      agent.Proposal{ Tool: "run_program", Command: "make -j4", Dir: "/p/src" },
-    )
-  })
+  run := capture(
+    t,
+    func() {
+      r.showProposal(
+        agent.Proposal{ Tool: "run_program", Command: "make -j4", Dir: "/p/src" },
+      )
+    },
+  )
 
   if !strings.Contains(run, "● Run(make -j4)") ||
       !strings.Contains(run, "└ in src") {
@@ -61,11 +69,13 @@ func TestViewOpensNvim(t *testing.T) {
   t.Setenv("PATH", bin + ":" + os.Getenv("PATH"))
 
   r := &REPL{ Root: dir, Terminal: term + " -e" }
-  err := r.view(agent.Proposal{
-    Tool: "edit_file", Path: "src/main.c", Resolved: "/p/src/main.c",
-    OldLines: []string{ "a", "old", "b" }, Start: 1,
-    Gone: []string{ "old" }, Came: []string{ "new" },
-  })
+  err := r.view(
+    agent.Proposal{
+      Tool: "edit_file", Path: "src/main.c", Resolved: "/p/src/main.c",
+      OldLines: []string{ "a", "old", "b" }, Start: 1,
+      Gone: []string{ "old" }, Came: []string{ "new" },
+    },
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -171,22 +181,27 @@ func TestChooseHosted(t *testing.T) {
   for _, c := range cases {
     answers := c.answers
     var printed string
-    printed = capture(t, func() {
-      got := ChooseHosted(info, "planner", func(string) (string, error) {
-        a := answers[0]
-        answers = answers[1:]
+    printed = capture(
+      t,
+      func() {
+        got := ChooseHosted(
+          info, "planner",
+          func(string) (string, error) {
+            a := answers[0]
+            answers = answers[1:]
 
-        return a, nil
-      })
-      if got != c.want {
-        t.Errorf("answers %q → %q, want %q", c.answers, got, c.want)
-      }
-    })
+            return a, nil
+          },
+        )
+        if got != c.want {
+          t.Errorf("answers %q → %q, want %q", c.answers, got, c.want)
+        }
+      },
+    )
 
     if !strings.Contains(printed, "→ qwen/qwen3.8-27b") ||
         !strings.Contains(printed, "(default)") || !strings.Contains(
-          printed,
-          "2 deepseek",
+          printed, "2 deepseek",
         ) {
       t.Fatalf("list shown:\n%s", printed)
     }

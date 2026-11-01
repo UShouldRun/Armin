@@ -205,17 +205,21 @@ func uuid4() string {
 
 // assertion is the RS512 self-signed JWT the key flow exchanges.
 func (t *stackitAuth) assertion(now time.Time) (string, error) {
-  header, _ := json.Marshal(map[string]string{
-    "alg": "RS512", "typ": "JWT", "kid": t.creds.Kid,
-  })
-  claims, _ := json.Marshal(map[string]any{
-    "iss": t.creds.Iss,
-    "sub": t.creds.Sub,
-    "aud": t.creds.Aud,
-    "jti": uuid4(),
-    "iat": now.Unix(),
-    "exp": now.Add(10 * time.Minute).Unix(),
-  })
+  header, _ := json.Marshal(
+    map[string]string{
+      "alg": "RS512", "typ": "JWT", "kid": t.creds.Kid,
+    },
+  )
+  claims, _ := json.Marshal(
+    map[string]any{
+      "iss": t.creds.Iss,
+      "sub": t.creds.Sub,
+      "aud": t.creds.Aud,
+      "jti": uuid4(),
+      "iat": now.Unix(),
+      "exp": now.Add(10 * time.Minute).Unix(),
+    },
+  )
 
   signing := b64(header) + "." + b64(claims)
   sum := sha512.Sum512([]byte(signing))

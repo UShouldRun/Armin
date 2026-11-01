@@ -94,10 +94,14 @@ func Assess(
 
   quick := *c
   quick.Effort = "none"
-  reply, err := quick.Chat(ctx, []llm.Message{
-    { Role: "system", Content: effortPrompt },
-    { Role: "user", Content: request },
-  }, nil, nil)
+  reply, err := quick.Chat(
+    ctx,
+    []llm.Message{
+      { Role: "system", Content: effortPrompt },
+      { Role: "user", Content: request },
+    },
+    nil, nil,
+  )
   if err != nil {
     return EffortMedium, TaskOther
   }
@@ -108,9 +112,12 @@ func Assess(
 // parseAssessment reads "high debug", forgiving case and punctuation.
 func parseAssessment(reply string) (Effort, Task) {
   effort, task := EffortMedium, TaskOther
-  words := strings.FieldsFunc(strings.ToLower(reply), func(r rune) bool {
-    return r < 'a' || r > 'z'
-  })
+  words := strings.FieldsFunc(
+    strings.ToLower(reply),
+    func(r rune) bool {
+      return r < 'a' || r > 'z'
+    },
+  )
 
   for _, w := range words {
     for _, e := range []Effort{ EffortLow, EffortMedium, EffortHigh } {

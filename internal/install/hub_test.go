@@ -34,11 +34,13 @@ func TestQuantLabel(t *testing.T) {
 }
 
 func TestGroupQuants(t *testing.T) {
-  gs := groupQuants([]hubFile{
-    { Path: "Q8_0/m-Q8_0-00002-of-00002.gguf", Size: 30 },
-    { Path: "m-Q4_K_M.gguf", Size: 20 },
-    { Path: "Q8_0/m-Q8_0-00001-of-00002.gguf", Size: 40 },
-  })
+  gs := groupQuants(
+    []hubFile{
+      { Path: "Q8_0/m-Q8_0-00002-of-00002.gguf", Size: 30 },
+      { Path: "m-Q4_K_M.gguf", Size: 20 },
+      { Path: "Q8_0/m-Q8_0-00001-of-00002.gguf", Size: 40 },
+    },
+  )
 
   if len(gs) != 2 || gs[0].Label != "Q4_K_M" || gs[1].Label != "Q8_0" {
     t.Fatalf("groups: %+v", gs)
@@ -70,22 +72,30 @@ func TestModelName(t *testing.T) {
 // hub serves a fake repo: its tree listing and one file, with Range.
 func hub(t *testing.T, name string, data []byte) *httptest.Server {
   sum := sha256.Sum256(data)
-  srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    switch {
-    case strings.HasPrefix(r.URL.Path, "/api/models/org/repo/tree/main"):
-      fmt.Fprintf(w,
-        `[{"type":"file","path":%q,"size":%d,"lfs":{"oid":%q,"size":%d}},` +
-          `{"type":"file","path":"README.md","size":10},` +
-          `{"type":"file","path":"mmproj-F16.gguf","size":10},` +
-          `{"type":"file","path":"mtp-m.gguf","size":10}]`,
-        name, len(data), hex.EncodeToString(sum[:]), len(data),
-      )
-    case r.URL.Path == "/org/repo/resolve/main/" + name:
-      http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(data))
-    default:
-      http.NotFound(w, r)
-    }
-  }))
+  srv := httptest.NewServer(
+    http.HandlerFunc(
+      func(w http.ResponseWriter, r *http.Request) {
+        switch {
+        case strings.HasPrefix(r.URL.Path, "/api/models/org/repo/tree/main"):
+          fmt.Fprintf(
+            w,
+            `[{"type":"file","path":%q,"size":%d,"lfs":{"oid":%q,"size":%d}},` +
+              `{"type":"file","path":"README.md","size":10},` +
+              `{"type":"file","path":"mmproj-F16.gguf","size":10},` +
+              `{"type":"file","path":"mtp-m.gguf","size":10}]`,
+            name,
+            len(data),
+            hex.EncodeToString(sum[:]),
+            len(data),
+          )
+        case r.URL.Path == "/org/repo/resolve/main/" + name:
+          http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(data))
+        default:
+          http.NotFound(w, r)
+        }
+      },
+    ),
+  )
 
   orig := hubURL
   hubURL = srv.URL
@@ -142,12 +152,10 @@ func TestDownloadResumes(t *testing.T) {
   err = download(
     context.Background(),
     srv.Client(),
-    u,
-    dest,
+    u, dest,
     int64(len(data)),
     hex.EncodeToString(sum[:]),
-    nil,
-    nil,
+    nil, nil,
   )
   if err != nil {
     t.Fatal(err)
@@ -168,12 +176,10 @@ func TestDownloadResumes(t *testing.T) {
   err = download(
     context.Background(),
     srv.Client(),
-    u,
-    dest2,
+    u, dest2,
     int64(len(data)),
     strings.Repeat("0", 64),
-    nil,
-    nil,
+    nil, nil,
   )
   if err == nil || !strings.Contains(err.Error(), "SHA-256") {
     t.Errorf("bad checksum: %v", err)
@@ -238,14 +244,18 @@ func TestCatalog(t *testing.T) {
 
 func TestDirectLink(t *testing.T) {
   data := testMoE()
-  srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    if r.URL.Path != "/files/m-Q5_K_M.gguf" {
-      http.NotFound(w, r)
-      return
-    }
+  srv := httptest.NewServer(
+    http.HandlerFunc(
+      func(w http.ResponseWriter, r *http.Request) {
+        if r.URL.Path != "/files/m-Q5_K_M.gguf" {
+          http.NotFound(w, r)
+          return
+        }
 
-    http.ServeContent(w, r, "m.gguf", time.Time{}, bytes.NewReader(data))
-  }))
+        http.ServeContent(w, r, "m.gguf", time.Time{}, bytes.NewReader(data))
+      },
+    ),
+  )
   defer srv.Close()
 
   ctx := context.Background()
@@ -273,9 +283,13 @@ func TestDirectLink(t *testing.T) {
 }
 
 func TestConfirm(t *testing.T) {
-  src := &source{ Repo: "o/r", Pick: 1, Groups: []quantGroup{
-    { Label: "Q4_0", Size: 1 }, { Label: "Q5_K_M", Size: 2 },
-  } }
+  src := &source{
+    Repo: "o/r",
+    Pick: 1,
+    Groups: []quantGroup{
+      { Label: "Q4_0", Size: 1 }, { Label: "Q5_K_M", Size: 2 },
+    },
+  }
 
   for _, c := range []struct {
     input string
@@ -304,11 +318,13 @@ func TestConfirm(t *testing.T) {
 }
 
 func TestGroupQuantsDuplicateLabels(t *testing.T) {
-  gs := groupQuants([]hubFile{
-    { Path: "M-Q4_0.gguf", Size: 10 },
-    { Path: "M-QAD-Q4_0.gguf", Size: 11 },
-    { Path: "M-Q8_0.gguf", Size: 20 },
-  })
+  gs := groupQuants(
+    []hubFile{
+      { Path: "M-Q4_0.gguf", Size: 10 },
+      { Path: "M-QAD-Q4_0.gguf", Size: 11 },
+      { Path: "M-Q8_0.gguf", Size: 20 },
+    },
+  )
 
   if gs[0].Label != "M-Q4_0" ||
       gs[1].Label != "M-QAD-Q4_0" || gs[2].Label != "Q8_0" {
@@ -335,35 +351,39 @@ func flaky(
   t *testing.T, data []byte, mode string, failures int,
 ) (*httptest.Server, *int) {
   calls := 0
-  srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    calls++
-    if calls > failures {
-      http.ServeContent(w, r, "m.gguf", time.Time{}, bytes.NewReader(data))
-      return
-    }
+  srv := httptest.NewServer(
+    http.HandlerFunc(
+      func(w http.ResponseWriter, r *http.Request) {
+        calls++
+        if calls > failures {
+          http.ServeContent(w, r, "m.gguf", time.Time{}, bytes.NewReader(data))
+          return
+        }
 
-    start := 0
-    fmt.Sscanf(r.Header.Get("Range"), "bytes=%d-", &start)
-    w.Header().Set("Content-Length", fmt.Sprint(len(data) - start))
-    if start > 0 {
-      w.Header().Set(
-        "Content-Range",
-        fmt.Sprintf("bytes %d-%d/%d", start, len(data) - 1, len(data)),
-      )
-      w.WriteHeader(http.StatusPartialContent)
-    }
+        start := 0
+        fmt.Sscanf(r.Header.Get("Range"), "bytes=%d-", &start)
+        w.Header().Set("Content-Length", fmt.Sprint(len(data) - start))
+        if start > 0 {
+          w.Header().Set(
+            "Content-Range",
+            fmt.Sprintf("bytes %d-%d/%d", start, len(data) - 1, len(data)),
+          )
+          w.WriteHeader(http.StatusPartialContent)
+        }
 
-    w.Write(data[start:start + 1000])
-    w.(http.Flusher).Flush()
-    if mode == "stall" {
-      select {
-      case <-r.Context().Done():
-      case <-time.After(5 * time.Second):
-      }
-    }
+        w.Write(data[start:start + 1000])
+        w.(http.Flusher).Flush()
+        if mode == "stall" {
+          select {
+          case <-r.Context().Done():
+          case <-time.After(5 * time.Second):
+          }
+        }
 
-    // Returning short of Content-Length drops the connection.
-  }))
+        // Returning short of Content-Length drops the connection.
+      },
+    ),
+  )
   t.Cleanup(srv.Close)
 
   return srv, &calls
@@ -414,10 +434,7 @@ func TestDownloadGivesUp(t *testing.T) {
     missing.Client(),
     missing.URL,
     filepath.Join(t.TempDir(), "m"),
-    5000,
-    "",
-    nil,
-    count,
+    5000, "", nil, count,
   )
   if err == nil || retries != 0 {
     t.Errorf("404: %v after %d retries", err, retries)
@@ -425,21 +442,22 @@ func TestDownloadGivesUp(t *testing.T) {
 
   // A server that's down keeps failing until giveUpAfter, keeping
   // what arrived.
-  down := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-    w.WriteHeader(http.StatusBadGateway)
-  }))
+  down := httptest.NewServer(
+    http.HandlerFunc(
+      func(w http.ResponseWriter, _ *http.Request) {
+        w.WriteHeader(http.StatusBadGateway)
+      },
+    ),
+  )
   defer down.Close()
   dest := filepath.Join(t.TempDir(), "m")
   os.WriteFile(dest + ".part", data[:100], 0o644)
   err = download(
     context.Background(),
     down.Client(),
-    down.URL,
-    dest,
+    down.URL, dest,
     int64(len(data)),
-    "",
-    nil,
-    nil,
+    "", nil, nil,
   )
   if err == nil || !strings.Contains(err.Error(), "no progress") {
     t.Errorf("down: %v", err)
@@ -457,12 +475,9 @@ func TestDownloadGivesUp(t *testing.T) {
   err = download(
     ctx,
     down.Client(),
-    down.URL,
-    dest,
+    down.URL, dest,
     int64(len(data)),
-    "",
-    nil,
-    nil,
+    "", nil, nil,
   )
   if err == nil || !strings.Contains(err.Error(), "interrupted") ||
       time.Since(start) > time.Second {

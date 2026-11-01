@@ -103,8 +103,7 @@ func bench(
   if err != nil {
     return 0, 0, fmt.Errorf(
       "\n\t... in bench:\n\t %s: %v\n%s",
-      tool,
-      err,
+      tool, err,
       lastLines(stderr.String(), 5),
     )
   }

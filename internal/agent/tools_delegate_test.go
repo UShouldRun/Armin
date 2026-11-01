@@ -19,41 +19,48 @@ func minionServer(t *testing.T, offered *[]string) *llm.Client {
   t.Helper()
   round := 0
   mux := http.NewServeMux()
-  mux.HandleFunc("/v1/chat/completions", func(
-    w http.ResponseWriter, r *http.Request,
-  ) {
-    body, _ := io.ReadAll(r.Body)
-    var req struct {
-      Tools []llm.ToolDefinition `json:"tools"`
-    }
-
-    json.Unmarshal(body, &req)
-    *offered = (*offered)[:0]
-    for _, d := range req.Tools {
-      *offered = append(*offered, d.Function.Name)
-    }
-
-    round++
-    reply := llm.Message{
-      Role: "assistant", Content: "the retry count is 2, in f.txt",
-    }
-
-    if round == 1 {
-      reply = llm.Message{
-        Role: "assistant",
-        ToolCalls: []llm.ToolCall{ { Function: llm.ToolCallFunction{
-          Name: "know_write",
-          Arguments: map[string]any{
-            "path": "loop/retries", "kind": "fact",
-            "claim":      "the loop retries twice",
-            "confidence": "tested",
-          },
-        } } },
+  mux.HandleFunc(
+    "/v1/chat/completions",
+    func(
+      w http.ResponseWriter, r *http.Request,
+    ) {
+      body, _ := io.ReadAll(r.Body)
+      var req struct {
+        Tools []llm.ToolDefinition `json:"tools"`
       }
-    }
 
-    writeChatResponse(t, w, reply)
-  })
+      json.Unmarshal(body, &req)
+      *offered = (*offered)[:0]
+      for _, d := range req.Tools {
+        *offered = append(*offered, d.Function.Name)
+      }
+
+      round++
+      reply := llm.Message{
+        Role: "assistant", Content: "the retry count is 2, in f.txt",
+      }
+
+      if round == 1 {
+        reply = llm.Message{
+          Role: "assistant",
+          ToolCalls: []llm.ToolCall{
+            {
+              Function: llm.ToolCallFunction{
+                Name: "know_write",
+                Arguments: map[string]any{
+                  "path": "loop/retries", "kind": "fact",
+                  "claim":      "the loop retries twice",
+                  "confidence": "tested",
+                },
+              },
+            },
+          },
+        }
+      }
+
+      writeChatResponse(t, w, reply)
+    },
+  )
 
   server := httptest.NewServer(mux)
   t.Cleanup(server.Close)
@@ -75,9 +82,13 @@ func delegateLoop(t *testing.T, offered *[]string) *Loop {
 
 func delegate(t *testing.T, l *Loop, args map[string]any) map[string]string {
   t.Helper()
-  out := l.execute(context.Background(), llm.ToolCall{
-    Function: llm.ToolCallFunction{ Name: "delegate", Arguments: args },
-  }, Hooks{})
+  out := l.execute(
+    context.Background(),
+    llm.ToolCall{
+      Function: llm.ToolCallFunction{ Name: "delegate", Arguments: args },
+    },
+    Hooks{},
+  )
   m, ok := out.(map[string]string)
   if !ok {
     t.Fatalf("delegate returned %T: %v", out, out)
@@ -89,11 +100,14 @@ func delegate(t *testing.T, l *Loop, args map[string]any) map[string]string {
 func TestDelegatePassingCheck(t *testing.T) {
   var offered []string
   l := delegateLoop(t, &offered)
-  out := delegate(t, l, map[string]any{
-    "task": "find the retry count", "check": "command", "check_args": []any{
-      "ls", "f.txt",
+  out := delegate(
+    t, l,
+    map[string]any{
+      "task": "find the retry count", "check": "command", "check_args": []any{
+        "ls", "f.txt",
+      },
     },
-  })
+  )
 
   if out["delegation"] != "1" || out["confidence"] != "checked" ||
     !strings.HasPrefix(out["check"], "passed: ls f.txt") ||
@@ -133,10 +147,13 @@ func TestDelegatePassingCheck(t *testing.T) {
 func TestDelegateFailingCheck(t *testing.T) {
   var offered []string
   l := delegateLoop(t, &offered)
-  out := delegate(t, l, map[string]any{
-    "task": "find the retry count", "check": "command",
-    "check_args": []any{ "ls", "no-such-file" },
-  })
+  out := delegate(
+    t, l,
+    map[string]any{
+      "task": "find the retry count", "check": "command",
+      "check_args": []any{ "ls", "no-such-file" },
+    },
+  )
 
   if out["confidence"] != "inferred" ||
       !strings.HasPrefix(out["check"], "failed") {

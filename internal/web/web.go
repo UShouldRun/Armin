@@ -205,24 +205,26 @@ func (s *Server) routes() http.Handler {
 // localOnly rejects requests whose Host isn't loopback (DNS
 // rebinding) and cross-site POSTs (another page driving the API).
 func localOnly(next http.Handler) http.Handler {
-  return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    if !isLocalHost(r.Host) {
-      http.Error(w, "forbidden host", http.StatusForbidden)
-      return
-    }
-
-    if r.Method != http.MethodGet {
-      origin := r.Header.Get("Origin")
-      origin = strings.TrimPrefix(origin, "http://")
-      origin = strings.TrimPrefix(origin, "https://")
-      if origin != "" && !isLocalHost(origin) {
-        http.Error(w, "forbidden origin", http.StatusForbidden)
+  return http.HandlerFunc(
+    func(w http.ResponseWriter, r *http.Request) {
+      if !isLocalHost(r.Host) {
+        http.Error(w, "forbidden host", http.StatusForbidden)
         return
       }
-    }
 
-    next.ServeHTTP(w, r)
-  })
+      if r.Method != http.MethodGet {
+        origin := r.Header.Get("Origin")
+        origin = strings.TrimPrefix(origin, "http://")
+        origin = strings.TrimPrefix(origin, "https://")
+        if origin != "" && !isLocalHost(origin) {
+          http.Error(w, "forbidden origin", http.StatusForbidden)
+          return
+        }
+      }
+
+      next.ServeHTTP(w, r)
+    },
+  )
 }
 
 func isLocalHost(hostport string) bool {

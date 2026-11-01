@@ -19,12 +19,14 @@ func bigTree(tb testing.TB, dir string) {
       g.AddNode(0, fmt.Sprintf("topic%d", i), "", KindTopic, ConfChecked, 0),
     )
     for j := 0; j < 99; j++ {
-      id := need(g.AddNode(
-        top, fmt.Sprintf("concept%d", j),
-        "a claim of about the usual length, saying what this concept " +
-          "is and why",
-        KindConcept, ConfInferred, 0,
-      ))
+      id := need(
+        g.AddNode(
+          top, fmt.Sprintf("concept%d", j),
+          "a claim of about the usual length, saying what this concept " +
+            "is and why",
+          KindConcept, ConfInferred, 0,
+        ),
+      )
       ids = append(ids, id)
     }
   }
@@ -41,10 +43,16 @@ func bigTree(tb testing.TB, dir string) {
   }
 
   for i := 0; i < 15000; i++ {
-    need(g.AddEvidence(ids[i % len(ids)], RefFile,
-      fmt.Sprintf(
-        "internal/pkg%d/file.go:%d-%d", i % 50, i, i + 40,
-      ), uint32(i)))
+    need(
+      g.AddEvidence(
+        ids[i % len(ids)],
+        RefFile,
+        fmt.Sprintf(
+          "internal/pkg%d/file.go:%d-%d", i % 50, i, i + 40,
+        ),
+        uint32(i),
+      ),
+    )
   }
 
   err := g.Compact()

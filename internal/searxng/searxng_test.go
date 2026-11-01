@@ -20,8 +20,11 @@ func TestTruncateSnippetLongStringCut(t *testing.T) {
   s := strings.Repeat("x", maxSnippetChars + 50)
   got := truncateSnippet(s)
   if len(got) > maxSnippetChars + len("…") {
-    t.Fatalf("truncateSnippet result is %d bytes, want at most %d",
-      len(got), maxSnippetChars + len("…"))
+    t.Fatalf(
+      "truncateSnippet result is %d bytes, want at most %d",
+      len(got),
+      maxSnippetChars + len("…"),
+    )
   }
 
   if !strings.HasSuffix(got, "…") {
@@ -36,11 +39,14 @@ func TestTruncateSnippetLongStringCut(t *testing.T) {
 func TestToResultsCapsAtRequestedCount(t *testing.T) {
   var parsed searxResponse
   for i := 0; i < 8; i++ {
-    parsed.Results = append(parsed.Results, struct {
-      URL     string `json:"url"`
-      Title   string `json:"title"`
-      Content string `json:"content"`
-    }{ URL: "u", Title: "t", Content: "c" })
+    parsed.Results = append(
+      parsed.Results,
+      struct {
+        URL     string `json:"url"`
+        Title   string `json:"title"`
+        Content string `json:"content"`
+      }{ URL: "u", Title: "t", Content: "c" },
+    )
   }
 
   got := toResults(parsed, "", 3)
@@ -51,11 +57,14 @@ func TestToResultsCapsAtRequestedCount(t *testing.T) {
 
 func TestToResultsCountAboveAvailableIsClamped(t *testing.T) {
   var parsed searxResponse
-  parsed.Results = append(parsed.Results, struct {
-    URL     string `json:"url"`
-    Title   string `json:"title"`
-    Content string `json:"content"`
-  }{ URL: "u", Title: "t", Content: "c" })
+  parsed.Results = append(
+    parsed.Results,
+    struct {
+      URL     string `json:"url"`
+      Title   string `json:"title"`
+      Content string `json:"content"`
+    }{ URL: "u", Title: "t", Content: "c" },
+  )
 
   got := toResults(parsed, "", 10)
   if len(got) != 1 {
@@ -185,11 +194,16 @@ func TestCategory(t *testing.T) {
 
 func TestToResultsDropsResultsUnrelatedToTheQuery(t *testing.T) {
   var parsed searxResponse
-  json.Unmarshal([]byte(`{"results":[
+  json.Unmarshal(
+    []byte(
+      `{"results":[
     {"title":"Lidl Portugal","url":"https://lidl.pt","content":"Promoções da semana"},
     {"title":"MPI_Cart_create","url":"https://mpich.org/MPI_Cart_create.html","content":"Makes a new communicator"},
     {"title":"Cartesian topologies","url":"https://example.edu/mpi","content":"MPI_CART_SHIFT returns neighbors"}
-  ]}`), &parsed)
+  ]}`,
+    ),
+    &parsed,
+  )
 
   got := toResults(parsed, "MPI_Cart_create MPI_Cart_shift docs", 10)
   if len(got) != 2 || got[0].URL != "https://mpich.org/MPI_Cart_create.html" {

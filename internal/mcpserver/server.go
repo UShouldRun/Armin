@@ -102,15 +102,19 @@ func (s *Server) Serve(
 func (s *Server) handle(ctx context.Context, msg rpcMessage) {
   switch msg.Method {
   case "initialize":
-    s.respond(msg.ID, initializeResult{
-      ProtocolVersion: protocolVersion,
-      Capabilities: serverCapabilities{
-        Tools: toolCapabilities{},
+    s.respond(
+      msg.ID,
+      initializeResult{
+        ProtocolVersion: protocolVersion,
+        Capabilities: serverCapabilities{
+          Tools: toolCapabilities{},
+        },
+        ServerInfo: implementation{
+          Name: "armin", Version: serverVersion,
+        },
       },
-      ServerInfo: implementation{
-        Name: "armin", Version: serverVersion,
-      },
-    }, nil)
+      nil,
+    )
 
   case "notifications/initialized":
     // Notification — nothing to do.
@@ -154,11 +158,14 @@ func toolList() []tool {
       continue
     }
 
-    list = append(list, tool{
-      Name:        name,
-      Description: d.Function.Description,
-      InputSchema: d.Function.Parameters,
-    })
+    list = append(
+      list,
+      tool{
+        Name:        name,
+        Description: d.Function.Description,
+        InputSchema: d.Function.Parameters,
+      },
+    )
   }
 
   return list
@@ -264,9 +271,11 @@ func (s *Server) respond(id json.RawMessage, result any, errObj *rpcError) {
     return // notification — nothing to respond to
   }
 
-  s.write(rpcResponse{
-    JSONRPC: "2.0", ID: id, Result: result, Error: errObj,
-  })
+  s.write(
+    rpcResponse{
+      JSONRPC: "2.0", ID: id, Result: result, Error: errObj,
+    },
+  )
 }
 
 func (s *Server) respondError(id json.RawMessage, code int, message string) {

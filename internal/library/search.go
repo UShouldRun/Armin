@@ -126,13 +126,16 @@ func (l *Library) Search(
     ranked = append(ranked, scored{ c, s * (0.4 + 0.6 * cover * cover) })
   }
 
-  sort.Slice(ranked, func(i, j int) bool {
-    if ranked[i].score != ranked[j].score {
-      return ranked[i].score > ranked[j].score
-    }
+  sort.Slice(
+    ranked,
+    func(i, j int) bool {
+      if ranked[i].score != ranked[j].score {
+        return ranked[i].score > ranked[j].score
+      }
 
-    return ranked[i].c < ranked[j].c
-  })
+      return ranked[i].c < ranked[j].c
+    },
+  )
 
   var out []Result
   per := map[uint32]int{}

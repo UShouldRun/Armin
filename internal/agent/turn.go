@@ -126,9 +126,12 @@ func (l *Loop) Turn(
 
     if stepBack {
       note(hooks, "stepping back after repeated failures")
-      *history = append(*history, llm.Message{
-        Role: "user", Content: stuckNote,
-      })
+      *history = append(
+        *history,
+        llm.Message{
+          Role: "user", Content: stuckNote,
+        },
+      )
     }
 
     if t.blocked >= maxBlocked {
@@ -139,9 +142,12 @@ func (l *Loop) Turn(
 
   // Out of rounds, or stopped for repeating itself: one last call,
   // without tools, so the user gets a report instead of an error.
-  *history = append(*history, llm.Message{
-    Role: "user", Content: stopNote,
-  })
+  *history = append(
+    *history,
+    llm.Message{
+      Role: "user", Content: stopNote,
+    },
+  )
   reply, err := t.client.ChatStream(ctx, *history, nil, stream)
   if err != nil {
     return "", fmt.Errorf(
@@ -208,9 +214,12 @@ func (t *turn) recheck(ctx context.Context) bool {
   }
 
   note(t.hooks, "checking the work: " + issue)
-  *t.history = append(*t.history, llm.Message{
-    Role: "user", Content: fmt.Sprintf(verifyNote, issue),
-  })
+  *t.history = append(
+    *t.history,
+    llm.Message{
+      Role: "user", Content: fmt.Sprintf(verifyNote, issue),
+    },
+  )
 
   return true
 }
@@ -240,9 +249,12 @@ func (t *turn) cycleCheck() bool {
   }
 
   note(t.hooks, "asking to resolve open requires loops")
-  *t.history = append(*t.history, llm.Message{
-    Role: "user", Content: fmt.Sprintf(cycleNote, open),
-  })
+  *t.history = append(
+    *t.history,
+    llm.Message{
+      Role: "user", Content: fmt.Sprintf(cycleNote, open),
+    },
+  )
 
   return true
 }
@@ -261,12 +273,15 @@ func (t *turn) call(ctx context.Context, call llm.ToolCall) bool {
     t.hooks.ToolResult(call.Function.Name, string(result))
   }
 
-  *t.history = append(*t.history, llm.Message{
-    Role:       "tool",
-    ToolName:   call.Function.Name,
-    ToolCallID: call.ID,
-    Content:    string(result),
-  })
+  *t.history = append(
+    *t.history,
+    llm.Message{
+      Role:       "tool",
+      ToolName:   call.Function.Name,
+      ToolCallID: call.ID,
+      Content:    string(result),
+    },
+  )
 
   id := toolIDs[call.Function.Name]
 
@@ -291,20 +306,24 @@ func (t *turn) run(ctx context.Context, call llm.ToolCall) []byte {
     t.blocked++
     metrics.Add("guard.blocked", 1)
     metrics.Event("guard.blocked", "tool", call.Function.Name)
-    out, _ := json.Marshal(map[string]string{
-      "error": "you already made this exact call this turn and it " +
-        "failed: " + prev + " Don't repeat it: change the " +
-        "arguments, use another tool, or stop and tell the user " +
-        "what is blocking you.",
-    })
+    out, _ := json.Marshal(
+      map[string]string{
+        "error": "you already made this exact call this turn and it " +
+          "failed: " + prev + " Don't repeat it: change the " +
+          "arguments, use another tool, or stop and tell the user " +
+          "what is blocking you.",
+      },
+    )
 
     return out
   }
 
   if t.blocked >= maxBlocked {
-    out, _ := json.Marshal(map[string]string{
-      "error": "not run: this turn is stopping",
-    })
+    out, _ := json.Marshal(
+      map[string]string{
+        "error": "not run: this turn is stopping",
+      },
+    )
 
     return out
   }
@@ -313,9 +332,11 @@ func (t *turn) run(ctx context.Context, call llm.ToolCall) []byte {
   result := t.l.executeTurn(ctx, call, t.hooks, t.sources, t.declined)
   out, err := json.Marshal(result)
   if err != nil {
-    out = []byte(fmt.Sprintf(
-      `{"error":"failed to encode tool result: %s"}`, err,
-    ))
+    out = []byte(
+      fmt.Sprintf(
+        `{"error":"failed to encode tool result: %s"}`, err,
+      ),
+    )
   }
 
   toolMetrics(call.Function.Name, start, out)
@@ -332,21 +353,25 @@ func (t *turn) run(ctx context.Context, call llm.ToolCall) []byte {
     case same && t.lastCall == key:
       // Back to back, nothing in between: a loop.
       t.blocked++
-      out, _ = json.Marshal(map[string]any{
-        "error": "you just ran this exact call and it gave exactly " +
-          "the same result (below); running it again won't change " +
-          "anything: do something else, or stop and tell the user.",
-        "result": json.RawMessage(out),
-      })
+      out, _ = json.Marshal(
+        map[string]any{
+          "error": "you just ran this exact call and it gave exactly " +
+            "the same result (below); running it again won't change " +
+            "anything: do something else, or stop and tell the user.",
+          "result": json.RawMessage(out),
+        },
+      )
     case same:
       // Re-running after a rebuild or an edit is legitimate:
       // pointed out, in case the change didn't take effect.
-      out, _ = json.Marshal(map[string]any{
-        "note": "same output as the last time you ran this, this " +
-          "turn: if you changed something in between, it didn't " +
-          "change this result",
-        "result": json.RawMessage(out),
-      })
+      out, _ = json.Marshal(
+        map[string]any{
+          "note": "same output as the last time you ran this, this " +
+            "turn: if you changed something in between, it didn't " +
+            "change this result",
+          "result": json.RawMessage(out),
+        },
+      )
     }
 
     clear(t.failed)

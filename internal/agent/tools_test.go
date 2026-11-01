@@ -17,8 +17,11 @@ func TestLibraryTools(t *testing.T) {
 
   root := t.TempDir()
   os.MkdirAll(filepath.Join(root, "go"), 0o755)
-  os.WriteFile(filepath.Join(root, "go", "Effective Go.md"),
-    []byte("# Concurrency\nShare memory by communicating.\n"), 0o644)
+  os.WriteFile(
+    filepath.Join(root, "go", "Effective Go.md"),
+    []byte("# Concurrency\nShare memory by communicating.\n"),
+    0o644,
+  )
   lib, err := library.Open(root)
   if err != nil {
     t.Fatal(err)
@@ -35,9 +38,13 @@ func TestLibraryTools(t *testing.T) {
   }
 
   call := func(name string, args map[string]any) any {
-    return l.execute(context.Background(), llm.ToolCall{
-      Function: llm.ToolCallFunction{ Name: name, Arguments: args },
-    }, Hooks{})
+    return l.execute(
+      context.Background(),
+      llm.ToolCall{
+        Function: llm.ToolCallFunction{ Name: name, Arguments: args },
+      },
+      Hooks{},
+    )
   }
 
   out := call("library_search", map[string]any{ "query": "share memory" })

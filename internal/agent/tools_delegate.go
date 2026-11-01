@@ -54,8 +54,10 @@ var delegateTools = []toolSpec{
         "the result has to pass. What it adds to the tree stays marked as " +
         "the minion's until you verify it.",
       map[string]llm.ToolProperty{
-        "task": stringProp("What to do, precisely: files, names, the " +
-          "expected shape of the answer"),
+        "task": stringProp(
+          "What to do, precisely: files, names, the " +
+            "expected shape of the answer",
+        ),
         "check": {
           Type:        "string",
           Description: "The acceptance check run afterwards: tests, build, " +
@@ -241,17 +243,23 @@ func (l *Loop) acceptance(ctx context.Context, in delegateArgs) (bool, string) {
       return false, "not run: command needs check_args"
     }
 
-    res, cerr := tools.RunCommand(ctx, l.Sandbox, tools.RunCommandInput{
-      Binary: in.CheckArgs[0], Args: in.CheckArgs[1:],
-    })
+    res, cerr := tools.RunCommand(
+      ctx, l.Sandbox,
+      tools.RunCommandInput{
+        Binary: in.CheckArgs[0], Args: in.CheckArgs[1:],
+      },
+    )
     if cerr != nil {
       return false, "failed to run: " + cerr.Error
     }
 
     cmd := strings.Join(in.CheckArgs, " ")
     if res.ExitCode != 0 {
-      return false, fmt.Sprintf("failed: %s exited %d: %s", cmd, res.ExitCode,
-        cut(strings.TrimSpace(res.Stderr + "\n" + res.Stdout), 1500))
+      return false, fmt.Sprintf(
+        "failed: %s exited %d: %s",
+        cmd, res.ExitCode,
+        cut(strings.TrimSpace(res.Stderr + "\n" + res.Stdout), 1500),
+      )
     }
 
     return true, "passed: " + cmd
@@ -269,8 +277,10 @@ func (l *Loop) acceptance(ctx context.Context, in delegateArgs) (bool, string) {
   }
 
   if !res.Passed {
-    return false, fmt.Sprintf("failed: %s: %s", res.Command,
-      cut(strings.TrimSpace(res.Summary + "\n" + res.Output), 1500))
+    return false, fmt.Sprintf(
+      "failed: %s: %s", res.Command,
+      cut(strings.TrimSpace(res.Summary + "\n" + res.Output), 1500),
+    )
   }
 
   return true, "passed: " + res.Command
@@ -307,8 +317,11 @@ func (l *Loop) settleDelegation(
       }
 
       metrics.Add("delegate.nodes.raised", 1)
-      _, err := l.Know.AddEvidence(n, know.RefCheck,
-        fmt.Sprintf("delegation %d: %s", id, report), 0)
+      _, err := l.Know.AddEvidence(
+        n, know.RefCheck,
+        fmt.Sprintf("delegation %d: %s", id, report),
+        0,
+      )
       if err != nil {
         return "", err
       }

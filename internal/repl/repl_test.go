@@ -76,9 +76,12 @@ func TestTurnStatus(t *testing.T) {
 // until it returns — never "waiting for the model".
 func TestToolStatus(t *testing.T) {
   v := &turnView{ wrap: ui.NewWrapper(80) }
-  capture(t, func() {
-    v.drafting("run_program")
-  })
+  capture(
+    t,
+    func() {
+      v.drafting("run_program")
+    },
+  )
 
   s := v.status()
   v.stopSpinner()
@@ -86,9 +89,12 @@ func TestToolStatus(t *testing.T) {
     t.Fatalf("status while the call is written = %q", s)
   }
 
-  capture(t, func() {
-    v.toolCall("run_program", map[string]any{ "binary": "make" })
-  })
+  capture(
+    t,
+    func() {
+      v.toolCall("run_program", map[string]any{ "binary": "make" })
+    },
+  )
 
   s = v.status()
   v.stopSpinner()
@@ -96,9 +102,12 @@ func TestToolStatus(t *testing.T) {
     t.Fatalf("status while it runs = %q", s)
   }
 
-  capture(t, func() {
-    v.toolSummary("ok")
-  })
+  capture(
+    t,
+    func() {
+      v.toolSummary("ok")
+    },
+  )
 
   s = v.status()
   v.stopSpinner()
@@ -172,28 +181,34 @@ func TestAnswerNewlines(t *testing.T) {
   }
 
   for _, c := range cases {
-    t.Run(c.name, func(t *testing.T) {
-      v := &turnView{ wrap: ui.NewWrapper(0) }
-      got := capture(t, func() {
-        for _, d := range c.deltas {
-          v.token(d)
+    t.Run(
+      c.name,
+      func(t *testing.T) {
+        v := &turnView{ wrap: ui.NewWrapper(0) }
+        got := capture(
+          t,
+          func() {
+            for _, d := range c.deltas {
+              v.token(d)
+            }
+
+            if c.tool {
+              v.toolCall("build_check", nil)
+            } else {
+              v.flush()
+            }
+          },
+        )
+
+        got = strings.TrimRight(got, "\n")
+        if !strings.HasPrefix(got, c.want) {
+          t.Fatalf("printed %q, want it to start %q", got, c.want)
         }
 
-        if c.tool {
-          v.toolCall("build_check", nil)
-        } else {
-          v.flush()
+        if c.tool && strings.Contains(got, "\n\n") {
+          t.Fatalf("blank line before the tool: %q", got)
         }
-      })
-
-      got = strings.TrimRight(got, "\n")
-      if !strings.HasPrefix(got, c.want) {
-        t.Fatalf("printed %q, want it to start %q", got, c.want)
-      }
-
-      if c.tool && strings.Contains(got, "\n\n") {
-        t.Fatalf("blank line before the tool: %q", got)
-      }
-    })
+      },
+    )
   }
 }

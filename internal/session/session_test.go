@@ -143,9 +143,11 @@ func TestLegacyPerProjectFileStillLists(t *testing.T) {
   os.MkdirAll(dir, 0o755)
 
   legacy := filepath.Join(dir, "fox-apsp-mpi-1a2b3c4d.jsonl")
-  head, _ := json.Marshal(map[string]any{
-    "root": "/home/u/fox-apsp-mpi", "model": "local", "updated_at": time.Now(),
-  })
+  head, _ := json.Marshal(
+    map[string]any{
+      "root": "/home/u/fox-apsp-mpi", "model": "local", "updated_at": time.Now(),
+    },
+  )
   body, _ := json.Marshal(llm.Message{ Role: "user", Content: "hi" })
   os.WriteFile(legacy, []byte(string(head) + "\n" + string(body) + "\n"), 0o644)
 
@@ -243,13 +245,16 @@ func TestAppendCostIsIndependentOfHistorySize(t *testing.T) {
 
   // A fresh copy of persisted each run, so every run appends exactly
   // one new message instead of later runs becoming no-ops.
-  allocs := testing.AllocsPerRun(20, func() {
-    p := persisted
-    err := Append(m, history, &p)
-    if err != nil {
-      t.Fatalf("timed Append: %v", err)
-    }
-  })
+  allocs := testing.AllocsPerRun(
+    20,
+    func() {
+      p := persisted
+      err := Append(m, history, &p)
+      if err != nil {
+        t.Fatalf("timed Append: %v", err)
+      }
+    },
+  )
 
   if allocs > perAppendAllocLimit {
     t.Fatalf(

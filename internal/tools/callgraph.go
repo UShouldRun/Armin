@@ -42,65 +42,71 @@ func scanCalls(root string) (*callGraphData, error) {
   }
   fset := token.NewFileSet()
 
-  err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-    if err != nil {
-      return err
-    }
-
-    if d.IsDir() {
-      if d.Name() != "." && skipDirs[d.Name()] {
-        return filepath.SkipDir
+  err := filepath.WalkDir(
+    root,
+    func(p string, d fs.DirEntry, err error) error {
+      if err != nil {
+        return err
       }
 
-      return nil
-    }
+      if d.IsDir() {
+        if d.Name() != "." && skipDirs[d.Name()] {
+          return filepath.SkipDir
+        }
 
-    if !strings.HasSuffix(p, ".go") {
-      return nil
-    }
-
-    file, perr := parser.ParseFile(fset, p, nil, 0)
-    if perr != nil {
-      // a file that doesn't parse is skipped, not fatal to the whole scan
-      return nil
-    }
-
-    rel, relErr := filepath.Rel(root, p)
-    if relErr != nil {
-      rel = p
-    }
-
-    rel = filepath.ToSlash(rel)
-
-    for _, decl := range file.Decls {
-      fn, ok := decl.(*ast.FuncDecl)
-      if !ok {
-        continue
+        return nil
       }
 
-      fnName := fn.Name.Name
+      if !strings.HasSuffix(p, ".go") {
+        return nil
+      }
 
-      ast.Inspect(fn, func(n ast.Node) bool {
-        call, ok := n.(*ast.CallExpr)
+      file, perr := parser.ParseFile(fset, p, nil, 0)
+      if perr != nil {
+        // a file that doesn't parse is skipped, not fatal to the whole scan
+        return nil
+      }
+
+      rel, relErr := filepath.Rel(root, p)
+      if relErr != nil {
+        rel = p
+      }
+
+      rel = filepath.ToSlash(rel)
+
+      for _, decl := range file.Decls {
+        fn, ok := decl.(*ast.FuncDecl)
         if !ok {
-          return true
+          continue
         }
 
-        name := calleeName(call.Fun)
-        if name == "" {
-          return true
-        }
+        fnName := fn.Name.Name
 
-        site := CallSite{ File: rel, Line: fset.Position(call.Pos()).Line }
-        data.byName[name] = append(data.byName[name], site)
-        data.enclosing[callSiteKey(site)] = fnName
+        ast.Inspect(
+          fn,
+          func(n ast.Node) bool {
+            call, ok := n.(*ast.CallExpr)
+            if !ok {
+              return true
+            }
 
-        return true
-      })
-    }
+            name := calleeName(call.Fun)
+            if name == "" {
+              return true
+            }
 
-    return nil
-  })
+            site := CallSite{ File: rel, Line: fset.Position(call.Pos()).Line }
+            data.byName[name] = append(data.byName[name], site)
+            data.enclosing[callSiteKey(site)] = fnName
+
+            return true
+          },
+        )
+      }
+
+      return nil
+    },
+  )
   if err != nil {
     return nil, fmt.Errorf("\n\t... in scanCalls:\n\t%w", err)
   }
@@ -230,9 +236,12 @@ func FindDeadCode(
       continue // has at least one syntactic call site
     }
 
-    out.Candidates = append(out.Candidates, DeadCodeCandidate{
-      Name: sym.Name, File: sym.File, Line: sym.Line,
-    })
+    out.Candidates = append(
+      out.Candidates,
+      DeadCodeCandidate{
+        Name: sym.Name, File: sym.File, Line: sym.Line,
+      },
+    )
   }
 
   return out, nil

@@ -28,38 +28,41 @@ func writeCalls(t *testing.T, w http.ResponseWriter, calls ...llm.ToolCall) {
 
 func TestEditNeedsReadThenAsksApproval(t *testing.T) {
   round := 0
-  loop, root := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    round++
-    switch round {
-    case 1:
-      writeCalls(t, w,
-        call(
-          "e1",
-          "edit_file",
-          map[string]any{
-            "path":       "f.txt",
-            "old_string": "hello",
-            "new_string": "bye",
-          },
-        ),
-      )
-    case 2:
-      writeCalls(t, w,
-        call("r1", "read_file", map[string]any{ "path": "f.txt" }),
-        call(
-          "e2",
-          "edit_file",
-          map[string]any{
-            "path":       "f.txt",
-            "old_string": "hello",
-            "new_string": "bye",
-          },
-        ),
-      )
-    default:
-      writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "done" })
-    }
-  })
+  loop, root := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      round++
+      switch round {
+      case 1:
+        writeCalls(
+          t, w,
+          call(
+            "e1", "edit_file",
+            map[string]any{
+              "path":       "f.txt",
+              "old_string": "hello",
+              "new_string": "bye",
+            },
+          ),
+        )
+      case 2:
+        writeCalls(
+          t, w,
+          call("r1", "read_file", map[string]any{ "path": "f.txt" }),
+          call(
+            "e2", "edit_file",
+            map[string]any{
+              "path":       "f.txt",
+              "old_string": "hello",
+              "new_string": "bye",
+            },
+          ),
+        )
+      default:
+        writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "done" })
+      }
+    },
+  )
 
   var previews []string
   hooks := Hooks{
@@ -94,22 +97,25 @@ func TestEditNeedsReadThenAsksApproval(t *testing.T) {
 
 func TestDeclinedEditCarriesFeedback(t *testing.T) {
   round := 0
-  loop, root := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    round++
-    if round == 1 {
-      writeCalls(t, w,
-        call(
-          "w1",
-          "write_file",
-          map[string]any{ "path": "new.txt", "content": "x" },
-        ),
-      )
+  loop, root := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      round++
+      if round == 1 {
+        writeCalls(
+          t, w,
+          call(
+            "w1", "write_file",
+            map[string]any{ "path": "new.txt", "content": "x" },
+          ),
+        )
 
-      return
-    }
+        return
+      }
 
-    writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "ok" })
-  })
+      writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "ok" })
+    },
+  )
 
   hooks := Hooks{
     Approve: func(string, string) (bool, string) {
@@ -159,9 +165,12 @@ func TestNoteToolsOnlyWhenConfigured(t *testing.T) {
     )
   }
 
-  write := call("1", "scratchpad_write", map[string]any{
-    "name": "plan", "content": "step 1",
-  })
+  write := call(
+    "1", "scratchpad_write",
+    map[string]any{
+      "name": "plan", "content": "step 1",
+    },
+  )
   out := loop2.execute(context.Background(), write, Hooks{})
   f, ok := out.(notes.ScratchFile)
   if !ok || f.Name != "plan" {
@@ -204,10 +213,13 @@ func TestTrimUnderPressureKeepsRecentTurns(t *testing.T) {
   history := []llm.Message{
     { Role: "system", Content: "sys" },
     { Role: "user", Content: "turn 1" },
-    { Role: "assistant", ToolCalls: []llm.ToolCall{
-      call("a", "read_file", map[string]any{ "path": "big.go" }),
-      call("b", "write_file", map[string]any{ "path": "n.go", "content": big }),
-    } },
+    {
+      Role: "assistant",
+      ToolCalls: []llm.ToolCall{
+        call("a", "read_file", map[string]any{ "path": "big.go" }),
+        call("b", "write_file", map[string]any{ "path": "n.go", "content": big }),
+      },
+    },
     { Role: "tool", ToolName: "read_file", ToolCallID: "a", Content: big },
     {
       Role:       "tool",
@@ -251,31 +263,34 @@ func TestTrimUnderPressureKeepsRecentTurns(t *testing.T) {
 
 func TestAutoCompactBeforeOverflow(t *testing.T) {
   summarized := false
-  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    var req struct {
-      Tools    []any         `json:"tools"`
-      Messages []llm.Message `json:"messages"`
-    }
+  loop, _ := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      var req struct {
+        Tools    []any         `json:"tools"`
+        Messages []llm.Message `json:"messages"`
+      }
 
-    json.NewDecoder(r.Body).Decode(&req)
-    if len(req.Tools) == 0 {
-      summarized = true
-      writeChatResponse(
-        t,
-        w,
-        llm.Message{ Role: "assistant", Content: "summary" },
-      )
+      json.NewDecoder(r.Body).Decode(&req)
+      if len(req.Tools) == 0 {
+        summarized = true
+        writeChatResponse(
+          t, w,
+          llm.Message{ Role: "assistant", Content: "summary" },
+        )
 
-      return
-    }
+        return
+      }
 
-    writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "answer" })
-  })
+      writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "answer" })
+    },
+  )
   loop.ContextSize = 1000
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
   for i := 0; i < 10; i++ {
-    history = append(history,
+    history = append(
+      history,
       llm.Message{ Role: "user", Content: strings.Repeat("q", 400) },
       llm.Message{ Role: "assistant", Content: strings.Repeat("a", 400) },
     )
@@ -308,19 +323,35 @@ func TestTrimTurnShrinksOneLongTask(t *testing.T) {
   }
 
   for i, id := range []string{ "a", "b", "c" } {
-    history = append(history,
-      llm.Message{ Role: "assistant", Reasoning: strings.Repeat("hm ", 500),
-        ToolCalls: []llm.ToolCall{ call(id, "read_file",
-          map[string]any{ "path": "access.log", "start_line": i + 1 }) } },
-      llm.Message{ Role: "tool", ToolName: "read_file", ToolCallID: id,
-        Content: big },
+    history = append(
+      history,
+      llm.Message{
+        Role:      "assistant",
+        Reasoning: strings.Repeat("hm ", 500),
+        ToolCalls: []llm.ToolCall{
+          call(
+            id, "read_file",
+            map[string]any{ "path": "access.log", "start_line": i + 1 },
+          ),
+        },
+      },
+      llm.Message{
+        Role:       "tool",
+        ToolName:   "read_file",
+        ToolCallID: id,
+        Content:    big,
+      },
     )
   }
 
   saved := loop.trimTurn(history)
   if saved == 0 || loop.Estimate(history) > loop.enough() {
-    t.Fatalf("saved %d, estimate %d, want under %d",
-      saved, loop.Estimate(history), loop.enough())
+    t.Fatalf(
+      "saved %d, estimate %d, want under %d",
+      saved,
+      loop.Estimate(history),
+      loop.enough(),
+    )
   }
 
   // older results are stubs; the latest exchange stays whole

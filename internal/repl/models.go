@@ -41,10 +41,7 @@ func printModelInfo(info share.ModelInfo) {
     }
 
     fmt.Printf(
-      "%s%-*s  %s%s\n",
-      marker,
-      width,
-      c.Name,
+      "%s%-*s  %s%s\n", marker, width, c.Name,
       ui.Dim(c.Model),
       ui.Dim(state),
     )
@@ -77,8 +74,12 @@ func printModelInfo(info share.ModelInfo) {
 // with what they cost.
 func printSuggestions(info share.ModelInfo) {
   if len(info.Suggested) == 0 {
-    fmt.Println(ui.Dim("suggestions: loading from OpenRouter — /model " +
-      "again in a moment"))
+    fmt.Println(
+      ui.Dim(
+        "suggestions: loading from OpenRouter — /model " +
+          "again in a moment",
+      ),
+    )
     return
   }
 
@@ -89,19 +90,25 @@ func printSuggestions(info share.ModelInfo) {
 
   fmt.Printf(
     "%s\n",
-    ui.Dim(fmt.Sprintf(
-      "suggested on OpenRouter — /model %s:<id>; $ in / out per 1M tokens, " +
-        "~ a deep session (%.1fM in, %dk out):",
-      info.Hosted, float64(catalog.SessionIn) / 1e6, catalog.SessionOut / 1000,
-    )),
+    ui.Dim(
+      fmt.Sprintf(
+        "suggested on OpenRouter — /model %s:<id>; $ in / out per 1M tokens, " +
+          "~ a deep session (%.1fM in, %dk out):",
+        info.Hosted, float64(catalog.SessionIn) / 1e6, catalog.SessionOut / 1000,
+      ),
+    ),
   )
 
   free := false
   for _, s := range info.Suggested {
     if s.Free && !free {
       free = true
-      fmt.Println(ui.Dim("  free (rate-limited; check the provider's data " +
-        "policy):"))
+      fmt.Println(
+        ui.Dim(
+          "  free (rate-limited; check the provider's data " +
+            "policy):",
+        ),
+      )
     }
 
     marker := "  "
@@ -112,10 +119,7 @@ func printSuggestions(info share.ModelInfo) {
     price := costLabel(s)
 
     fmt.Printf(
-      "%s%-*s  %s  %s\n",
-      marker,
-      width,
-      s.ID,
+      "%s%-*s  %s  %s\n", marker, width, s.ID,
       ui.Dim(price),
       ui.Dim(contextLabel(s.Context)),
     )
@@ -145,9 +149,7 @@ func costLabel(s catalog.Suggestion) string {
 
   return fmt.Sprintf(
     "$%.2f / $%.2f per 1M · ~$%.2f a session",
-    s.In,
-    s.Out,
-    s.Session,
+    s.In, s.Out, s.Session,
   )
 }
 
@@ -160,8 +162,7 @@ func balanceLine(b catalog.Balance) string {
   if b.KeyLimit > 0 {
     line += fmt.Sprintf(
       " · this key: $%.2f of its $%.2f cap left",
-      b.KeyLeft,
-      b.KeyLimit,
+      b.KeyLeft, b.KeyLimit,
     )
   }
 
@@ -206,8 +207,7 @@ func ChooseHosted(
   fmt.Printf(
     "  %s %-*s  %s  %s\n",
     ui.Green("→"),
-    width,
-    def,
+    width, def,
     ui.Dim(cost),
     ui.Dim("(default)"),
   )
@@ -215,15 +215,18 @@ func ChooseHosted(
     fmt.Printf(
       "  %s %-*s  %s\n",
       ui.Dim(fmt.Sprintf("%d", i + 1)),
-      width,
-      s.ID,
+      width, s.ID,
       ui.Dim(costLabel(s)),
     )
   }
 
   if len(info.Suggested) == 0 {
-    fmt.Println(ui.Dim("  (suggestions still loading — type any OpenRouter " +
-      "id, or Enter)"))
+    fmt.Println(
+      ui.Dim(
+        "  (suggestions still loading — type any OpenRouter " +
+          "id, or Enter)",
+      ),
+    )
   }
 
   for {

@@ -14,32 +14,39 @@ import (
 
 // rates are the derived figures, num per den.
 var rates = []rate{
-  { "recall attached, of turns",
-    "recall.attached", "recall.turns" },
-  { "recall cited by the model, of attached",
-    "recall.cited", "recall.attached" },
-  { "recall's files read without a citation, of attached",
-    "recall.read", "recall.attached" },
-  { "dedup held a write back, of adds",
-    "know.dedup.held", "know.write.add" },
-  { "dedup overridden (force), of held",
-    "know.dedup.forced", "know.dedup.held" },
-  { "auto-recorded turns, of turns",
-    "know.record.turns", "turn.count" },
-  { "pointers consolidated, of pending",
-    "know.consolidate.pointers", "know.consolidate.pending" },
-  { "consolidated claims linked to an existing node, of claims",
-    "know.consolidate.linked", "know.consolidate.claims" },
-  { "files skipped by stamp, of cited",
-    "stale.files.skipped", "stale.files.cited" },
-  { "moved code followed, of changed refs",
-    "stale.moved", "stale.changed" },
-  { "delegation checks passed, of run",
-    "delegate.check.passed", "delegate.check.run" },
-  { "repeat guard blocks, of tool calls",
-    "guard.blocked", "tool.calls" },
-  { "flat recordings refused, of recordings",
-    "stt.flat", "stt.recordings" },
+  { "recall attached, of turns", "recall.attached", "recall.turns" },
+  { "recall cited by the model, of attached", "recall.cited", "recall.attached" },
+  {
+    "recall's files read without a citation, of attached",
+    "recall.read",
+    "recall.attached",
+  },
+  { "dedup held a write back, of adds", "know.dedup.held", "know.write.add" },
+  { "dedup overridden (force), of held", "know.dedup.forced", "know.dedup.held" },
+  { "auto-recorded turns, of turns", "know.record.turns", "turn.count" },
+  {
+    "pointers consolidated, of pending",
+    "know.consolidate.pointers",
+    "know.consolidate.pending",
+  },
+  {
+    "consolidated claims linked to an existing node, of claims",
+    "know.consolidate.linked",
+    "know.consolidate.claims",
+  },
+  {
+    "files skipped by stamp, of cited",
+    "stale.files.skipped",
+    "stale.files.cited",
+  },
+  { "moved code followed, of changed refs", "stale.moved", "stale.changed" },
+  {
+    "delegation checks passed, of run",
+    "delegate.check.passed",
+    "delegate.check.run",
+  },
+  { "repeat guard blocks, of tool calls", "guard.blocked", "tool.calls" },
+  { "flat recordings refused, of recordings", "stt.flat", "stt.recordings" },
 }
 
 // Report prints the cumulative metrics in dir.
@@ -73,8 +80,13 @@ func Report(w io.Writer, dir string) error {
         continue
       }
 
-      fmt.Fprintf(w, "  %-36s %8d  avg %-9.4g min %-9.4g max %.4g\n",
-        name, s.Count, s.Sum / float64(s.Count), s.Min, s.Max)
+      fmt.Fprintf(
+        w,
+        "  %-36s %8d  avg %-9.4g min %-9.4g max %.4g\n",
+        name, s.Count,
+        s.Sum / float64(s.Count),
+        s.Min, s.Max,
+      )
     }
   }
 
@@ -90,8 +102,13 @@ func Report(w io.Writer, dir string) error {
       n = num.Count
     }
 
-    fmt.Fprintf(w, "  %-42s %5.1f%%  (%d of %d)\n",
-      r.label, 100 * float64(n) / float64(den.Count), n, den.Count)
+    fmt.Fprintf(
+      w,
+      "  %-42s %5.1f%%  (%d of %d)\n",
+      r.label,
+      100 * float64(n) / float64(den.Count),
+      n, den.Count,
+    )
   }
 
   return nil

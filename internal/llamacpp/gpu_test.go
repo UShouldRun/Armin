@@ -69,55 +69,68 @@ func TestGPUWarning(t *testing.T) {
     },
     {
       name: "loaded and matching",
-      files: with(map[string]string{
-        "sys/module/nvidia/version":                       "595.84\n",
-        "usr/lib/x86_64-linux-gnu/libnvidia-ml.so.595.84": "",
-      }),
+      files: with(
+        map[string]string{
+          "sys/module/nvidia/version":                       "595.84\n",
+          "usr/lib/x86_64-linux-gnu/libnvidia-ml.so.595.84": "",
+        },
+      ),
     },
     {
       name:  "no module for this kernel",
-      files: with(map[string]string{
-        "lib/modules/6.8.0-139-generic" + nv: "",
-      }),
+      files: with(
+        map[string]string{
+          "lib/modules/6.8.0-139-generic" + nv: "",
+        },
+      ),
       want: "sudo apt full-upgrade) and reboot, or pick 6.8.0-139-generic in " +
         "GRUB",
     },
     {
       name:  "a newer kernel has one",
-      files: with(map[string]string{
-        "lib/modules/6.8.0-139-generic" + nv:          "",
-        "lib/modules/6.8.0-147-generic" + nv + ".zst": "",
-      }),
+      files: with(
+        map[string]string{
+          "lib/modules/6.8.0-139-generic" + nv:          "",
+          "lib/modules/6.8.0-147-generic" + nv + ".zst": "",
+        },
+      ),
       want: "reboot into 6.8.0-147-generic",
     },
     {
       name:  "installed but not loaded",
-      files: with(map[string]string{
-        "lib/modules/6.8.0-142-generic/updates/dkms/nvidia.ko.zst": "",
-      }),
+      files: with(
+        map[string]string{
+          "lib/modules/6.8.0-142-generic/updates/dkms/nvidia.ko.zst": "",
+        },
+      ),
       want: "installed for kernel 6.8.0-142-generic but not loaded",
     },
     {
       name:  "upgraded without a reboot",
-      files: with(map[string]string{
-        "sys/module/nvidia/version":                          "595.84\n",
-        "usr/lib/x86_64-linux-gnu/libnvidia-ml.so.595.99.02": "",
-      }),
+      files: with(
+        map[string]string{
+          "sys/module/nvidia/version":                          "595.84\n",
+          "usr/lib/x86_64-linux-gnu/libnvidia-ml.so.595.99.02": "",
+        },
+      ),
       want: "loaded is 595.84 but its libraries are 595.99.02",
     },
   }
 
   for _, c := range cases {
-    t.Run(c.name, func(t *testing.T) {
-      got := gpuWarning(fakeRoot(t, c.files))
-      if c.want == "" && got != "" {
-        t.Fatalf("want no warning, got %q", got)
-      }
+    t.Run(
+      c.name,
+      func(t *testing.T) {
+        got := gpuWarning(fakeRoot(t, c.files))
+        if c.want == "" && got != "" {
+          t.Fatalf("want no warning, got %q", got)
+        }
 
-      if !strings.Contains(got, c.want) {
-        t.Fatalf("want %q in %q", c.want, got)
-      }
-    })
+        if !strings.Contains(got, c.want) {
+          t.Fatalf("want %q in %q", c.want, got)
+        }
+      },
+    )
   }
 }
 

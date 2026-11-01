@@ -81,17 +81,20 @@ func (g *Graph) Similar(parent NodeID, name, claim string) []Hit {
     }
   }
 
-  slices.SortFunc(out, func(a, b Hit) int {
-    if a.Score != b.Score {
-      if a.Score > b.Score {
-        return -1
+  slices.SortFunc(
+    out,
+    func(a, b Hit) int {
+      if a.Score != b.Score {
+        if a.Score > b.Score {
+          return -1
+        }
+
+        return 1
       }
 
-      return 1
-    }
-
-    return int(a.ID) - int(b.ID)
-  })
+      return int(a.ID) - int(b.ID)
+    },
+  )
 
   return out
 }
@@ -243,20 +246,23 @@ func (g *Graph) Trace(id NodeID, depth int) []TraceStep {
     return unverified, int(n.Conf()), stale
   }
 
-  slices.SortStableFunc(out, func(a, b TraceStep) int {
-    a1, a2, a3 := weak(a)
-    b1, b2, b3 := weak(b)
-    switch {
-    case a1 != b1:
-      return a1 - b1
-    case a2 != b2:
-      return a2 - b2
-    case a3 != b3:
-      return a3 - b3
-    }
+  slices.SortStableFunc(
+    out,
+    func(a, b TraceStep) int {
+      a1, a2, a3 := weak(a)
+      b1, b2, b3 := weak(b)
+      switch {
+      case a1 != b1:
+        return a1 - b1
+      case a2 != b2:
+        return a2 - b2
+      case a3 != b3:
+        return a3 - b3
+      }
 
-    return a.Depth - b.Depth
-  })
+      return a.Depth - b.Depth
+    },
+  )
 
   return out
 }

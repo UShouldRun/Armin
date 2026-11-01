@@ -201,8 +201,13 @@ func replayFile(t *testing.T, path string, revs []string) {
       }
 
       if present == isStale {
-        t.Fatalf("%s → %s, window at %d: present %v but stale %v",
-          revs[i][:7], revs[i - 1][:7], w.start + 1, present, isStale)
+        t.Fatalf(
+          "%s → %s, window at %d: present %v but stale %v",
+          revs[i][:7],
+          revs[i - 1][:7],
+          w.start + 1,
+          present, isStale,
+        )
       }
 
       if !isStale {
@@ -217,6 +222,10 @@ func replayFile(t *testing.T, path string, revs []string) {
     }
   }
 
-  t.Logf("%s: %d windows over %d revisions: %d moved, %d stale",
-    path, checked, len(revs) - 1, movedTotal, staleTotal)
+  t.Logf(
+    "%s: %d windows over %d revisions: %d moved, %d stale",
+    path, checked,
+    len(revs) - 1,
+    movedTotal, staleTotal,
+  )
 }

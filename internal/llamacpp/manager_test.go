@@ -56,10 +56,12 @@ func TestModelSpecURL(t *testing.T) {
 }
 
 func TestHasAndNames(t *testing.T) {
-  m := New(map[string]ModelSpec{
-    "chat": { URL: "http://localhost:8080" },
-    "fim":  { Binary: "llama-server", Port: 8081 },
-  })
+  m := New(
+    map[string]ModelSpec{
+      "chat": { URL: "http://localhost:8080" },
+      "fim":  { Binary: "llama-server", Port: 8081 },
+    },
+  )
   defer m.Shutdown(context.Background())
 
   if !m.Has("chat") || !m.Has("fim") || m.Has("nope") {
@@ -116,9 +118,11 @@ func TestClientExternalSpecNeverSpawns(t *testing.T) {
 
 func TestClientCarriesAPIKeyFromSpec(t *testing.T) {
   t.Setenv("ARMIN_TEST_API_KEY", "sk-ant-test")
-  m := New(map[string]ModelSpec{
-    "claude": { URL: "https://api.anthropic.com/v1", APIKeyEnv: "ARMIN_TEST_API_KEY" },
-  })
+  m := New(
+    map[string]ModelSpec{
+      "claude": { URL: "https://api.anthropic.com/v1", APIKeyEnv: "ARMIN_TEST_API_KEY" },
+    },
+  )
   defer m.Shutdown(context.Background())
 
   client, err := m.Client(context.Background(), "claude")
@@ -136,10 +140,12 @@ func TestClientCarriesAPIKeyFromSpec(t *testing.T) {
 
 func TestSwitchUpdatesAPIKeyOnTheSharedClient(t *testing.T) {
   t.Setenv("ARMIN_TEST_API_KEY", "sk-ant-test")
-  m := New(map[string]ModelSpec{
-    "local":  { URL: "http://localhost:8080" },
-    "claude": { URL: "https://api.anthropic.com/v1", APIKeyEnv: "ARMIN_TEST_API_KEY" },
-  })
+  m := New(
+    map[string]ModelSpec{
+      "local":  { URL: "http://localhost:8080" },
+      "claude": { URL: "https://api.anthropic.com/v1", APIKeyEnv: "ARMIN_TEST_API_KEY" },
+    },
+  )
   defer m.Shutdown(context.Background())
 
   client, err := m.Client(context.Background(), "local")
@@ -210,12 +216,14 @@ func TestTouchOnExternalSpecIsNoop(t *testing.T) {
 // test reapIdle's selection logic in isolation from real subprocess
 // spawning.
 func TestReapIdleSelection(t *testing.T) {
-  m := New(map[string]ModelSpec{
-    "idle-long-enough": { Binary: "x", Port: 1, IdleTimeout: time.Minute },
-    "idle-too-recent":  { Binary: "x", Port: 2, IdleTimeout: time.Hour },
-    "busy":             { Binary: "x", Port: 3, IdleTimeout: time.Minute },
-    "never-idle":       { Binary: "x", Port: 4, IdleTimeout: -1 },
-  })
+  m := New(
+    map[string]ModelSpec{
+      "idle-long-enough": { Binary: "x", Port: 1, IdleTimeout: time.Minute },
+      "idle-too-recent":  { Binary: "x", Port: 2, IdleTimeout: time.Hour },
+      "busy":             { Binary: "x", Port: 3, IdleTimeout: time.Minute },
+      "never-idle":       { Binary: "x", Port: 4, IdleTimeout: -1 },
+    },
+  )
   defer m.Shutdown(context.Background())
 
   m.mu.Lock()
@@ -296,8 +304,11 @@ func TestHelperProcess(t *testing.T) {
     }
 
     if a == "--fake-starts" && i + 1 < len(os.Args) {
-      f, err := os.OpenFile(os.Args[i + 1],
-        os.O_WRONLY | os.O_CREATE | os.O_APPEND, 0o644)
+      f, err := os.OpenFile(
+        os.Args[i + 1],
+        os.O_WRONLY | os.O_CREATE | os.O_APPEND,
+        0o644,
+      )
       if err == nil {
         f.WriteString("start\n")
         f.Close()
@@ -311,20 +322,26 @@ func TestHelperProcess(t *testing.T) {
   }
 
   mux := http.NewServeMux()
-  mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(http.StatusOK)
-  })
+  mux.HandleFunc(
+    "/health",
+    func(w http.ResponseWriter, r *http.Request) {
+      w.WriteHeader(http.StatusOK)
+    },
+  )
   // /env reports whether this process (not the test process) sees a
   // given environment variable — TestSpawnScrubsSecretEnvVars uses
   // it to confirm spawn() actually strips configured secrets rather
   // than just trusting cmd.Env's construction in isolation.
-  mux.HandleFunc("/env", func(w http.ResponseWriter, r *http.Request) {
-    if os.Getenv(r.URL.Query().Get("name")) != "" {
-      w.Write([]byte("1"))
-    } else {
-      w.Write([]byte("0"))
-    }
-  })
+  mux.HandleFunc(
+    "/env",
+    func(w http.ResponseWriter, r *http.Request) {
+      if os.Getenv(r.URL.Query().Get("name")) != "" {
+        w.Write([]byte("1"))
+      } else {
+        w.Write([]byte("0"))
+      }
+    },
+  )
   ln, err := net.Listen("tcp", "127.0.0.1:" + port)
   if err != nil {
     fmt.Fprintln(os.Stderr, "helper: listen:", err)
@@ -376,9 +393,11 @@ func TestSpawnHealthPollAndShutdown(t *testing.T) {
   bin := fakeLlamaServerBinary(t)
   port := freePort(t)
 
-  m := New(map[string]ModelSpec{
-    "fim": { Binary: bin, ModelPath: "unused.gguf", Port: port },
-  })
+  m := New(
+    map[string]ModelSpec{
+      "fim": { Binary: bin, ModelPath: "unused.gguf", Port: port },
+    },
+  )
 
   ctx, cancel := context.WithTimeout(context.Background(), 15 * time.Second)
   defer cancel()
@@ -444,14 +463,16 @@ func TestSpawnScrubsSecretEnvVars(t *testing.T) {
   bin := fakeLlamaServerBinary(t)
   port := freePort(t)
 
-  m := New(map[string]ModelSpec{
-    // "claude" is never used in this test — just configured, so its
-    // APIKeyEnv name lands in scrubEnvNames the same way it would in
-    // a real setup with both an authenticated remote model and a
-    // local managed one.
-    "claude": { URL: "https://api.anthropic.com/v1", APIKeyEnv: "ARMIN_TEST_SECRET" },
-    "fim":    { Binary: bin, ModelPath: "unused.gguf", Port: port },
-  })
+  m := New(
+    map[string]ModelSpec{
+      // "claude" is never used in this test — just configured, so its
+      // APIKeyEnv name lands in scrubEnvNames the same way it would in
+      // a real setup with both an authenticated remote model and a
+      // local managed one.
+      "claude": { URL: "https://api.anthropic.com/v1", APIKeyEnv: "ARMIN_TEST_SECRET" },
+      "fim":    { Binary: bin, ModelPath: "unused.gguf", Port: port },
+    },
+  )
   defer m.Shutdown(context.Background())
 
   ctx, cancel := context.WithTimeout(context.Background(), 15 * time.Second)
@@ -490,9 +511,11 @@ func TestSwitchMutatesClientInPlace(t *testing.T) {
   bin := fakeLlamaServerBinary(t)
   port := freePort(t)
 
-  m := New(map[string]ModelSpec{
-    "fim": { Binary: bin, ModelPath: "unused.gguf", Port: port },
-  })
+  m := New(
+    map[string]ModelSpec{
+      "fim": { Binary: bin, ModelPath: "unused.gguf", Port: port },
+    },
+  )
   defer m.Shutdown(context.Background())
 
   ctx, cancel := context.WithTimeout(context.Background(), 15 * time.Second)
@@ -524,13 +547,15 @@ func TestReadyRespawnsAStoppedModel(t *testing.T) {
     t.Skip("spawns a real subprocess")
   }
 
-  m := New(map[string]ModelSpec{
-    "chat": {
-      Binary:    fakeLlamaServerBinary(t),
-      ModelPath: "unused.gguf",
-      Port:      freePort(t),
+  m := New(
+    map[string]ModelSpec{
+      "chat": {
+        Binary:    fakeLlamaServerBinary(t),
+        ModelPath: "unused.gguf",
+        Port:      freePort(t),
+      },
     },
-  })
+  )
   defer m.Shutdown(context.Background())
 
   ctx, cancel := context.WithTimeout(context.Background(), 20 * time.Second)
@@ -569,12 +594,14 @@ func TestSwitchFreesTheGPUFromThePreviousLocalModel(t *testing.T) {
   }
 
   bin := fakeLlamaServerBinary(t)
-  m := New(map[string]ModelSpec{
-    "a":   { Binary: bin, ModelPath: "a.gguf", Port: freePort(t) },
-    "b":   { Binary: bin, ModelPath: "b.gguf", Port: freePort(t) },
-    "fim": { Binary: bin, ModelPath: "f.gguf", Port: freePort(t) },
-    "api": { URL: "http://127.0.0.1:1" },
-  })
+  m := New(
+    map[string]ModelSpec{
+      "a":   { Binary: bin, ModelPath: "a.gguf", Port: freePort(t) },
+      "b":   { Binary: bin, ModelPath: "b.gguf", Port: freePort(t) },
+      "fim": { Binary: bin, ModelPath: "f.gguf", Port: freePort(t) },
+      "api": { URL: "http://127.0.0.1:1" },
+    },
+  )
   defer m.Shutdown(context.Background())
 
   ctx, cancel := context.WithTimeout(context.Background(), 20 * time.Second)
@@ -603,9 +630,7 @@ func TestSwitchFreesTheGPUFromThePreviousLocalModel(t *testing.T) {
   if aUp || !bUp || !fimUp {
     t.Fatalf(
       "a=%v b=%v fim=%v; want a stopped, b and the completion model running",
-      aUp,
-      bUp,
-      fimUp,
+      aUp, bUp, fimUp,
     )
   }
 
@@ -632,11 +657,13 @@ func TestSwitchChatKeepsCompletionLocal(t *testing.T) {
   }
 
   bin := fakeLlamaServerBinary(t)
-  m := New(map[string]ModelSpec{
-    "a":     { Binary: bin, ModelPath: "a.gguf", Port: freePort(t) },
-    "b":     { Binary: bin, ModelPath: "b.gguf", Port: freePort(t) },
-    "cloud": { URL: "http://127.0.0.1:1" },
-  })
+  m := New(
+    map[string]ModelSpec{
+      "a":     { Binary: bin, ModelPath: "a.gguf", Port: freePort(t) },
+      "b":     { Binary: bin, ModelPath: "b.gguf", Port: freePort(t) },
+      "cloud": { URL: "http://127.0.0.1:1" },
+    },
+  )
   defer m.Shutdown(context.Background())
 
   ctx, cancel := context.WithTimeout(context.Background(), 20 * time.Second)
@@ -668,8 +695,7 @@ func TestSwitchChatKeepsCompletionLocal(t *testing.T) {
   if chat.Model != "cloud" || completion.Model != "a" || !up("a") {
     t.Fatalf(
       "chat %q, completion %q, a up %v; want completion kept on a",
-      chat.Model,
-      completion.Model,
+      chat.Model, completion.Model,
       up("a"),
     )
   }
@@ -680,9 +706,13 @@ func TestSwitchChatKeepsCompletionLocal(t *testing.T) {
   }
 
   if chat.Model != "b" || completion.Model != "b" || up("a") || !up("b") {
-    t.Fatalf("chat %q, completion %q, a up %v, b up %v; want both on b, a " +
-      "stopped",
-      chat.Model, completion.Model, up("a"), up("b"))
+    t.Fatalf(
+      "chat %q, completion %q, a up %v, b up %v; want both on b, a " +
+        "stopped",
+      chat.Model, completion.Model,
+      up("a"),
+      up("b"),
+    )
   }
 
   err = m.SwitchChat(ctx, chat, nil, "a")
@@ -698,10 +728,12 @@ func TestSwitchChatKeepsCompletionLocal(t *testing.T) {
 // TestSwitchToHostedIDOnTheFly: "base:id" reuses a hosted model's
 // endpoint and key with another id, no config block needed.
 func TestSwitchToHostedIDOnTheFly(t *testing.T) {
-  m := New(map[string]ModelSpec{
-    "planner": { URL: "http://127.0.0.1:1/api/v1", ID: "qwen/qwen3.8-27b", Effort: "medium" },
-    "local":   { Binary: "llama-server", ModelPath: "a.gguf", Port: 1 },
-  })
+  m := New(
+    map[string]ModelSpec{
+      "planner": { URL: "http://127.0.0.1:1/api/v1", ID: "qwen/qwen3.8-27b", Effort: "medium" },
+      "local":   { Binary: "llama-server", ModelPath: "a.gguf", Port: 1 },
+    },
+  )
 
   if m.Has("local:x") || m.Has("nope:x") {
     t.Fatal("only a hosted base can be reused")
@@ -742,13 +774,15 @@ func TestConcurrentStartsSpawnOnce(t *testing.T) {
   }
 
   starts := filepath.Join(t.TempDir(), "starts")
-  m := New(map[string]ModelSpec{
-    "chat": {
-      Binary: fakeLlamaServerBinary(t), ModelPath: "unused.gguf",
-      Port: freePort(t), Flags: SpecNoLean,
-      Args: []string{ "--fake-starts", starts, "--fake-load-ms", "400" },
+  m := New(
+    map[string]ModelSpec{
+      "chat": {
+        Binary: fakeLlamaServerBinary(t), ModelPath: "unused.gguf",
+        Port: freePort(t), Flags: SpecNoLean,
+        Args: []string{ "--fake-starts", starts, "--fake-load-ms", "400" },
+      },
     },
-  })
+  )
   defer m.Shutdown(context.Background())
 
   client, err := m.LazyClient("chat")

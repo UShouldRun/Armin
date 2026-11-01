@@ -221,15 +221,23 @@ func (l *Loop) verify(
   }
 
   answer := history[len(history) - 1].Content
-  input := fmt.Sprintf("Request:\n%s\n\nActions:\n%s\nFinal answer:\n%s",
-    truncate(request, 1500), b.String(), truncate(answer, 2000))
+  input := fmt.Sprintf(
+    "Request:\n%s\n\nActions:\n%s\nFinal answer:\n%s",
+    truncate(request, 1500),
+    b.String(),
+    truncate(answer, 2000),
+  )
 
   quick := *l.LLM
   quick.Effort = "none"
-  reply, err := quick.Chat(ctx, []llm.Message{
-    { Role: "system", Content: verifyPrompt },
-    { Role: "user", Content: truncate(input, maxVerifyInput) },
-  }, nil, nil)
+  reply, err := quick.Chat(
+    ctx,
+    []llm.Message{
+      { Role: "system", Content: verifyPrompt },
+      { Role: "user", Content: truncate(input, maxVerifyInput) },
+    },
+    nil, nil,
+  )
   if err != nil {
     return ""
   }

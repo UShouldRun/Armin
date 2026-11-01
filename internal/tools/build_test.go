@@ -24,12 +24,11 @@ func writePassingModule(t *testing.T, root string) {
   t.Helper()
   writeFile(t, root, "go.mod", "module fixture\n\ngo 1.21\n")
   writeFile(
-    t,
-    root,
-    "fixture.go",
+    t, root, "fixture.go",
     "package fixture\n\nfunc Add(a, b int) int { return a + b }\n",
   )
-  writeFile(t, root, "fixture_test.go",
+  writeFile(
+    t, root, "fixture_test.go",
     "package fixture\n\nimport \"testing\"\n\n" +
       "func TestAdd(t *testing.T) {\n  if Add(2, 3) != 5 {\n    " +
         "t.Fatal(\"bad\")\n  }\n}\n",
@@ -40,12 +39,11 @@ func writeFailingModule(t *testing.T, root string) {
   t.Helper()
   writeFile(t, root, "go.mod", "module fixture\n\ngo 1.21\n")
   writeFile(
-    t,
-    root,
-    "fixture.go",
+    t, root, "fixture.go",
     "package fixture\n\nfunc Add(a, b int) int { return a + b }\n",
   )
-  writeFile(t, root, "fixture_test.go",
+  writeFile(
+    t, root, "fixture_test.go",
     "package fixture\n\nimport \"testing\"\n\n" +
       "func TestAdd(t *testing.T) {\n  if Add(2, 3) != 999 {\n    " +
         "t.Fatal(\"bad\")\n  }\n}\n",
@@ -110,9 +108,7 @@ func TestBuildCheckFailingReportsTail(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{ Timeout: 60_000_000_000 })
   writeFile(t, cfg.Root, "go.mod", "module fixture\n\ngo 1.21\n")
   writeFile(
-    t,
-    cfg.Root,
-    "bad.go",
+    t, cfg.Root, "bad.go",
     "package fixture\n\nfunc F() int { return \"x\" }\n",
   )
 
@@ -155,9 +151,7 @@ func TestDetectCommandsPrecedence(t *testing.T) {
   writeFile(t, cfg.Root, "go.mod", "module fixture\n")
   writeFile(t, cfg.Root, "Makefile", "build:\n\tgo build\nVAR := x\n")
   writeFile(
-    t,
-    cfg.Root,
-    ".armin/commands.conf",
+    t, cfg.Root, ".armin/commands.conf",
     "test_cmd = go test -race ./...\n",
   )
   cfg.Commands.Lint = []string{ "mylint", "--strict" }
@@ -187,9 +181,7 @@ func TestDetectCommandsPrecedence(t *testing.T) {
 func TestDetectCommandsNode(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(
-    t,
-    cfg.Root,
-    "package.json",
+    t, cfg.Root, "package.json",
     `{"scripts":{"test":"vitest","lint":"eslint ."}}`,
   )
   writeFile(t, cfg.Root, "tsconfig.json", "{}")
@@ -223,9 +215,7 @@ func TestRunProjectWithNoCommandIsAHint(t *testing.T) {
 func TestMakefileWithoutBuildTarget(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(
-    t,
-    cfg.Root,
-    "Makefile",
+    t, cfg.Root, "Makefile",
     "all: fox\n\nfox: src/fox.c\n\tmpicc -o fox src/fox.c\n\ntest: " +
       "fox\n\t./run.sh\n",
   )

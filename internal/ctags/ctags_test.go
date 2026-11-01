@@ -68,20 +68,23 @@ func TestParseLine(t *testing.T) {
   }
 
   for _, c := range cases {
-    t.Run(c.name, func(t *testing.T) {
-      got, ok := parseLine(c.line)
-      if ok != c.ok {
-        t.Fatalf("parseLine(%q) ok = %v, want %v", c.line, ok, c.ok)
-      }
+    t.Run(
+      c.name,
+      func(t *testing.T) {
+        got, ok := parseLine(c.line)
+        if ok != c.ok {
+          t.Fatalf("parseLine(%q) ok = %v, want %v", c.line, ok, c.ok)
+        }
 
-      if !ok {
-        return
-      }
+        if !ok {
+          return
+        }
 
-      if got != c.want {
-        t.Fatalf("parseLine(%q) = %+v, want %+v", c.line, got, c.want)
-      }
-    })
+        if got != c.want {
+          t.Fatalf("parseLine(%q) = %+v, want %+v", c.line, got, c.want)
+        }
+      },
+    )
   }
 }
 

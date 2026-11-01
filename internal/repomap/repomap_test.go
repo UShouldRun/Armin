@@ -36,10 +36,16 @@ func TestBuildRanksWhatIsUsed(t *testing.T) {
     os.WriteFile(filepath.Join(root, name), []byte(src), 0o644)
   }
 
-  write("store.go", "package kv\n\ntype Store struct{}\n\n" +
-    "func (s *Store) Put(k string) {}\n\nfunc Open() *Store { return nil }\n")
-  write("main.go", "package kv\n\nfunc main() {\n  s := Open()\n" +
-    "  s.Put(\"a\")\n  s.Put(\"b\")\n}\n")
+  write(
+    "store.go",
+    "package kv\n\ntype Store struct{}\n\n" +
+      "func (s *Store) Put(k string) {}\n\nfunc Open() *Store { return nil }\n",
+  )
+  write(
+    "main.go",
+    "package kv\n\nfunc main() {\n  s := Open()\n" +
+      "  s.Put(\"a\")\n  s.Put(\"b\")\n}\n",
+  )
   write("unused.go", "package kv\n\nfunc lonely() {}\n")
 
   got := Build(context.Background(), ctags.New(root, bin), 4000)
@@ -60,9 +66,12 @@ func TestBuildRanksWhatIsUsed(t *testing.T) {
 
 func TestEachIdent(t *testing.T) {
   var got []string
-  eachIdent([]byte("s.Put(x_1, 2b) // ok"), func(w string) {
-    got = append(got, w)
-  })
+  eachIdent(
+    []byte("s.Put(x_1, 2b) // ok"),
+    func(w string) {
+      got = append(got, w)
+    },
+  )
 
   if strings.Join(got, " ") != "s Put x_1 ok" {
     t.Fatalf("idents: %v", got)

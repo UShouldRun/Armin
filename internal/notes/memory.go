@@ -72,18 +72,24 @@ func (m *Memories) List() ([]Memory, error) {
         continue
       }
 
-      out = append(out, Memory{
-        Name:        strings.TrimSuffix(e.Name(), ".md"),
-        Description: h["description"],
-        Scope:       s,
-        Path:        path,
-      })
+      out = append(
+        out,
+        Memory{
+          Name:        strings.TrimSuffix(e.Name(), ".md"),
+          Description: h["description"],
+          Scope:       s,
+          Path:        path,
+        },
+      )
     }
 
     part := out[start:]
-    sort.Slice(part, func(i, j int) bool {
-      return part[i].Name < part[j].Name
-    })
+    sort.Slice(
+      part,
+      func(i, j int) bool {
+        return part[i].Name < part[j].Name
+      },
+    )
   }
 
   return out, nil

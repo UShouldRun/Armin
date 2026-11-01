@@ -195,11 +195,14 @@ func TestTreeBench(t *testing.T) {
     t.Fatal(err)
   }
 
-  sb, err := sandbox.New(root, sandbox.Options{
-    Allowlist: sandbox.DefaultAllowlist(),
-    Timeout:   20 * time.Second,
-    MaxOutput: 8000,
-  })
+  sb, err := sandbox.New(
+    root,
+    sandbox.Options{
+      Allowlist: sandbox.DefaultAllowlist(),
+      Timeout:   20 * time.Second,
+      MaxOutput: 8000,
+    },
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -242,8 +245,11 @@ func TestTreeBench(t *testing.T) {
     repoMap = repomap.Build(
       context.Background(), ctags.New(root, benchCtags(t)), mapBytes,
     )
-    t.Logf("MAP %d bytes, %d files", len(repoMap),
-      strings.Count(repoMap, "\n") / 2)
+    t.Logf(
+      "MAP %d bytes, %d files",
+      len(repoMap),
+      strings.Count(repoMap, "\n") / 2,
+    )
   }
 
   // pair, arm, session
@@ -284,16 +290,25 @@ func TestTreeBench(t *testing.T) {
 
           results[pi][cond][si] = run
           if dump != "" {
-            name := fmt.Sprintf("%s/%s-%s-%d.md", dump, pair.name,
-              armFiles[cond], si + 1)
-            os.WriteFile(name, []byte(fmt.Sprintf(
-              "%s\n\nright %v, %d prompt (%d cached), %d completion, " +
-                "$%.5f, %d rounds, %d tools\n\n" +
-                "## answer\n%s\n\n## calls\n%s\n\n## tree after\n%s\n",
-              q, run.right, run.prompt, run.cached, run.completion, run.cost,
-              run.rounds, run.tools, run.answer, strings.Join(run.calls, "\n"),
-              run.tree,
-            )), 0o644)
+            name := fmt.Sprintf(
+              "%s/%s-%s-%d.md", dump, pair.name,
+              armFiles[cond],
+              si + 1,
+            )
+            os.WriteFile(
+              name,
+              []byte(
+                fmt.Sprintf(
+                  "%s\n\nright %v, %d prompt (%d cached), %d completion, " +
+                    "$%.5f, %d rounds, %d tools\n\n" +
+                    "## answer\n%s\n\n## calls\n%s\n\n## tree after\n%s\n",
+                  q, run.right, run.prompt, run.cached, run.completion, run.cost,
+                  run.rounds, run.tools, run.answer, strings.Join(run.calls, "\n"),
+                  run.tree,
+                ),
+              ),
+              0o644,
+            )
           }
         }
       }()
@@ -355,10 +370,14 @@ func TestTreeBench(t *testing.T) {
   // cited them ([nN]), and how often it only read their files
   snap := metrics.Snapshot()
   if snap["recall.turns"].Count > 0 {
-    t.Logf("RECALL turns %d, attached %d, cited %d, read %d, empty %d",
-      snap["recall.turns"].Count, snap["recall.attached"].Count,
-      snap["recall.cited"].Count, snap["recall.read"].Count,
-      snap["recall.empty"].Count)
+    t.Logf(
+      "RECALL turns %d, attached %d, cited %d, read %d, empty %d",
+      snap["recall.turns"].Count,
+      snap["recall.attached"].Count,
+      snap["recall.cited"].Count,
+      snap["recall.read"].Count,
+      snap["recall.empty"].Count,
+    )
   }
 
   // what all the sessions cost in dollars, each arm against no tree
@@ -384,12 +403,15 @@ func TestTreeBench(t *testing.T) {
       pair[cond] += cons.Sum / float64(len(trees))
     }
 
-    t.Logf("CONSOLIDATE calls %d, $%.4f, pointers %d, claims %d, " +
-      "linked %d, empty %d",
-      cons.Count, cons.Sum, snap["know.consolidate.pointers"].Count,
+    t.Logf(
+      "CONSOLIDATE calls %d, $%.4f, pointers %d, claims %d, " +
+        "linked %d, empty %d",
+      cons.Count, cons.Sum,
+      snap["know.consolidate.pointers"].Count,
       snap["know.consolidate.claims"].Count,
       snap["know.consolidate.linked"].Count,
-      snap["know.consolidate.empty"].Count)
+      snap["know.consolidate.empty"].Count,
+    )
   }
 
   base := armPlain
@@ -404,8 +426,12 @@ func TestTreeBench(t *testing.T) {
   line := fmt.Sprintf("PAIR COST %s $%.4f", armNames[base], pair[base])
   for cond := range arms {
     if on[cond] && cond != base {
-      line += fmt.Sprintf(", %s $%.4f (%+.1f%%)", armNames[cond],
-        pair[cond], 100 * (pair[cond] - pair[base]) / pair[base])
+      line += fmt.Sprintf(
+        ", %s $%.4f (%+.1f%%)",
+        armNames[cond],
+        pair[cond],
+        100 * (pair[cond] - pair[base]) / pair[base],
+      )
     }
   }
 

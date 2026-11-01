@@ -134,9 +134,12 @@ func parseRequirementsTxt(data []byte) ([]Dependency, error) {
       continue
     }
 
-    deps = append(deps, Dependency{
-      Name: strings.TrimSpace(name), Version: strings.TrimSpace(version),
-    })
+    deps = append(
+      deps,
+      Dependency{
+        Name: strings.TrimSpace(name), Version: strings.TrimSpace(version),
+      },
+    )
   }
 
   return deps, scanner.Err()
@@ -179,10 +182,13 @@ func parseTomlDepsSection(data []byte, section string) []Dependency {
       continue
     }
 
-    deps = append(deps, Dependency{
-      Name:    strings.TrimSpace(key),
-      Version: strings.Trim(strings.TrimSpace(value), `"'`),
-    })
+    deps = append(
+      deps,
+      Dependency{
+        Name:    strings.TrimSpace(key),
+        Version: strings.Trim(strings.TrimSpace(value), `"'`),
+      },
+    )
   }
 
   return deps

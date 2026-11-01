@@ -25,8 +25,10 @@ import (
 func cmdLibrary(r *REPL, ctx context.Context, args []string) {
   lib := r.Loop.Library
   if lib == nil {
-    ui.Error("no library configured: add library = <folder> to " +
-      "config.conf and restart armin")
+    ui.Error(
+      "no library configured: add library = <folder> to " +
+        "config.conf and restart armin",
+    )
     return
   }
 
@@ -37,10 +39,13 @@ func cmdLibrary(r *REPL, ctx context.Context, args []string) {
 
   switch args[0] {
   case "index":
-    err := lib.Build(ctx, func(done, total int, what string) {
-      line := fmt.Sprintf("indexing %d/%d %s", done, total, what)
-      fmt.Printf("\r\033[K%s", ui.Dim(line))
-    })
+    err := lib.Build(
+      ctx,
+      func(done, total int, what string) {
+        line := fmt.Sprintf("indexing %d/%d %s", done, total, what)
+        fmt.Printf("\r\033[K%s", ui.Dim(line))
+      },
+    )
     fmt.Println()
     if err != nil {
       ui.Err(err)
@@ -129,13 +134,14 @@ func cmdLibrary(r *REPL, ctx context.Context, args []string) {
       }
 
       title := ui.Bold(library.BookTitle(t.Book))
-      fmt.Printf("  %-22s %s: %s %s\n",
-        t.Topic, title, t.Where, ui.Dim(t.Note))
+      fmt.Printf("  %-22s %s: %s %s\n", t.Topic, title, t.Where, ui.Dim(t.Note))
     }
 
   default:
-    ui.Error("usage: /library [index|catalog [model]|merge [model]|" +
-      "add <path>... [to <folder>]|topics [topic]]")
+    ui.Error(
+      "usage: /library [index|catalog [model]|merge [model]|" +
+        "add <path>... [to <folder>]|topics [topic]]",
+    )
   }
 }
 
@@ -164,20 +170,28 @@ func printLibrary(lib *library.Library) {
   s := lib.Status()
   fmt.Println(ui.Bold("library"))
   fmt.Printf("  folder:    %s\n", s.Root)
-  fmt.Printf("  documents: %d in %d books, %d passages indexed\n",
-    s.Docs, s.Books, s.Chunks)
+  fmt.Printf(
+    "  documents: %d in %d books, %d passages indexed\n",
+    s.Docs, s.Books, s.Chunks,
+  )
   fmt.Printf("  topics:    %d rows (%s/TOPICS.md)\n", s.Topics, s.Root)
 
   switch {
   case s.Building != "":
     fmt.Printf("  indexing:  %s\n", s.Building)
   case s.Stale > 0:
-    fmt.Printf("  stale:     %d documents changed since indexing" +
-      " — /library index\n", s.Stale)
+    fmt.Printf(
+      "  stale:     %d documents changed since indexing" +
+        " — /library index\n",
+      s.Stale,
+    )
   }
 
   if s.Pending > 0 {
-    fmt.Printf("  pending:   %d books not in the topic table" +
-      " — /library catalog\n", s.Pending)
+    fmt.Printf(
+      "  pending:   %d books not in the topic table" +
+        " — /library catalog\n",
+      s.Pending,
+    )
   }
 }

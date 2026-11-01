@@ -90,9 +90,12 @@ func distinctTopics(rows []Topic) ([]string, map[string]int) {
     count[t.Topic]++
   }
 
-  sort.SliceStable(names, func(i, j int) bool {
-    return count[names[i]] > count[names[j]]
-  })
+  sort.SliceStable(
+    names,
+    func(i, j int) bool {
+      return count[names[i]] > count[names[j]]
+    },
+  )
 
   return names, count
 }
@@ -162,8 +165,11 @@ func (l *Library) mergeOnce(ctx context.Context, ask Ask) (int, int, error) {
   }
 
   var b strings.Builder
-  fmt.Fprintf(&b, "Preferred names: %s\n\nTopics (rows using each):\n",
-    strings.Join(seedTopics, ", "))
+  fmt.Fprintf(
+    &b,
+    "Preferred names: %s\n\nTopics (rows using each):\n",
+    strings.Join(seedTopics, ", "),
+  )
   for _, n := range names {
     fmt.Fprintf(&b, "%s (%d)\n", n, count[n])
   }

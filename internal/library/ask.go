@@ -23,10 +23,14 @@ func AskWith(c *llm.Client) Ask {
   chore.Effort, chore.MaxTokens = "none", choreTokens
 
   return func(ctx context.Context, system, user string) (string, error) {
-    msg, err := chore.Chat(ctx, []llm.Message{
-      { Role: "system", Content: system },
-      { Role: "user", Content: user },
-    }, nil, nil)
+    msg, err := chore.Chat(
+      ctx,
+      []llm.Message{
+        { Role: "system", Content: system },
+        { Role: "user", Content: user },
+      },
+      nil, nil,
+    )
     if err != nil {
       return "", fmt.Errorf("\n\t... in AskWith:\n\t%w", err)
     }

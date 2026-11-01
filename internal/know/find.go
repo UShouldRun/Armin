@@ -88,18 +88,22 @@ func (ix *index) build(g *Graph) {
     }
 
     count := 0
-    g.nodeTerms(NodeID(id), buf, func(t []byte) {
-      tid, ok := termID[string(t)]
-      if !ok {
-        tid = uint32(len(uniq))
-        s := string(t)
-        termID[s] = tid
-        uniq = append(uniq, s)
-      }
+    g.nodeTerms(
+      NodeID(id),
+      buf,
+      func(t []byte) {
+        tid, ok := termID[string(t)]
+        if !ok {
+          tid = uint32(len(uniq))
+          s := string(t)
+          termID[s] = tid
+          uniq = append(uniq, s)
+        }
 
-      all = append(all, entry{ term: tid, id: NodeID(id) })
-      count++
-    })
+        all = append(all, entry{ term: tid, id: NodeID(id) })
+        count++
+      },
+    )
 
     docLen[id] = uint8(min(count, 255))
     total += count
@@ -111,9 +115,12 @@ func (ix *index) build(g *Graph) {
     byText[i] = uint32(i)
   }
 
-  slices.SortFunc(byText, func(a, b uint32) int {
-    return strings.Compare(uniq[a], uniq[b])
-  })
+  slices.SortFunc(
+    byText,
+    func(a, b uint32) int {
+      return strings.Compare(uniq[a], uniq[b])
+    },
+  )
 
   rank := make([]uint32, len(uniq))
   for r, tid := range byText {
@@ -244,9 +251,12 @@ func (ix *index) terms() int {
 
 // lookup returns the first term >= t.
 func (ix *index) lookup(t []byte) int {
-  return sort.Search(ix.terms(), func(i int) bool {
-    return bytes.Compare(ix.term(i), t) >= 0
-  })
+  return sort.Search(
+    ix.terms(),
+    func(i int) bool {
+      return bytes.Compare(ix.term(i), t) >= 0
+    },
+  )
 }
 
 func (ix *index) idf(df int) float32 {
@@ -371,16 +381,20 @@ func (g *Graph) scanUnindexed(qs []string, idfs []float32) {
     clear(exact[:])
     clear(prefix[:])
     length := 0
-    g.nodeTerms(id, ix.buf[:0], func(t []byte) {
-      length++
-      for qi, q := range qs {
-        if string(t) == q {
-          exact[qi]++
-        } else if len(q) >= minPrefix && bytes.HasPrefix(t, []byte(q)) {
-          prefix[qi]++
+    g.nodeTerms(
+      id,
+      ix.buf[:0],
+      func(t []byte) {
+        length++
+        for qi, q := range qs {
+          if string(t) == q {
+            exact[qi]++
+          } else if len(q) >= minPrefix && bytes.HasPrefix(t, []byte(q)) {
+            prefix[qi]++
+          }
         }
-      }
-    })
+      },
+    )
 
     dl := uint8(min(length, 255))
     for qi := range qs {

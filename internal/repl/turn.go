@@ -77,8 +77,11 @@ func (r *REPL) turnAs(ctx context.Context, input, shown, origin string) error {
 
   hooks := r.turnHooks(v, effort, task, origin)
 
-  r.composer = ui.StartComposer(r.pump,
-    "type to add a message — the model reads it at its next step", r.enqueue)
+  r.composer = ui.StartComposer(
+    r.pump,
+    "type to add a message — the model reads it at its next step",
+    r.enqueue,
+  )
   answer, err := r.Loop.Turn(turnCtx, &r.History, r.shared(hooks, origin))
   r.endComposer()
 
@@ -297,8 +300,10 @@ func (r *REPL) approve(tool, preview string) (bool, string) {
       if err != nil {
         ui.Error("can't open it: %s", err)
       } else {
-        ui.Info("opened in a new window (read-only) — answer here when " +
-          "you're done")
+        ui.Info(
+          "opened in a new window (read-only) — answer here when " +
+            "you're done",
+        )
       }
 
       continue

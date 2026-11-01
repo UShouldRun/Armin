@@ -76,19 +76,23 @@ func TestCompactRefusesWhenTooShort(t *testing.T) {
 // llama-server instance.
 func fakeChatServer(t *testing.T, reply string) *httptest.Server {
   t.Helper()
-  return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    resp := map[string]any{
-      "choices": []map[string]any{
-        {
-          "message": map[string]string{ "role": "assistant", "content": reply },
-        },
+  return httptest.NewServer(
+    http.HandlerFunc(
+      func(w http.ResponseWriter, r *http.Request) {
+        resp := map[string]any{
+          "choices": []map[string]any{
+            {
+              "message": map[string]string{ "role": "assistant", "content": reply },
+            },
+          },
+        }
+        err := json.NewEncoder(w).Encode(resp)
+        if err != nil {
+          t.Fatal(err)
+        }
       },
-    }
-    err := json.NewEncoder(w).Encode(resp)
-    if err != nil {
-      t.Fatal(err)
-    }
-  }))
+    ),
+  )
 }
 
 func TestCompactPreservesSystemAndTail(t *testing.T) {
@@ -138,8 +142,7 @@ func TestCompactPreservesSystemAndTail(t *testing.T) {
   if tail[0].Content != "recent 1" || tail[1].Content != "recent 2" {
     t.Fatalf(
       "tail = %+v, want the last %d messages preserved verbatim",
-      tail,
-      keepLast,
+      tail, keepLast,
     )
   }
 

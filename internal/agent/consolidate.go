@@ -153,10 +153,14 @@ func (l *Loop) consolidateOne(
     fmt.Fprintf(&user, "\n%s\n%s\n", e.header, e.text)
   }
 
-  reply, err := client.Chat(ctx, []llm.Message{
-    { Role: "system", Content: consolidatePrompt },
-    { Role: "user", Content: user.String() },
-  }, nil, nil)
+  reply, err := client.Chat(
+    ctx,
+    []llm.Message{
+      { Role: "system", Content: consolidatePrompt },
+      { Role: "user", Content: user.String() },
+    },
+    nil, nil,
+  )
   if err != nil {
     return false, err
   }
@@ -316,10 +320,13 @@ func (l *Loop) pointerSource(id know.NodeID) (string, []excerpt) {
       continue
     }
 
-    out = append(out, excerpt{
-      header: fmt.Sprintf("%s:%d-%d", path, start, end),
-      text:   strings.Join(all[start - 1:end], "\n"),
-    })
+    out = append(
+      out,
+      excerpt{
+        header: fmt.Sprintf("%s:%d-%d", path, start, end),
+        text:   strings.Join(all[start - 1:end], "\n"),
+      },
+    )
     lines += end - start + 1
   }
 

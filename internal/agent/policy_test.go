@@ -167,9 +167,12 @@ func (w *fakeWindow) Shrink(context.Context) (int, error) {
 }
 
 func TestGrowsWhenTheCurrentTurnIsTheBulk(t *testing.T) {
-  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "done" })
-  })
+  loop, _ := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      writeChatResponse(t, w, llm.Message{ Role: "assistant", Content: "done" })
+    },
+  )
   win := &fakeWindow{ resident: 2000, max: 8000 }
   loop.Window = win
 
@@ -191,9 +194,14 @@ func TestGrowsWhenTheCurrentTurnIsTheBulk(t *testing.T) {
     },
   }
 
-  loop.manageContext(context.Background(), &history, llm.Usage{}, Hooks{
-    Notice: func(s string) { notices = append(notices, s) },
-  })
+  loop.manageContext(
+    context.Background(),
+    &history,
+    llm.Usage{},
+    Hooks{
+      Notice: func(s string) { notices = append(notices, s) },
+    },
+  )
 
   if strings.Join(win.calls, ",") != "grow" {
     t.Fatalf("window calls = %v, want grow", win.calls)
@@ -210,54 +218,56 @@ func TestGrowsWhenTheCurrentTurnIsTheBulk(t *testing.T) {
 
 func TestCompactsOldHistoryAfterSavingAndShrinksBack(t *testing.T) {
   var sawSaveNote, summarized bool
-  loop, _ := newTestLoop(t, func(w http.ResponseWriter, r *http.Request) {
-    var req struct {
-      Tools    []struct{ Function struct{ Name string } } `json:"tools"`
-      Messages []llm.Message                              `json:"messages"`
-    }
-
-    json.NewDecoder(r.Body).Decode(&req)
-    lastMsg := req.Messages[len(req.Messages) - 1]
-    switch {
-    case lastMsg.Content == saveNote:
-      sawSaveNote = true
-      for _, d := range req.Tools {
-        n := d.Function.Name
-        if n != "scratchpad_write" &&
-            n != "scratchpad_read" && n != "memory_save" {
-          t.Errorf("save turn offered %s", n)
-        }
+  loop, _ := newTestLoop(
+    t,
+    func(w http.ResponseWriter, r *http.Request) {
+      var req struct {
+        Tools    []struct{ Function struct{ Name string } } `json:"tools"`
+        Messages []llm.Message                              `json:"messages"`
       }
 
-      writeCalls(t, w,
-        call(
-          "s1",
-          "scratchpad_write",
-          map[string]any{ "name": "plan", "content": "step 3 of 5" },
-        ),
-      )
-    case lastMsg.Role == "tool" && lastMsg.ToolName == "scratchpad_write":
-      writeChatResponse(
-        t,
-        w,
-        llm.Message{ Role: "assistant", Content: "saved" },
-      )
-    case len(req.Tools) == 0:
-      summarized = true
-      writeChatResponse(
-        t,
-        w,
-        llm.Message{ Role: "assistant", Content: "summary" },
-      )
-    }
-  })
+      json.NewDecoder(r.Body).Decode(&req)
+      lastMsg := req.Messages[len(req.Messages) - 1]
+      switch {
+      case lastMsg.Content == saveNote:
+        sawSaveNote = true
+        for _, d := range req.Tools {
+          n := d.Function.Name
+          if n != "scratchpad_write" &&
+              n != "scratchpad_read" && n != "memory_save" {
+            t.Errorf("save turn offered %s", n)
+          }
+        }
+
+        writeCalls(
+          t, w,
+          call(
+            "s1", "scratchpad_write",
+            map[string]any{ "name": "plan", "content": "step 3 of 5" },
+          ),
+        )
+      case lastMsg.Role == "tool" && lastMsg.ToolName == "scratchpad_write":
+        writeChatResponse(
+          t, w,
+          llm.Message{ Role: "assistant", Content: "saved" },
+        )
+      case len(req.Tools) == 0:
+        summarized = true
+        writeChatResponse(
+          t, w,
+          llm.Message{ Role: "assistant", Content: "summary" },
+        )
+      }
+    },
+  )
   loop.Scratch = &notes.Scratchpad{ Dir: t.TempDir() }
   win := &fakeWindow{ resident: 9000, max: 14000, streaming: true }
   loop.Window = win
 
   history := []llm.Message{ { Role: "system", Content: "sys" } }
   for i := 0; i < 12; i++ {
-    history = append(history,
+    history = append(
+      history,
       llm.Message{ Role: "user", Content: strings.Repeat("q", 2000) },
       llm.Message{ Role: "assistant", Content: strings.Repeat("a", 2000) },
     )
@@ -295,10 +305,13 @@ func TestTrimArchivesToScratchpadAndKeepsSkills(t *testing.T) {
   big := strings.Repeat("r", 1000)
   skill := strings.Repeat("s", 1000)
   msgs := []llm.Message{
-    { Role: "assistant", ToolCalls: []llm.ToolCall{
-      call("a", "web_search", map[string]any{ "query": "go generics" }),
-      call("b", "use_skill", map[string]any{ "name": "go-style" }),
-    } },
+    {
+      Role: "assistant",
+      ToolCalls: []llm.ToolCall{
+        call("a", "web_search", map[string]any{ "query": "go generics" }),
+        call("b", "use_skill", map[string]any{ "name": "go-style" }),
+      },
+    },
     { Role: "tool", ToolName: "web_search", ToolCallID: "a", Content: big },
     { Role: "tool", ToolName: "use_skill", ToolCallID: "b", Content: skill },
   }
@@ -420,7 +433,8 @@ func TestCompactHintOncePerStretch(t *testing.T) {
     )
   }
 
-  history = append(history,
+  history = append(
+    history,
     llm.Message{ Role: "assistant", Content: "done" },
     llm.Message{ Role: "user", Content: "more" },
   )
@@ -430,7 +444,8 @@ func TestCompactHintOncePerStretch(t *testing.T) {
   }
 
   // A compaction starts a new stretch: the hint may come back.
-  history = append(history,
+  history = append(
+    history,
     llm.Message{ Role: "assistant", Content: "ok" },
     llm.Message{
       Role: "user",

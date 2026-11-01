@@ -99,13 +99,16 @@ func usualDir(models map[string]Existing) string {
     dirs = append(dirs, d)
   }
 
-  sort.Slice(dirs, func(i, j int) bool {
-    if count[dirs[i]] != count[dirs[j]] {
-      return count[dirs[i]] > count[dirs[j]]
-    }
+  sort.Slice(
+    dirs,
+    func(i, j int) bool {
+      if count[dirs[i]] != count[dirs[j]] {
+        return count[dirs[i]] > count[dirs[j]]
+      }
 
-    return dirs[i] < dirs[j]
-  })
+      return dirs[i] < dirs[j]
+    },
+  )
 
   if len(dirs) > 0 {
     return dirs[0]

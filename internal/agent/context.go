@@ -348,9 +348,13 @@ func (l *Loop) manageContext(
         where = "archived to the scratchpad"
       }
 
-      notice(hooks,
+      notice(
+        hooks,
         "context ~%dk of %dk — trimmed old tool results (~%dk tokens %s)",
-        used / 1000, l.window() / 1000, saved / 4000, where,
+        used / 1000,
+        l.window() / 1000,
+        saved / 4000,
+        where,
       )
     }
   }
@@ -361,10 +365,13 @@ func (l *Loop) manageContext(
   }
 
   if act & ActGrow != 0 {
-    notice(hooks,
+    notice(
+      hooks,
       "context ~%dk of %dk is mostly this turn's work — growing the " +
         "window to %dk with KV streaming (one reload + re-prefill)",
-      after / 1000, l.window() / 1000, l.Window.Max() / 1000,
+      after / 1000,
+      l.window() / 1000,
+      l.Window.Max() / 1000,
     )
     _, err := l.Window.Grow(ctx)
     if err != nil {
@@ -381,9 +388,11 @@ func (l *Loop) manageContext(
     l.compact(ctx, history, hooks)
     after = convo.Analyze(*history).ApproxTokens
     if DecideAfterCompact(l.state(*history, after)) & ActShrink != 0 {
-      notice(hooks,
+      notice(
+        hooks,
         "context is down to ~%dk — back to the fast %dk window",
-        after / 1000, l.Window.Resident() / 1000,
+        after / 1000,
+        l.Window.Resident() / 1000,
       )
       _, err := l.Window.Shrink(ctx)
       if err != nil {
@@ -398,7 +407,8 @@ func (l *Loop) manageContext(
   if act & ActCompact != 0 && l.Estimate(*history) > l.enough() {
     saved := l.trimTurn(*history)
     if saved > 0 {
-      notice(hooks,
+      notice(
+        hooks,
         "this task alone fills the context — archived its older tool " +
           "results and reasoning (~%dk tokens)",
         saved / 4000,
@@ -501,16 +511,25 @@ func (l *Loop) hintCompact(history *[]llm.Message, hooks Hooks) {
   }
 
   window := l.window()
-  notice(hooks,
+  notice(
+    hooks,
     "context ~%dk of %dk — the model will offer to compact at a break",
-    used / 1000, window / 1000,
+    used / 1000,
+    window / 1000,
   )
-  *history = append(h, llm.Message{
-    Role: "user",
-    Content: fmt.Sprintf(compactHint,
-      used * 100 / window, used / 1000, window / 1000, DefaultCompactAt,
-    ),
-  })
+  *history = append(
+    h,
+    llm.Message{
+      Role: "user",
+      Content: fmt.Sprintf(
+        compactHint,
+        used * 100 / window,
+        used / 1000,
+        window / 1000,
+        DefaultCompactAt,
+      ),
+    },
+  )
 }
 
 // saveNote asks the model to persist what it needs before older
@@ -541,8 +560,11 @@ func (l *Loop) saveBeforeCompact(
     return
   }
 
-  notice(hooks, "context nearly full — letting the model save " +
-    "notes before compacting")
+  notice(
+    hooks,
+    "context nearly full — letting the model save " +
+      "notes before compacting",
+  )
   ask := make([]llm.Message, len(history), len(history) + 1 + saveRounds * 2)
   copy(ask, history)
   ask = append(ask, llm.Message{ Role: "user", Content: saveNote })
@@ -570,12 +592,15 @@ func (l *Loop) saveBeforeCompact(
         hooks.ToolResult(call.Function.Name, string(raw))
       }
 
-      ask = append(ask, llm.Message{
-        Role:       "tool",
-        ToolName:   call.Function.Name,
-        ToolCallID: call.ID,
-        Content:    string(raw),
-      })
+      ask = append(
+        ask,
+        llm.Message{
+          Role:       "tool",
+          ToolName:   call.Function.Name,
+          ToolCallID: call.ID,
+          Content:    string(raw),
+        },
+      )
     }
   }
 }
@@ -599,7 +624,8 @@ func (l *Loop) compact(
     }
   }
 
-  notice(hooks,
+  notice(
+    hooks,
     "summarizing ~%dk tokens of older history",
     convo.Analyze(h).ApproxTokens / 1000,
   )

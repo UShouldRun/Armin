@@ -63,9 +63,12 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
       b.Models = append(b.Models, choice)
     }
 
-    sort.Slice(b.Models, func(i, j int) bool {
-      return b.Models[i].Name < b.Models[j].Name
-    })
+    sort.Slice(
+      b.Models,
+      func(i, j int) bool {
+        return b.Models[i].Name < b.Models[j].Name
+      },
+    )
 
     b.Warning = s.cfg.Models.Warning
     b.Hosted = s.cfg.Models.OpenRouter()
@@ -82,27 +85,30 @@ func (s *Server) info(w http.ResponseWriter, r *http.Request) {
 func (s *Server) files(w http.ResponseWriter, r *http.Request) {
   root := s.cfg.Sandbox.Root
   var out []string
-  filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-    if err != nil || len(out) >= maxListed {
-      return nil
-    }
+  filepath.WalkDir(
+    root,
+    func(path string, d fs.DirEntry, err error) error {
+      if err != nil || len(out) >= maxListed {
+        return nil
+      }
 
-    if d.IsDir() {
-      if path != root &&
-          (tools.SkipDir(d.Name()) || strings.HasPrefix(d.Name(), ".")) {
-        return filepath.SkipDir
+      if d.IsDir() {
+        if path != root &&
+            (tools.SkipDir(d.Name()) || strings.HasPrefix(d.Name(), ".")) {
+          return filepath.SkipDir
+        }
+
+        return nil
+      }
+
+      rel, err := filepath.Rel(root, path)
+      if err == nil {
+        out = append(out, filepath.ToSlash(rel))
       }
 
       return nil
-    }
-
-    rel, err := filepath.Rel(root, path)
-    if err == nil {
-      out = append(out, filepath.ToSlash(rel))
-    }
-
-    return nil
-  })
+    },
+  )
   writeJSON(w, out)
 }
 
@@ -252,11 +258,14 @@ func (s *Server) hooks(
     Token:     func(d string) { ev.send("token", d) },
     Reasoning: func(d string) { ev.send("reasoning", d) },
     ToolCall: func(name string, args map[string]any) {
-      ev.send("tool", map[string]any{
-        "name": name,
-        "args": args,
-        "line": agent.CallLine(name, args),
-      })
+      ev.send(
+        "tool",
+        map[string]any{
+          "name": name,
+          "args": args,
+          "line": agent.CallLine(name, args),
+        },
+      )
     },
     ToolResult: func(name, result string) {
       ev.send("result", agent.ResultLine(name, result))
@@ -267,11 +276,14 @@ func (s *Server) hooks(
     },
     Usage: func(u llm.Usage) {
       s.tokens = u.Total()
-      ev.send("usage", map[string]any{
-        "tokens": s.tokens,
-        "window": s.cfg.Loop.WindowSize(),
-        "tier":   s.cfg.Loop.Tier(),
-      })
+      ev.send(
+        "usage",
+        map[string]any{
+          "tokens": s.tokens,
+          "window": s.cfg.Loop.WindowSize(),
+          "tier":   s.cfg.Loop.Tier(),
+        },
+      )
     },
     Compacted: func(before, after int) {
       s.persisted = 0 // history was rewritten; next save is full
@@ -322,11 +334,14 @@ func (s *Server) historyView(w http.ResponseWriter, r *http.Request) {
     }
   }
 
-  writeJSON(w, map[string]any{
-    "title":   s.meta.Title,
-    "id":      s.meta.ID,
-    "entries": out,
-  })
+  writeJSON(
+    w,
+    map[string]any{
+      "title":   s.meta.Title,
+      "id":      s.meta.ID,
+      "entries": out,
+    },
+  )
 }
 
 // ask sends a write's diff to the page and waits for its decision.
@@ -442,9 +457,12 @@ func (s *Server) command(w http.ResponseWriter, r *http.Request) {
     s.save(r.Context())
 
     after := convo.Analyze(s.history).ApproxTokens
-    writeJSON(w, map[string]string{
-      "result": compactedNote(before, after),
-    })
+    writeJSON(
+      w,
+      map[string]string{
+        "result": compactedNote(before, after),
+      },
+    )
 
   case "approve":
     s.cfg.AutoApprove = !s.cfg.AutoApprove

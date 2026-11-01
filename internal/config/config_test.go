@@ -50,7 +50,9 @@ func TestLoadMissingFileReturnsZeroValue(t *testing.T) {
 
 func TestLoadParsesEveryKey(t *testing.T) {
   withConfigDir(t)
-  writeConfig(t, `
+  writeConfig(
+    t,
+    `
 # a comment, and a blank line above
 
 model = qwen3-chat
@@ -62,7 +64,8 @@ root = /some/project
 timeout = 30s
 max_output = 5000
 allow = curl, docker
-`)
+`,
+  )
 
   cfg, err := Load()
   if err != nil {
@@ -97,7 +100,9 @@ allow = curl, docker
 
 func TestLoadParsesModelBlocks(t *testing.T) {
   withConfigDir(t)
-  writeConfig(t, `
+  writeConfig(
+    t,
+    `
 models.chat.url         = http://localhost:8080
 models.chat.api_key_env = ANTHROPIC_API_KEY
 
@@ -106,7 +111,8 @@ models.fim.model_path = /home/h/models/qwen2.5-coder.gguf
 models.fim.port = 8081
 models.fim.idle_timeout = 5m
 models.fim.args = --ctx-size 8192 --n-gpu-layers 999
-`)
+`,
+  )
 
   cfg, err := Load()
   if err != nil {
@@ -388,7 +394,9 @@ func TestPathHonorsXDGConfigHome(t *testing.T) {
 
 func TestLoadParsesAgentKeys(t *testing.T) {
   withConfigDir(t)
-  writeConfig(t, `
+  writeConfig(
+    t,
+    `
 max_tool_rounds = 80
 context_size    = 65536
 keep_turns      = -1
@@ -396,7 +404,8 @@ read_timeout    = 10m
 build_timeout   = 20m
 auto_approve    = true
 test_cmd        = go test -race ./...
-`)
+`,
+  )
 
   cfg, err := Load()
   if err != nil {
@@ -406,10 +415,7 @@ test_cmd        = go test -race ./...
   if cfg.MaxToolRounds != 80 ||
       cfg.ContextSize != 65536 || cfg.KeepTurns != -1 {
     t.Errorf(
-      "ints = %d %d %d",
-      cfg.MaxToolRounds,
-      cfg.ContextSize,
-      cfg.KeepTurns,
+      "ints = %d %d %d", cfg.MaxToolRounds, cfg.ContextSize, cfg.KeepTurns,
     )
   }
 
@@ -429,7 +435,9 @@ test_cmd        = go test -race ./...
 
 func TestLoadParsesAWSModel(t *testing.T) {
   withConfigDir(t)
-  writeConfig(t, `
+  writeConfig(
+    t,
+    `
 models.qwen.aws_instance           = i-0abc
 models.qwen.aws_region             = eu-west-1
 models.qwen.ssh_user               = ubuntu
@@ -437,7 +445,8 @@ models.qwen.ssh_key                = ~/.ssh/gpu.pem
 models.qwen.remote_port            = 8080
 models.qwen.aws_stop_on_disconnect = false
 models.qwen.model_path             = /models/q.gguf
-`)
+`,
+  )
 
   cfg, err := Load()
   if err != nil {
@@ -455,10 +464,13 @@ models.qwen.model_path             = /models/q.gguf
 
 func TestLoadParsesPrivate(t *testing.T) {
   withConfigDir(t)
-  writeConfig(t, `
+  writeConfig(
+    t,
+    `
 models.planner.url     = https://openrouter.ai/api/v1
 models.planner.private = true
-`)
+`,
+  )
 
   cfg, err := Load()
   if err != nil {
@@ -478,11 +490,14 @@ models.planner.private = true
 
 func TestLoadParsesStackitModel(t *testing.T) {
   withConfigDir(t)
-  writeConfig(t, `
+  writeConfig(
+    t,
+    `
 models.gpu.stackit_server     = 0b8a-server
 models.gpu.stackit_project    = 9f1c-project
 models.gpu.stop_on_disconnect = true
-`)
+`,
+  )
   cfg, err := Load()
   if err != nil {
     t.Fatalf("Load: %v", err)
@@ -497,10 +512,13 @@ models.gpu.stop_on_disconnect = true
 
 func TestLoadParsesScalewayModel(t *testing.T) {
   withConfigDir(t)
-  writeConfig(t, `
+  writeConfig(
+    t,
+    `
 models.l40s.scaleway_server = 5f2e-server
 models.l40s.scaleway_zone   = fr-par-2
-`)
+`,
+  )
   cfg, err := Load()
   if err != nil {
     t.Fatalf("Load: %v", err)
@@ -514,13 +532,16 @@ models.l40s.scaleway_zone   = fr-par-2
 
 func TestLoadParsesStreamTier(t *testing.T) {
   withConfigDir(t)
-  writeConfig(t, `
+  writeConfig(
+    t,
+    `
 models.local.args             = --jinja -c 98304
 models.local.stream_binary    = /opt/kvstream/llama-server
 models.local.stream_context   = 196608
 models.local.stream_arena_mib = 2048
 models.local.stream_args      = --fit off -b 256 -ub 256
-`)
+`,
+  )
   cfg, err := Load()
   if err != nil {
     t.Fatalf("Load: %v", err)
@@ -530,8 +551,7 @@ models.local.stream_args      = --fit off -b 256 -ub 256
   if l.StreamBinary != "/opt/kvstream/llama-server" ||
       l.StreamContext != 196608 ||
     l.StreamArenaMiB != 2048 || strings.Join(
-      l.StreamArgs,
-      " ",
+      l.StreamArgs, " ",
     ) != "--fit off -b 256 -ub 256" {
     t.Fatalf("local = %+v", l)
   }

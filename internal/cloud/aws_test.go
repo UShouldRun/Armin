@@ -77,13 +77,16 @@ func (f *fakeEC2) handler(t *testing.T) http.HandlerFunc {
         ip = "<ipAddress>203.0.113.7</ipAddress>"
       }
 
-      io.WriteString(w, `<DescribeInstancesResponse><reservationSet>` +
-        `<item><instancesSet><item><instanceId>i-1</instanceId>` +
-        `<instanceState><code>0</code><name>` + f.state +
-        `</name></instanceState>` + ip +
-        `<privateIpAddress>10.0.0.5</privateIpAddress></item>` +
-        `</instancesSet></item></reservationSet>` +
-        `</DescribeInstancesResponse>`)
+      io.WriteString(
+        w,
+        `<DescribeInstancesResponse><reservationSet>` +
+          `<item><instancesSet><item><instanceId>i-1</instanceId>` +
+          `<instanceState><code>0</code><name>` + f.state +
+          `</name></instanceState>` + ip +
+          `<privateIpAddress>10.0.0.5</privateIpAddress></item>` +
+          `</instancesSet></item></reservationSet>` +
+          `</DescribeInstancesResponse>`,
+      )
       if f.state == "pending" {
         f.state = "running"
       }
@@ -114,8 +117,7 @@ func TestWaitRunningStartsStoppedInstance(t *testing.T) {
   ctx, cancel := context.WithTimeout(context.Background(), 20 * time.Second)
   defer cancel()
   inst, started, err := ec2.WaitRunning(
-    ctx,
-    "i-1",
+    ctx, "i-1",
     func(s string) { seen = append(seen, s) },
   )
   if err != nil {
@@ -141,13 +143,20 @@ func TestWaitRunningStartsStoppedInstance(t *testing.T) {
 }
 
 func TestEC2ErrorIsReadable(t *testing.T) {
-  server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-    w.WriteHeader(403)
-    io.WriteString(w, `<Response><Errors><Error>` +
-      `<Code>UnauthorizedOperation</Code>` +
-      `<Message>You are not authorized</Message>` +
-      `</Error></Errors></Response>`)
-  }))
+  server := httptest.NewServer(
+    http.HandlerFunc(
+      func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(403)
+        io.WriteString(
+          w,
+          `<Response><Errors><Error>` +
+            `<Code>UnauthorizedOperation</Code>` +
+            `<Message>You are not authorized</Message>` +
+            `</Error></Errors></Response>`,
+        )
+      },
+    ),
+  )
   defer server.Close()
 
   ec2 := newEC2("eu-west-1", testCreds)

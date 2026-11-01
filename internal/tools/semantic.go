@@ -54,67 +54,76 @@ func SemanticSearch(
   }
 
   var results []SemanticSearchResult
-  err := filepath.WalkDir(cfg.Root, func(p string, d fs.DirEntry, err error) error {
-    if err != nil {
-      return err
-    }
-
-    if d.IsDir() {
-      if d.Name() != "." && skipDirs[d.Name()] {
-        return filepath.SkipDir
+  err := filepath.WalkDir(
+    cfg.Root,
+    func(p string, d fs.DirEntry, err error) error {
+      if err != nil {
+        return err
       }
 
+      if d.IsDir() {
+        if d.Name() != "." && skipDirs[d.Name()] {
+          return filepath.SkipDir
+        }
+
+        return nil
+      }
+
+      info, err := d.Info()
+      if err != nil || info.Size() > maxSemanticFileSize {
+        return nil
+      }
+
+      data, err := os.ReadFile(p)
+      if err != nil {
+        return nil
+      }
+
+      if isBinary(data[:min(len(data), 512)]) {
+        return nil
+      }
+
+      content := string(data)
+      lower := strings.ToLower(content)
+      score := 0
+      for _, term := range terms {
+        score += strings.Count(lower, term)
+      }
+
+      if score == 0 {
+        return nil
+      }
+
+      rel, relErr := filepath.Rel(cfg.Root, p)
+      if relErr != nil {
+        rel = p
+      }
+
+      results = append(
+        results,
+        SemanticSearchResult{
+          File: filepath.ToSlash(rel), Score: score,
+          Snippet: firstMatchingSnippet(content, lower, terms),
+        },
+      )
+
       return nil
-    }
-
-    info, err := d.Info()
-    if err != nil || info.Size() > maxSemanticFileSize {
-      return nil
-    }
-
-    data, err := os.ReadFile(p)
-    if err != nil {
-      return nil
-    }
-
-    if isBinary(data[:min(len(data), 512)]) {
-      return nil
-    }
-
-    content := string(data)
-    lower := strings.ToLower(content)
-    score := 0
-    for _, term := range terms {
-      score += strings.Count(lower, term)
-    }
-
-    if score == 0 {
-      return nil
-    }
-
-    rel, relErr := filepath.Rel(cfg.Root, p)
-    if relErr != nil {
-      rel = p
-    }
-
-    results = append(results, SemanticSearchResult{
-      File: filepath.ToSlash(rel), Score: score,
-      Snippet: firstMatchingSnippet(content, lower, terms),
-    })
-
-    return nil
-  })
+    },
+  )
   if err != nil {
     return nil, fmt.Errorf("\n\t... in SemanticSearch:\n\t%w", err)
   }
 
-  sort.Slice(results, func(i, j int) bool {
-    if results[i].Score != results[j].Score {
-      return results[i].Score > results[j].Score
-    }
+  sort.Slice(
+    results,
+    func(i, j int) bool {
+      if results[i].Score != results[j].Score {
+        return results[i].Score > results[j].Score
+      }
 
-    return results[i].File < results[j].File
-  })
+      return results[i].File < results[j].File
+    },
+  )
   if len(results) > count {
     results = results[:count]
   }

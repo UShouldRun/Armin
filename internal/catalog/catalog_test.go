@@ -3,7 +3,8 @@ package catalog
 import "testing"
 
 func TestPick(t *testing.T) {
-  data := []byte(`{"data":[
+  data := []byte(
+    `{"data":[
     {"id":"qwen/qwen3.8-27b","created":30000000,"context_length":1000,"supported_parameters":["tools"],"pricing":{"prompt":"0.00000004","completion":"0.0000023"}},
     {"id":"qwen/qwen3.8-flash","created":4,"supported_parameters":["tools"],"pricing":{"prompt":"0","completion":"0"}},
     {"id":"qwen/qwen3.5-9b","created":1,"supported_parameters":["tools"],"pricing":{"prompt":"0","completion":"0"}},
@@ -12,7 +13,8 @@ func TestPick(t *testing.T) {
     {"id":"openai/no-tools","created":9,"supported_parameters":[],"pricing":{"prompt":"0","completion":"0"}},
     {"id":"nvidia/big:free","created":7,"supported_parameters":["tools"],"pricing":{"prompt":"0","completion":"0"}},
     {"id":"some/other","created":8,"supported_parameters":["tools"],"pricing":{"prompt":"0","completion":"0"}}
-  ]}`)
+  ]}`,
+  )
 
   got, err := Pick(data)
   if err != nil {

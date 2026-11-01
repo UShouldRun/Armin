@@ -74,16 +74,19 @@ func TestExtractPositionalRootVariousOrderings(t *testing.T) {
   }
 
   for _, tc := range cases {
-    t.Run(tc.name, func(t *testing.T) {
-      rest, positional := extractPositionalRoot(tc.args)
-      if positional != tc.wantPositional {
-        t.Errorf("positional = %q, want %q", positional, tc.wantPositional)
-      }
+    t.Run(
+      tc.name,
+      func(t *testing.T) {
+        rest, positional := extractPositionalRoot(tc.args)
+        if positional != tc.wantPositional {
+          t.Errorf("positional = %q, want %q", positional, tc.wantPositional)
+        }
 
-      if !reflect.DeepEqual(rest, tc.wantRest) {
-        t.Errorf("rest = %v, want %v", rest, tc.wantRest)
-      }
-    })
+        if !reflect.DeepEqual(rest, tc.wantRest) {
+          t.Errorf("rest = %v, want %v", rest, tc.wantRest)
+        }
+      },
+    )
   }
 }
 
@@ -101,8 +104,7 @@ func TestExtractResumeWithID(t *testing.T) {
   if pos != dir || strings.Join(rest, " ") != "-resume" {
     t.Fatalf(
       "directory after -resume must stay the root: rest=%v pos=%q",
-      rest,
-      pos,
+      rest, pos,
     )
   }
 

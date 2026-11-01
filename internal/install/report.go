@@ -138,8 +138,12 @@ func printAlternatives(alts []alternative) {
   for _, a := range alts {
     speed := ""
     if a.plan.Verdict != VerdictWontLoad {
-      speed = fmt.Sprintf("~%.0f tok/s · %s per %dk", a.plan.GenEmpty,
-        duration(agentPrompt / a.plan.Prefill), agentPrompt / 1000)
+      speed = fmt.Sprintf(
+        "~%.0f tok/s · %s per %dk",
+        a.plan.GenEmpty,
+        duration(agentPrompt / a.plan.Prefill),
+        agentPrompt / 1000,
+      )
     }
 
     pick := ""

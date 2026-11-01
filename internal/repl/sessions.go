@@ -169,8 +169,10 @@ func (r *REPL) deleteSession(id string) {
   }
 
   if saved.ID == r.Meta.ID {
-    ui.Error("that's the session you're in — /clear starts over, or delete " +
-      "it from another session")
+    ui.Error(
+      "that's the session you're in — /clear starts over, or delete " +
+        "it from another session",
+    )
     return
   }
 

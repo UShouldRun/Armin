@@ -22,29 +22,32 @@ func TestLineOffset(t *testing.T) {
   }
 
   for _, c := range cases {
-    t.Run(c.name, func(t *testing.T) {
-      start, end, ok := lineOffset(sampleDoc, c.line)
-      if ok != c.wantOK {
-        t.Fatalf("ok = %v, want %v", ok, c.wantOK)
-      }
+    t.Run(
+      c.name,
+      func(t *testing.T) {
+        start, end, ok := lineOffset(sampleDoc, c.line)
+        if ok != c.wantOK {
+          t.Fatalf("ok = %v, want %v", ok, c.wantOK)
+        }
 
-      if !ok {
-        return
-      }
+        if !ok {
+          return
+        }
 
-      if start != c.wantStart || end != c.wantEnd {
-        t.Fatalf(
-          "lineOffset(_, %d) = (%d, %d), want (%d, %d)",
-          c.line, start, end, c.wantStart, c.wantEnd,
-        )
-      }
+        if start != c.wantStart || end != c.wantEnd {
+          t.Fatalf(
+            "lineOffset(_, %d) = (%d, %d), want (%d, %d)",
+            c.line, start, end, c.wantStart, c.wantEnd,
+          )
+        }
 
-      want := "line" + strconv.Itoa(c.line)
-      got := sampleDoc[start:end]
-      if got != want {
-        t.Fatalf("text[start:end] = %q, want %q", got, want)
-      }
-    })
+        want := "line" + strconv.Itoa(c.line)
+        got := sampleDoc[start:end]
+        if got != want {
+          t.Fatalf("text[start:end] = %q, want %q", got, want)
+        }
+      },
+    )
   }
 }
 
@@ -54,9 +57,7 @@ func TestLineOffsetLastLineNoTrailingNewline(t *testing.T) {
   if !ok || text[start:end] != "c" {
     t.Fatalf(
       "lineOffset last line = (%d,%d,%v), want the final \"c\"",
-      start,
-      end,
-      ok,
+      start, end, ok,
     )
   }
 }
@@ -116,9 +117,12 @@ func TestContextWindowAllocationsStayBounded(t *testing.T) {
   big := string(b)
 
   const allocLimit = 4 // two string headers out (snippet, lineText) plus slack
-  allocs := testing.AllocsPerRun(20, func() {
-    contextWindow(big, 10000, 6)
-  })
+  allocs := testing.AllocsPerRun(
+    20,
+    func() {
+      contextWindow(big, 10000, 6)
+    },
+  )
   if allocs > allocLimit {
     t.Fatalf(
       "contextWindow on a 20000-line document allocated %.0f times, want <= %d " +

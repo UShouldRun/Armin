@@ -76,8 +76,12 @@ func (l *Loop) recall(history []llm.Message) {
   last.Content = recallHead + l.lines(ids, false) + "\n\n" + last.Content
   metrics.Add("recall.attached", 1)
   metrics.Observe("recall.nodes", float64(len(ids)))
-  metrics.Event("recall.attach",
-    "nodes", len(ids), "top", fmt.Sprintf("n%d", ids[0]))
+  metrics.Event(
+    "recall.attach", "nodes",
+    len(ids),
+    "top",
+    fmt.Sprintf("n%d", ids[0]),
+  )
 }
 
 // recallSettle counts whether the turn used what recall attached. A
@@ -139,8 +143,10 @@ func (l *Loop) recallSettle(history []llm.Message, from int) {
     metrics.Add("recall.read", 1)
   }
 
-  metrics.Event("recall.settle",
-    "cited", cited, "read", read, "nodes", len(l.recalled))
+  metrics.Event(
+    "recall.settle", "cited", cited, "read", read, "nodes",
+    len(l.recalled),
+  )
 }
 
 // knowWriteNames appends the node references in a know_write call's

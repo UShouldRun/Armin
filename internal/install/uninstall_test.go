@@ -60,8 +60,7 @@ func TestModelFiles(t *testing.T) {
   // Another model on the same file keeps it.
   twin := Existing{ ModelPath: big.ModelPath }
   files, shared = modelFiles(
-    "big",
-    big,
+    "big", big,
     map[string]Existing{ "big": big, "twin": twin },
   )
   if len(files) != 0 || len(shared) != 2 {

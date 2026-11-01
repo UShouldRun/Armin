@@ -59,10 +59,17 @@ func ReadPDF(
     last = min(last, total)
   }
 
-  res, err := cfg.Exec(ctx, sandbox.Command{ Binary: "pdftotext", Args: []string{
-    "-layout", "-f", strconv.Itoa(first), "-l", strconv.Itoa(last),
-    resolved, "-",
-  }, Mode: sandbox.ExecForce | sandbox.ExecFull })
+  res, err := cfg.Exec(
+    ctx,
+    sandbox.Command{
+      Binary: "pdftotext",
+      Args: []string{
+        "-layout", "-f", strconv.Itoa(first), "-l", strconv.Itoa(last),
+        resolved, "-",
+      },
+      Mode: sandbox.ExecForce | sandbox.ExecFull,
+    },
+  )
   if err != nil {
     return nil, fmt.Errorf("\n\t... in ReadPDF:\n\t%w", err)
   }
@@ -137,8 +144,7 @@ func markPages(text string, first int) string {
   var b strings.Builder
   for i, p := range pages {
     fmt.Fprintf(
-      &b,
-      "--- page %d ---\n%s\n",
+      &b, "--- page %d ---\n%s\n",
       first + i,
       strings.TrimRight(p, "\n"),
     )

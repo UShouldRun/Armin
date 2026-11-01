@@ -39,9 +39,12 @@ func (s *Server) definition(
   matches := s.symbols.Lookup(ctx, word, s.relPath(p.TextDocument.URI))
   locations := make([]Location, 0, len(matches))
   for _, m := range matches {
-    locations = append(locations, Location{
-      URI: s.fileURI(m.File), Range: pointRange(m.Line),
-    })
+    locations = append(
+      locations,
+      Location{
+        URI: s.fileURI(m.File), Range: pointRange(m.Line),
+      },
+    )
   }
 
   s.respond(id, locations, nil)
@@ -59,14 +62,17 @@ func (s *Server) workspaceSymbol(
 
   results := make([]SymbolInformation, 0, len(matches))
   for _, m := range matches {
-    results = append(results, SymbolInformation{
-      Name: m.Name,
-      Kind: symbolKindFor(m.Kind),
-      Location: Location{
-        URI: s.fileURI(m.File), Range: pointRange(m.Line),
+    results = append(
+      results,
+      SymbolInformation{
+        Name: m.Name,
+        Kind: symbolKindFor(m.Kind),
+        Location: Location{
+          URI: s.fileURI(m.File), Range: pointRange(m.Line),
+        },
+        ContainerName: m.Scope,
       },
-      ContainerName: m.Scope,
-    })
+    )
   }
 
   s.respond(id, results, nil)

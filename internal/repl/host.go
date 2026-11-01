@@ -46,9 +46,11 @@ func (r *REPL) post(f func()) {
 // indented like the banner's status lines, the prompt's own leading
 // blank line separating it from what's above.
 func (r *REPL) Notice(msg string) {
-  r.post(func() {
-    ui.Info("  %s", msg)
-  })
+  r.post(
+    func() {
+      ui.Info("  %s", msg)
+    },
+  )
 }
 
 // runInbox runs what other frontends posted, on the REPL goroutine.
@@ -131,10 +133,12 @@ func (r *REPL) shared(h agent.Hooks, origin string) agent.Hooks {
   }
 
   out.Usage = func(u llm.Usage) {
-    send(share.Event{
-      Type: "usage", Tokens: u.Total(),
-      Window: r.Loop.WindowSize(), Tier: r.Loop.Tier(),
-    })
+    send(
+      share.Event{
+        Type: "usage", Tokens: u.Total(),
+        Window: r.Loop.WindowSize(), Tier: r.Loop.Tier(),
+      },
+    )
     if h.Usage != nil {
       h.Usage(u)
     }
@@ -152,18 +156,20 @@ func (h host) Ask(_ context.Context, question, file, origin string) error {
     return share.ErrBusy
   }
 
-  r.post(func() {
-    fmt.Println()
-    fmt.Println(ui.Dim("  " + origin + " asked:"))
-    fmt.Println(ui.UserLine(question))
+  r.post(
+    func() {
+      fmt.Println()
+      fmt.Println(ui.Dim("  " + origin + " asked:"))
+      fmt.Println(ui.UserLine(question))
 
-    err := r.turnAs(r.runCtx, share.Question(question, file), question, origin)
-    if err != nil {
-      ui.Err(err)
-    }
+      err := r.turnAs(r.runCtx, share.Question(question, file), question, origin)
+      if err != nil {
+        ui.Err(err)
+      }
 
-    r.maybeAutosave()
-  })
+      r.maybeAutosave()
+    },
+  )
 
   return nil
 }
@@ -177,14 +183,16 @@ func (h host) Clear(origin string) error {
     return errors.New("still answering — stop it first")
   }
 
-  r.post(func() {
-    r.History = r.History[:1]
-    r.lastTokens = 0
-    resyncSession(r)
-    r.snapshot()
-    ui.Info("conversation cleared from %s", origin)
-    r.emit(share.Event{ Type: "cleared", Origin: origin })
-  })
+  r.post(
+    func() {
+      r.History = r.History[:1]
+      r.lastTokens = 0
+      resyncSession(r)
+      r.snapshot()
+      ui.Info("conversation cleared from %s", origin)
+      r.emit(share.Event{ Type: "cleared", Origin: origin })
+    },
+  )
 
   return nil
 }
@@ -212,14 +220,20 @@ func (h host) Models() share.ModelInfo {
   }
 
   for _, s := range r.Models.Names() {
-    info.Configured = append(info.Configured, share.ModelChoice{
-      Name: s.Name, Model: s.Model, Managed: s.Managed, Running: s.Running,
-    })
+    info.Configured = append(
+      info.Configured,
+      share.ModelChoice{
+        Name: s.Name, Model: s.Model, Managed: s.Managed, Running: s.Running,
+      },
+    )
   }
 
-  sort.Slice(info.Configured, func(i, j int) bool {
-    return info.Configured[i].Name < info.Configured[j].Name
-  })
+  sort.Slice(
+    info.Configured,
+    func(i, j int) bool {
+      return info.Configured[i].Name < info.Configured[j].Name
+    },
+  )
 
   hosted := r.Models.OpenRouter()
   url, key := r.Models.Endpoint(hosted)
@@ -243,10 +257,12 @@ func (h host) SwitchModel(
   }
 
   done := make(chan struct{})
-  r.post(func() {
-    r.switchModel(r.runCtx, name)
-    close(done)
-  })
+  r.post(
+    func() {
+      r.switchModel(r.runCtx, name)
+      close(done)
+    },
+  )
 
   select {
   case <-done:

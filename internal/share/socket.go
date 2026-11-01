@@ -36,8 +36,7 @@ func Socket(root string) (string, error) {
   sum := sha256.Sum256([]byte(abs))
 
   return filepath.Join(
-    dir,
-    "attach",
+    dir, "attach",
     hex.EncodeToString(sum[:8]) + ".sock",
   ), nil
 }

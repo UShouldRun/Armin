@@ -75,8 +75,10 @@ var knowTools = []toolSpec{
         "in edges: needs (what it requires), derived_from (what you " +
         "concluded it from).",
       map[string]llm.ToolProperty{
-        "path": stringProp("Add a node here, e.g. agent/loop/retries; " +
-          "missing parents are added as topics"),
+        "path": stringProp(
+          "Add a node here, e.g. agent/loop/retries; " +
+            "missing parents are added as topics",
+        ),
         "kind": {
           Type:        "string",
           Description: "What the added node is (or the node id's new kind)",
@@ -90,8 +92,10 @@ var knowTools = []toolSpec{
             "question",
           },
         },
-        "claim": stringProp("What is true, in a sentence or two; a concept's " +
-          "definition"),
+        "claim": stringProp(
+          "What is true, in a sentence or two; a concept's " +
+            "definition",
+        ),
         "confidence": {
           Type:        "string",
           Description: "guess, inferred (default), checked (you read it), " +
@@ -118,8 +122,10 @@ var knowTools = []toolSpec{
           Type:        "boolean",
           Description: "Add even though a similar node exists",
         },
-        "id": stringProp("Change this node instead of adding: kind, claim, " +
-          "confidence, move_to, verified, current or delete"),
+        "id": stringProp(
+          "Change this node instead of adding: kind, claim, " +
+            "confidence, move_to, verified, current or delete",
+        ),
         "move_to":    stringProp("Move it to this new path"),
         "verified":   {
           Type: "boolean", Description: "You checked a minion's claim",
@@ -366,9 +372,14 @@ func knowGet(l *Loop, refs []string) any {
     l.Know.Line(&b, id, true)
     n := l.Know.Node(id)
     a := l.Know.Author(n.Author)
-    fmt.Fprintf(&b, "\nby %s %s, born %s, seen %s", a.Role,
-      l.Know.Str(a.Model), know.Day(n.Born).Format("2006-01-02"),
-      know.Day(n.Seen).Format("2006-01-02"))
+    fmt.Fprintf(
+      &b,
+      "\nby %s %s, born %s, seen %s",
+      a.Role,
+      l.Know.Str(a.Model),
+      know.Day(n.Born).Format("2006-01-02"),
+      know.Day(n.Seen).Format("2006-01-02"),
+    )
     evs = l.Know.EvidenceOf(id, evs[:0])
     for _, e := range evs {
       ev := l.Know.Ev(e)
@@ -460,17 +471,23 @@ func knowAdd(l *Loop, in knowArgs) any {
     if exists {
       _, taken := l.Know.Child(parent, name)
       if taken {
-        return errResult(fmt.Errorf(
-          "%s exists; know_write it with its id instead", path,
-        ))
+        return errResult(
+          fmt.Errorf(
+            "%s exists; know_write it with its id instead", path,
+          ),
+        )
       }
     }
 
     similar := l.Know.Similar(parent, name, claim)
     if len(similar) > 0 {
       metrics.Add("know.dedup.held", 1)
-      metrics.Event("know.dedup.held", "path", path,
-        "best", fmt.Sprintf("n%d", similar[0].ID), "score", similar[0].Score)
+      metrics.Event(
+        "know.dedup.held", "path", path, "best",
+        fmt.Sprintf("n%d", similar[0].ID),
+        "score",
+        similar[0].Score,
+      )
       var b strings.Builder
       for i, h := range similar {
         if i > 0 {
@@ -1040,9 +1057,12 @@ var slugFiller = map[string]bool{
 func turnSlug(question string) string {
   var words []string
   for _, w := range strings.Fields(strings.ToLower(question)) {
-    w = strings.TrimFunc(w, func(r rune) bool {
-      return !unicode.IsLetter(r) && !unicode.IsDigit(r)
-    })
+    w = strings.TrimFunc(
+      w,
+      func(r rune) bool {
+        return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+      },
+    )
     if w == "" || len([]rune(w)) > 12 || !slugWord(w) || slugFiller[w] {
       continue
     }

@@ -73,8 +73,7 @@ func RunProgram(
   if cfg.DryRun {
     return &RunProgramOutput{
       Command: "[dry-run] would execute: " + sandbox.DescribeArgs(
-        in.Binary,
-        in.Args,
+        in.Binary, in.Args,
       ),
     }, nil
   }

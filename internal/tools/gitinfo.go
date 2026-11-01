@@ -98,9 +98,12 @@ func GitLog(
       continue
     }
 
-    out.Commits = append(out.Commits, GitCommit{
-      Hash: parts[0], Author: parts[1], Date: parts[2], Subject: parts[3],
-    })
+    out.Commits = append(
+      out.Commits,
+      GitCommit{
+        Hash: parts[0], Author: parts[1], Date: parts[2], Subject: parts[3],
+      },
+    )
   }
 
   return out, nil
@@ -182,8 +185,7 @@ func parseBlame(porcelain string, startLine int) []BlameLine {
     case strings.HasPrefix(line, "author-time "):
       ts, err := strconv.ParseInt(
         strings.TrimPrefix(line, "author-time "),
-        10,
-        64,
+        10, 64,
       )
       if err == nil {
         cur.Date = time.Unix(ts, 0).UTC().Format("2006-01-02")
@@ -438,13 +440,16 @@ func CodeOwners(
     out.Owners = append(out.Owners, AuthorCount{ Author: author, Commits: n })
   }
 
-  sort.Slice(out.Owners, func(i, j int) bool {
-    if out.Owners[i].Commits != out.Owners[j].Commits {
-      return out.Owners[i].Commits > out.Owners[j].Commits
-    }
+  sort.Slice(
+    out.Owners,
+    func(i, j int) bool {
+      if out.Owners[i].Commits != out.Owners[j].Commits {
+        return out.Owners[i].Commits > out.Owners[j].Commits
+      }
 
-    return out.Owners[i].Author < out.Owners[j].Author
-  })
+      return out.Owners[i].Author < out.Owners[j].Author
+    },
+  )
 
   return out, nil
 }
@@ -500,13 +505,16 @@ func CommitStats(
     files = append(files, FileChangeCount{ File: f, Commits: c })
   }
 
-  sort.Slice(files, func(i, j int) bool {
-    if files[i].Commits != files[j].Commits {
-      return files[i].Commits > files[j].Commits
-    }
+  sort.Slice(
+    files,
+    func(i, j int) bool {
+      if files[i].Commits != files[j].Commits {
+        return files[i].Commits > files[j].Commits
+      }
 
-    return files[i].File < files[j].File
-  })
+      return files[i].File < files[j].File
+    },
+  )
   if len(files) > n {
     files = files[:n]
   }

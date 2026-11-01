@@ -191,10 +191,11 @@ func (m *Manager) ensureRunning(ctx context.Context) error {
 
     m.startedByUs = true
   default:
-    err = runDocker(ctx, startTimeout, "run", "-d",
-      "--name", containerName,
-      "-p", fmt.Sprintf("%d:8080", port),
-      "-v", settingsPath + ":/etc/searxng/settings.yml:ro",
+    err = runDocker(
+      ctx, startTimeout, "run", "-d", "--name", containerName, "-p",
+      fmt.Sprintf("%d:8080", port),
+      "-v",
+      settingsPath + ":/etc/searxng/settings.yml:ro",
       image,
     )
     if err != nil {
@@ -319,11 +320,14 @@ func toResults(parsed searxResponse, query string, count int) []Result {
       continue
     }
 
-    results = append(results, Result{
-      Title:   r.Title,
-      URL:     r.URL,
-      Snippet: truncateSnippet(r.Content),
-    })
+    results = append(
+      results,
+      Result{
+        Title:   r.Title,
+        URL:     r.URL,
+        Snippet: truncateSnippet(r.Content),
+      },
+    )
   }
 
   return results

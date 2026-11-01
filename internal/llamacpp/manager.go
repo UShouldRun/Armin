@@ -107,10 +107,13 @@ func (m *Manager) Names() []ModelStatus {
   out := make([]ModelStatus, 0, len(m.specs))
   for name, spec := range m.specs {
     _, running := m.procs[name]
-    out = append(out, ModelStatus{
-      Name: name, Model: spec.label(),
-      Managed: spec.managed(), Running: running,
-    })
+    out = append(
+      out,
+      ModelStatus{
+        Name: name, Model: spec.label(),
+        Managed: spec.managed(), Running: running,
+      },
+    )
   }
 
   return out
@@ -368,8 +371,7 @@ func (m *Manager) fallback(from, to string) {
 
   m.status(
     "%s refused (in-region routing needs a Business plan) — using %s",
-    from,
-    to,
+    from, to,
   )
 }
 
@@ -565,10 +567,12 @@ func (m *Manager) reapIdle() {
 // running. Safe to call more than once (a signal handler may race
 // the normal exit path).
 func (m *Manager) Shutdown(ctx context.Context) error {
-  m.shutdown.Do(func() {
-    close(m.stopReap)
-    <-m.reapDone
-  })
+  m.shutdown.Do(
+    func() {
+      close(m.stopReap)
+      <-m.reapDone
+    },
+  )
 
   m.mu.Lock()
   procs, owned := m.procs, m.owned

@@ -129,8 +129,10 @@ func printCatalog() {
     fmt.Printf("  %-*s  %-38s %s\n", width, n, e.Note, ui.Dim(e.Repo))
   }
 
-  fmt.Println(ui.Dim(
-    "\nanything else installs by repo (org/repo[:QUANT]), Hugging Face " +
-      "link, or direct .gguf link",
-  ))
+  fmt.Println(
+    ui.Dim(
+      "\nanything else installs by repo (org/repo[:QUANT]), Hugging Face " +
+        "link, or direct .gguf link",
+    ),
+  )
 }

@@ -106,18 +106,22 @@ func TestVerify(t *testing.T) {
     json.NewDecoder(r.Body).Decode(&req)
     asked = req.Messages[1].Content
     msg := map[string]any{ "role": "assistant", "content": reply }
-    json.NewEncoder(w).Encode(map[string]any{
-      "choices": []any{ map[string]any{ "message": msg } },
-    })
+    json.NewEncoder(w).Encode(
+      map[string]any{
+        "choices": []any{ map[string]any{ "message": msg } },
+      },
+    )
   }
 
   server := httptest.NewServer(http.HandlerFunc(answer))
   defer server.Close()
 
   l := &Loop{ LLM: llm.New(server.URL, "local") }
-  call := llm.ToolCall{ Function: llm.ToolCallFunction{
-    Name: "edit_file", Arguments: map[string]any{ "path": "a.go" },
-  } }
+  call := llm.ToolCall{
+    Function: llm.ToolCallFunction{
+      Name: "edit_file", Arguments: map[string]any{ "path": "a.go" },
+    },
+  }
   h := []llm.Message{
     { Role: "user", Content: "fix the bug" },
     { Role: "assistant", ToolCalls: []llm.ToolCall{ call } },

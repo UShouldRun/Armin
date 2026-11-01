@@ -102,10 +102,13 @@ func Run(ctx context.Context, req Request) error {
     p = decide(&m, &hw, need(src, dir))
     known, checked := knowsArch(binary, m.Arch)
     if checked && !known && m.NoRuntime == "" {
-      p.add(VerdictWontLoad, CauseRuntime, fmt.Sprintf(
-        "%s doesn't know the %q architecture: update llama.cpp first",
-        binary, m.Arch,
-      ))
+      p.add(
+        VerdictWontLoad, CauseRuntime,
+        fmt.Sprintf(
+          "%s doesn't know the %q architecture: update llama.cpp first",
+          binary, m.Arch,
+        ),
+      )
     }
 
     if !first {
@@ -149,15 +152,12 @@ func Run(ctx context.Context, req Request) error {
   }
 
   name := askLine(
-    in,
-    req.Yes,
-    "name in config.conf",
+    in, req.Yes, "name in config.conf",
     modelName(path, m.Quant, req.Models),
   )
   for !validName(name) {
     name = askLine(
-      in,
-      req.Yes,
+      in, req.Yes,
       "no dots, spaces or '=' — name",
       modelName(path, m.Quant, req.Models),
     )
@@ -180,10 +180,7 @@ func Run(ctx context.Context, req Request) error {
 
   fmt.Printf(
     "added models.%s to %s — use it with armin -model %s or /model %s\n",
-    name,
-    conf,
-    name,
-    name,
+    name, conf, name, name,
   )
   if !req.Yes && ask(
     "run a quick benchmark to check the estimates (up to a minute)?",
@@ -230,8 +227,7 @@ func readSource(
   if err != nil {
     return Model{}, 0, fmt.Errorf(
       "\n\t... in readSource:\n\t %s: %w",
-      g.Label,
-      err,
+      g.Label, err,
     )
   }
 
@@ -476,11 +472,7 @@ func fetchSource(
     err = download(
       ctx, c, src.fileURL(f), dest, f.Size, f.SHA256,
       func(done, fresh int64) { progressLine(
-        label,
-        done,
-        fresh,
-        f.Size,
-        start,
+        label, done, fresh, f.Size, start,
       ) },
       func(err error, wait time.Duration) {
         ui.ClearLine()
@@ -550,12 +542,15 @@ func ramSpeed(hw *Machine, hint string) {
     guess := guessRAM(hw.CPU)
     typ, speed, ch, _ = parseRAM(guess)
     r.Source = "assumed"
-    hw.Notes = append(hw.Notes, fmt.Sprintf(
-      "RAM type and speed need root to read; assumed %s dual-channel. " +
-        "For exact numbers re-run ./install.sh, or set ram = " +
-        "<type>-<speed> (ddr5-5600, lpddr5x-7500, ddr4-3200 1ch, …) " +
-        "in config.conf", strings.ToUpper(guess),
-    ))
+    hw.Notes = append(
+      hw.Notes,
+      fmt.Sprintf(
+        "RAM type and speed need root to read; assumed %s dual-channel. " +
+          "For exact numbers re-run ./install.sh, or set ram = " +
+          "<type>-<speed> (ddr5-5600, lpddr5x-7500, ddr4-3200 1ch, …) " +
+          "in config.conf", strings.ToUpper(guess),
+      ),
+    )
   }
 
   r.Type, r.Speed, r.Channels = typ, speed, ch

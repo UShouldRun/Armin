@@ -16,10 +16,14 @@ func TestRunProgramStdinStdout(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
   writeFile(t, cfg.Root, "in.txt", "hello\n")
 
-  out, err := RunProgram(context.Background(), cfg, RunProgramInput{
-    Binary: "sh", Args: []string{ "-c", "tr a-z A-Z" },
-    Stdin: "in.txt", Stdout: "out.txt",
-  })
+  out, err := RunProgram(
+    context.Background(),
+    cfg,
+    RunProgramInput{
+      Binary: "sh", Args: []string{ "-c", "tr a-z A-Z" },
+      Stdin: "in.txt", Stdout: "out.txt",
+    },
+  )
   if err != nil {
     t.Fatal(err)
   }
@@ -35,16 +39,24 @@ func TestRunProgramStdinStdout(t *testing.T) {
   }
 
   // A shell pipe, its script not taken for paths.
-  out, err = RunProgram(context.Background(), cfg, RunProgramInput{
-    Binary: "bash", Args: []string{ "-c", "tr a-z A-Z < in.txt | rev" },
-  })
+  out, err = RunProgram(
+    context.Background(),
+    cfg,
+    RunProgramInput{
+      Binary: "bash", Args: []string{ "-c", "tr a-z A-Z < in.txt | rev" },
+    },
+  )
   if err != nil || strings.TrimSpace(out.Output) != "OLLEH" {
     t.Fatalf("pipe = %+v, %v", out, err)
   }
 
-  _, err = RunProgram(context.Background(), cfg, RunProgramInput{
-    Binary: "sh", Args: []string{ "-c", "cat" }, Stdin: "/etc/passwd",
-  })
+  _, err = RunProgram(
+    context.Background(),
+    cfg,
+    RunProgramInput{
+      Binary: "sh", Args: []string{ "-c", "cat" }, Stdin: "/etc/passwd",
+    },
+  )
   if err == nil {
     t.Fatal("stdin outside the project must be refused")
   }

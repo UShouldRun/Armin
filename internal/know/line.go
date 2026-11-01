@@ -37,9 +37,12 @@ func (g *Graph) Line(b *strings.Builder, id NodeID, full bool) {
 
   var buf [32]Edge
   out := g.Out(id, buf[:0])
-  g.edgeWords(b, out, "needs", func(k EdgeKind) bool {
-    return k == EdgeRequires || k == EdgeDerivedFrom
-  })
+  g.edgeWords(
+    b, out, "needs",
+    func(k EdgeKind) bool {
+      return k == EdgeRequires || k == EdgeDerivedFrom
+    },
+  )
 
   for _, k := range []EdgeKind{
     EdgeImplements, EdgeExplains, EdgeContradicts,
@@ -48,9 +51,12 @@ func (g *Graph) Line(b *strings.Builder, id NodeID, full bool) {
   }
 
   in := g.In(id, buf[:0])
-  g.edgeWords(b, in, "used-by", func(k EdgeKind) bool {
-    return k == EdgeRequires || k == EdgeDerivedFrom
-  })
+  g.edgeWords(
+    b, in, "used-by",
+    func(k EdgeKind) bool {
+      return k == EdgeRequires || k == EdgeDerivedFrom
+    },
+  )
 
   claim := string(g.Bytes(n.Claim))
   if claim != "" {

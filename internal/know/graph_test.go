@@ -248,12 +248,15 @@ func TestReadAllocations(t *testing.T) {
   sample(t, g)
   hs, _ := g.Lookup("tcp/handshake")
   buf := make([]Edge, 0, 8)
-  allocs := testing.AllocsPerRun(100, func() {
-    g.Out(hs, buf[:0])
-    g.In(hs, buf[:0])
-    g.Child(0, "tcp")
-    g.Bytes(g.Node(hs).Claim)
-  })
+  allocs := testing.AllocsPerRun(
+    100,
+    func() {
+      g.Out(hs, buf[:0])
+      g.In(hs, buf[:0])
+      g.Child(0, "tcp")
+      g.Bytes(g.Node(hs).Claim)
+    },
+  )
 
   if allocs != 0 {
     t.Fatalf("reads allocate: %v per run", allocs)

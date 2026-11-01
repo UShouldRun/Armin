@@ -281,17 +281,19 @@ func NewKeyPump(reader *bufio.Reader) *KeyPump {
 }
 
 func (p *KeyPump) start() {
-  p.once.Do(func() {
-    go func() {
-      for {
-        k, err := decodeKey(p.reader)
-        p.keys <- keyRead{ k, err }
-        if err != nil {
-          return
+  p.once.Do(
+    func() {
+      go func() {
+        for {
+          k, err := decodeKey(p.reader)
+          p.keys <- keyRead{ k, err }
+          if err != nil {
+            return
+          }
         }
-      }
-    }()
-  })
+      }()
+    },
+  )
 }
 
 // ReadLineWake is ReadLineWithGhostText for a prompt that other
