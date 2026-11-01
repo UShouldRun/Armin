@@ -3,13 +3,21 @@
   "type": "function",
   "function": {
    "name": "search_code",
-   "description": "Search the codebase for a pattern using ripgrep. Returns matched lines with a couple lines of context, not full files.",
+   "description": "Search the codebase for a pattern using ripgrep. Returns matched lines with a couple lines of context, not full files. Use this, not grep or rg through run_command.",
    "parameters": {
     "type": "object",
     "properties": {
+     "context": {
+      "type": "integer",
+      "description": "Lines shown around each match (default 2, max 10)"
+     },
      "file_type": {
       "type": "string",
       "description": "Restrict to a file type, e.g. go, py, js"
+     },
+     "literal": {
+      "type": "boolean",
+      "description": "Match the pattern as plain text, not a regex (for patterns full of symbols, like --- or a.b(c))"
      },
      "path": {
       "type": "string",
@@ -1297,13 +1305,21 @@
   "type": "function",
   "function": {
    "name": "search_code",
-   "description": "Search the codebase for a pattern using ripgrep. Returns matched lines with a couple lines of context, not full files.",
+   "description": "Search the codebase for a pattern using ripgrep. Returns matched lines with a couple lines of context, not full files. Use this, not grep or rg through run_command.",
    "parameters": {
     "type": "object",
     "properties": {
+     "context": {
+      "type": "integer",
+      "description": "Lines shown around each match (default 2, max 10)"
+     },
      "file_type": {
       "type": "string",
       "description": "Restrict to a file type, e.g. go, py, js"
+     },
+     "literal": {
+      "type": "boolean",
+      "description": "Match the pattern as plain text, not a regex (for patterns full of symbols, like --- or a.b(c))"
      },
      "path": {
       "type": "string",

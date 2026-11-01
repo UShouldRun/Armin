@@ -328,11 +328,29 @@ func (r *REPL) completer() *llm.Client {
 // SetCompleting names the completion model for the other frontends.
 func (r *REPL) SetCompleting(name string) { r.completing.Store(&name) }
 
-// enqueue keeps a message typed during a turn for its next step.
+// enqueue keeps a message typed during a turn for its next step, and
+// a /command for when the turn ends.
 func (r *REPL) enqueue(msg string) {
   r.queueMu.Lock()
+  defer r.queueMu.Unlock()
+
+  if strings.HasPrefix(strings.TrimSpace(msg), "/") {
+    r.afterTurn = append(r.afterTurn, strings.TrimSpace(msg))
+    return
+  }
+
   r.queued = append(r.queued, msg)
-  r.queueMu.Unlock()
+}
+
+// takeAfterTurn returns the /commands typed during the turn.
+func (r *REPL) takeAfterTurn() []string {
+  r.queueMu.Lock()
+  defer r.queueMu.Unlock()
+
+  cmds := r.afterTurn
+  r.afterTurn = nil
+
+  return cmds
 }
 
 func (r *REPL) takeQueued() []string {

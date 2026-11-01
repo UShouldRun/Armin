@@ -121,9 +121,12 @@ type REPL struct {
 
   // While a turn runs, the input bar (composer) takes messages:
   // queued until the turn's next step takes them; draft is what was
-  // left unsent when it ended, for the next prompt.
-  composer *ui.Composer
-  queueMu  sync.Mutex
-  queued   []string
-  draft    string
+  // left unsent when it ended, for the next prompt. A /command typed
+  // then is held in afterTurn and runs once the turn ends: it's for
+  // armin, not the model.
+  composer  *ui.Composer
+  queueMu   sync.Mutex
+  queued    []string
+  afterTurn []string
+  draft     string
 }

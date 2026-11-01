@@ -1,4 +1,5 @@
-// ReadFile: a line range of a text file; long files need a range.
+// ReadFile: a line range of a text file; a long file read whole comes
+// back cut, with where to go on.
 
 package tools
 
@@ -12,9 +13,9 @@ import (
   "armin/internal/sandbox"
 )
 
-// maxWholeFileLines is the threshold above which a line range is
-// required. Below it, read_file returns the whole file so small
-// files don't force the model into a pointless round trip.
+// maxWholeFileLines is the most lines one read returns. A file under
+// it comes back whole; a longer one read without a range comes back
+// cut there, with NextLine and a note to search for the part needed.
 const maxWholeFileLines = 400
 
 // maxReadBytes caps one read, range or not: about 4–5k tokens. A
@@ -22,10 +23,10 @@ const maxWholeFileLines = 400
 // log or minified file can't fill a small model's window.
 const maxReadBytes = 16 * 1024
 
-// ReadFile reads a line range from a sandboxed file. For files longer
-// than maxWholeFileLines, a range is required — this forces the
-// model to search first, then read narrowly, rather than dumping
-// whole files into context.
+// ReadFile reads a line range from a sandboxed file. A long file read
+// without a range returns its first maxWholeFileLines lines, cut, with
+// a note to search first: refusing the read instead only made models
+// retry it, or read the whole file in ranges anyway.
 func ReadFile(
   ctx context.Context, cfg *sandbox.Config, in ReadFileInput,
 ) (*ReadFileOutput, error) {
@@ -66,16 +67,16 @@ func ReadFile(
   s_lines := len(lines)
 
   if in.StartLine == 0 && in.EndLine == 0 {
-    if s_lines > maxWholeFileLines {
-      return nil, fmt.Errorf(
-        "\n\t... in ReadFile:\n\t %q has %d lines, above the " +
-          "%d-line threshold — search first (search_code), then " +
-          "re-read with start_line/end_line",
-        in.Path, s_lines, maxWholeFileLines,
+    out := capRead(lines, 1, s_lines)
+    if out.Truncated {
+      out.Note = fmt.Sprintf(
+        "the first %d of %d lines: search_code finds the part you " +
+          "need, then read it with start_line/end_line",
+        out.NextLine - 1, s_lines,
       )
     }
 
-    return capRead(lines, 1, s_lines), nil
+    return out, nil
   }
 
   start, end := in.StartLine, in.EndLine

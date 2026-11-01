@@ -9,12 +9,23 @@ package repl
 import (
   "context"
   "os"
+  "strings"
 
   "armin/internal/stt"
   "armin/internal/ui"
 )
 
 func cmdVoice(r *REPL, ctx context.Context, _ []string) {
+  // before recording: nothing said should be lost to a missing setting
+  if strings.TrimSpace(r.STT) == "" {
+    ui.Error(
+      "no speech-to-text command: set stt in config.conf, e.g.\n" +
+        "  stt = whisper-cli -m ~/models/ggml-large-v3-turbo-q5_0.bin " +
+        "-f {wav} -nt -np",
+    )
+    return
+  }
+
   rec, err := stt.Start(r.STTRecord, "")
   if err != nil {
     ui.Err(err)

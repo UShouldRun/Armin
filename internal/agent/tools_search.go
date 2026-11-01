@@ -19,7 +19,8 @@ var searchTools = []toolSpec{
       Name: "search_code",
       Description: "Search the codebase for a pattern using " +
         "ripgrep. Returns matched lines with a couple lines of " +
-        "context, not full files.",
+        "context, not full files. Use this, not grep or rg through " +
+        "run_command.",
       Parameters: llm.ToolParameters{
         Type: "object",
         Properties: map[string]llm.ToolProperty{
@@ -35,6 +36,15 @@ var searchTools = []toolSpec{
           "file_type": {
             Type:        "string",
             Description: "Restrict to a file type, e.g. go, py, js",
+          },
+          "context": {
+            Type:        "integer",
+            Description: "Lines shown around each match (default 2, max 10)",
+          },
+          "literal": {
+            Type: "boolean",
+            Description: "Match the pattern as plain text, not a regex " +
+              "(for patterns full of symbols, like --- or a.b(c))",
           },
         },
         Required: []string{ "pattern" },

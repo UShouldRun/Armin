@@ -9,8 +9,12 @@ import (
   "armin/internal/sandbox"
 )
 
+// searchContextMax caps the lines shown around a match.
+const searchContextMax = 10
+
 // SearchCode wraps ripgrep with a small, fixed set of flags: line
-// numbers and a couple lines of context, never a dump of full files.
+// numbers and a couple lines of context (more on request), never a
+// dump of full files; the pattern a regex, or literal on request.
 // This always actually runs — it's a fixed, trusted, read-only
 // binary, not the arbitrary escape hatch --dry-run is meant to gate
 // (see run_command).
@@ -26,16 +30,27 @@ func SearchCode(
     return nil, fmt.Errorf("\n\t... in SearchCode:\n\t%w", err)
   }
 
+  around := 2
+  if in.Context > 0 {
+    around = min(in.Context, searchContextMax)
+  }
+
   args := []string{
     "--line-number",
-    "--context", "2",
+    "--context", fmt.Sprint(around),
     "--max-columns", "300",
   }
   if in.FileType != "" {
     args = append(args, "--type", in.FileType)
   }
 
-  args = append(args, in.Pattern, searchPath)
+  if in.Literal {
+    args = append(args, "--fixed-strings")
+  }
+
+  // "--" first: a pattern starting with "-" ("---") is a pattern,
+  // not a flag
+  args = append(args, "--", in.Pattern, searchPath)
 
   res, err := cfg.Exec(
     ctx,

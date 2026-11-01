@@ -14,4 +14,5 @@ type ReadFileOutput struct {
   TotalLines int    `json:"total_lines"`
   Truncated  bool   `json:"truncated,omitempty"`
   NextLine   int    `json:"next_line,omitempty"` // where a cut read resumes
+  Note       string `json:"note,omitempty"`      // what to do about a cut read
 }

@@ -212,3 +212,19 @@ func TestAnswerNewlines(t *testing.T) {
     )
   }
 }
+
+func TestCommandTypedMidTurnIsHeld(t *testing.T) {
+  r := &REPL{}
+  r.enqueue("look at main.go too")
+  r.enqueue(" /voice")
+
+  got := r.takeQueued()
+  if len(got) != 1 || got[0] != "look at main.go too" {
+    t.Fatalf("the model's queue = %q: a /command must not reach it", got)
+  }
+
+  held := r.takeAfterTurn()
+  if len(held) != 1 || held[0] != "/voice" {
+    t.Fatalf("held for after the turn = %q", held)
+  }
+}

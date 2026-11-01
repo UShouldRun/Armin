@@ -159,7 +159,9 @@ func Flat(wav []byte) bool {
 
 // tags are whisper's non-speech markers: [BLANK_AUDIO], [MUSIC] ...
 var tags = regexp.MustCompile(
-  `\[[A-Z_ ]*\]|\([A-Za-z ]*(music|silence|noise)[A-Za-z ]*\)`,
+  `\[[A-Z_ ]*\]|\([A-Za-z ]*(music|silence|noise)[A-Za-z ]*\)` +
+    // whisper's segment timestamps, printed unless -nt is given
+    `|\[[0-9:.,]+ --> [0-9:.,]+\]`,
 )
 
 // Clean joins what a transcriber printed into one line without its

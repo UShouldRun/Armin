@@ -88,7 +88,7 @@ func TestReadFileCapsLongReads(t *testing.T) {
   }
 }
 
-func TestReadFileRequiresRangeAboveThreshold(t *testing.T) {
+func TestReadFileCutsAboveThreshold(t *testing.T) {
   cfg := newTestSandbox(t, sandbox.Options{})
 
   var b strings.Builder
@@ -98,15 +98,15 @@ func TestReadFileRequiresRangeAboveThreshold(t *testing.T) {
 
   writeFile(t, cfg.Root, "big.txt", b.String())
 
-  _, err := ReadFile(
+  // a long file read whole: its first lines, cut, and where to go on
+  whole, err := ReadFile(
     context.Background(),
     cfg,
     ReadFileInput{ Path: "big.txt" },
   )
-  if err == nil {
-    t.Fatal(
-      "expected an error requiring start_line/end_line above the threshold",
-    )
+  if err != nil || !whole.Truncated ||
+    whole.NextLine != maxWholeFileLines + 1 || whole.Note == "" {
+    t.Fatalf("whole read of a long file = %+v, %v", whole, err)
   }
 
   out, err := ReadFile(
@@ -599,5 +599,28 @@ func TestRunCommandPointsAtRunProgram(t *testing.T) {
     if err == nil || !strings.Contains(err.Error, "run_program") {
       t.Errorf("run_command %s = %v, want a pointer to run_program", bin, err)
     }
+  }
+}
+
+func TestSearchCodeLiteralDashesAndContext(t *testing.T) {
+  requireRipgrep(t)
+  cfg := newTestSandbox(t, sandbox.Options{})
+  writeFile(t, cfg.Root, "report.typ", "a\nb\nc\nx --- y\nd\ne\nf\ng\n")
+
+  // a pattern starting with "-" is a pattern, not a flag
+  out, err := SearchCode(
+    context.Background(),
+    cfg,
+    SearchCodeInput{ Pattern: "---", Literal: true, Context: 3 },
+  )
+  if err != nil || !strings.Contains(out.Matches, "4:x --- y") {
+    t.Fatalf("search for --- = %+v, %v", out, err)
+  }
+
+  // three lines around it: from line 1 to line 7
+  if !strings.Contains(out.Matches, "1-a") ||
+    !strings.Contains(out.Matches, "7-f") ||
+    strings.Contains(out.Matches, "8-g") {
+    t.Fatalf("context 3 should show lines 1 to 7: %q", out.Matches)
   }
 }

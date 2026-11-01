@@ -334,6 +334,12 @@ func (r *REPL) Run(ctx context.Context) error {
       }
     }
 
+    // commands typed while the turn ran, now that it's over
+    for _, cmd := range r.takeAfterTurn() {
+      ui.Info("%s, typed during the turn:", cmd)
+      r.dispatch(ctx, cmd)
+    }
+
     r.maybeTitle(ctx)
     r.maybeAutosave()
   }

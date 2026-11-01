@@ -36,6 +36,12 @@ func TestClean(t *testing.T) {
   if got != "Hello there. How are you?" {
     t.Fatalf("Clean = %q", got)
   }
+
+  stamped := Clean("[00:00:00.000 --> 00:00:04.000]  Fill section four.\n" +
+    "[00:00:04.000 --> 00:00:06,500]  Then compile.\n")
+  if stamped != "Fill section four. Then compile." {
+    t.Fatalf("timestamps left in: %q", stamped)
+  }
 }
 
 func TestExpand(t *testing.T) {
