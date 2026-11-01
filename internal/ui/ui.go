@@ -104,10 +104,11 @@ func bannerText(root, model, baseURL string) {
   fmt.Printf("  %s %s\n\n", Dim("root:"), root)
 }
 
-// Banner prints the startup summary: the name and tagline, then the
-// project root. Notices from background work land under it
-// (REPL.Notice), keeping the header on top.
+// Banner prints the startup summary: the logo (logo.go), the name and
+// tagline, then the project root. Notices from background work land
+// under it (REPL.Notice), keeping the header on top.
 func Banner(root, model, baseURL string) {
+  Logo()
   bannerText(root, model, baseURL)
 }
 
