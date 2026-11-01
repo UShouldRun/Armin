@@ -563,3 +563,49 @@ What it says, with one run's caveat:
   question text changed from "knowledge tree" to "knowledge DAG"
   since round 9; and the map's ~2k tokens ride on every request,
   which is why input falls only 10% while tools fall 26%.
+
+## Round 11: the tree with the map, against the map alone (2026-11-01, one run)
+
+`ARMIN_TREEBENCH_ARMS=map,treemap`, recall on, consolidation between
+sessions (the bench's hosted model as the minion, charged to the
+tree), Qwen 3.8 27B, one run, $0.22. Traces reports/treebench11/, log
+reports/treebench11-run1.log. Same map as round 10 (7917 bytes, 84
+files).
+
+| | map | tree+map | delta |
+|---|---|---|---|
+| s1 tools / $ fixed-price | 34 / $0.0248 | 43 / $0.0269 | +26% / +8% |
+| s2 | 28 / $0.0148 | 23 / $0.0144 | −18% / −2% |
+| s3 | 20 / $0.0130 | 24 / $0.0159 | +20% / +22% |
+| all three | 82 tools, $0.0527 | 90 tools, $0.0573 | **+10% tools, +8.8% $** |
+
+Billed: map $0.1093, tree+map $0.1147, **+4.9%**, of which
+consolidation is $0.0117 (9 calls, 27 claims, none empty or failed
+now that the off-by-one is fixed). Sessions alone billed −5.8%; in
+armin consolidation runs on the local minion and costs nothing, so
+that is the shipped figure, but fixed-price says +8.8%.
+
+Accuracy: map 15/15, tree+map 14/15, and **the miss is real**:
+staleness s3 ("where does armin keep the stamps of the files the
+tree cites") was answered about evidence range hashes, citing the
+recalled [n5] and [n10], instead of the stamps file. The recalled
+nodes were about the neighbouring mechanism and steered the answer
+there. Recall: attached 10 of 15 turns, cited 5, read only 4.
+
+What it says, with one run's caveat:
+
+- **With the map present, the tree adds nothing measurable.** The
+  map already takes the first-session saving (round 10: −31% tools)
+  that the tree can't; the tree's s2 saving shrinks to −2% at fixed
+  prices, and s3 went the wrong way (roles s3 explored 12 tools with
+  the tree, 7 without).
+- **Recall can mislead**: a close-but-wrong node is an answer the
+  model takes, where without it the model would have looked.
+- Taken with rounds 8–10: the map is the cheap, reliable win and a
+  candidate for on by default; the tree's case for chat is now
+  unproven on top of it. Its remaining job is the one the handoff
+  named: the advisor and teaching flow, and what no static map
+  holds (decisions, why, what was tried), not where code is.
+- Before more rounds: one run per arm has swung ±30% before (round
+  9), so a second run of this pair is what would make it a finding
+  rather than a lead.
