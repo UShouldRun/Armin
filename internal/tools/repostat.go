@@ -256,7 +256,10 @@ func FindFiles(
 
       matched, matchErr := filepath.Match(in.Pattern, d.Name())
       if matchErr != nil {
-        return fmt.Errorf("bad pattern %q: %w", in.Pattern, matchErr)
+        return fmt.Errorf(
+          "\n\t... in FindFiles, walking:\n\t bad pattern %q: %w",
+          in.Pattern, matchErr,
+        )
       }
 
       if !matched {

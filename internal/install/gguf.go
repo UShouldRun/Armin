@@ -448,12 +448,13 @@ func (c *countReader) fill(n int) []byte {
   return c.b[:n]
 }
 
-func (c *countReader) u32() uint32 { return binary.LittleEndian.Uint32(
-  c.fill(4),
-) }
-func (c *countReader) u64() uint64 { return binary.LittleEndian.Uint64(
-  c.fill(8),
-) }
+func (c *countReader) u32() uint32 {
+  return binary.LittleEndian.Uint32(c.fill(4))
+}
+
+func (c *countReader) u64() uint64 {
+  return binary.LittleEndian.Uint64(c.fill(8))
+}
 
 // skip discards n bytes without keeping them.
 func (c *countReader) skip(n uint64) {

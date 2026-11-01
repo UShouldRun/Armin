@@ -25,5 +25,7 @@ export async function api(path, body) {
     throw new Error((await res.text()).trim() || res.statusText);
   }
 
-  return res.headers.get("Content-Type")?.includes("json") ? res.json() : res.text();
+  const json = res.headers.get("Content-Type")?.includes("json");
+
+  return json ? res.json() : res.text();
 }

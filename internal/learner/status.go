@@ -64,11 +64,13 @@ func (s Status) score() int      { return int((s & scoreMask) >> scoreShift) }
 func (s Status) implied() bool   { return s & impliedBit != 0 }
 func (s Status) has() bool       { return s & hasBit != 0 }
 
-func (s Status) withBox(b int) Status      { return s &^ boxMask | Status(b) }
-func (s Status) withDay(d uint16) Status   {
+func (s Status) withBox(b int) Status { return s &^ boxMask | Status(b) }
+
+func (s Status) withDay(d uint16) Status {
   return s &^ dayMask | Status(d) << dayShift
 }
-func (s Status) withScore(v int) Status    {
+
+func (s Status) withScore(v int) Status {
   return s &^ scoreMask | Status(v) << scoreShift
 }
 

@@ -615,6 +615,7 @@ func evalHardQuestions(g *Graph, all []NodeID) []evalQuestion {
   flagged := func(id NodeID) bool {
     return g.node(id).Flags & (FlagStale | FlagSuspect) != 0
   }
+
   trusted := func(id NodeID) bool {
     return g.node(id).Conf() >= ConfChecked && !flagged(id) && !unverified(id)
   }
@@ -982,6 +983,7 @@ func evalHarderQuestions(g *Graph, all []NodeID) []evalQuestion {
   flagged := func(id NodeID) bool {
     return g.node(id).Flags & (FlagStale | FlagSuspect) != 0
   }
+
   trusted := func(id NodeID) bool {
     return g.node(id).Conf() >= ConfChecked && !flagged(id) && !unverified(id)
   }

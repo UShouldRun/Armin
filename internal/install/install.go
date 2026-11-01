@@ -45,12 +45,11 @@ func Run(ctx context.Context, req Request) error {
     return nil
   }
 
+  dialer := &net.Dialer{ Timeout: 15 * time.Second }
   client := &http.Client{
     Transport: &http.Transport{
-      Proxy: http.ProxyFromEnvironment,
-      DialContext: (&net.Dialer{
-        Timeout: 15 * time.Second,
-      }).DialContext,
+      Proxy:                 http.ProxyFromEnvironment,
+      DialContext:           dialer.DialContext,
       TLSHandshakeTimeout:   15 * time.Second,
       ResponseHeaderTimeout: 30 * time.Second,
     },
@@ -471,9 +470,9 @@ func fetchSource(
     label := filepath.Base(f.Path)
     err = download(
       ctx, c, src.fileURL(f), dest, f.Size, f.SHA256,
-      func(done, fresh int64) { progressLine(
-        label, done, fresh, f.Size, start,
-      ) },
+      func(done, fresh int64) {
+        progressLine(label, done, fresh, f.Size, start)
+      },
       func(err error, wait time.Duration) {
         ui.ClearLine()
         fmt.Printf(

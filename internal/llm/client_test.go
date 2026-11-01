@@ -933,10 +933,9 @@ func TestChatStreamReportsPromptProgress(t *testing.T) {
   var seen []string
   h := StreamHandlers{
     Token: func(string) {},
-    Progress: func(done, total int) { seen = append(
-      seen,
-      fmt.Sprintf("%d/%d", done, total),
-    ) },
+    Progress: func(done, total int) {
+      seen = append(seen, fmt.Sprintf("%d/%d", done, total))
+    },
   }
 
   client := New(server.URL, "fake-model")

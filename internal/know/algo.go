@@ -434,7 +434,8 @@ func (h *readyHeap) Less(a, b int) bool {
 func (h *readyHeap) Swap(a, b int) {
   h.items[a], h.items[b] = h.items[b], h.items[a]
 }
-func (h *readyHeap) Push(x any)    { h.items = append(h.items, x.(int)) }
+
+func (h *readyHeap) Push(x any) { h.items = append(h.items, x.(int)) }
 
 func (h *readyHeap) Pop() any {
   last := h.items[len(h.items) - 1]

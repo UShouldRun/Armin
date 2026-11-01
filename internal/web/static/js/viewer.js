@@ -30,6 +30,7 @@ export function watchFiles() {
   if (watching) {
     return;
   }
+
   watching = true;
   let seen = state.files.join("\n");
 
@@ -58,7 +59,13 @@ export function watchFiles() {
 // Tools that create or change files: after one succeeds, the file
 // list reloads, and so does the preview when it shows what changed.
 export const changers = [ "write_file", "edit_file", "run_program" ];
-let   reloadTimer = null;
+let   reloadTimer     = null;
+
+// samePath says whether a tool's path is the file the viewer shows.
+const samePath = (path, current) => {
+  return path === current || path.endsWith("/" + current) ||
+    current.endsWith("/" + path);
+};
 
 export function filesChanged(call) {
   clearTimeout(reloadTimer);
@@ -69,14 +76,18 @@ export function filesChanged(call) {
     }
 
     const path = call.args?.path || "";
-    const same = path && (path === state.current || path.endsWith("/" + state.current) || state.current.endsWith("/" + path));
-    if (same || call.name === "run_program") preview(state.current, null, true);
+    const same = path && samePath(path, state.current);
+    if (same || call.name === "run_program") {
+      preview(state.current, null, true);
+    }
   }, 150);
 }
 
 export function renderFiles() {
   const q    = $("filter").value.toLowerCase();
-  const list = state.files.filter((f) => f.toLowerCase().includes(q)).slice(0, 800);
+  const list = state.files
+    .filter((f) => f.toLowerCase().includes(q))
+    .slice(0, 800);
 
   // a filtered list stays flat: matches may live anywhere in the tree,
   // so collapsing would hide them.
@@ -92,10 +103,12 @@ export function renderFiles() {
   const node = (dir) => {
     if (!root.has(dir)) {
       root.set(dir, {
-        files: [], dirs: new Map(),
-        open: dir === "" ? true : expanded.has(dir),
+        files: [],
+        dirs:  new Map(),
+        open:  dir === "" ? true : expanded.has(dir),
       });
     }
+
     return root.get(dir);
   };
 
@@ -110,6 +123,7 @@ export function renderFiles() {
       parent.dirs.set(name, child);
       dir = child;
     }
+
     node(dir).files.push(f);
   }
 
@@ -118,12 +132,15 @@ export function renderFiles() {
     if (!node.open) {
       return html;
     }
+
     for (const [ name, sub ] of node.dirs) {
       html += render(sub, root.get(sub));
     }
+
     for (const f of node.files) {
       html += row(f);
     }
+
     return html;
   };
 
@@ -132,9 +149,12 @@ export function renderFiles() {
 
 function row(f) {
   const cut  = f.lastIndexOf("/") + 1;
-  const name = `<span class = "dir">${ esc(f.slice(0, cut)) }</span>${ esc(f.slice(cut)) }`;
+  const dir  = `<span class = "dir">${ esc(f.slice(0, cut)) }</span>`;
+  const name = dir + esc(f.slice(cut));
+  const on   = f === state.current ? "on" : "";
 
-  return `<div data-path = "${ esc(f) }" class = "${ f === state.current ? "on" : "" }" title = "${ esc(f) }">${ name }</div>`;
+  return `<div data-path = "${ esc(f) }" class = "${ on }" ` +
+    `title = "${ esc(f) }">${ name }</div>`;
 }
 
 // A directory header: a twistie, the directory path, a count of the
@@ -144,11 +164,13 @@ function dirHeader(dir, open) {
     return "";
   }
 
-  const name  = dir.slice(0, -1);
+  const name  = esc(dir.slice(0, -1));
   const twist = open ? "▾" : "▸";
+  const shut  = open ? "" : " shut";
 
-  return `<div class = "dirhead${ open ? "" : " shut" }" data-dir = "${ esc(name) }" title = "${ esc(name) }">` +
-    `<span class = "twist">${ twist }</span><span class = "dirname">${ esc(name) }</span></div>`;
+  return `<div class = "dirhead${ shut }" data-dir = "${ name }" ` +
+    `title = "${ name }"><span class = "twist">${ twist }</span>` +
+    `<span class = "dirname">${ name }</span></div>`;
 }
 
 // Directories the user expanded: kept across renders and reloads.
@@ -164,9 +186,11 @@ $("files").addEventListener("click", (e) => {
   const dir = head.dataset.dir + "/";
   if (expanded.has(dir)) {
     expanded.delete(dir);
+
   } else {
     expanded.add(dir);
   }
+
   renderFiles();
 });
 
@@ -184,41 +208,62 @@ export function showViewer(on) {
   }
 }
 
-export function viewerOpen() { return !document.body.classList.contains("noviewer"); }
+export function viewerOpen() {
+  return !document.body.classList.contains("noviewer");
+}
 
 // ---------- preview ----------
 
 const images = [ "png", "jpg", "jpeg", "gif", "webp", "svg" ];
 
+// codeRow is one numbered line of the code view, marked when it's the
+// line asked for.
+const codeRow = (l, n, line) => {
+  const hl = line && n + 1 === +line ? " class = \"hl\"" : "";
+
+  return `<tr id = "L${ n + 1 }"${ hl }><td class = "n">${ n + 1 }</td>` +
+    `<td>${ l || " " }</td></tr>`;
+};
+
 export async function preview(path, line, keepScroll) {
   showViewer(true);
-  const full = state.files.includes(path) ? path : (state.files.find((f) => f.endsWith("/" + path)) || path);
-  const top  = keepScroll ? $("preview").scrollTop : 0;
+
+  let full = path;
+  if (!state.files.includes(path)) {
+    full = state.files.find((f) => f.endsWith("/" + path)) || path;
+  }
+
+  const top = keepScroll ? $("preview").scrollTop : 0;
   state.current = full;
   renderFiles();
   $("ptitle").textContent = full + (line ? `:${ line }` : "");
+
   const ext = full.split(".").pop().toLowerCase();
   const url = "/api/raw?path=" + encodeURIComponent(full);
   const box = $("preview");
-
   if (ext === "pdf") {
     box.innerHTML = `<iframe src = "${ url }"></iframe>`;
     return;
   }
+
   if (images.includes(ext)) {
     box.innerHTML = `<img src = "${ url }" alt = "${ esc(full) }">`;
     return;
   }
+
   try {
     const text = await api(url);
     if ((ext === "md" || ext === "markdown") && !line) {
       box.innerHTML = `<div class = "md">${ markdown(text) }</div>`;
       return;
     }
-    const rows = highlight(text, ext).map((l, n) => `<tr id = "L${ n + 1 }"${ line && n + 1 === +line ? " class = \"hl\"" : "" }><td class = "n">${ n + 1 }</td><td>${ l || " " }</td></tr>`);
+
+    const rows = highlight(text, ext).map((l, n) => codeRow(l, n, line));
     box.innerHTML = `<table class = "code">${ rows.join("") }</table>`;
     if (line) {
-      document.getElementById("L" + line)?.scrollIntoView({ block: "center" });
+      const at = document.getElementById("L" + line);
+      at?.scrollIntoView({ block: "center" });
+
     } else {
       box.scrollTop = top;
     }
@@ -233,26 +278,47 @@ export async function preview(path, line, keepScroll) {
 // "  " context lines. Null for anything else (a command, a
 // directory), and for a capped preview, which the viewer can't place.
 export function parseChange(preview) {
-  const lines  = preview.replace(/\n$/, "").split("\n");
-  const at     = /^(.+) @ line (\d+)$/.exec(lines[0]);
-  const fresh  = /^new file (.+) \(\d+ lines\)$/.exec(lines[0]);
+  const lines = preview.replace(/\n$/, "").split("\n");
+  const at    = /^(.+) @ line (\d+)$/.exec(lines[0]);
+  const fresh = /^new file (.+) \(\d+ lines\)$/.exec(lines[0]);
   if (!at && !fresh) {
     return null;
   }
 
   const ch = {
-    path: (at || fresh)[1], start: at ? +at[2] : 1, created: !!fresh,
-    before: 0, gone: [], came: [],
+    path:    (at || fresh)[1],
+    start:   at ? +at[2] : 1,
+    created: !!fresh,
+    before:  0,
+    gone:    [],
+    came:    [],
   };
   for (const l of lines.slice(1)) {
-    if (l.startsWith("… (")) return null;
-    if (l.startsWith("- ")) ch.gone.push(l.slice(2));
-    else if (l.startsWith("+ ")) ch.came.push(l.slice(2));
-    else if (!ch.gone.length && !ch.came.length) ch.before++;
+    if (l.startsWith("… (")) {
+      return null;
+    }
+
+    if (l.startsWith("- ")) {
+      ch.gone.push(l.slice(2));
+
+    } else if (l.startsWith("+ ")) {
+      ch.came.push(l.slice(2));
+
+    } else if (!ch.gone.length && !ch.came.length) {
+      ch.before++;
+    }
   }
 
   return ch;
 }
+
+// diffRow is one row of a proposed change: a class, a number, a line.
+const diffRow = (cls, n, html) => {
+  const at = cls ? ` class = "${ cls }"` : "";
+
+  return `<tr${ at }><td class = "n">${ n }</td>` +
+    `<td>${ html || " " }</td></tr>`;
+};
 
 // showChange shows a proposed edit in the file viewer: the whole
 // file, highlighted, the removed lines in red where they are and the
@@ -265,11 +331,10 @@ export async function showChange(ch) {
 
   const ext  = ch.path.split(".").pop().toLowerCase();
   const box  = $("preview");
-  const row  = (cls, n, html) => `<tr${ cls ? ` class = "${ cls }"` : "" }><td class = "n">${ n }</td><td>${ html || " " }</td></tr>`;
   const came = highlight(ch.came.join("\n"), ext);
-
   if (ch.created) {
-    box.innerHTML = `<table class = "code">${ came.map((l, i) => row("add", i + 1, l)).join("") }</table>`;
+    const rows = came.map((l, i) => diffRow("add", i + 1, l));
+    box.innerHTML = `<table class = "code">${ rows.join("") }</table>`;
     return;
   }
 
@@ -284,11 +349,23 @@ export async function showChange(ch) {
 
   const file  = highlight(text, ext);
   const first = ch.start - 1; // the first changed line, 0-based
+  const after = first + ch.gone.length;
   const rows  = [];
-  for (let i = 0; i < first && i < file.length; i++) rows.push(row("", i + 1, file[i]));
-  for (let i = 0; i < ch.gone.length; i++) rows.push(row("del", first + i + 1, file[first + i]));
-  came.forEach((l, i) => rows.push(row("add", "+", l)));
-  for (let i = first + ch.gone.length; i < file.length; i++) rows.push(row("", i + 1, file[i]));
+  for (let i = 0; i < first && i < file.length; i++) {
+    rows.push(diffRow("", i + 1, file[i]));
+  }
+
+  for (let i = first; i < after; i++) {
+    rows.push(diffRow("del", i + 1, file[i]));
+  }
+
+  for (const l of came) {
+    rows.push(diffRow("add", "+", l));
+  }
+
+  for (let i = after; i < file.length; i++) {
+    rows.push(diffRow("", i + 1, file[i]));
+  }
 
   box.innerHTML = `<table class = "code">${ rows.join("") }</table>`;
   box.querySelector("tr.del, tr.add")?.scrollIntoView({ block: "center" });

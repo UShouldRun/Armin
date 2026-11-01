@@ -286,9 +286,9 @@ func (s *source) fileURL(f hubFile) string {
     return s.URL
   }
 
-  return hubURL + "/" + s.Repo + "/resolve/" + s.Rev + "/" + (&url.URL{
-    Path: f.Path,
-  }).EscapedPath()
+  path := (&url.URL{ Path: f.Path }).EscapedPath()
+
+  return hubURL + "/" + s.Repo + "/resolve/" + s.Rev + "/" + path
 }
 
 func findGroup(gs []quantGroup, match func(quantGroup) bool) int {
