@@ -163,11 +163,6 @@ func TestLegacyPerProjectFileStillLists(t *testing.T) {
   if err != nil || len(got.History) != 1 {
     t.Fatalf("legacy Load = %v, %v", got, err)
   }
-
-  latest, err := Latest("/home/u/fox-apsp-mpi")
-  if err != nil || latest == nil || latest.ID != "fox-apsp-mpi-1a2b3c4d" {
-    t.Fatalf("Latest = %v, %v", latest, err)
-  }
 }
 
 func TestAppendFirstCallDoesFullSave(t *testing.T) {

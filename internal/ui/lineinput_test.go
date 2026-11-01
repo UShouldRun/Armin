@@ -2,7 +2,6 @@ package ui
 
 import (
   "bufio"
-  "context"
   "strings"
   "testing"
 )
@@ -230,21 +229,6 @@ func TestReadLinePlainTrueEOF(t *testing.T) {
   _, err := readLinePlain(reader, "> ")
   if err == nil {
     t.Fatal("expected an error reading from an already-empty stream")
-  }
-}
-
-// TestReadLineWithGhostTextFallsBackWhenSuggestIsNil covers the path
-// that actually runs in this environment (and in any non-interactive
-// use of armin): ReadLineWithGhostText must behave exactly like
-// readLinePlain when there's no suggest function, regardless of
-// whether stdin happens to be a terminal — this is what makes
-// /ghosttext safe to leave off by default.
-func TestReadLineWithGhostTextFallsBackWhenSuggestIsNil(t *testing.T) {
-  reader := bufio.NewReader(strings.NewReader("plain input\n"))
-
-  line, err := ReadLineWithGhostText(context.Background(), reader, "> ", nil)
-  if err != nil || line != "plain input" {
-    t.Fatalf("ReadLineWithGhostText(nil suggest) = (%q, %v)", line, err)
   }
 }
 

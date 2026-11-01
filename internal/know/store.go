@@ -195,21 +195,6 @@ func (g *Graph) ReadOnly() bool {
   return g.ro
 }
 
-// NeedsCompact reports whether the log has grown past half the
-// snapshot (and past 64 KiB, so small trees don't churn).
-func (g *Graph) NeedsCompact() bool {
-  if g.log == nil {
-    return false
-  }
-
-  st, err := g.log.Stat()
-  if err != nil {
-    return false
-  }
-
-  return st.Size() > 64 * 1024 && st.Size() > int64(len(g.mapped)) / 2
-}
-
 // Compact writes a fresh snapshot, starts an empty log and reloads
 // from them. Evidence IDs change (deleted evidence is dropped and the
 // rest sorted by node); node and author IDs never do.

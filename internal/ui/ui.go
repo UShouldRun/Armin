@@ -20,6 +20,7 @@
 package ui
 
 import (
+  _ "embed"
   "encoding/base64"
   "fmt"
   "os"
@@ -69,10 +70,8 @@ func Dim(s string) string     { return style(dimCode, s) }
 func Red(s string) string     { return style(fgRed, s) }
 func Green(s string) string   { return style(fgGreen, s) }
 func Yellow(s string) string  { return style(fgYellow, s) }
-func Blue(s string) string    { return style(fgBlue, s) }
 func Magenta(s string) string { return style(fgMagenta, s) }
 func Cyan(s string) string    { return style(fgCyan, s) }
-func Gray(s string) string    { return style(fgGray, s) }
 
 // Italic, Underline and Strike are for rendered markdown.
 func Italic(s string) string    { return style("\x1b[3m", s) }
@@ -91,15 +90,17 @@ func UserLine(text string) string {
   return Prompt() + strings.ReplaceAll(text, "\n", "\n  ")
 }
 
-// LogoPath is the banner's mark, shown as a real image when the
-// terminal can display one (kitty, ghostty and iTerm2's protocols):
-// the dark logo by default, its cream blades on #141414. A var, not
-// a const, so tests can point it at their own PNG.
+// logoPNG is the banner's mark, built into the binary and shown as a
+// real image when the terminal can display one (kitty, ghostty and
+// iTerm2's protocols): the dark logo, its cream blades on #141414.
+// A var so tests can swap in their own PNG.
 //
 // The file must stay small enough for its base64 to fit one 4096-byte
 // kitty chunk: older ghostty (1.3) drops the image silently on
 // multi-chunk transfers, and 1264x848 was ~12 chunks.
-var LogoPath = "assets/logo_dark.png"
+//
+//go:embed logo.png
+var logoPNG []byte
 
 // LogoCols is the mark's width in terminal columns, so the header
 // text starts beside it instead of under it. Half the PNG's pixels,
@@ -143,10 +144,7 @@ func Logo() {
     return
   }
 
-  data, err := os.ReadFile(LogoPath)
-  if err != nil {
-    return
-  }
+  data := logoPNG
 
   if iterm {
     fmt.Printf(

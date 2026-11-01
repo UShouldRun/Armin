@@ -166,12 +166,6 @@ func listMarker(s string) bool {
   return true
 }
 
-// Wrap word-wraps a whole text at once.
-func Wrap(s string, width int) string {
-  w := NewWrapper(width)
-  return w.Write(s) + w.Flush()
-}
-
 // layoutInput splits an input line into rows: the first holds
 // first runes (after the prompt), the rest rest runes each. Rows
 // break at a newline (which ends its row), else after a space when

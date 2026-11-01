@@ -728,13 +728,6 @@ to end; fix what that shows.
 
 **Before merging**
 - The user runs the branch for a day (armin-test) with the map on.
-- 9ca5739 reformatted internal/repl with gofmt (tabs), against the
-  2-space style the rest of the repo keeps: revert the formatting or
-  accept it, but don't mix. think.go has one 80+ column line from the
-  same commit.
-- docs/design/cloud-note-round7.md and cloud-note-handoff.md (the
-  channel with the armin-test copilot) were committed in 9ca5739;
-  decide whether they stay as history or go.
 - reports/ is gitignored now: the benchmark traces behind every round
   live only on this machine.
 

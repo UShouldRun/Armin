@@ -1,4 +1,4 @@
-// The line editor: ReadLineWithGhostText edits a line with a dimmed
+// The line editor: ReadLineWake edits a line with a dimmed
 // suggestion to accept with Tab, folds large pastes into a label, and
 // keeps reading keys through one pump (NewKeyPump) shared with the
 // composer.
@@ -17,13 +17,13 @@ import (
   "time"
 )
 
-// ErrInterrupted is returned by ReadLineWithGhostText when the user
+// ErrInterrupted is returned by ReadLineWake when the user
 // presses Ctrl-C while editing the current line — distinct from
 // quitting the program: the caller's loop should just show a fresh
 // prompt, the same way most shells treat Ctrl-C on a partial line.
 var ErrInterrupted = errors.New("input interrupted")
 
-// suggestDebounce is how long ReadLineWithGhostText waits after the
+// suggestDebounce is how long ReadLineWake waits after the
 // last keystroke before asking for a ghost-text suggestion — long
 // enough that a fast typist doesn't trigger a request per
 // character, short enough to feel responsive once they pause.
@@ -238,40 +238,6 @@ func (s *lineState) render(prompt string) (visible, ghost string) {
   return prompt + string(s.display()), string(s.suggestion)
 }
 
-// ReadLineWithGhostText reads one line from stdin. On a terminal it
-// edits the line in raw mode — linear typing, Backspace, Ctrl-U,
-// Ctrl-W, Shift-Enter or Alt-Enter for a newline, no arrow-key
-// movement or history, pastes taken whole with their newlines —
-// wrapping it at
-// TextWidth, and, when suggest is non-nil, shows a dim inline
-// suggestion that Tab accepts. Without a terminal (piped input,
-// scripts, tests) it falls back to a plain buffered read.
-func ReadLineWithGhostText(
-  ctx context.Context, reader *bufio.Reader, prompt string,
-  suggest SuggestFunc,
-) (string, error) {
-  // The raw editor runs on every terminal, ghost text or not: it is
-  // what wraps the input at TextWidth.
-  if !isTTY(os.Stdin) || !isTTY(os.Stdout) {
-    return readLinePlain(reader, prompt)
-  }
-
-  fd := int(os.Stdin.Fd())
-  state, err := enableRawMode(fd)
-  if err != nil {
-    return readLinePlain(reader, prompt)
-  }
-
-  defer restoreMode(fd, state)
-
-  fmt.Print(pasteOn + kittyOn)
-  defer fmt.Print(kittyOff + pasteOff)
-
-  read := func() (key, error) { return decodeKey(reader) }
-
-  return editLine(ctx, read, prompt, suggest, "")
-}
-
 // ErrWoken is ReadLineWake's return when wake fired: the input area
 // was cleared, and the text typed so far comes back with it.
 var ErrWoken = errors.New("input woken")
@@ -296,10 +262,15 @@ func (p *KeyPump) start() {
   )
 }
 
-// ReadLineWake is ReadLineWithGhostText for a prompt that other
-// output may interrupt: when wake fires, it clears what it drew and
-// returns the typed text with ErrWoken, to be passed back as initial
-// once the output is done.
+// ReadLineWake reads one line from stdin. On a terminal it edits the
+// line in raw mode — linear typing, Backspace, Ctrl-U, Ctrl-W,
+// Shift-Enter or Alt-Enter for a newline, pastes taken whole with
+// their newlines — wrapping it at TextWidth, and, when suggest is
+// non-nil, shows a dim inline suggestion that Tab accepts. Other
+// output may interrupt it: when wake fires, it clears what it drew
+// and returns the typed text with ErrWoken, to be passed back as
+// initial once the output is done. Without a terminal (piped input,
+// scripts, tests) it falls back to a plain buffered read.
 func ReadLineWake(
   ctx context.Context, pump *KeyPump, prompt, initial string,
   wake <-chan struct{}, suggest SuggestFunc,
@@ -345,7 +316,7 @@ func readLinePlain(reader *bufio.Reader, prompt string) (string, error) {
 }
 
 // editLine is the raw-mode key-by-key loop backing
-// ReadLineWithGhostText. Debouncing is done with a generation
+// ReadLineWake. Debouncing is done with a generation
 // counter, not by canceling/rescheduling a timer: a scheduled
 // suggestion request only applies its result if its generation is
 // still current when it completes.

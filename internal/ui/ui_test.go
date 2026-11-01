@@ -100,8 +100,16 @@ func TestLogoKitty(t *testing.T) {
 
   path := filepath.Join(t.TempDir(), "logo.png")
   writeTestPNG(t, path)
-  defer func() { LogoPath = "assets/logo_dark.png" }()
-  LogoPath = path
+
+  saved := logoPNG
+  defer func() { logoPNG = saved }()
+
+  data, err := os.ReadFile(path)
+  if err != nil {
+    t.Fatal(err)
+  }
+
+  logoPNG = data
 
   out := capture(t, func() { Logo() })
 

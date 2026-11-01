@@ -341,10 +341,9 @@ func (r *REPL) Run(ctx context.Context) error {
   return nil
 }
 
-// suggestFunc returns the ghost-text callback ReadLineWithGhostText
-// should use, or nil when ghost text is off — nil is what tells
-// ReadLineWithGhostText to skip raw mode entirely and fall back to
-// a plain read, so turning this off costs nothing.
+// suggestFunc returns the ghost-text callback ReadLineWake should
+// use, or nil when ghost text is off, so turning it off costs
+// nothing.
 func (r *REPL) suggestFunc() ui.SuggestFunc {
   if r.state & flagGhostText == 0 {
     return nil

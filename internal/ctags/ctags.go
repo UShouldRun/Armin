@@ -143,16 +143,6 @@ func lowerASCII(b byte) byte {
   return b
 }
 
-// LastError reports the most recent rebuild failure, if any —
-// useful for surfacing "ctags isn't installed" once instead of on
-// every call.
-func (idx *Index) LastError() error {
-  idx.mu.Lock()
-  defer idx.mu.Unlock()
-
-  return idx.lastErr
-}
-
 func (idx *Index) ensureFresh(ctx context.Context) {
   idx.mu.Lock()
   defer idx.mu.Unlock()
@@ -162,7 +152,6 @@ func (idx *Index) ensureFresh(ctx context.Context) {
   }
 
   byName, err := scan(ctx, idx.root, idx.binary)
-  idx.lastErr = err
   if err != nil {
     return // keep serving the previous (possibly empty) index
   }

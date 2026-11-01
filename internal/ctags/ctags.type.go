@@ -25,5 +25,4 @@ type Index struct {
   mu      sync.Mutex
   byName  map[string][]Symbol
   builtAt time.Time
-  lastErr error
 }

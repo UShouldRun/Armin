@@ -227,11 +227,6 @@ func TestIndexLookupAndSearch(t *testing.T) {
   if len(found) < 2 { // NewWidget + Widget, at minimum
     t.Fatalf("Search(widget) = %+v, want at least 2 matches", found)
   }
-
-  err = idx.LastError()
-  if err != nil {
-    t.Fatalf("LastError() = %v, want nil after a successful scan", err)
-  }
 }
 
 func TestIndexRebuildOnMissingBinary(t *testing.T) {
@@ -240,9 +235,5 @@ func TestIndexRebuildOnMissingBinary(t *testing.T) {
 
   if len(matches) != 0 {
     t.Fatalf("Lookup with a broken binary = %+v, want empty", matches)
-  }
-
-  if idx.LastError() == nil {
-    t.Fatal("LastError() = nil, want a recorded scan failure")
   }
 }

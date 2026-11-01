@@ -394,26 +394,6 @@ func readMeta(path string) (Meta, bool) {
   return m, true
 }
 
-// Latest is the most recently updated session for root, or nil.
-func Latest(root string) (*Saved, error) {
-  abs, err := filepath.Abs(root)
-  if err != nil {
-    return nil, fmt.Errorf("\n\t... in Latest:\n\t%w", err)
-  }
-
-  list, err := List()
-  if err != nil {
-    return nil, fmt.Errorf("\n\t... in Latest:\n\t%w", err)
-  }
-
-  for _, m := range list {
-    if m.Root == abs {
-      return Load(m.ID)
-    }
-  }
-
-  return nil, nil
-}
 
 // Delete removes a session file (by id or unique prefix) and returns
 // what it was, so the caller can clean up what hangs off it (its
