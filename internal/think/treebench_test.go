@@ -6,7 +6,8 @@ package think
 // baseline: how much of the tree's value is any map at all). Each pair
 // is fresh sessions: the first asks about an area, the next follow up
 // on it, where the tree should spare the model from exploring again.
-// ARMIN_TREEBENCH_ARMS picks arms (default "plain,tree,map"). Skipped
+// ARMIN_TREEBENCH_ARMS picks arms (default "plain,tree,map"; also
+// "treemap", the tree with the map). Skipped
 // unless ARMIN_TREEBENCH_MODEL is set:
 //
 //   ARMIN_TREEBENCH_URL=https://openrouter.ai/api/v1 \
@@ -52,19 +53,21 @@ type benchPair struct {
 // sessions is how many sessions a pair runs.
 const sessions = 3
 
-// The arms: no tree, the tree, the static repo map.
+// The arms: no tree, the tree, the static repo map, and the tree with
+// the map (what the tree adds once a map is there).
 const (
   armPlain = iota
   armTree
   armMap
+  armTreeMap
   arms
 )
 
 // armNames name the arms in the log; armFiles in the dump's file
 // names and ARMIN_TREEBENCH_ARMS.
 var (
-  armNames = [arms]string{ "no tree", "tree", "map" }
-  armFiles = [arms]string{ "plain", "tree", "map" }
+  armNames = [arms]string{ "no tree", "tree", "map", "tree+map" }
+  armFiles = [arms]string{ "plain", "tree", "map", "treemap" }
 )
 
 var benchPairs = []benchPair{
@@ -235,7 +238,7 @@ func TestTreeBench(t *testing.T) {
 
   // the map, built once: every session of the map arm sees the same
   repoMap := ""
-  if on[armMap] {
+  if on[armMap] || on[armTreeMap] {
     repoMap = repomap.Build(
       context.Background(), ctags.New(root, benchCtags(t)), mapBytes,
     )
@@ -257,12 +260,12 @@ func TestTreeBench(t *testing.T) {
         defer wg.Done()
 
         var tree *know.Graph
-        if cond == armTree {
+        if cond == armTree || cond == armTreeMap {
           tree = know.New()
         }
 
         sessionMap := ""
-        if cond == armMap {
+        if cond == armMap || cond == armTreeMap {
           sessionMap = repoMap
         }
 
@@ -358,8 +361,9 @@ func TestTreeBench(t *testing.T) {
       snap["recall.empty"].Count)
   }
 
-  // what all the sessions cost in dollars, each arm against no tree,
-  // the consolidation passes charged to the tree
+  // what all the sessions cost in dollars, each arm against no tree
+  // (or the map, when no tree is off), the consolidation passes
+  // charged to the tree arm (split when both tree arms run)
   var pair [arms]float64
   for cond := range arms {
     for si := 0; si < sessions; si++ {
@@ -369,7 +373,17 @@ func TestTreeBench(t *testing.T) {
 
   cons := snap["know.consolidate.cost"]
   if cons.Count > 0 {
-    pair[armTree] += cons.Sum
+    trees := []int{}
+    for _, cond := range []int{ armTree, armTreeMap } {
+      if on[cond] {
+        trees = append(trees, cond)
+      }
+    }
+
+    for _, cond := range trees {
+      pair[cond] += cons.Sum / float64(len(trees))
+    }
+
     t.Logf("CONSOLIDATE calls %d, $%.4f, pointers %d, claims %d, "+
       "linked %d, empty %d",
       cons.Count, cons.Sum, snap["know.consolidate.pointers"].Count,
@@ -378,15 +392,20 @@ func TestTreeBench(t *testing.T) {
       snap["know.consolidate.empty"].Count)
   }
 
-  if pair[armPlain] == 0 {
+  base := armPlain
+  if !on[armPlain] {
+    base = armMap
+  }
+
+  if !on[base] || pair[base] == 0 {
     return
   }
 
-  line := fmt.Sprintf("PAIR COST no tree $%.4f", pair[armPlain])
-  for _, cond := range []int{ armTree, armMap } {
-    if on[cond] {
+  line := fmt.Sprintf("PAIR COST %s $%.4f", armNames[base], pair[base])
+  for cond := range arms {
+    if on[cond] && cond != base {
       line += fmt.Sprintf(", %s $%.4f (%+.1f%%)", armNames[cond],
-        pair[cond], 100 * (pair[cond] - pair[armPlain]) / pair[armPlain])
+        pair[cond], 100 * (pair[cond] - pair[base]) / pair[base])
     }
   }
 
