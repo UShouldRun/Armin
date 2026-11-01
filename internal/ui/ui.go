@@ -20,8 +20,6 @@
 package ui
 
 import (
-  _ "embed"
-  "encoding/base64"
   "fmt"
   "os"
   "strings"
@@ -98,26 +96,6 @@ func UserLine(text string) string {
   return Prompt() + strings.ReplaceAll(text, "\n", "\n  ")
 }
 
-// logoPNG is the banner's mark, built into the binary and shown as a
-// real image when the terminal can display one (kitty, ghostty and
-// iTerm2's protocols): the dark logo, its cream blades on #141414.
-// A var so tests can swap in their own PNG.
-//
-// The file must stay small enough for its base64 to fit one 4096-byte
-// kitty chunk: older ghostty (1.3) drops the image silently on
-// multi-chunk transfers, and 1264x848 was ~12 chunks.
-//
-//go:embed logo.png
-var logoPNG []byte
-
-// LogoCols is the mark's width in terminal columns, so the header
-// text starts beside it instead of under it. Half the PNG's pixels,
-// with a cell about twice as tall as wide.
-var LogoCols = 18
-
-// LogoRows is the mark's height in terminal rows.
-var LogoRows = 3
-
 // bannerText prints the header's text column: the name and its
 // tagline, then the project root. The model already shows in the
 // instance line below, so it doesn't get one of its own.
@@ -126,85 +104,10 @@ func bannerText(root, model, baseURL string) {
   fmt.Printf("  %s %s\n\n", Dim("root:"), root)
 }
 
-// Logo prints the mark inline when the terminal speaks a graphics
-// protocol (kitty's APC or iTerm2's OSC 1337), guessed from TERM and
-// TERM_PROGRAM. Terminals that don't get nothing: the header stays
-// readable, the logo stays optional.
-func Logo() {
-  if !Enabled {
-    return
-  }
-
-  // tmux doesn't pass kitty's APC image escapes through: the base64
-  // lands as literal text on the screen. Skip the logo there rather
-  // than garble the header.
-  if os.Getenv("TMUX") != "" {
-    return
-  }
-
-  program := os.Getenv("TERM_PROGRAM")
-  term := os.Getenv("TERM")
-  kitty := strings.Contains(term, "kitty") ||
-    strings.Contains(term, "ghostty") || program == "ghostty"
-  iterm := program == "iterm.app" || program == "iterm2"
-
-  if !kitty && !iterm {
-    return
-  }
-
-  data := logoPNG
-
-  if iterm {
-    fmt.Printf(
-      "\x1b]1337;File=inline=1;width=%dpx;height=%dpx:%s\x1b\\",
-      LogoCols * 8, LogoRows * 16,
-      base64.StdEncoding.EncodeToString(data),
-    )
-    fmt.Println()
-
-    return
-  }
-
-  // kitty: the image streams as base64 chunks inside APC escapes —
-  // m=1 on every chunk but the last, m=0 on that one, 4096 payload
-  // bytes at most. Every chunk is a whole escape: the first carries
-  // the image params, continuations carry only m.
-  enc := base64.StdEncoding.EncodeToString(data)
-  chunks := (len(enc) + 4095) / 4096
-  for i := 0; i < chunks; i++ {
-    start := i * 4096
-    end := start + 4096
-    if end > len(enc) {
-      end = len(enc)
-    }
-
-    // a=T transmits and displays: kitty's default, a=t, only stores
-    // the image, and nothing shows
-    params := ""
-    if i == 0 {
-      params = "a=T,f=100,c=" + fmt.Sprint(LogoCols) +
-        ",r=" + fmt.Sprint(LogoRows) + ","
-    }
-
-    m := "m=1;"
-    if i == chunks - 1 {
-      m = "m=0;"
-    }
-
-    fmt.Print("\x1b_G" + params + m + enc[start:end] + "\x1b\\")
-  }
-
-  // the cursor ends beside the image's last row: the header starts
-  // on the line under it
-  fmt.Println()
-}
-
-// Banner prints the startup summary: the logo (a real image on
-// terminals that show one) above the name and tagline, then project
-// root and active model. Notices from background work land under it
+// Banner prints the startup summary: the name and tagline, then the
+// project root. Notices from background work land under it
 // (REPL.Notice), keeping the header on top.
 func Banner(root, model, baseURL string) {
-  Logo()
   bannerText(root, model, baseURL)
 }
 
