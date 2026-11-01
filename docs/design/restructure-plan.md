@@ -636,11 +636,12 @@ its own commit (one per package where it spans several).
     tour of an unfamiliar codebase; fix what they show before calling
     the restructure done.
 
-## 9. Progress (revised 2026-10-31, after the tree benchmark)
+## 9. Progress (revised 2026-11-01, after rounds 6–11)
 
 Branch `restructure`, not pushed, not merged. Every step's tests
 pass (`go test ./...`, the know and learner packages also under
-`-race`).
+`-race`). armin-test (`./install-test.sh`) builds the branch beside
+the installed armin, with its own config, data and join socket.
 
 | step | state | commits |
 |---|---|---|
@@ -653,20 +654,40 @@ pass (`go test ./...`, the know and learner packages also under
 | 7 learner | done (logic only, used by step 10) | 4cd4d36 |
 | 8 speech | done in the REPL (/voice, learn_explained) | 1adc4fe |
 | 9 web UI split + redesign | done | c38a8cf, e47a868 |
-| style pass (80 columns, no if-init) | done | 2faca9c |
+| style pass (80 columns, no if-init) | done | 2faca9c, 23c1adb |
 | tree benchmark + answer rule | done, results in restructure-tree-economics.md | 0471735 |
 | six know tools into three | done (find reads full, write does all writes) | 28d53c5 |
-| auto-record turn into tree | done; Q/A claims out, pointers in (round 5) | 6af79a5, 642f3a3 |
-| benchmark loads .env key | done | e4a7178 |
+| auto-record turn into tree | done; pointers, the user's words only | 6af79a5, 642f3a3, 394de5d, 7ee1783 |
+| benchmark in dollars, three sessions | done (rounds 6–8) | f751386, 1491052 |
+| recall (armin searches the DAG per message) | done, on by default | d8cf528, 7bdc671 |
+| metrics for the deterministic systems | done (`-metrics`, events in `-tags debug`) | d8cf528, 68fd8a4, 192c3a5, 88acb48 |
+| consolidation (pointers into claims, on the minion) | done | 5c05413, bffbba3, 1b0104a |
+| fast start (model loads behind the prompt) | done | d83d90a |
+| REPL syntax highlighting, /help columns | done | b6b8d62, 94841f4 |
+| armin-test side-by-side build | done | 5bb060e |
+| knowledge tree renamed knowledge DAG | done | bffbba3 |
+| static repo map in the prompt | done, on by default | 3e5a91d, 074a3c3, 6029fd5 |
+| header, logo, notices under the banner | done (by the armin-test copilot) | 9ca5739 |
+
+### What the benchmark settled
+
+Eleven rounds (restructure-tree-economics.md) end here:
+
+- **The static repo map pays from the first session**: 26% fewer
+  tool calls, 9.5% cheaper at fixed prices (round 10). It is on by
+  default (`repo_map = off` turns it off).
+- **The knowledge DAG on top of the map breaks even** (round 11, two
+  runs: +5% at fixed prices, fewer calls after session 1, one answer
+  in 30 steered wrong by a recalled node). Without the map it paid
+  from session 2 (round 8, −17.7%), but the map takes most of that.
+- So the DAG is not an exploration saver. Its job is what no map
+  holds: decisions and why, what was tried and failed, the advisor's
+  plans and the learner's state, which is step 10.
 
 ### Left to do
 
-**Tree economics** (open; see restructure-tree-economics.md): the
-pointer recording from round 5 is built and measured — what remains
-is H1 (cached-token scoring), then H3 (three-session pairs), H2
-(description slimming) only if H1 says the gap is real dollars.
-
-**Step 10, teaching** (the big one; section 6 has every decision):
+**Step 10, teaching** (the big one; section 6 has every decision),
+now also the DAG's main reason to exist:
 - `tools_teach.go` beyond `learn_explained`: the probe (self-report on
   areas with `learner.AreaReport`, then `Probe.Next/Answer` with check
   questions), map (goal-driven, lazy; concepts with definitions and
@@ -694,15 +715,39 @@ is H1 (cached-token scoring), then H3 (three-session pairs), H2
 **Step 11**: learn one real topic and tour one unfamiliar codebase end
 to end; fix what that shows.
 
+**The DAG in chat, after the verdict** (decisions to make, not builds):
+- Recall on by default: round 11 had it steer one answer wrong. Either
+  keep it and raise the floor, attach only `decision`/`concept` nodes
+  (what the map can't say), or turn it off and leave `know_find` to
+  the model.
+- What recording keeps: pointers to code largely duplicate the map
+  now; recording decisions and failed attempts would be the part that
+  adds something. Answers given from context aren't recorded at all.
+- H2 (slimming tool descriptions) is dropped: the gap it targeted is
+  gone with the map.
+
+**Before merging**
+- The user runs the branch for a day (armin-test) with the map on.
+- 9ca5739 reformatted internal/repl with gofmt (tabs), against the
+  2-space style the rest of the repo keeps: revert the formatting or
+  accept it, but don't mix. think.go has one 80+ column line from the
+  same commit.
+- docs/design/cloud-note-round7.md and cloud-note-handoff.md (the
+  channel with the armin-test copilot) were committed in 9ca5739;
+  decide whether they stay as history or go.
+- reports/ is gitignored now: the benchmark traces behind every round
+  live only on this machine.
+
 **Smaller loose ends**
-- `stt` isn't in the live config.conf yet; a branch-run config with
-  the role keys and stt sits at `config.conf.restructure` in the
-  repo root (the main-branch build ignores the role keys). The
-  whisper.cpp build is at
-  /media/henrique/partition/llm/src/whisper.cpp (whisper-cli under
-  build/bin), the model at
-  models/whisper/ggml-large-v3-turbo-q5_0.bin; add `-ng` if the
-  local minion holds the GPU. /voice is tested only with fake scripts.
+- Metrics: a tool's time includes the wait for the user's approval
+  (edit_file's 120 s max on armin-test); time the approval apart.
+- `stt` isn't in the live config.conf yet; the branch-run config with
+  the role keys and stt is `config.conf.restructure` in the repo root,
+  copied into ~/.config/armin-test by install-test.sh. The
+  whisper.cpp build is at /media/henrique/partition/llm/src/whisper.cpp
+  (whisper-cli under build/bin), the model at
+  models/whisper/ggml-large-v3-turbo-q5_0.bin; add `-ng` if the local
+  minion holds the GPU. /voice is tested only with fake scripts.
 - The treebench dump path is package-relative (resolves under
   internal/think); pass an absolute path, or make the bench
   filepath.Abs it.
@@ -718,4 +763,3 @@ to end; fix what that shows.
   headless Firefox were used to compare old and new pages pixel for
   pixel; they live only in the session scratchpad, worth adding under
   internal/web/testdata if the web keeps growing.
-
