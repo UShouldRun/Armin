@@ -114,7 +114,8 @@ func NewSenses(opts *input.Options) (*Mind, error) {
   t0 := time.Now()
   m.Symbols = ctags.New(sb.Root, opts.CtagsBin)
   m.took("senses.symbols", t0)
-  if cfg.RepoMap && opts.CtagsBin != "" {
+  // the map is for the system prompt, which -mcp never builds
+  if !cfg.NoRepoMap && opts.CtagsBin != "" && opts.Mode != input.ModeMCP {
     m.startRepoMap()
   }
 
@@ -403,7 +404,7 @@ func (m *Mind) startRepoMap() {
 }
 
 // RepoMap is the static repo map, waiting for it if it is still
-// being built; "" when repo_map is off or ctags is missing.
+// being built; "" with repo_map = off or without ctags.
 func (m *Mind) RepoMap() string {
   if m.mapReady == nil {
     return ""

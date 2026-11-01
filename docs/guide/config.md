@@ -30,18 +30,20 @@ models.coder.args        = --ctx-size 8192 --n-gpu-layers 999
 ## Repo map
 
 ```
-repo_map = on
+repo_map = off
 ```
 
-puts a static map of the project in the system prompt: its files
+leaves out the static map of the project in the system prompt: its files
 ranked by how often the rest of the project names what they define,
 each with its main definitions and their lines, in about 2k tokens
 (internal/repomap). It needs Universal Ctags (`ctags_bin`, or
 `universal-ctags` on the PATH or in ~/.local/bin). It is built in the
 background as armin starts (0.25 s on armin itself) and fixed for the
-session, so the prompt stays cacheable. Off by default; in the tree
-benchmark's round 10 it cut tool calls by 26% from the first session
-(docs/design/restructure-tree-economics.md).
+session, so the prompt stays cacheable. On by default: in the tree
+benchmark it cut tool calls by 26% from the first session (round 10),
+and the knowledge DAG on top of it broke even (round 11;
+docs/design/restructure-tree-economics.md). Without Universal Ctags
+there is no map, and nothing else changes.
 
 ## Speech
 

@@ -241,9 +241,9 @@ func apply(cfg *Config, key, value string) error {
   case "repo_map":
     switch value {
     case "on", "true", "yes":
-      cfg.RepoMap = true
+      cfg.NoRepoMap = false
     case "off", "false", "no":
-      cfg.RepoMap = false
+      cfg.NoRepoMap = true
     default:
       return fmt.Errorf("repo_map = %q: want on or off", value)
     }

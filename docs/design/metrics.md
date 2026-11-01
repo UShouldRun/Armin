@@ -127,7 +127,7 @@ in the background too. `ARMIN_STARTUP=1` prints every step.
 | `startup.<step>.ms` | each step: `senses.symbols`, `senses.library`, `models.gpu-check`, `models.chat-ready` (a hosted or already-running model), `models.catalog`, `loop.context-size`, `loop.notes`, `loop.learner`, `loop.know-open`, `loop.know-refresh` |
 | `startup.models.chat-load.ms` | loading a local chat model onto the GPU, in the background |
 | `startup.library-scan.ms` | the library's change scan, in the background |
-| `startup.repo-map.ms` | building the repo map (`repo_map = on`), in the background |
+| `startup.repo-map.ms` | building the repo map (unless `repo_map = off`), in the background |
 
 Measured on this machine: the prompt went from 3.1–5.0 s to under 5 ms;
 the 9B loads in 2.7–4.6 s behind it, and the library scan took 0.42 s
